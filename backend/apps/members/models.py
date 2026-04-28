@@ -10,7 +10,7 @@ class Member(models.Model):
     INSURANCE_STATUS_CHOICES = [
         ('valid', 'Valid'), ('due_soon', 'Due Soon'), ('expired', 'Expired'), ('missing', 'Missing'),
     ]
-    DOCS_STATUS = [
+    DOCS_STATUS_CHOICES = [
         ('complete', 'Complete'), ('pending', 'Pending'), ('missing', 'Missing'),
     ]
 
@@ -20,7 +20,7 @@ class Member(models.Model):
     phone = models.CharField(max_length=30, blank=True)
     member_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='seasonal')
     insurance_status = models.CharField(max_length=20, choices=INSURANCE_STATUS_CHOICES, default='valid')
-    docs_status = models.CharField(max_length=20, choices=DOCS_STATUS, default='complete')
+    docs_status = models.CharField(max_length=20, choices=DOCS_STATUS_CHOICES, default='complete')
     joined_at = models.DateField(null=True, blank=True)
     tags = models.JSONField(default=list, blank=True)
 
