@@ -4,6 +4,65 @@ import useSegments from '../hooks/useSegments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 
+function NewMemberModal({ onClose, onCreate }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [memberType, setMemberType] = useState('seasonal');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setErr(null);
+    try {
+      await onCreate({ name, email, phone, member_type: memberType });
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail ?? ex?.message ?? 'Save failed');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ width: 480, padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 18 }}>Add Member</div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Full Name</label>
+              <input required value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</label>
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+353 87 000 0000" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Member Type</label>
+              <select value={memberType} onChange={e => setMemberType(e.target.value)}>
+                <option value="seasonal">Seasonal</option>
+                <option value="transient">Transient</option>
+                <option value="visitor">Visitor</option>
+                <option value="staff">Staff</option>
+              </select>
+            </div>
+            {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Member'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function fmt(m) {
   const vessel = m.vessels?.[0]?.name ?? m.vessel ?? '—';
   return {
@@ -19,8 +78,9 @@ function fmt(m) {
 export default function Members() {
   const [tab, setTab] = useState('members');
   const [sel, setSel] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
 
-  const { members: raw, loading } = useMembers();
+  const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
   const { segments, loading: segsLoading } = useSegments();
 
@@ -37,7 +97,7 @@ export default function Members() {
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <div className="search"><Ic n="search" s={13} /><input placeholder="Search owner or vessel…" /></div>
-              <button className="btn btn-primary"><Ic n="plus" s={12} />Add Member</button>
+              <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic n="plus" s={12} />Add Member</button>
             </div>
             <div className="card" style={{ overflow: 'hidden' }}>
               <table className="tbl">
@@ -172,6 +232,12 @@ export default function Members() {
         </div>
       )}
 
+      {showAdd && (
+        <NewMemberModal
+          onClose={() => setShowAdd(false)}
+          onCreate={async (payload) => { await createMember(payload); setShowAdd(false); }}
+        />
+      )}
     </div>
   );
 }
