@@ -52,7 +52,7 @@ export default function Members() {
                       <td><div className="tbl-name">{m.name}</div><div className="tbl-sub">{m.email}</div></td>
                       <td style={{ fontWeight: 500 }}>{m.vessel}</td>
                       <td><StatusBadge s={m.type} /></td>
-                      <td><span style={{ fontSize: 11, fontWeight: 600, color: m.insurance === 'EXPIRED' || m.insurance === 'expired' ? 'var(--red)' : 'var(--green)' }}>{m.insurance === 'EXPIRED' || m.insurance === 'expired' ? '⚠ Expired' : '✓ ' + m.insurance}</span></td>
+                      <td><span style={{ fontSize: 11, fontWeight: 600, color: m.insurance === 'expired' ? 'var(--red)' : 'var(--green)' }}>{m.insurance === 'expired' ? '⚠ Expired' : '✓ ' + m.insurance}</span></td>
                       <td><StatusBadge s={m.docs} /></td>
                       <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.38)' }}>{m.joined}</td>
                     </tr>
@@ -71,7 +71,7 @@ export default function Members() {
               {[['Email',sel.email],['Phone',sel.phone],['Insurance',sel.insurance],['Documents',sel.docs],['Member Since',sel.joined]].map(([k,v]) => (
                 <div key={k} className="detail-row">
                   <div className="detail-key">{k}</div>
-                  <div className="detail-val" style={{ color: k==='Insurance' && (v==='EXPIRED'||v==='expired') ? 'var(--red)' : undefined }}>{v}</div>
+                  <div className="detail-val" style={{ color: k==='Insurance' && v==='expired' ? 'var(--red)' : undefined }}>{v}</div>
                 </div>
               ))}
               <div className="detail-actions">
@@ -97,7 +97,7 @@ export default function Members() {
                   <td className="tbl-name">{m.name}</td>
                   <td>{m.vessel}</td>
                   <td>{m.docs==='complete' ? <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ On file</span> : <span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Missing</span>}</td>
-                  <td>{m.insurance==='EXPIRED'||m.insurance==='expired' ? <span style={{color:'var(--red)',fontSize:11,fontWeight:600}}>✗ Expired</span> : m.docs==='missing' ? <span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Pending</span> : <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Valid</span>}</td>
+                  <td>{m.insurance==='expired' ? <span style={{color:'var(--red)',fontSize:11,fontWeight:600}}>✗ Expired</span> : m.docs==='missing' ? <span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Pending</span> : <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Valid</span>}</td>
                   <td>{m.type==='Seasonal'||m.type==='seasonal' ? <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Signed</span> : <span style={{color:'rgba(0,0,0,0.3)',fontSize:11}}>—</span>}</td>
                   <td><button className="btn btn-ghost btn-sm">Request Upload</button></td>
                 </tr>
@@ -142,7 +142,7 @@ export default function Members() {
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{seg.name}</div>
                   <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', fontFamily: 'monospace', letterSpacing: '0.2px' }}>{seg.description}</div>
                 </div>
-                <div style={{ display: 'flex', align: 'center', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy)', lineHeight: 1 }}>{seg.count}</div>
                     <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', marginTop: 2 }}>members</div>
