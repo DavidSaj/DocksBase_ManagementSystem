@@ -73,6 +73,8 @@ Member.objects.filter(marina=obj.marina, **obj.filter_params).count()
 
 This is always live and always accurate. Marina scale (dozens–hundreds of members) makes this trivially fast.
 
+`SegmentSerializer` also implements `validate_filter_params` — called automatically by DRF on POST and PUT. It checks every key in the submitted JSON against a hardcoded allowlist of safe `Member` filter fields (e.g. `member_type`, `insurance_status`, `docs_status`). Any unrecognised key raises a `serializers.ValidationError` with a descriptive message, returning a 400 before the record is written. This prevents bad data from ever reaching the database and crashing the GET endpoint.
+
 **Response shape matches what the frontend mock expects:**
 
 ```json
@@ -206,4 +208,4 @@ All tests reuse the `make_marina()` / `make_user()` helpers established in the r
 - All new models carry a `marina` FK — no cross-marina data leakage is possible
 - All new migrations use `null=True, blank=True` on new fields — zero-downtime compatible
 - No new dependencies required — existing DRF + django-filter stack is sufficient
-- `Segment.filter_params` keys must match `Member` field names exactly; invalid keys raise a 500 at read time — a future improvement would validate keys on write, but out of scope here
+- `Segment.filter_params` keys are validated on write (POST/PUT) in `SegmentSerializer.validate_filter_params`. A hardcoded allowlist of permitted `Member` filter fields is checked; any unrecognised key raises a `ValidationError` (400). This protects GET endpoints from ever seeing bad data — a corrupt segment would crash the entire Segments tab on every page load with no recovery path short of a direct DB edit.
