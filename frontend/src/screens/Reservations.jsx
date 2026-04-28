@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useBookings from '../hooks/useBookings.js';
 import useBookingRequests from '../hooks/useBookingRequests.js';
 import useVessels from '../hooks/useVessels.js';
@@ -17,6 +17,8 @@ const filterMap = {
 
 const bookingTabs = ['all', 'transient', 'seasonal', 'pending', 'overdue'];
 
+const LABEL = { fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' };
+
 function fmt(b) {
   return {
     ...b,
@@ -30,39 +32,108 @@ function fmt(b) {
   };
 }
 
-function NewBookingModal({ onClose, onCreated }) {
-  const { vessels } = useVessels();
-  const { berths }  = useBerths();
+// ---------------------------------------------------------------------------
+// SmartBookingModal
+// ---------------------------------------------------------------------------
+function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }) {
+  const { berths } = useBerths();
   const availableBerths = berths.filter(b => b.status === 'available');
 
-  const [form, setForm] = useState({
-    vessel: '', berth: '', booking_type: 'transient', check_in: '', check_out: '', notes: '',
-  });
+  // State machine
+  const [phase, setPhase] = useState('search');
+
+  // Search phase state
+  const [q, setQ] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState([]);
+  const [searchDone, setSearchDone] = useState(false);
+  const debounceRef = useRef(null);
+
+  // Shared across phases
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [guestName, setGuestName] = useState('');
+
+  // memberFound form
+  const [mForm, setMForm] = useState({ vessel: '', berth: '', booking_type: 'transient', check_in: '', check_out: '' });
+
+  // guestQuick form
+  const [qForm, setQForm] = useState({ guest_name: '', guest_phone: '', guest_loa: '', berth: '', booking_type: 'transient', check_in: '', check_out: '' });
+
+  // guestFull form
+  const [fForm, setFForm] = useState({ name: '', email: '', phone: '', vessel_name: '', loa: '', draft: '', berth: '', booking_type: 'transient', check_in: '', check_out: '' });
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  const selectedBerth = availableBerths.find(b => b.id === Number(form.berth));
-  const nights = (form.check_in && form.check_out)
-    ? Math.max(1, Math.round((new Date(form.check_out) - new Date(form.check_in)) / 86400000))
-    : null;
-  const amountPreview = (selectedBerth?.price_per_night && nights)
-    ? `€${(selectedBerth.price_per_night * nights).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`
-    : '—';
+  // Hover state for result rows
+  const [hoveredIdx, setHoveredIdx] = useState(null);
 
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  // Derived amount preview helpers
+  function amountPreview(berthId, checkIn, checkOut) {
+    const b = availableBerths.find(b => b.id === Number(berthId));
+    if (!b?.price_per_night || !checkIn || !checkOut) return '—';
+    const nights = Math.max(1, Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000));
+    return `€${(b.price_per_night * nights).toLocaleString('de-DE', { minimumFractionDigits: 2 })} (${nights} nights)`;
+  }
 
-  async function submit(e) {
-    e.preventDefault();
-    setSubmitting(true);
+  // Search debounce
+  useEffect(() => {
+    if (q.length < 2) { setResults([]); setSearchDone(false); return; }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      setSearchDone(false);
+      try {
+        const { data } = await api.get('/members/', { params: { search: q } });
+        const list = Array.isArray(data) ? data : (data.results ?? []);
+        setResults(list);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+        setSearchDone(true);
+      }
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [q]);
+
+  function pickMember(m) {
+    setSelectedMember(m);
+    setMForm({ vessel: '', berth: '', booking_type: 'transient', check_in: '', check_out: '' });
+    setPhase('memberFound');
+  }
+
+  function goGuestQuick() {
+    setQForm(f => ({ ...f, guest_name: q }));
+    setGuestName(q);
+    setPhase('guestQuick');
+  }
+
+  function goGuestFull() {
+    setFForm(f => ({ ...f, name: q }));
+    setGuestName(q);
+    setPhase('guestFull');
+  }
+
+  function resetToSearch() {
+    setPhase('search');
+    setSelectedMember(null);
+    setResults([]);
+    setSearchDone(false);
     setError(null);
+  }
+
+  // Submit: memberFound
+  async function submitMember(e) {
+    e.preventDefault();
+    setSubmitting(true); setError(null);
     try {
       const { data } = await api.post('/bookings/', {
-        vessel:       Number(form.vessel),
-        berth:        Number(form.berth),
-        booking_type: form.booking_type,
-        check_in:     form.check_in,
-        check_out:    form.check_out,
-        notes:        form.notes,
+        vessel:       Number(mForm.vessel),
+        berth:        Number(mForm.berth),
+        booking_type: mForm.booking_type,
+        check_in:     mForm.check_in,
+        check_out:    mForm.check_out,
       });
       onCreated(data);
     } catch (err) {
@@ -72,76 +143,345 @@ function NewBookingModal({ onClose, onCreated }) {
     }
   }
 
+  // Submit: guestQuick
+  async function submitGuestQuick(e) {
+    e.preventDefault();
+    setSubmitting(true); setError(null);
+    try {
+      await createRequest({
+        guest_name:   qForm.guest_name,
+        guest_phone:  qForm.guest_phone,
+        guest_loa:    qForm.guest_loa ? Number(qForm.guest_loa) : null,
+        berth:        Number(qForm.berth),
+        booking_type: qForm.booking_type,
+        start_date:   qForm.check_in,
+        end_date:     qForm.check_out,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to create guest booking.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Submit: guestFull
+  async function submitGuestFull(e) {
+    e.preventDefault();
+    setSubmitting(true); setError(null);
+    let req;
+    try {
+      req = await createRequest({
+        guest_name:   fForm.name,
+        guest_phone:  fForm.phone,
+        guest_email:  fForm.email,
+        guest_vessel: fForm.vessel_name,
+        guest_loa:    fForm.loa ? Number(fForm.loa) : null,
+        berth:        Number(fForm.berth),
+        booking_type: fForm.booking_type,
+        start_date:   fForm.check_in,
+        end_date:     fForm.check_out,
+      });
+    } catch (err) {
+      setError(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to create request.');
+      setSubmitting(false);
+      return;
+    }
+    try {
+      await convertRequest(req.id);
+      onCreated();
+    } catch (err) {
+      setError(err.response?.data ? JSON.stringify(err.response.data) : 'Request created but registration failed. You can convert from the waitlist.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Modal title
+  const titles = {
+    search:      'New Booking',
+    memberFound: selectedMember ? `New Booking — ${selectedMember.name}` : 'New Booking',
+    guestQuick:  'Guest Check-In',
+    guestFull:   'Register & Book',
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="card" style={{ width: 480, padding: 24, position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>New Booking</div>
+      <div className="card" style={{ width: 480, padding: 24, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {(phase === 'guestQuick' || phase === 'guestFull') && (
+              <button className="btn btn-ghost btn-sm" onClick={resetToSearch} style={{ padding: '3px 7px' }}>←</button>
+            )}
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{titles[phase]}</div>
+          </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={12} /></button>
         </div>
-        <form onSubmit={submit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Vessel
-              <select className="input" value={form.vessel} onChange={e => set('vessel', e.target.value)} required style={{ marginTop: 4, width: '100%' }}>
-                <option value="">Select vessel…</option>
-                {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </label>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Berth (available only)
-              <select className="input" value={form.berth} onChange={e => set('berth', e.target.value)} required style={{ marginTop: 4, width: '100%' }}>
-                <option value="">Select berth…</option>
-                {availableBerths.map(b => (
-                  <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>
+
+        {error && (
+          <div style={{ fontSize: 12, color: 'var(--red)', padding: '8px 12px', background: '#fff5f5', borderRadius: 6, marginBottom: 12 }}>{error}</div>
+        )}
+
+        {/* ── PHASE: search ── */}
+        {phase === 'search' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={LABEL}>Search by name or email</label>
+            <input
+              className="input"
+              placeholder="Search by name or email…"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              autoFocus
+              style={{ width: '100%' }}
+            />
+
+            {q.length >= 2 && searching && (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 2px' }}>Searching…</div>
+            )}
+
+            {q.length >= 2 && !searching && results.length > 0 && (
+              <div style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                {results.map((m, i) => (
+                  <div
+                    key={m.id}
+                    style={{ padding: '10px 14px', cursor: 'pointer', background: hoveredIdx === i ? '#f5f8ff' : '#fff', borderBottom: i < results.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}
+                    onMouseEnter={() => setHoveredIdx(i)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                    onClick={() => pickMember(m)}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{m.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{m.email}</div>
+                  </div>
                 ))}
-              </select>
-            </label>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Type
-              <select className="input" value={form.booking_type} onChange={e => set('booking_type', e.target.value)} style={{ marginTop: 4, width: '100%' }}>
-                <option value="transient">Transient</option>
-                <option value="seasonal">Seasonal</option>
-              </select>
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600 }}>
-                Check-in
-                <input type="date" className="input" value={form.check_in} onChange={e => set('check_in', e.target.value)} required style={{ marginTop: 4, width: '100%' }} />
-              </label>
-              <label style={{ fontSize: 12, fontWeight: 600 }}>
-                Check-out
-                <input type="date" className="input" value={form.check_out} onChange={e => set('check_out', e.target.value)} required style={{ marginTop: 4, width: '100%' }} />
-              </label>
-            </div>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Notes
-              <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} style={{ marginTop: 4, width: '100%', resize: 'vertical' }} />
-            </label>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f5f8ff', borderRadius: 6 }}>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Estimated amount {nights ? `(${nights} nights)` : ''}</span>
-              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{amountPreview}</span>
-            </div>
-            {error && <div style={{ fontSize: 12, color: 'var(--red)', padding: '8px 12px', background: '#fff5f5', borderRadius: 6 }}>{error}</div>}
-            <button type="submit" className="btn btn-primary" disabled={submitting} style={{ justifyContent: 'center' }}>
-              {submitting ? 'Creating…' : 'Create Booking'}
-            </button>
+              </div>
+            )}
+
+            {q.length >= 2 && !searching && searchDone && results.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '4px 2px' }}>No results for &ldquo;{q}&rdquo;</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={goGuestQuick}>+ Continue as Guest</button>
+                  <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={goGuestFull}>+ Register New Member &amp; Vessel</button>
+                </div>
+              </div>
+            )}
           </div>
-        </form>
+        )}
+
+        {/* ── PHASE: memberFound ── */}
+        {phase === 'memberFound' && selectedMember && (
+          <form onSubmit={submitMember}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Member card */}
+              <div style={{ background: '#f5f8ff', borderRadius: 8, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{selectedMember.name}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{selectedMember.email}</div>
+                </div>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={resetToSearch} style={{ fontSize: 11 }}>✕ Change</button>
+              </div>
+
+              <label style={LABEL}>
+                Vessel
+                {selectedMember.vessels?.length > 0 ? (
+                  <select className="input" value={mForm.vessel} onChange={e => setMForm(f => ({ ...f, vessel: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                    <option value="">Select vessel…</option>
+                    {selectedMember.vessels.map(v => <option key={v.id} value={v.id}>{v.name}{v.loa ? ` (${v.loa}m)` : ''}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(0,0,0,0.35)', fontWeight: 400 }}>No vessels on record</div>
+                )}
+              </label>
+
+              <label style={LABEL}>
+                Berth (available only)
+                <select className="input" value={mForm.berth} onChange={e => setMForm(f => ({ ...f, berth: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                  <option value="">Select berth…</option>
+                  {availableBerths.map(b => <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>)}
+                </select>
+              </label>
+
+              <label style={LABEL}>
+                Type
+                <select className="input" value={mForm.booking_type} onChange={e => setMForm(f => ({ ...f, booking_type: e.target.value }))} style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                  <option value="transient">Transient</option>
+                  <option value="seasonal">Seasonal</option>
+                </select>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label style={LABEL}>
+                  Check-in
+                  <input type="date" className="input" value={mForm.check_in} onChange={e => setMForm(f => ({ ...f, check_in: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+                <label style={LABEL}>
+                  Check-out
+                  <input type="date" className="input" value={mForm.check_out} onChange={e => setMForm(f => ({ ...f, check_out: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f5f8ff', borderRadius: 6 }}>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Estimated amount</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{amountPreview(mForm.berth, mForm.check_in, mForm.check_out)}</span>
+              </div>
+
+              <button type="submit" className="btn btn-primary" disabled={submitting || !selectedMember.vessels?.length} style={{ justifyContent: 'center' }}>
+                {submitting ? 'Creating…' : 'Create Booking'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ── PHASE: guestQuick ── */}
+        {phase === 'guestQuick' && (
+          <form onSubmit={submitGuestQuick}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: '#f5f5f5', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+                Guest booking — no member profile will be created. You can convert this later.
+              </div>
+
+              <label style={LABEL}>
+                Guest Name
+                <input className="input" value={qForm.guest_name} onChange={e => setQForm(f => ({ ...f, guest_name: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+              </label>
+
+              <label style={LABEL}>
+                Phone
+                <input className="input" type="tel" value={qForm.guest_phone} onChange={e => setQForm(f => ({ ...f, guest_phone: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+              </label>
+
+              <label style={LABEL}>
+                Boat Length (m)
+                <input className="input" type="number" step="0.1" min="0" value={qForm.guest_loa} onChange={e => setQForm(f => ({ ...f, guest_loa: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+              </label>
+
+              <label style={LABEL}>
+                Berth (available only)
+                <select className="input" value={qForm.berth} onChange={e => setQForm(f => ({ ...f, berth: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                  <option value="">Select berth…</option>
+                  {availableBerths.map(b => <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>)}
+                </select>
+              </label>
+
+              <label style={LABEL}>
+                Type
+                <select className="input" value={qForm.booking_type} onChange={e => setQForm(f => ({ ...f, booking_type: e.target.value }))} style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                  <option value="transient">Transient</option>
+                  <option value="seasonal">Seasonal</option>
+                </select>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label style={LABEL}>
+                  Check-in
+                  <input type="date" className="input" value={qForm.check_in} onChange={e => setQForm(f => ({ ...f, check_in: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+                <label style={LABEL}>
+                  Check-out
+                  <input type="date" className="input" value={qForm.check_out} onChange={e => setQForm(f => ({ ...f, check_out: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+              </div>
+
+              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ justifyContent: 'center' }}>
+                {submitting ? 'Saving…' : 'Create Guest Booking'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ── PHASE: guestFull ── */}
+        {phase === 'guestFull' && (
+          <form onSubmit={submitGuestFull}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Section 1: New Member */}
+              <div style={LABEL}>New Member</div>
+              <label style={LABEL}>
+                Name
+                <input className="input" value={fForm.name} onChange={e => setFForm(f => ({ ...f, name: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+              </label>
+              <label style={LABEL}>
+                Email
+                <input className="input" type="email" value={fForm.email} onChange={e => setFForm(f => ({ ...f, email: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+              </label>
+              <label style={LABEL}>
+                Phone
+                <input className="input" type="tel" value={fForm.phone} onChange={e => setFForm(f => ({ ...f, phone: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+              </label>
+
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.08)', margin: '4px 0' }} />
+
+              {/* Section 2: Their Vessel */}
+              <div style={LABEL}>Their Vessel</div>
+              <label style={LABEL}>
+                Vessel Name
+                <input className="input" value={fForm.vessel_name} onChange={e => setFForm(f => ({ ...f, vessel_name: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label style={LABEL}>
+                  LOA (m)
+                  <input className="input" type="number" step="0.1" min="0" value={fForm.loa} onChange={e => setFForm(f => ({ ...f, loa: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+                </label>
+                <label style={LABEL}>
+                  Draft (m)
+                  <input className="input" type="number" step="0.01" min="0" value={fForm.draft} onChange={e => setFForm(f => ({ ...f, draft: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+                </label>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.08)', margin: '4px 0' }} />
+
+              <label style={LABEL}>
+                Berth (available only)
+                <select className="input" value={fForm.berth} onChange={e => setFForm(f => ({ ...f, berth: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                  <option value="">Select berth…</option>
+                  {availableBerths.map(b => <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>)}
+                </select>
+              </label>
+
+              <label style={LABEL}>
+                Type
+                <select className="input" value={fForm.booking_type} onChange={e => setFForm(f => ({ ...f, booking_type: e.target.value }))} style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
+                  <option value="transient">Transient</option>
+                  <option value="seasonal">Seasonal</option>
+                </select>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label style={LABEL}>
+                  Check-in
+                  <input type="date" className="input" value={fForm.check_in} onChange={e => setFForm(f => ({ ...f, check_in: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+                <label style={LABEL}>
+                  Check-out
+                  <input type="date" className="input" value={fForm.check_out} onChange={e => setFForm(f => ({ ...f, check_out: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+              </div>
+
+              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ justifyContent: 'center' }}>
+                {submitting ? 'Registering & booking…' : 'Register & Create Booking'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Reservations screen
+// ---------------------------------------------------------------------------
 export default function Reservations() {
   const [tab, setTab] = useState('all');
   const [sel, setSel] = useState(null);
+  const [selReq, setSelReq] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
   const { bookings, loading, updateBooking, refetch } = useBookings(
     bookingTabs.includes(tab) ? filterMap[tab] : {}
   );
-  const { requests, loading: wlLoading, convertRequest } = useBookingRequests(
+  const { requests, loading: wlLoading, convertRequest, createRequest } = useBookingRequests(
     tab === 'waitlist' ? { status: 'pending' } : {}
   );
 
@@ -152,16 +492,20 @@ export default function Reservations() {
     setSel(prev => prev?.id === b.id ? { ...prev, paid: true, status: 'checked_in' } : prev);
   }
 
-  async function offerBerth(id) {
+  async function handleConvert(id) {
     await convertRequest(id);
+    setSelReq(null);
+    // convertRequest already calls refetch internally
   }
 
   return (
     <div>
       {showModal && (
-        <NewBookingModal
+        <SmartBookingModal
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); refetch(); }}
+          createRequest={createRequest}
+          convertRequest={convertRequest}
         />
       )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
@@ -170,7 +514,7 @@ export default function Reservations() {
       </div>
       <div className="tabs">
         {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending','Pending'],['overdue','Overdue'],['waitlist','Wait List']].map(([v,l]) => (
-          <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => { setTab(v); setSel(null); }}>{l}</div>
+          <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => { setTab(v); setSel(null); setSelReq(null); }}>{l}</div>
         ))}
       </div>
 
@@ -234,33 +578,81 @@ export default function Reservations() {
               <span className="badge badge-navy">{requests.length}</span>
             </div>
           </div>
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <table className="tbl">
-              <thead><tr><th>Applicant / Vessel</th><th>LOA</th><th>Berth Requested</th><th>Dates</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr></thead>
-              <tbody>
-                {wlLoading ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</td></tr>
-                ) : requests.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No pending requests.</td></tr>
-                ) : requests.map(w => (
-                  <tr key={w.id}>
-                    <td>
-                      <div className="tbl-name">{w.member_name || w.guest_name || '—'}</div>
-                      <div className="tbl-sub">{w.vessel_name || w.guest_vessel || '—'}</div>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{w.guest_loa ? `${w.guest_loa}m` : '—'}</td>
-                    <td style={{ fontWeight: 600, color: 'var(--navy)' }}>{w.berth_code}</td>
-                    <td style={{ fontSize: 12 }}>{w.start_date} → {w.end_date}</td>
-                    <td><span className="badge badge-navy">{w.booking_type}</span></td>
-                    <td><StatusBadge s={w.status} /></td>
-                    <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{w.notes || '—'}</td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-primary btn-sm" onClick={() => offerBerth(w.id)}>Offer Berth</button>
-                    </td>
-                  </tr>
+          <div style={{ display: 'grid', gridTemplateColumns: selReq ? '1fr 300px' : '1fr', gap: 16, alignItems: 'start' }}>
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <table className="tbl">
+                <thead><tr><th>Applicant / Vessel</th><th>LOA</th><th>Berth Requested</th><th>Dates</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+                <tbody>
+                  {wlLoading ? (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</td></tr>
+                  ) : requests.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No pending requests.</td></tr>
+                  ) : requests.map(w => (
+                    <tr
+                      key={w.id}
+                      style={{ cursor: 'pointer', background: selReq?.id === w.id ? '#f5f8ff' : '' }}
+                      onClick={() => setSelReq(w)}
+                    >
+                      <td>
+                        <div className="tbl-name">{w.member_name || w.guest_name || '—'}</div>
+                        <div className="tbl-sub">{w.vessel_name || w.guest_vessel || '—'}</div>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{w.guest_loa ? `${w.guest_loa}m` : '—'}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--navy)' }}>{w.berth_code}</td>
+                      <td style={{ fontSize: 12 }}>{w.start_date} → {w.end_date}</td>
+                      <td><span className="badge badge-navy">{w.booking_type}</span></td>
+                      <td><StatusBadge s={w.status} /></td>
+                      <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{w.notes || '—'}</td>
+                      <td>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={e => { e.stopPropagation(); setSelReq(w); }}
+                        >
+                          Convert →
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {selReq && (
+              <div className="detail">
+                {selReq.guest_name && !selReq.booking && (
+                  <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Guest booking — not yet registered</div>
+                    <button
+                      className="btn btn-primary"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                      onClick={() => handleConvert(selReq.id)}
+                    >
+                      👤 Convert to Registered Member
+                    </button>
+                  </div>
+                )}
+                <div className="detail-title">{selReq.member_name || selReq.guest_name || '—'}</div>
+                <div className="detail-sub">{selReq.vessel_name || selReq.guest_vessel || '—'}</div>
+                {[
+                  ['Phone', selReq.guest_phone || '—'],
+                  ['Email', selReq.guest_email || '—'],
+                  ['LOA', selReq.guest_loa ? `${selReq.guest_loa}m` : '—'],
+                  ['Berth', selReq.berth_code || '—'],
+                  ['Dates', `${selReq.start_date} → ${selReq.end_date}`],
+                  ['Type', selReq.booking_type],
+                  ['Status', selReq.status],
+                  ['Notes', selReq.notes || '—'],
+                ].map(([k, v]) => (
+                  <div key={k} className="detail-row">
+                    <div className="detail-key">{k}</div>
+                    <div className="detail-val">{v}</div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+                <div className="detail-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setSelReq(null)}>Close</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
