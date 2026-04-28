@@ -136,6 +136,16 @@ class VesselCertificateTest(TestCase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]['cert_type'], 'ssr')
 
+    def test_cert_list_returns_404_for_foreign_vessel(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_vessel = Vessel.objects.create(marina=other_marina, name='Foreign Vessel')
+        VesselCertificate.objects.create(
+            marina=other_marina, vessel=other_vessel,
+            cert_type='ssr', name='SSR', status='valid',
+        )
+        resp = self.client.get(f'/api/v1/vessels/{other_vessel.id}/certificates/')
+        self.assertEqual(resp.status_code, 404)
+
     def test_update_cert(self):
         cert = VesselCertificate.objects.create(
             marina=self.marina, vessel=self.vessel,

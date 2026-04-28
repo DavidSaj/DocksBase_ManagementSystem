@@ -23,7 +23,7 @@ class VesselDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = VesselSerializer
 
     def get_queryset(self):
-        return Vessel.objects.filter(marina=self.request.user.marina)
+        return Vessel.objects.filter(marina=self.request.user.marina).select_related('insurance', 'safety', 'owner')
 
 
 class VesselInsuranceView(generics.RetrieveUpdateAPIView):
@@ -50,6 +50,7 @@ class VesselCertificateListView(generics.ListCreateAPIView):
     serializer_class = VesselCertificateSerializer
 
     def get_queryset(self):
+        get_object_or_404(Vessel, pk=self.kwargs['pk'], marina=self.request.user.marina)
         return VesselCertificate.objects.filter(
             marina=self.request.user.marina,
             vessel_id=self.kwargs['pk'],
@@ -60,7 +61,7 @@ class VesselCertificateListView(generics.ListCreateAPIView):
         serializer.save(marina=self.request.user.marina, vessel=vessel)
 
 
-class VesselCertificateDetailView(generics.RetrieveUpdateAPIView):
+class VesselCertificateDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = VesselCertificateSerializer
 
     def get_object(self):

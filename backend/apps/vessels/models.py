@@ -82,7 +82,7 @@ class VesselCertificate(models.Model):
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='vessel_certificates')
     vessel = models.ForeignKey(Vessel, on_delete=models.CASCADE, related_name='certificates')
-    cert_type = models.CharField(max_length=20, choices=CERT_TYPE_CHOICES, default='other')
+    cert_type = models.CharField(max_length=30, choices=CERT_TYPE_CHOICES, default='other')
     name = models.CharField(max_length=200)
     issued = models.DateField(null=True, blank=True)
     expires = models.DateField(null=True, blank=True)
