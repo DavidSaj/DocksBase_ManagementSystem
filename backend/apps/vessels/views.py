@@ -57,6 +57,7 @@ class VesselCertificateListView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
+        # get_queryset's ownership check does not run on create; this is the authoritative write gate.
         vessel = get_object_or_404(Vessel, pk=self.kwargs['pk'], marina=self.request.user.marina)
         serializer.save(marina=self.request.user.marina, vessel=vessel)
 

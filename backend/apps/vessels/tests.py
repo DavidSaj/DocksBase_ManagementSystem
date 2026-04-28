@@ -158,3 +158,12 @@ class VesselCertificateTest(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'due_soon')
+
+    def test_delete_cert(self):
+        cert = VesselCertificate.objects.create(
+            marina=self.marina, vessel=self.vessel,
+            cert_type='ssr', name='SSR', status='valid'
+        )
+        resp = self.client.delete(f'/api/v1/vessels/{self.vessel.id}/certificates/{cert.id}/')
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(VesselCertificate.objects.filter(pk=cert.id).exists())

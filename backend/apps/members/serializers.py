@@ -32,7 +32,7 @@ class SegmentSerializer(serializers.ModelSerializer):
         from django.core.exceptions import FieldError
         try:
             return Member.objects.filter(marina=obj.marina, **obj.filter_params).count()
-        except (FieldError, ValueError):
+        except (FieldError, TypeError, ValueError):
             return None
 
     def validate_filter_params(self, value):

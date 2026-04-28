@@ -35,7 +35,7 @@ class SegmentListCreateView(generics.ListCreateAPIView):
         serializer.save(marina=self.request.user.marina)
 
 
-class SegmentDetailView(generics.RetrieveUpdateAPIView):
+class SegmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SegmentSerializer
 
     def get_queryset(self):

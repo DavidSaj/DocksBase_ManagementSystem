@@ -89,5 +89,8 @@ class VesselCertificate(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='valid')
     notes = models.TextField(blank=True)
 
+    class Meta:
+        ordering = ['id']
+
     def __str__(self):
         return f'{self.name} — {self.vessel}'

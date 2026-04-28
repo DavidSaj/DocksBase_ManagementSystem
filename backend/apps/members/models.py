@@ -42,6 +42,7 @@ class Member(models.Model):
         return self.name
 
 
+# JSONField lookups (e.g. tags__contains) require lookup expressions and are excluded intentionally.
 ALLOWED_SEGMENT_FILTER_KEYS = {'member_type', 'insurance_status', 'docs_status'}
 
 

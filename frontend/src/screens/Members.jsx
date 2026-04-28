@@ -144,7 +144,7 @@ export default function Members() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy)', lineHeight: 1 }}>{seg.count}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy)', lineHeight: 1 }}>{seg.count ?? '—'}</div>
                     <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', marginTop: 2 }}>members</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
