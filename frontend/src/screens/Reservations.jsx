@@ -259,14 +259,16 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
             )}
 
             {q.length >= 2 && !searching && searchDone && results.length === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '4px 2px' }}>No results for &ldquo;{q}&rdquo;</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={goGuestQuick}>+ Continue as Guest</button>
-                  <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={goGuestFull}>+ Register New Member &amp; Vessel</button>
-                </div>
-              </div>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '4px 2px' }}>No results for &ldquo;{q}&rdquo;</div>
             )}
+
+            <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 8 }}>Or add without searching:</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={goGuestQuick}>+ Continue as Guest</button>
+                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={goGuestFull}>+ Register New Member &amp; Vessel</button>
+              </div>
+            </div>
           </div>
         )}
 
