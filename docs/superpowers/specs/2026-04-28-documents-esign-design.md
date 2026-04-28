@@ -119,40 +119,49 @@ DROPBOX_SIGN_WEBHOOK_SECRET = env('DROPBOX_SIGN_WEBHOOK_SECRET', default='')
 
 Added to `backend/.env.example`.
 
+### Multi-Tenancy in Webhooks (Critical)
+
+Dropbox Sign webhooks are fired against a single API account shared across all marinas. The webhook payload identifies a `signature_request_id` or `template_id` but carries no inherent marina context. A naive `Envelope.objects.get(dropboxsign_request_id=...)` lookup crosses tenant boundaries — violating the strict marina isolation rule applied everywhere else in the codebase.
+
+**Fix: inject `marina_id` as Dropbox Sign metadata on every outbound API call**, then extract and verify it on every inbound webhook before any DB write.
+
 ### Template Setup Flow (one-time per document type)
 
 1. Manager uploads PDF → `POST /api/v1/doc-templates/` → file saved to `MEDIA_ROOT/doc_templates/`
 2. Manager clicks "Prepare for eSign" → `POST /api/v1/doc-templates/<pk>/prepare/`
-3. Backend calls `dropbox_sign.TemplateApi.create_embedded_template_draft()` with the PDF file
+3. Backend calls `dropbox_sign.TemplateApi.create_embedded_template_draft()` with the PDF file and `metadata={"marina_id": str(template.marina_id), "template_pk": str(template.pk)}`
 4. Dropbox Sign returns `edit_url` → backend returns it to frontend
 5. Frontend opens `edit_url` in a new browser tab
 6. Manager drags Signature + Date fields onto the PDF, hits Save
 7. Dropbox Sign fires `template_created` webhook → `POST /api/v1/documents/webhook/`
-8. Backend saves `dropboxsign_template_id` onto the `DocTemplate`
+8. Backend extracts `marina_id` and `template_pk` from webhook metadata, looks up `DocTemplate.objects.get(pk=template_pk, marina_id=marina_id)` — marina-scoped — and saves `dropboxsign_template_id`
 
 ### Send Contract Flow
 
 1. Manager selects template + member → `POST /api/v1/envelopes/`
-2. Backend calls `dropbox_sign.SignatureRequestApi.send_with_template()` with `template_id`, member name + email, optional `expires_at`
+2. Backend calls `dropbox_sign.SignatureRequestApi.send_with_template()` with `template_id`, member name + email, optional `expires_at`, and **`metadata={"marina_id": str(envelope.marina_id), "envelope_pk": str(envelope.pk)}`**
 3. Dropbox Sign sends the boater a signing email with their hosted signing link
 4. Backend saves `dropboxsign_request_id`, `status = pending`
 5. Boater taps link on phone → signs on Dropbox Sign's mobile-optimised hosted page
 6. Dropbox Sign fires `signature_request_all_signed` webhook
-7. Backend verifies HMAC, marks `Envelope.status = completed`, sets `completed_at = now()`
+7. Backend extracts `marina_id` and `envelope_pk` from metadata, looks up `Envelope.objects.get(pk=envelope_pk, marina_id=marina_id)` — marina-scoped — marks `status = completed`, `completed_at = now()`
 8. Signed PDF is permanently stored by Dropbox Sign — retrievable via `signature_request_id`
 
 ### Download Signed PDF
 
-`GET /api/v1/envelopes/<pk>/download/` → backend calls `SignatureRequestApi.get()` to fetch the signed PDF URL → returns it as a redirect or JSON `{ url }`. The URL is short-lived.
+`GET /api/v1/envelopes/<pk>/download/` → JWT-authenticated, scoped to `request.user.marina` → backend calls `SignatureRequestApi.get()` to fetch the signed PDF URL → returns it as a redirect or JSON `{ url }`. The URL is short-lived.
 
 ### Webhook Handler
 
 `POST /api/v1/documents/webhook/` is public (no JWT). Dropbox Sign signs the payload with an HMAC key. Handler:
-1. Verifies HMAC against `DROPBOX_SIGN_WEBHOOK_SECRET`
-2. Dispatches on `event.event_type`:
-   - `template_created` → update `DocTemplate.dropboxsign_template_id`
-   - `signature_request_all_signed` → update `Envelope.status = completed`, `completed_at`
-3. Returns `{"hash": "..."}` (Dropbox Sign requires this exact acknowledgement)
+
+1. Verifies HMAC against `DROPBOX_SIGN_WEBHOOK_SECRET` — rejects with 400 if invalid
+2. Extracts `marina_id` from `event.signature_request.metadata` (or `event.template.metadata`) — rejects with 400 if missing
+3. Dispatches on `event.event_type`:
+   - `template_created` → `DocTemplate.objects.get(pk=metadata['template_pk'], marina_id=marina_id)` → saves `dropboxsign_template_id`
+   - `signature_request_all_signed` → `Envelope.objects.get(pk=metadata['envelope_pk'], marina_id=marina_id)` → sets `status = completed`, `completed_at`
+4. All DB lookups are double-keyed by both the record PK **and** `marina_id` — a spoofed or replayed webhook with a mismatched marina cannot update any record
+5. Returns `{"hash": "..."}` (Dropbox Sign requires this exact acknowledgement)
 
 ---
 
