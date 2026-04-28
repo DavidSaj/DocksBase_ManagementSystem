@@ -7,7 +7,7 @@ class Member(models.Model):
         ('transient', 'Transient'),
         ('associate', 'Associate'),
     ]
-    INSURANCE_STATUS = [
+    INSURANCE_STATUS_CHOICES = [
         ('valid', 'Valid'), ('due_soon', 'Due Soon'), ('expired', 'Expired'), ('missing', 'Missing'),
     ]
     DOCS_STATUS = [
@@ -19,7 +19,7 @@ class Member(models.Model):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     member_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='seasonal')
-    insurance_status = models.CharField(max_length=20, choices=INSURANCE_STATUS, default='valid')
+    insurance_status = models.CharField(max_length=20, choices=INSURANCE_STATUS_CHOICES, default='valid')
     docs_status = models.CharField(max_length=20, choices=DOCS_STATUS, default='complete')
     joined_at = models.DateField(null=True, blank=True)
     tags = models.JSONField(default=list, blank=True)
@@ -35,6 +35,9 @@ class Member(models.Model):
     emergency_relationship = models.CharField(max_length=100, blank=True)
     emergency_phone = models.CharField(max_length=50, blank=True)
 
+    class Meta:
+        ordering = ['name']
+
     def __str__(self):
         return self.name
 
@@ -47,6 +50,9 @@ class Segment(models.Model):
     name = models.CharField(max_length=200)
     description = models.CharField(max_length=500, blank=True)
     filter_params = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ['name']
 
     def __str__(self):
         return self.name

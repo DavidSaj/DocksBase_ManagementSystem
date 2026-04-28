@@ -29,7 +29,11 @@ class SegmentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
     def get_count(self, obj):
-        return Member.objects.filter(marina=obj.marina, **obj.filter_params).count()
+        from django.core.exceptions import FieldError
+        try:
+            return Member.objects.filter(marina=obj.marina, **obj.filter_params).count()
+        except (FieldError, ValueError):
+            return None
 
     def validate_filter_params(self, value):
         invalid = set(value.keys()) - ALLOWED_SEGMENT_FILTER_KEYS

@@ -22,7 +22,7 @@ class MemberDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = MemberSerializer
 
     def get_queryset(self):
-        return Member.objects.filter(marina=self.request.user.marina)
+        return Member.objects.filter(marina=self.request.user.marina).prefetch_related('vessels')
 
 
 class SegmentListCreateView(generics.ListCreateAPIView):
