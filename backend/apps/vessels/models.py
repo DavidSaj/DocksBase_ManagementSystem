@@ -31,6 +31,9 @@ class Vessel(models.Model):
     owner = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='vessels')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['name']
+
     def __str__(self):
         return f'{self.name} ({self.reg})'
 
