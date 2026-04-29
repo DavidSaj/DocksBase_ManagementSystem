@@ -173,3 +173,205 @@ class SerializerTest(TestCase):
         data = ContractorSerializer(c).data
         self.assertIn('trade', data)
         self.assertIn('access_end', data)
+
+
+from rest_framework.test import APIClient
+
+
+class HaulOutViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.vessel = make_vessel(self.marina)
+        self.user = make_user(self.marina, 'haul@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_list_scoped_to_marina(self):
+        HaulOut.objects.create(marina=self.marina, vessel=self.vessel, scheduled_at='2026-05-01T09:00:00Z')
+        other = Marina.objects.create(name='Other')
+        other_vessel = Vessel.objects.create(marina=other, name='Other Vessel')
+        HaulOut.objects.create(marina=other, vessel=other_vessel, scheduled_at='2026-05-01T09:00:00Z')
+        resp = self.client.get('/api/v1/haul-outs/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.data.get('results', resp.data)
+        self.assertEqual(len(data), 1)
+
+    def test_patch_status(self):
+        ho = HaulOut.objects.create(marina=self.marina, vessel=self.vessel, scheduled_at='2026-05-01T09:00:00Z')
+        resp = self.client.patch(f'/api/v1/haul-outs/{ho.pk}/', {'status': 'completed'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        ho.refresh_from_db()
+        self.assertEqual(ho.status, 'completed')
+
+
+class StorageSlotViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.vessel = make_vessel(self.marina)
+        self.user = make_user(self.marina, 'slot@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create_slot(self):
+        resp = self.client.post('/api/v1/storage-slots/', {
+            'lane': 'Lane 1', 'col': 'A', 'tier': 1
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['tier'], 1)
+
+    def test_assign_vessel(self):
+        slot = StorageSlot.objects.create(marina=self.marina, lane='Lane 1', col='A', tier=1)
+        resp = self.client.patch(f'/api/v1/storage-slots/{slot.pk}/', {'vessel': self.vessel.pk}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        slot.refresh_from_db()
+        self.assertEqual(slot.vessel, self.vessel)
+
+    def test_clear_vessel(self):
+        slot = StorageSlot.objects.create(marina=self.marina, lane='Lane 1', col='A', tier=1, vessel=self.vessel)
+        resp = self.client.patch(f'/api/v1/storage-slots/{slot.pk}/', {'vessel': None}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        slot.refresh_from_db()
+        self.assertIsNone(slot.vessel)
+
+
+class LaunchRequestViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.vessel = make_vessel(self.marina)
+        self.user = make_user(self.marina, 'launch@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create(self):
+        resp = self.client.post('/api/v1/launch-requests/', {
+            'vessel': self.vessel.pk, 'equipment': 'Forklift'
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['status'], 'pending')
+
+    def test_status_transitions(self):
+        lr = LaunchRequest.objects.create(marina=self.marina, vessel=self.vessel)
+        for status in ['scheduled', 'launching', 'retrieved']:
+            resp = self.client.patch(f'/api/v1/launch-requests/{lr.pk}/', {'status': status}, format='json')
+            self.assertEqual(resp.status_code, 200)
+        lr.refresh_from_db()
+        self.assertEqual(lr.status, 'retrieved')
+
+
+class WorkOrderViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina, 'wo@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create(self):
+        resp = self.client.post('/api/v1/work-orders/', {
+            'title': 'Engine overhaul', 'priority': 'high'
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['status'], 'pending_auth')
+
+    def test_authorise(self):
+        wo = WorkOrder.objects.create(marina=self.marina, title='Fix keel')
+        resp = self.client.patch(f'/api/v1/work-orders/{wo.pk}/', {'status': 'authorised'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, 'authorised')
+
+    def test_list_scoped(self):
+        WorkOrder.objects.create(marina=self.marina, title='WO A')
+        other = Marina.objects.create(name='Other2')
+        WorkOrder.objects.create(marina=other, title='WO B')
+        resp = self.client.get('/api/v1/work-orders/')
+        data = resp.data.get('results', resp.data)
+        self.assertEqual(len(data), 1)
+
+
+class PartViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina, 'parts@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create(self):
+        resp = self.client.post('/api/v1/parts/', {
+            'name': 'Anchor Shackle', 'stock': 12, 'par': 5
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+
+    def test_list_scoped(self):
+        Part.objects.create(marina=self.marina, name='Shackle')
+        other = Marina.objects.create(name='Other3')
+        Part.objects.create(marina=other, name='Other Shackle')
+        resp = self.client.get('/api/v1/parts/')
+        data = resp.data.get('results', resp.data)
+        self.assertEqual(len(data), 1)
+
+
+class ToolViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina, 'tools@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create_with_serial(self):
+        resp = self.client.post('/api/v1/tools/', {
+            'name': 'Torque Wrench', 'serial': 'TW-99', 'location': 'Bay A'
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['serial'], 'TW-99')
+
+    def test_check_out(self):
+        tool = Tool.objects.create(marina=self.marina, name='Drill')
+        resp = self.client.patch(f'/api/v1/tools/{tool.pk}/', {
+            'status': 'checked_out', 'checked_out_to': 'J. Smith'
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        tool.refresh_from_db()
+        self.assertEqual(tool.checked_out_to, 'J. Smith')
+
+    def test_return_clears_checked_out_to(self):
+        tool = Tool.objects.create(
+            marina=self.marina, name='Drill',
+            status='checked_out', checked_out_to='J. Smith'
+        )
+        resp = self.client.patch(f'/api/v1/tools/{tool.pk}/', {
+            'status': 'available', 'checked_out_to': ''
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        tool.refresh_from_db()
+        self.assertEqual(tool.checked_out_to, '')
+
+
+class ContractorViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina, 'contractors@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create(self):
+        resp = self.client.post('/api/v1/contractors/', {
+            'name': 'Hughes Marine', 'trade': 'Mechanics',
+            'access_start': '2026-05-01'
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+
+    def test_delete(self):
+        c = Contractor.objects.create(
+            marina=self.marina, name='Hughes Marine', access_start='2026-05-01'
+        )
+        resp = self.client.delete(f'/api/v1/contractors/{c.pk}/')
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(Contractor.objects.filter(pk=c.pk).exists())
+
+    def test_list_scoped(self):
+        Contractor.objects.create(marina=self.marina, name='Contractor A', access_start='2026-05-01')
+        other = Marina.objects.create(name='Other4')
+        Contractor.objects.create(marina=other, name='Contractor B', access_start='2026-05-01')
+        resp = self.client.get('/api/v1/contractors/')
+        data = resp.data.get('results', resp.data)
+        self.assertEqual(len(data), 1)
