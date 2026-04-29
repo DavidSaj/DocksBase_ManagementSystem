@@ -17,7 +17,10 @@
 
 | Concern | Decision |
 |---|---|
-| Dry Storage slots | DB record per slot — flexible, manager can configure lane/column layout |
+| Dry Storage slots | DB record per slot — flexible, manager can configure lane/column/tier layout |
+| Dry Storage dimensionality | 3D — lane + col + tier. tier=1 is ground, tier=2 middle, tier=3 top |
+| Blocked slot rule | Slot at tier N is blocked if same lane+col at tier N-1 has a vessel assigned |
+| Weather Hold | Persisted on `Marina` model as `operations_paused` BooleanField — marina-wide, syncs to all devices |
 | Facility Log | Reuses `Asset` model from `maintenance` app — no duplication |
 | Work Orders | Live in `boatyard` app — vessel work, not marina infrastructure |
 | Tool check-out | Simple CharField `checked_out_to` — no separate check-out event model |
@@ -34,11 +37,15 @@ StorageSlot
   marina       ForeignKey → accounts.Marina (CASCADE)
   lane         CharField(max_length=50)        — e.g. "Lane 1"
   col          CharField(max_length=10)        — e.g. "A"
+  tier         IntegerField(default=1)         — 1=Ground, 2=Middle, 3=Top
   vessel       ForeignKey → vessels.Vessel (SET_NULL, null=True, blank=True)
 
-  Meta.ordering = ['lane', 'col']
-  __str__ = f"{lane}-{col}"
+  Meta.ordering = ['lane', 'col', 'tier']
+  unique_together = [('marina', 'lane', 'col', 'tier')]
+  __str__ = f"{lane}-{col}-T{tier}"
 ```
+
+**Blocked slot rule (frontend):** A slot is blocked if its `tier > 1` AND the slot at the same `lane` + `col` with `tier = this.tier - 1` has a vessel assigned. This is a pure frontend computation over the sorted slot list — no backend field needed.
 
 ### `LaunchRequest`
 
@@ -57,6 +64,8 @@ LaunchRequest
   __str__ = f"Launch — {vessel.name}"
 ```
 
+`vessel` uses `PROTECT` — prevents deletion of a vessel actively in a launch queue.
+
 ### `Contractor`
 
 ```
@@ -73,9 +82,18 @@ Contractor
   __str__ = name
 ```
 
+`access_start` / `access_end` are Phase 2 hooks for smart-gate integration.
+
 ---
 
 ## 2. Model Enrichments
+
+### `Marina` (accounts app)
+
+Add:
+- `operations_paused` — `BooleanField(default=False)`
+
+This is the marina-wide Weather Hold flag. When `True`, the Launch Queue frontend disables all "Assign & Schedule" actions and displays the hold banner. All devices read this from the `/api/v1/marina/` endpoint so the state syncs instantly.
 
 ### `HaulOut` (boatyard)
 
@@ -118,7 +136,8 @@ No other changes to the Maintenance app in this phase.
 
 | File | Content |
 |---|---|
-| `boatyard/migrations/0002_...` | Add `notes` to HaulOut + WorkOrder; add `serial`/`location` to Tool; Meta ordering on Part/Tool/HaulOut/WorkOrder; add StorageSlot, LaunchRequest, Contractor |
+| `accounts/migrations/0002_...` | Add `operations_paused` to Marina |
+| `boatyard/migrations/0002_...` | Add `notes` to HaulOut + WorkOrder; add `serial`/`location` to Tool; Meta ordering; add StorageSlot, LaunchRequest, Contractor |
 | `maintenance/migrations/0002_...` | Add `notes` to Asset |
 
 Django may batch these differently — use `makemigrations` output as-is.
@@ -128,6 +147,10 @@ Django may batch these differently — use `makemigrations` output as-is.
 ## 4. API Endpoints
 
 All endpoints are JWT-authenticated. All querysets filtered by `request.user.marina`.
+
+### Marina (Weather Hold)
+
+The existing `/api/v1/marina/` endpoint (in `accounts` app) already returns the marina object. Add `operations_paused` to the marina serializer so it is readable and writable. A `PATCH /api/v1/marina/` with `{ "operations_paused": true }` toggles the hold marina-wide.
 
 ### Haul-outs
 
@@ -185,7 +208,7 @@ All endpoints are JWT-authenticated. All querysets filtered by `request.user.mar
 | GET / POST | `/api/v1/assets/` | `AssetList` *(implemented in Maintenance phase)* |
 | GET / PATCH | `/api/v1/assets/<pk>/` | `AssetDetail` *(implemented in Maintenance phase)* |
 
-The Boatyard Facility Log tab calls `/api/v1/assets/` — the same endpoint as the Maintenance Asset Register. No separate endpoint needed.
+The Boatyard Facility Log tab calls `/api/v1/assets/` — the same endpoint as the Maintenance Asset Register.
 
 ---
 
@@ -195,10 +218,10 @@ The Boatyard Facility Log tab calls `/api/v1/assets/` — the same endpoint as t
 Fields: `id`, `vessel`, `vessel_name` (read-only source), `haul_type`, `scheduled_at`, `equipment`, `crew`, `status`, `assigned_to`, `notes`
 
 ### `StorageSlotSerializer`
-Fields: `id`, `lane`, `col`, `vessel`, `vessel_name` (read-only source, default `''`)
+Fields: `id`, `lane`, `col`, `tier`, `vessel`, `vessel_name` (read-only source, default `''`)
 
 ### `LaunchRequestSerializer`
-Fields: `id`, `vessel`, `vessel_name` (read-only), `slot`, `slot_label` (read-only source `slot.__str__`), `equipment`, `assigned_to`, `status`, `notes`, `created_at`
+Fields: `id`, `vessel`, `vessel_name` (read-only), `slot`, `slot_label` (read-only, `slot.__str__` or `''`), `equipment`, `assigned_to`, `status`, `notes`, `created_at`
 
 ### `WorkOrderSerializer`
 Fields: `id`, `vessel`, `vessel_name` (read-only), `title`, `category`, `description`, `priority`, `status`, `assigned_to`, `estimate`, `actual`, `created_at`, `due`, `notes`
@@ -216,6 +239,10 @@ Fields: `id`, `name`, `trade`, `working_on`, `access_start`, `access_end`, `vess
 
 ## 6. Frontend
 
+### Weather Hold
+
+`useMarina` hook (existing) returns the marina object including `operations_paused`. The Launch Queue tab reads `marina.operations_paused` for the hold banner and button state. "Weather Hold" button calls `PATCH /api/v1/marina/` with `{ operations_paused: !marina.operations_paused }`. Because all devices read from the same endpoint, the state is immediately consistent.
+
 ### New hooks
 
 | Hook | File | Endpoints used |
@@ -231,21 +258,21 @@ Fields: `id`, `name`, `trade`, `working_on`, `access_start`, `access_end`, `vess
 
 ### `Boatyard.jsx` tab wire-up
 
-**Haul-out Schedule** — table from `useHaulOuts`. "Schedule Lift" button → create modal (vessel select, type, date/time, equipment, crew). Status badge. No inline status transitions needed (managers edit directly).
+**Haul-out Schedule** — table from `useHaulOuts`. "Schedule Lift" → create modal (vessel select, type, date/time, equipment, crew).
 
-**Launch Queue** — cards from `useLaunchRequests`. Summary counts (queued / launching / retrieved) computed from local state. Weather Hold toggle is local UI state only (no backend — it's a visual hold, not persisted). Action buttons call `updateRequest(id, { status: 'scheduled' | 'launching' | 'retrieved' })`.
+**Launch Queue** — cards from `useLaunchRequests`. Weather Hold button calls `PATCH /api/v1/marina/` and reads `marina.operations_paused` — hold banner shown and launch actions disabled when true. Summary counts computed from local state. Action buttons call `updateRequest(id, { status })`.
 
-**Dry Storage Map** — grid from `useStorageSlots`. Group slots by lane, then sort by col. Each slot rendered as a coloured cell: occupied (vessel assigned), available, blocked (vessel above occupies overhead — compute from sorted slots: slot in row N is blocked if row N-1 same col has a vessel). Click occupied slot → clear vessel modal. Click empty slot → assign vessel modal.
+**Dry Storage Map** — grid from `useStorageSlots`. Group by lane → col → sort by tier. Blocked rule: `tier > 1` and same `lane+col` at `tier - 1` has a vessel. Slot colours: occupied=blue, available=grey, blocked=yellow. Click occupied → clear modal. Click available (not blocked) → assign vessel modal.
 
-**Work Orders** — cards from `useWorkOrders`. "New Work Order" → create modal. Action buttons: Authorise (`status: 'authorised'`), Start Work (`status: 'in_progress'`), Mark Complete (`status: 'completed'`). Each calls `updateWorkOrder(id, { status })`.
+**Work Orders** — cards from `useWorkOrders`. Action buttons call `updateWorkOrder(id, { status })` for Authorise / Start Work / Mark Complete.
 
-**Parts & Inventory** — table from `useParts`. "Add Part" → create modal. Below-PAR count badge. Stock highlighted red when `stock < par`.
+**Parts & Inventory** — table from `useParts`. Below-PAR badge. Stock highlighted red when `stock < par`.
 
-**Tools** — grouped category cards + full table, from `useTools`. "Add Tool" → create modal. Check Out button → modal (enter who), Return button → clears `checked_out_to`, Log Service button → updates `calibration_due`.
+**Tools** — grouped category cards + table from `useTools`. Check Out → modal entering `checked_out_to`. Return → clears it. Log Service → updates `calibration_due`.
 
-**Contractors** — table from `useContractors`. "Add" button → create modal. Delete row action.
+**Contractors** — table from `useContractors`. Add / Delete actions.
 
-**Facility Log** — table from `useAssets`. Reuses the same hook as Maintenance Asset Register. Status badge colours: `ok` → green, `due_service` → orange, `under_repair` → red. "Log Entry" button → create asset modal.
+**Facility Log** — table from `useAssets`. Status badges: `ok`→green, `due_service`→orange, `under_repair`→red.
 
 ---
 
@@ -256,20 +283,28 @@ Fields: `id`, `name`, `trade`, `working_on`, `access_start`, `access_end`, `vess
 | Class | Tests |
 |---|---|
 | `HaulOutTest` | POST creates; GET scoped to marina; PATCH updates status |
-| `StorageSlotTest` | POST creates slot; PATCH assigns vessel; PATCH clears vessel |
+| `StorageSlotTest` | POST creates slot with tier; PATCH assigns vessel; PATCH clears vessel; unique_together enforced |
 | `LaunchRequestTest` | POST creates; PATCH status transitions (pending→scheduled→launching→retrieved) |
 | `WorkOrderTest` | POST creates; PATCH status transitions; GET scoped |
-| `PartTest` | POST creates; GET shows below-par flag derivable from stock/par; GET scoped |
+| `PartTest` | POST creates; GET scoped; stock/par values preserved |
 | `ToolTest` | POST creates with serial/location; PATCH check-out sets checked_out_to; PATCH return clears it |
 | `ContractorTest` | POST creates; DELETE removes; GET scoped |
+
+### `apps/accounts/tests.py` (addition)
+
+| Test | Description |
+|---|---|
+| `test_marina_operations_paused_toggle` | PATCH `/api/v1/marina/` with `operations_paused=true` persists; second device reading same endpoint sees updated value |
 
 ---
 
 ## Design Constraints
 
 - All models carry `marina` FK — no cross-marina data leakage
-- Weather Hold is local UI state only — no backend persistence needed
-- Facility Log tab = filtered view of `Asset` model (maintained by Maintenance phase)
-- `useAssets` hook created in this phase so Boatyard Facility Log works immediately; Maintenance phase wires it into Maintenance.jsx
-- Tool check-out is simple CharField — no audit trail of check-out history (YAGNI)
-- Blocked slot calculation is purely frontend — derived from sorted slot data, no backend field needed
+- Weather Hold is `Marina.operations_paused` — persisted, syncs to all devices via existing `/api/v1/marina/` endpoint
+- Dry Storage is 3D: lane + col + tier. `unique_together` enforces no duplicate positions per marina
+- Blocked slot rule is frontend-only computation — no backend field needed
+- Facility Log tab = same `Asset` model as Maintenance Asset Register — `/api/v1/assets/` implemented in Maintenance phase
+- `useAssets` hook created in Boatyard phase; Maintenance phase wires it into `Maintenance.jsx`
+- Tool check-out is simple CharField — no audit trail (YAGNI)
+- `LaunchRequest.vessel` uses PROTECT — prevents deletion of vessel while in queue
