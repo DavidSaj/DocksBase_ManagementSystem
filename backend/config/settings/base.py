@@ -90,6 +90,16 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+
+import os
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+DROPBOX_SIGN_API_KEY = os.environ.get('DROPBOX_SIGN_API_KEY', '')
+DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '')
+DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
