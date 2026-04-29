@@ -25,6 +25,7 @@ class Incident(models.Model):
     description = models.TextField()
     severity = models.CharField(max_length=20, choices=SEVERITY, default='low')
     reporter = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
     resolved = models.BooleanField(default=False)
     occurred_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -71,3 +72,30 @@ class Defect(models.Model):
 
     def __str__(self):
         return f'DEF-{self.pk}'
+
+
+class MaintenanceTask(models.Model):
+    PRIORITY = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High'), ('urgent', 'Urgent')]
+    STATUS = [
+        ('pending', 'Pending'), ('in_progress', 'In Progress'),
+        ('blocked', 'Blocked'), ('completed', 'Completed'),
+    ]
+
+    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='maintenance_tasks')
+    asset = models.ForeignKey(Asset, on_delete=models.SET_NULL, null=True, blank=True)
+    defect = models.ForeignKey(Defect, on_delete=models.SET_NULL, null=True, blank=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    assigned_to = models.CharField(max_length=200, blank=True)
+    priority = models.CharField(max_length=20, choices=PRIORITY, default='medium')
+    status = models.CharField(max_length=20, choices=STATUS, default='pending')
+    due_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completion_notes = models.TextField(blank=True)
+    completion_photo = models.FileField(upload_to='maintenance_tasks/', null=True, blank=True)
+
+    class Meta:
+        ordering = ['-priority', 'due_date']
+
+    def __str__(self):
+        return f'Task: {self.title}'
