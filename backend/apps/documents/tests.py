@@ -81,3 +81,54 @@ class SerializerTest(TestCase):
         self.assertIn('member_name', s.data)
         self.assertIn('doc_type', s.data)
         self.assertIn('status', s.data)
+
+
+from unittest.mock import patch, MagicMock
+from apps.documents.services import (
+    create_embedded_template_draft,
+    send_envelope,
+    get_signed_pdf_url,
+)
+
+
+class ServiceLayerTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.template = DocTemplate.objects.create(marina=self.marina, name='Lease', category='lease')
+
+    @patch('apps.documents.services.dropbox_sign')
+    def test_create_embedded_template_draft_returns_edit_url(self, mock_ds):
+        mock_api = MagicMock()
+        mock_ds.TemplateApi.return_value = mock_api
+        mock_api.create_embedded_template_draft.return_value.embedded_template.edit_url = 'https://dsign.example/edit/abc'
+
+        result = create_embedded_template_draft(self.template, file_path='/tmp/test.pdf')
+
+        self.assertEqual(result, 'https://dsign.example/edit/abc')
+        mock_api.create_embedded_template_draft.assert_called_once()
+
+    @patch('apps.documents.services.dropbox_sign')
+    def test_send_envelope_returns_request_id(self, mock_ds):
+        mock_api = MagicMock()
+        mock_ds.SignatureRequestApi.return_value = mock_api
+        mock_api.send_with_template.return_value.signature_request.signature_request_id = 'req_abc123'
+
+        tpl = DocTemplate.objects.create(
+            marina=self.marina, name='Waiver', category='waiver',
+            dropboxsign_template_id='tpl_real_id',
+        )
+        env = Envelope.objects.create(marina=self.marina, template=tpl, recipient=self.member)
+        result = send_envelope(env)
+
+        self.assertEqual(result, 'req_abc123')
+        mock_api.send_with_template.assert_called_once()
+
+    @patch('apps.documents.services.dropbox_sign')
+    def test_get_signed_pdf_url(self, mock_ds):
+        mock_api = MagicMock()
+        mock_ds.SignatureRequestApi.return_value = mock_api
+        mock_api.get.return_value.signature_request.signing_url = 'https://dsign.example/signed.pdf'
+
+        url = get_signed_pdf_url('req_abc123')
+        self.assertEqual(url, 'https://dsign.example/signed.pdf')
