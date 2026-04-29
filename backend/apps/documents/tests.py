@@ -272,3 +272,50 @@ class MemberDocumentViewTest(TestCase):
         doc.refresh_from_db()
         self.assertEqual(str(doc.expiry_date), '2027-01-01')
         self.assertEqual(doc.status, 'verified')
+
+
+from datetime import date, timedelta
+from django.core.management import call_command
+
+
+class ExpiryCommandTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.template = DocTemplate.objects.create(marina=self.marina, name='Lease', category='lease')
+
+    def test_verified_doc_past_expiry_becomes_expired(self):
+        doc = MemberDocument.objects.create(
+            marina=self.marina, member=self.member, doc_type='insurance',
+            status='verified', expiry_date=date.today() - timedelta(days=1),
+        )
+        call_command('check_document_expiry')
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, 'expired')
+
+    def test_verified_doc_within_30_days_becomes_due_soon(self):
+        doc = MemberDocument.objects.create(
+            marina=self.marina, member=self.member, doc_type='registration',
+            status='verified', expiry_date=date.today() + timedelta(days=15),
+        )
+        call_command('check_document_expiry')
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, 'due_soon')
+
+    def test_pending_envelope_past_expiry_becomes_expired(self):
+        env = Envelope.objects.create(
+            marina=self.marina, template=self.template, recipient=self.member,
+            status='pending', expires_at=date.today() - timedelta(days=1),
+        )
+        call_command('check_document_expiry')
+        env.refresh_from_db()
+        self.assertEqual(env.status, 'expired')
+
+    def test_completed_envelope_not_touched(self):
+        env = Envelope.objects.create(
+            marina=self.marina, template=self.template, recipient=self.member,
+            status='completed', expires_at=date.today() - timedelta(days=1),
+        )
+        call_command('check_document_expiry')
+        env.refresh_from_db()
+        self.assertEqual(env.status, 'completed')
