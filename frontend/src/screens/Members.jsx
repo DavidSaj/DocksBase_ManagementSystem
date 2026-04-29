@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import useMembers from '../hooks/useMembers.js';
 import useSegments from '../hooks/useSegments.js';
+import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 
@@ -75,14 +76,77 @@ function fmt(m) {
   };
 }
 
+function UploadDocModal({ members, onClose, onUpload }) {
+  const [selectedMember, setSelectedMember] = useState('');
+  const [docType, setDocType] = useState('insurance');
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!file) { setErr('Please select a file.'); return; }
+    setSaving(true);
+    setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append('member', selectedMember);
+      fd.append('doc_type', docType);
+      fd.append('file', file);
+      await onUpload(fd);
+      onClose();
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail ?? ex?.message ?? 'Upload failed');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ width: 420, padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 18 }}>Upload Document</div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Member</label>
+              <select required value={selectedMember} onChange={e => setSelectedMember(e.target.value)}>
+                <option value="">Select member…</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Document Type</label>
+              <select value={docType} onChange={e => setDocType(e.target.value)}>
+                <option value="insurance">Insurance</option>
+                <option value="registration">Registration</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>File</label>
+              <input type="file" required onChange={e => setFile(e.target.files[0])} />
+            </div>
+            {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Uploading…' : 'Upload'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Members() {
   const [tab, setTab] = useState('members');
   const [sel, setSel] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showUploadDoc, setShowUploadDoc] = useState(false);
 
   const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
   const { segments, loading: segsLoading } = useSegments();
+  const { memberDocs, loading: docsLoading, uploadDoc, updateDoc } = useMemberDocuments();
 
   return (
     <div>
@@ -145,25 +209,54 @@ export default function Members() {
       )}
 
       {tab === 'docs' && (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div className="card-header"><div className="card-header-title">Document Vault</div></div>
-          <table className="tbl">
-            <thead><tr><th>Owner</th><th>Vessel</th><th>Registration</th><th>Insurance</th><th>Slip Lease</th><th>Actions</th></tr></thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
-              ) : members.map(m => (
-                <tr key={m.id}>
-                  <td className="tbl-name">{m.name}</td>
-                  <td>{m.vessel}</td>
-                  <td>{m.docs==='complete' ? <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ On file</span> : <span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Missing</span>}</td>
-                  <td>{m.insurance==='expired' ? <span style={{color:'var(--red)',fontSize:11,fontWeight:600}}>✗ Expired</span> : m.docs==='missing' ? <span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Pending</span> : <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Valid</span>}</td>
-                  <td>{m.type==='Seasonal'||m.type==='seasonal' ? <span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Signed</span> : <span style={{color:'rgba(0,0,0,0.3)',fontSize:11}}>—</span>}</td>
-                  <td><button className="btn btn-ghost btn-sm">Request Upload</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Document Vault</div>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowUploadDoc(true)}><Ic n="plus" s={11} />Upload Document</button>
+          </div>
+          {showUploadDoc && (
+            <UploadDocModal
+              members={members}
+              onClose={() => setShowUploadDoc(false)}
+              onUpload={uploadDoc}
+            />
+          )}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Member</th><th>Type</th><th>Expiry</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+              <tbody>
+                {docsLoading ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : memberDocs.map(d => (
+                  <tr key={d.id}>
+                    <td className="tbl-name">{d.member_name}</td>
+                    <td style={{ fontSize: 12 }}>{d.doc_type}</td>
+                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{d.expiry_date || '—'}</td>
+                    <td>
+                      <span className={`badge ${
+                        d.status === 'verified'      ? 'badge-green' :
+                        d.status === 'due_soon'      ? 'badge-gold'  :
+                        d.status === 'expired'       ? 'badge-red'   : 'badge-gray'
+                      }`}>{d.status.replace('_', ' ')}</span>
+                    </td>
+                    <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{d.notes || '—'}</td>
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      {d.file && <a className="btn btn-ghost btn-sm" href={d.file} target="_blank" rel="noreferrer">View</a>}
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          const expiry = prompt('Set expiry date (YYYY-MM-DD):', d.expiry_date || '');
+                          if (expiry) updateDoc(d.id, { expiry_date: expiry, status: 'verified' });
+                        }}
+                      >
+                        Set Expiry
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
