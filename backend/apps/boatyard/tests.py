@@ -80,6 +80,14 @@ class StorageSlotTest(TestCase):
         slot.save()
         self.assertEqual(StorageSlot.objects.get(pk=slot.pk).vessel, self.vessel)
 
+    def test_cross_marina_vessel_rejected(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_vessel = Vessel.objects.create(marina=other_marina, name='Foreign Vessel')
+        slot = StorageSlot(marina=self.marina, lane='Lane 2', col='A', tier=1, vessel=other_vessel)
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            slot.full_clean()
+
 
 class LaunchRequestTest(TestCase):
     def setUp(self):

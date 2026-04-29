@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -17,6 +18,10 @@ class HaulOut(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='scheduled')
     assigned_to = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
+
+    def clean(self):
+        if self.vessel_id and self.vessel.marina_id != self.marina_id:
+            raise ValidationError('Vessel belongs to a different marina.')
 
     class Meta:
         ordering = ['-scheduled_at']
@@ -108,6 +113,10 @@ class StorageSlot(models.Model):
         null=True, blank=True, related_name='storage_slot'
     )
 
+    def clean(self):
+        if self.vessel_id and self.vessel.marina_id != self.marina_id:
+            raise ValidationError('Vessel belongs to a different marina.')
+
     class Meta:
         ordering = ['lane', 'col', 'tier']
         unique_together = [('marina', 'lane', 'col', 'tier')]
@@ -133,6 +142,10 @@ class LaunchRequest(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='pending')
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        if self.vessel_id and self.vessel.marina_id != self.marina_id:
+            raise ValidationError('Vessel belongs to a different marina.')
 
     class Meta:
         ordering = ['created_at']
