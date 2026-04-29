@@ -105,3 +105,71 @@ class LaunchRequestTest(TestCase):
         from django.db.models import ProtectedError
         with self.assertRaises(ProtectedError):
             self.vessel.delete()
+
+
+from apps.boatyard.serializers import (
+    HaulOutSerializer, StorageSlotSerializer, LaunchRequestSerializer,
+    WorkOrderSerializer, PartSerializer, ToolSerializer, ContractorSerializer,
+)
+
+
+class SerializerTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.vessel = make_vessel(self.marina)
+
+    def test_haul_out_serializer_has_vessel_name(self):
+        ho = HaulOut.objects.create(
+            marina=self.marina, vessel=self.vessel,
+            scheduled_at='2026-05-01 09:00:00'
+        )
+        data = HaulOutSerializer(ho).data
+        self.assertIn('vessel_name', data)
+        self.assertEqual(data['vessel_name'], 'Test Vessel')
+
+    def test_storage_slot_serializer_has_tier(self):
+        slot = StorageSlot.objects.create(
+            marina=self.marina, lane='Lane 1', col='A', tier=2
+        )
+        data = StorageSlotSerializer(slot).data
+        self.assertIn('tier', data)
+        self.assertEqual(data['tier'], 2)
+
+    def test_launch_request_serializer_has_slot_label(self):
+        slot = StorageSlot.objects.create(marina=self.marina, lane='Lane 1', col='B', tier=1)
+        lr = LaunchRequest.objects.create(
+            marina=self.marina, vessel=self.vessel, slot=slot
+        )
+        data = LaunchRequestSerializer(lr).data
+        self.assertIn('slot_label', data)
+        self.assertEqual(data['slot_label'], 'Lane 1-B-T1')
+
+    def test_work_order_serializer_fields(self):
+        wo = WorkOrder.objects.create(marina=self.marina, title='Fix engine')
+        data = WorkOrderSerializer(wo).data
+        self.assertIn('notes', data)
+        self.assertIn('priority', data)
+
+    def test_part_serializer_fields(self):
+        p = Part.objects.create(marina=self.marina, name='Shackle', stock=10, par=5)
+        data = PartSerializer(p).data
+        self.assertIn('stock', data)
+        self.assertIn('par', data)
+
+    def test_tool_serializer_has_serial_location(self):
+        t = Tool.objects.create(
+            marina=self.marina, name='Multimeter',
+            serial='MM-42', location='Tool Room'
+        )
+        data = ToolSerializer(t).data
+        self.assertEqual(data['serial'], 'MM-42')
+        self.assertEqual(data['location'], 'Tool Room')
+
+    def test_contractor_serializer_fields(self):
+        c = Contractor.objects.create(
+            marina=self.marina, name='Hughes Marine',
+            trade='Mechanics', access_start='2026-05-01'
+        )
+        data = ContractorSerializer(c).data
+        self.assertIn('trade', data)
+        self.assertIn('access_end', data)
