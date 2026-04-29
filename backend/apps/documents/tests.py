@@ -48,3 +48,36 @@ class ModelFieldTest(TestCase):
         )
         self.assertEqual(doc.marina, self.marina)
         self.assertEqual(doc.doc_type, 'insurance')
+
+
+from apps.documents.serializers import DocTemplateSerializer, EnvelopeSerializer, MemberDocumentSerializer
+
+
+class SerializerTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.vessel = make_vessel(self.marina, self.member)
+        self.template = DocTemplate.objects.create(marina=self.marina, name='Lease', category='lease')
+
+    def test_doctemplate_serializer_fields(self):
+        s = DocTemplateSerializer(self.template)
+        self.assertIn('id', s.data)
+        self.assertIn('dropboxsign_template_id', s.data)
+        self.assertIn('file', s.data)
+
+    def test_envelope_serializer_fields(self):
+        env = Envelope.objects.create(marina=self.marina, template=self.template, recipient=self.member)
+        s = EnvelopeSerializer(env)
+        self.assertIn('id', s.data)
+        self.assertIn('template_name', s.data)
+        self.assertIn('recipient_name', s.data)
+        self.assertIn('status', s.data)
+
+    def test_memberdocument_serializer_fields(self):
+        doc = MemberDocument.objects.create(marina=self.marina, member=self.member, doc_type='insurance')
+        s = MemberDocumentSerializer(doc)
+        self.assertIn('id', s.data)
+        self.assertIn('member_name', s.data)
+        self.assertIn('doc_type', s.data)
+        self.assertIn('status', s.data)
