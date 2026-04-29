@@ -132,3 +132,143 @@ class ServiceLayerTest(TestCase):
 
         url = get_signed_pdf_url('req_abc123')
         self.assertEqual(url, 'https://dsign.example/signed.pdf')
+
+
+import json
+import hmac as hmac_module
+import hashlib
+import time
+from django.urls import reverse
+from rest_framework.test import APIClient
+
+
+def make_user(marina, email='manager@example.com'):
+    User = get_user_model()
+    return User.objects.create_user(email=email, password='pass', marina=marina)
+
+
+class DocTemplateViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina, email='manager_tpl@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_list_scoped_to_marina(self):
+        DocTemplate.objects.create(marina=self.marina, name='Lease', category='lease')
+        other = Marina.objects.create(name='Other Marina')
+        DocTemplate.objects.create(marina=other, name='Other Lease', category='lease')
+
+        resp = self.client.get('/api/v1/doc-templates/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.data.get('results', resp.data)
+        self.assertEqual(len(data), 1)
+
+    @patch('apps.documents.views.create_embedded_template_draft')
+    def test_prepare_returns_edit_url(self, mock_prepare):
+        mock_prepare.return_value = 'https://dsign.example/edit/abc'
+        tpl = DocTemplate.objects.create(marina=self.marina, name='Lease', category='lease')
+        # Give it a file path so the view doesn't reject it
+        tpl.file = 'doc_templates/fake.pdf'
+        tpl.save()
+        resp = self.client.post(f'/api/v1/doc-templates/{tpl.pk}/prepare/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['edit_url'], 'https://dsign.example/edit/abc')
+
+
+class EnvelopeViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.user = make_user(self.marina, email='manager_env@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.template = DocTemplate.objects.create(
+            marina=self.marina, name='Lease', category='lease',
+            dropboxsign_template_id='tpl_real',
+        )
+
+    @patch('apps.documents.views.send_envelope')
+    def test_create_envelope_calls_dropboxsign(self, mock_send):
+        mock_send.return_value = 'req_abc'
+        resp = self.client.post('/api/v1/envelopes/', {
+            'template': self.template.pk,
+            'recipient': self.member.pk,
+        })
+        self.assertEqual(resp.status_code, 201)
+        env = Envelope.objects.get(pk=resp.data['id'])
+        self.assertEqual(env.dropboxsign_request_id, 'req_abc')
+
+    def test_webhook_rejects_invalid_hmac(self):
+        resp = self.client.post(
+            '/api/v1/documents/webhook/',
+            data=json.dumps({'event': {}}),
+            content_type='application/json',
+            HTTP_X_HELLOSIGN_SIGNATURE='badsig',
+            HTTP_X_HELLOSIGN_EVENT_TIME='12345',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_webhook_marks_envelope_completed(self):
+        env = Envelope.objects.create(
+            marina=self.marina, template=self.template,
+            recipient=self.member,
+            dropboxsign_request_id='req_abc',
+        )
+        event_time = str(int(time.time()))
+        event_type = 'signature_request_all_signed'
+        secret = 'test-secret'
+        sig = hmac_module.new(secret.encode(), (event_time + event_type).encode(), hashlib.sha256).hexdigest()
+
+        payload = {
+            'event': {
+                'event_type': event_type,
+                'event_time': event_time,
+                'signature_request': {
+                    'signature_request_id': 'req_abc',
+                    'metadata': {
+                        'marina_id': str(self.marina.pk),
+                        'envelope_pk': str(env.pk),
+                    },
+                },
+            }
+        }
+        with self.settings(DROPBOX_SIGN_WEBHOOK_SECRET=secret):
+            resp = self.client.post(
+                '/api/v1/documents/webhook/',
+                data=json.dumps(payload),
+                content_type='application/json',
+                HTTP_X_HELLOSIGN_SIGNATURE=sig,
+                HTTP_X_HELLOSIGN_EVENT_TIME=event_time,
+            )
+        self.assertEqual(resp.status_code, 200)
+        env.refresh_from_db()
+        self.assertEqual(env.status, 'completed')
+
+
+class MemberDocumentViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.user = make_user(self.marina, email='manager_mdoc@example.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_list_scoped_to_marina(self):
+        MemberDocument.objects.create(marina=self.marina, member=self.member, doc_type='insurance')
+        other = Marina.objects.create(name='Other Marina 2')
+        other_member = Member.objects.create(marina=other, name='Bob', email='bob@example.com')
+        MemberDocument.objects.create(marina=other, member=other_member, doc_type='registration')
+
+        resp = self.client.get('/api/v1/member-documents/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.data.get('results', resp.data)
+        self.assertEqual(len(data), 1)
+
+    def test_patch_expiry_date(self):
+        doc = MemberDocument.objects.create(marina=self.marina, member=self.member, doc_type='insurance')
+        resp = self.client.patch(f'/api/v1/member-documents/{doc.pk}/', {'expiry_date': '2027-01-01', 'status': 'verified'})
+        self.assertEqual(resp.status_code, 200)
+        doc.refresh_from_db()
+        self.assertEqual(str(doc.expiry_date), '2027-01-01')
+        self.assertEqual(doc.status, 'verified')
