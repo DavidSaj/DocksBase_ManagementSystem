@@ -3,7 +3,7 @@ from .models import HaulOut, WorkOrder, Part, Tool, StorageSlot, LaunchRequest, 
 
 
 class HaulOutSerializer(serializers.ModelSerializer):
-    vessel_name = serializers.CharField(source='vessel.name', read_only=True)
+    vessel_name = serializers.CharField(source='vessel.name', read_only=True, default='')
 
     class Meta:
         model = HaulOut

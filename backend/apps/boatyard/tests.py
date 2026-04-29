@@ -29,7 +29,7 @@ class ModelEnrichmentTest(TestCase):
     def test_haul_out_notes_field(self):
         ho = HaulOut.objects.create(
             marina=self.marina, vessel=self.vessel,
-            scheduled_at='2026-05-01 09:00:00', notes='Bring extra crew'
+            scheduled_at='2026-05-01T09:00:00Z', notes='Bring extra crew'
         )
         self.assertEqual(HaulOut.objects.get(pk=ho.pk).notes, 'Bring extra crew')
 
@@ -121,7 +121,7 @@ class SerializerTest(TestCase):
     def test_haul_out_serializer_has_vessel_name(self):
         ho = HaulOut.objects.create(
             marina=self.marina, vessel=self.vessel,
-            scheduled_at='2026-05-01 09:00:00'
+            scheduled_at='2026-05-01T09:00:00Z'
         )
         data = HaulOutSerializer(ho).data
         self.assertIn('vessel_name', data)
