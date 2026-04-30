@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar.jsx';
 import Topbar  from './components/layout/Topbar.jsx';
+import { isAuthenticated } from './api.js';
 
 import Overview     from './screens/Overview.jsx';
 import MarinaMap    from './screens/MarinaMap.jsx';
@@ -18,6 +20,7 @@ import Settings     from './screens/Settings.jsx';
 import Documents    from './screens/Documents.jsx';
 import Sales        from './screens/Sales.jsx';
 import Operations   from './screens/Operations.jsx';
+import Field        from './screens/Field.jsx';
 
 const SCREEN_MAP = {
   overview:     Overview,
@@ -42,7 +45,7 @@ function ComingSoon() {
   return <div className="empty"><div className="empty-title">Coming soon.</div></div>;
 }
 
-export default function App() {
+function DesktopApp() {
   const [screen, setScreenRaw] = useState(
     () => localStorage.getItem('db_app_screen') || 'overview'
   );
@@ -64,5 +67,22 @@ export default function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProtectedField() {
+  if (!isAuthenticated()) {
+    window.location.href = '/';
+    return null;
+  }
+  return <Field />;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/field" element={<ProtectedField />} />
+      <Route path="/*" element={<DesktopApp />} />
+    </Routes>
   );
 }
