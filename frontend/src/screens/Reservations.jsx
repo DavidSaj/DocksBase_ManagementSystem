@@ -8,14 +8,15 @@ import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
 
 const filterMap = {
-  all:       {},
-  transient: { booking_type: 'transient' },
-  seasonal:  { booking_type: 'seasonal' },
-  pending:   { status: 'pending' },
-  overdue:   { status: 'overstay' },
+  all:              {},
+  transient:        { booking_type: 'transient' },
+  seasonal:         { booking_type: 'seasonal' },
+  pending_approval: { status: 'pending_approval' },
+  pending:          { status: 'pending' },
+  overdue:          { status: 'overstay' },
 };
 
-const bookingTabs = ['all', 'transient', 'seasonal', 'pending', 'overdue'];
+const bookingTabs = ['all', 'transient', 'seasonal', 'pending_approval', 'pending', 'overdue'];
 
 const LABEL = { fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' };
 
@@ -472,6 +473,60 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
 }
 
 // ---------------------------------------------------------------------------
+// AssignBerthModal
+// ---------------------------------------------------------------------------
+function AssignBerthModal({ booking, berths, onClose, onAssign }) {
+  const compatible = berths.filter(b => {
+    if (booking.boat_loa && b.length_m && parseFloat(b.length_m) < parseFloat(booking.boat_loa)) return false;
+    if (booking.boat_beam && b.max_beam_m && parseFloat(b.max_beam_m) < parseFloat(booking.boat_beam)) return false;
+    return true;
+  });
+  const [selectedBerth, setSelectedBerth] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!selectedBerth) return;
+    setSaving(true);
+    try {
+      await onAssign(booking.id, parseInt(selectedBerth));
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-hdr">
+          <span className="modal-title">Assign Berth</span>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button>
+        </div>
+        <div style={{ fontSize: 12, marginBottom: 10, color: 'rgba(0,0,0,0.5)' }}>
+          {booking.guest_name} · LOA {booking.boat_loa || '?'}m · {booking.check_in} – {booking.check_out}
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="field-label">Compatible Berth
+            <select className="input" value={selectedBerth} onChange={e => setSelectedBerth(e.target.value)} required>
+              <option value="">Select berth…</option>
+              {compatible.map(b => (
+                <option key={b.id} value={b.id}>{b.code} — {b.length_m}m · €{b.price_per_night}/night</option>
+              ))}
+            </select>
+          </label>
+          {compatible.length === 0 && <p style={{ fontSize: 12, color: 'var(--red)' }}>No compatible berths available.</p>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving || !selectedBerth}>{saving ? 'Assigning…' : 'Assign & Send Invoice'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Reservations screen
 // ---------------------------------------------------------------------------
 export default function Reservations() {
@@ -479,10 +534,12 @@ export default function Reservations() {
   const [sel, setSel] = useState(null);
   const [selReq, setSelReq] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [assignModal, setAssignModal] = useState(null);
 
-  const { bookings, loading, updateBooking, refetch } = useBookings(
+  const { bookings, loading, updateBooking, refetch, assignBerth } = useBookings(
     bookingTabs.includes(tab) ? filterMap[tab] : {}
   );
+  const { berths } = useBerths();
   const { requests, loading: wlLoading, convertRequest, createRequest } = useBookingRequests(
     tab === 'waitlist' ? { status: 'pending' } : {}
   );
@@ -510,12 +567,20 @@ export default function Reservations() {
           convertRequest={convertRequest}
         />
       )}
+      {assignModal && (
+        <AssignBerthModal
+          booking={assignModal}
+          berths={berths}
+          onClose={() => setAssignModal(null)}
+          onAssign={assignBerth}
+        />
+      )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
         <div className="search"><Ic n="search" s={13} /><input placeholder="Search vessel, owner, booking…" /></div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}><Ic n="plus" s={12} />New Booking</button>
       </div>
       <div className="tabs">
-        {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending','Pending'],['overdue','Overdue'],['waitlist','Wait List']].map(([v,l]) => (
+        {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending_approval','Pending Approval'],['pending','Pending'],['overdue','Overdue'],['waitlist','Wait List']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => { setTab(v); setSel(null); setSelReq(null); }}>{l}</div>
         ))}
       </div>
@@ -525,13 +590,13 @@ export default function Reservations() {
           <div className="card" style={{ overflow: 'hidden' }}>
             <table className="tbl">
               <thead>
-                <tr><th>Booking</th><th>Vessel / Owner</th><th>Slip</th><th>Dates</th><th>Type</th><th>Status</th><th>Amount</th></tr>
+                <tr><th>Booking</th><th>Vessel / Owner</th><th>Slip</th><th>Dates</th><th>Type</th><th>Status</th><th>Amount</th><th></th></tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No bookings found.</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No bookings found.</td></tr>
                 ) : rows.map(b => (
                   <tr key={b.id} style={{ cursor: 'pointer', background: sel?.id === b.id ? '#f5f8ff' : '' }} onClick={() => setSel(b)}>
                     <td><div className="tbl-name">{b.id}</div></td>
@@ -541,6 +606,17 @@ export default function Reservations() {
                     <td><StatusBadge s={b.type} /></td>
                     <td><StatusBadge s={b.status} /></td>
                     <td><div style={{ fontWeight: 600 }}>{b.amount}</div><div className="tbl-sub">{b.paid ? 'Paid' : 'Unpaid'}</div></td>
+                    <td>
+                      {b.status === 'pending_approval' && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          style={{ fontSize: 11 }}
+                          onClick={e => { e.stopPropagation(); setAssignModal(b); }}
+                        >
+                          Assign Berth
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
