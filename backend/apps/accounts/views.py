@@ -95,6 +95,11 @@ class SendMagicLinkView(APIView):
                 member.boater_user = boater_user
                 member.save(update_fields=['boater_user'])
 
+        # Ensure this user has boater role regardless of how they were found
+        if boater_user.role != 'boater':
+            boater_user.role = 'boater'
+            boater_user.save(update_fields=['role'])
+
         # Delete all existing tokens — only newest link is valid
         MagicToken.objects.filter(user=boater_user).delete()
 
@@ -137,7 +142,6 @@ class ExchangeMagicTokenView(APIView):
                 expires_at__gt=timezone.now(),
             )
         except MagicToken.DoesNotExist:
-            MagicToken.objects.filter(token=ser.validated_data['token']).delete()
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = magic.user
