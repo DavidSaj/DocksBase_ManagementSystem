@@ -18,6 +18,20 @@ Then run `python manage.py makemigrations` to generate the migration.
 
 ---
 
+### 3. Staff invite flow — link up SMTP server
+
+**File:** `backend/apps/staff/views.py` (`StaffInviteView`)
+
+`send_mail()` is called in the invite flow but SMTP credentials are not yet configured. In dev this prints to the console. Once an SMTP server is set up, add `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, and `EMAIL_USE_TLS` to settings and remove the console backend.
+
+---
+
+### 4. Staff login — mobile app integration
+
+Staff members have no login today. The invite flow creates an inactive `User` record with a setup link (`/setup/<uid>/<token>/`) but the setup page does not exist yet. When the mobile app is built, the staff login + account activation flow should be wired up through this token mechanism.
+
+---
+
 ### 2. Field screen (`/field`) — filter tasks by assigned user
 
 **File:** `frontend/src/hooks/useMaintenanceTasks.js`, `backend/apps/maintenance/views.py`
