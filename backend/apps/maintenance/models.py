@@ -95,7 +95,7 @@ class MaintenanceTask(models.Model):
     completion_photo = models.FileField(upload_to='maintenance_tasks/', null=True, blank=True)
 
     class Meta:
-        ordering = ['-priority', 'due_date']
+        pass
 
     def __str__(self):
         return f'Task: {self.title}'

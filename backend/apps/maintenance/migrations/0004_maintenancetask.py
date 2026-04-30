@@ -45,8 +45,6 @@ class Migration(migrations.Migration):
                     to='maintenance.defect',
                 )),
             ],
-            options={
-                'ordering': ['-priority', 'due_date'],
-            },
+            options={},
         ),
     ]
