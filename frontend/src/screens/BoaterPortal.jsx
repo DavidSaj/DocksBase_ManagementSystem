@@ -19,9 +19,10 @@ function formatCurrency(amount) {
 
 // ── Invoices Tab ──────────────────────────────────────────────
 function InvoicesTab() {
-  const { invoices, loading } = usePortalInvoices();
+  const { invoices, loading, error } = usePortalInvoices();
 
   if (loading) return <div className="portal-loading">Loading invoices…</div>;
+  if (error)   return <div className="portal-loading">{error}</div>;
   if (!invoices.length) return (
     <div className="portal-empty">
       <div className="portal-empty-icon">
@@ -44,7 +45,7 @@ function InvoicesTab() {
             <span className={STATUS_BADGE[inv.status] || 'badge'}>{inv.status}</span>
           </div>
           {inv.status !== 'paid' && (
-            <button className="abtn abtn-gold portal-full-btn">Pay Now</button>
+            <button type="button" className="abtn abtn-gold portal-full-btn">Pay Now</button>
           )}
         </div>
       ))}
@@ -126,7 +127,8 @@ function AbsenceTab() {
 
 // ── Crane Tab ─────────────────────────────────────────────────
 function CraneTab() {
-  const { requests, loading, submitRequest } = usePortalCraneRequests();
+  const { requests, loading, error, submitRequest } = usePortalCraneRequests();
+  // nothing to show for load error here — form still works for new submissions
   const [form, setForm]             = useState({ service_type: 'haul_out', requested_date: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
@@ -216,13 +218,13 @@ export default function BoaterPortal() {
             <div className="portal-boater-name">{user?.first_name || user?.email}</div>
           </div>
         </div>
-        <button className="portal-signout" onClick={signOut}>Sign out</button>
+        <button type="button" className="portal-signout" onClick={signOut}>Sign out</button>
       </div>
 
       <div className="tabs portal-tabs">
-        <button className={`tab${tab === 'invoices' ? ' active' : ''}`} onClick={() => setTab('invoices')}>Invoices</button>
-        <button className={`tab${tab === 'absence'  ? ' active' : ''}`} onClick={() => setTab('absence')}>Absence</button>
-        <button className={`tab${tab === 'crane'    ? ' active' : ''}`} onClick={() => setTab('crane')}>Crane</button>
+        <button type="button" className={`tab${tab === 'invoices' ? ' active' : ''}`} onClick={() => setTab('invoices')}>Invoices</button>
+        <button type="button" className={`tab${tab === 'absence'  ? ' active' : ''}`} onClick={() => setTab('absence')}>Absence</button>
+        <button type="button" className={`tab${tab === 'crane'    ? ' active' : ''}`} onClick={() => setTab('crane')}>Crane</button>
       </div>
 
       <div className="portal-content">
