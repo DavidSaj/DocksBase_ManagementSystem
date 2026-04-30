@@ -10,6 +10,12 @@ import useVessels from '../hooks/useVessels.js';
 const SEV_BADGE    = { low: 'badge-gray', medium: 'badge-orange', high: 'badge-red', critical: 'badge-red' };
 const STATUS_BADGE = { open: 'badge-gold', acknowledged: 'badge-blue', in_progress: 'badge-teal', resolved: 'badge-green' };
 const MT_PRI_BADGE = { low: 'badge-gray', medium: 'badge-orange', high: 'badge-red', urgent: 'badge-red' };
+const ASSET_STATUS_BADGE = {
+  ok:            ['badge-green',  'OK'],
+  due_service:   ['badge-orange', 'Due Service'],
+  under_repair:  ['badge-red',    'Under Repair'],
+  decommissioned:['badge-gray',   'Decommissioned'],
+};
 
 function Modal({ title, onClose, children }) {
   return (
@@ -56,6 +62,7 @@ export default function Maintenance() {
   // Defect modal
   const [showAddDefect, setShowAddDefect] = useState(false);
   const [defectForm, setDefectForm] = useState({ asset: '', location: '', severity: 'low', description: '', reporter: '' });
+  const [raisingTaskId, setRaisingTaskId] = useState(null);
 
   const TABS = [
     ['tasks',     'Staff Tasks'],
@@ -123,8 +130,13 @@ export default function Maintenance() {
   }
 
   async function handleRaiseTask(id) {
-    await raiseTask(id);
-    await refetchMT();
+    setRaisingTaskId(id);
+    try {
+      await raiseTask(id);
+      await refetchMT();
+    } finally {
+      setRaisingTaskId(null);
+    }
   }
 
   return (
@@ -287,7 +299,9 @@ export default function Maintenance() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setNoteTargetId(inc.id); setNoteText(inc.notes || ''); }}>Add Note</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setNoteTargetId(inc.id); setNoteText(inc.notes || ''); }}>
+                      {inc.notes ? 'Edit Note' : 'Add Note'}
+                    </button>
                       {!inc.resolved
                         ? <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => updateIncident(inc.id, { resolved: true })}>Mark Resolved</button>
                         : <span className="badge badge-green" style={{ marginLeft: 'auto' }}>Resolved</span>
@@ -321,13 +335,7 @@ export default function Maintenance() {
                 </thead>
                 <tbody>
                   {assets.map(a => {
-                    const stMap = {
-                      ok:            ['badge-green',  'OK'],
-                      due_service:   ['badge-orange', 'Due Service'],
-                      under_repair:  ['badge-red',    'Under Repair'],
-                      decommissioned:['badge-gray',   'Decommissioned'],
-                    };
-                    const [stBadge, stLabel] = stMap[a.status] ?? ['badge-gray', a.status];
+                    const [stBadge, stLabel] = ASSET_STATUS_BADGE[a.status] ?? ['badge-gray', a.status];
                     return (
                       <tr key={a.id}>
                         <td><div className="tbl-name">{a.name}</div><div className="tbl-sub">{a.serial}</div></td>
@@ -388,7 +396,15 @@ export default function Maintenance() {
                   <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 12 }}>Reported by <b style={{ color: 'rgba(0,0,0,0.7)' }}>{d.reporter}</b></div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {d.status === 'open'         && <button className="btn btn-primary btn-sm" onClick={() => updateDefect(d.id, { status: 'acknowledged' })}>Acknowledge</button>}
-                    {d.status === 'acknowledged' && <button className="btn btn-primary btn-sm" onClick={() => handleRaiseTask(d.id)}>Raise Maintenance Task</button>}
+                    {d.status === 'acknowledged' && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleRaiseTask(d.id)}
+                        disabled={raisingTaskId === d.id}
+                      >
+                        {raisingTaskId === d.id ? 'Raising…' : 'Raise Maintenance Task'}
+                      </button>
+                    )}
                     {d.status === 'in_progress'  && <button className="btn btn-primary btn-sm" onClick={() => updateDefect(d.id, { status: 'resolved' })}>Mark Resolved</button>}
                   </div>
                 </div>
