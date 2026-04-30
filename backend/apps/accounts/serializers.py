@@ -36,7 +36,7 @@ class DocksBaseTokenSerializer(TokenObtainPairSerializer):
 
 
 class SendMagicLinkSerializer(serializers.Serializer):
-    member_id = serializers.IntegerField()
+    member_id = serializers.IntegerField(min_value=1)
 
 
 class ExchangeMagicTokenSerializer(serializers.Serializer):

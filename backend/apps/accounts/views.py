@@ -51,7 +51,17 @@ class MeView(generics.RetrieveAPIView):
         return self.request.user
 
 
+class IsMarinaStaff(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in ('owner', 'manager', 'staff')
+        )
+
+
 class SendMagicLinkView(APIView):
+    permission_classes = [IsMarinaStaff]
     """Admin/manager sends a magic login link to a boater (Member)."""
 
     def post(self, request):
@@ -73,14 +83,17 @@ class SendMagicLinkView(APIView):
         if member.boater_user_id:
             boater_user = member.boater_user
         else:
-            boater_user = User.objects.create_user(
+            boater_user, _ = User.objects.get_or_create(
                 email=member.email,
-                role='boater',
-                first_name=member.name.split()[0] if member.name else '',
-                marina=request.user.marina,
+                defaults={
+                    'role': 'boater',
+                    'first_name': member.name.split()[0] if member.name else '',
+                    'marina': request.user.marina,
+                },
             )
-            member.boater_user = boater_user
-            member.save(update_fields=['boater_user'])
+            if not member.boater_user_id:
+                member.boater_user = boater_user
+                member.save(update_fields=['boater_user'])
 
         # Delete all existing tokens — only newest link is valid
         MagicToken.objects.filter(user=boater_user).delete()
@@ -93,12 +106,19 @@ class SendMagicLinkView(APIView):
         frontend_url = request.headers.get('Origin', 'https://app.docksbase.com')
         link = f"{frontend_url}/magic?token={magic.token}"
 
-        send_mail(
-            subject='Your DockBase portal link',
-            message=f"Hi {member.name},\n\nClick to access your marina portal (valid 7 days):\n{link}\n\nDockBase",
-            from_email=None,  # uses DEFAULT_FROM_EMAIL
-            recipient_list=[member.email],
-        )
+        try:
+            send_mail(
+                subject='Your DockBase portal link',
+                message=f"Hi {member.name},\n\nClick to access your marina portal (valid 7 days):\n{link}\n\nDockBase",
+                from_email=None,
+                recipient_list=[member.email],
+            )
+        except Exception:
+            magic.delete()
+            return Response(
+                {'detail': 'Could not send email. Please try again.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         return Response({'detail': 'Link sent.'}, status=status.HTTP_200_OK)
 
@@ -113,14 +133,12 @@ class ExchangeMagicTokenView(APIView):
 
         try:
             magic = MagicToken.objects.select_related('user').get(
-                token=ser.validated_data['token']
+                token=ser.validated_data['token'],
+                expires_at__gt=timezone.now(),
             )
         except MagicToken.DoesNotExist:
+            MagicToken.objects.filter(token=ser.validated_data['token']).delete()
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if magic.expires_at < timezone.now():
-            magic.delete()
-            return Response({'detail': 'Link has expired. Ask the marina for a new one.'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = magic.user
         magic.delete()  # single-use
