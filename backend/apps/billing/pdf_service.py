@@ -20,12 +20,17 @@ except OSError:
 
 def _generate_store_and_email_pdf(invoice_id):
     try:
+        if HTML is None:
+            raise RuntimeError(
+                'WeasyPrint HTML class is None — GTK/Pango libraries are missing in this environment'
+            )
         invoice = Invoice.objects.select_related('marina', 'member').prefetch_related('items').get(pk=invoice_id)
         html_string = render_to_string('billing/invoice_pdf.html', {'invoice': invoice})
         pdf_bytes = HTML(string=html_string).write_pdf()
 
         path = f'invoices/{invoice.marina_id}/{invoice.invoice_number}.pdf'
-        saved_path = default_storage.save(path, ContentFile(pdf_bytes))
+        with ContentFile(pdf_bytes) as f:
+            saved_path = default_storage.save(path, f)
         invoice.pdf_document = saved_path
         invoice.save(update_fields=['pdf_document'])
 
