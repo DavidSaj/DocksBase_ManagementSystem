@@ -105,6 +105,7 @@ class ConvertBookingRequestView(APIView):
 
 class AvailableBerthsView(APIView):
     """GET /api/v1/bookings/available-berths/ — returns compatible berths with gap scores."""
+    permission_classes = [AllowAny]
 
     def get(self, request):
         check_in = request.query_params.get('check_in')
@@ -134,6 +135,7 @@ class BookingEngineRequestView(APIView):
     Mode A → pending_approval (no berth, no payment yet).
     Mode B → pending_payment (berth assigned, Stripe checkout URL returned).
     """
+    permission_classes = [AllowAny]
 
     def post(self, request):
         ser = BookingEngineRequestSerializer(data=request.data)
