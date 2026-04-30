@@ -127,8 +127,7 @@ function AbsenceTab() {
 
 // ── Crane Tab ─────────────────────────────────────────────────
 function CraneTab() {
-  const { requests, loading, error, submitRequest } = usePortalCraneRequests();
-  // nothing to show for load error here — form still works for new submissions
+  const { requests, loading, submitRequest } = usePortalCraneRequests();
   const [form, setForm]             = useState({ service_type: 'haul_out', requested_date: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
