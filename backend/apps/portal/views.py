@@ -5,8 +5,12 @@ from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, Crane
 
 
 class IsBoater(permissions.BasePermission):
+    message = 'No member profile linked to this account.'
+
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == 'boater')
+        if not (request.user and request.user.is_authenticated and request.user.role == 'boater'):
+            return False
+        return hasattr(request.user, 'member_profile')
 
 
 class PortalInvoiceListView(generics.ListAPIView):
@@ -15,7 +19,10 @@ class PortalInvoiceListView(generics.ListAPIView):
 
     def get_queryset(self):
         member = self.request.user.member_profile
-        return Invoice.objects.filter(member=member).order_by('-issued')
+        return Invoice.objects.filter(
+            member=member,
+            marina=self.request.user.marina,
+        ).order_by('-issued')
 
 
 class AbsenceReportCreateView(generics.CreateAPIView):
