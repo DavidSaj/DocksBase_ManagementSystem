@@ -8,6 +8,7 @@ from apps.berths.models import Berth
 from .models import Booking
 
 ACTIVE_STATUSES = ['awaiting_payment', 'pending_payment', 'confirmed', 'pending', 'checked_in']
+SCORING_STATUSES = ACTIVE_STATUSES + ['checked_out', 'overstay']
 INFINITE_GAP = timedelta(days=3650)  # treat missing neighbour as 10-year gap
 
 
@@ -56,7 +57,7 @@ def _score_berths(available_berths, check_in, check_out):
         Booking.objects.filter(
             berth=OuterRef('pk'),
             check_out__lte=check_in,
-            status__in=ACTIVE_STATUSES,
+            status__in=SCORING_STATUSES,
         )
         .order_by('-check_out')
         .values('check_out')[:1]
@@ -65,7 +66,7 @@ def _score_berths(available_berths, check_in, check_out):
         Booking.objects.filter(
             berth=OuterRef('pk'),
             check_in__gte=check_out,
-            status__in=ACTIVE_STATUSES,
+            status__in=SCORING_STATUSES,
         )
         .order_by('check_in')
         .values('check_in')[:1]
@@ -92,6 +93,9 @@ def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, gue
         check_in = date.fromisoformat(check_in)
     if isinstance(check_out, str):
         check_out = date.fromisoformat(check_out)
+
+    if check_out <= check_in:
+        raise ValueError(f'check_out ({check_out}) must be after check_in ({check_in}).')
 
     nights = (check_out - check_in).days or 1
     return Booking.objects.create(
@@ -121,6 +125,9 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, guest_name, gue
         check_in = date.fromisoformat(check_in)
     if isinstance(check_out, str):
         check_out = date.fromisoformat(check_out)
+
+    if check_out <= check_in:
+        raise ValueError(f'check_out ({check_out}) must be after check_in ({check_in}).')
 
     candidates = compatible_available_berths(marina, check_in, check_out, boat_loa, boat_beam)
     scored = _score_berths(candidates, check_in, check_out)
