@@ -344,3 +344,93 @@ svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
 /* ── FUEL DOCK ───────────────────────────────────────────────────────────── */
 .fuel-berth { background: #dbeeff; border: 1px solid rgba(0,80,160,0.2); border-radius: 8px; padding: 14px 18px; margin-bottom: 8px; }
 .fuel-berth-id { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(0,0,0,0.35); margin-bottom: 4px; }
+
+/* ── Button base (abtn) ─────────────────────────────────────────────────── */
+.abtn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border: none; border-radius: 3px; font-family: var(--font-app, 'IBM Plex Sans', sans-serif); font-size: 12px; font-weight: 500; padding: 7px 14px; transition: background 0.12s; }
+.abtn:active { transform: scale(0.96); }
+.abtn-primary { background: #0c1f3d; color: #fff; }
+.abtn-primary:hover { background: #162d52; }
+
+/* ── Login ─────────────────────────────────────────────────────────────── */
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-alt, #f6f5f4);
+  padding: 24px;
+}
+
+.login-card {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.login-brand {
+  font-family: var(--font-primary, 'Jost', sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #0c1f3d;
+}
+
+.login-title {
+  font-family: var(--font-app, 'IBM Plex Sans', sans-serif);
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(0,0,0,0.95);
+  margin-bottom: 24px;
+  letter-spacing: -0.2px;
+}
+
+.login-form { display: flex; flex-direction: column; gap: 16px; }
+
+.login-field { display: flex; flex-direction: column; gap: 5px; }
+
+.login-label {
+  font-family: var(--font-app, 'IBM Plex Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0,0,0,0.95);
+}
+
+.login-input {
+  font-family: var(--font-app, 'IBM Plex Sans', sans-serif);
+  font-size: 15px;
+  font-weight: 400;
+  background: #fff;
+  color: rgba(0,0,0,0.9);
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  padding: 7px 10px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.login-input::placeholder { color: #a39e98; }
+
+.login-input:focus {
+  border-color: #097fe8;
+  box-shadow: 0 0 0 3px rgba(9,127,232,0.12);
+}
+
+.login-error {
+  font-size: 13px;
+  color: #cc2222;
+  margin: 0;
+}
+
+.login-submit { width: 100%; justify-content: center; padding: 10px 0; font-size: 14px; }
