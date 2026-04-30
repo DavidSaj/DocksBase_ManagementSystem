@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 
 class AbsenceReport(models.Model):
@@ -13,6 +14,11 @@ class AbsenceReport(models.Model):
     departure    = models.DateField()
     return_date  = models.DateField()
     notes        = models.TextField(blank=True)
+
+    def clean(self):
+        if self.departure and self.return_date and self.return_date < self.departure:
+            raise ValidationError({'return_date': 'Return date must be on or after the departure date.'})
+
     created_at   = models.DateTimeField(auto_now_add=True)
 
     class Meta:
