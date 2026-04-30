@@ -7,15 +7,21 @@ class Booking(models.Model):
         ('seasonal', 'Seasonal'),
     ]
     STATUS_CHOICES = [
-        ('pending',     'Pending'),
-        ('checked_in',  'Checked In'),
-        ('checked_out', 'Checked Out'),
-        ('overstay',    'Overstay'),
+        # Engine pre-operational states
+        ('pending_approval', 'Pending Approval'),   # Mode A: berth=null, awaiting admin
+        ('awaiting_payment', 'Awaiting Payment'),   # Mode A: berth assigned, Stripe link sent
+        ('pending_payment',  'Pending Payment'),    # Mode B: berth assigned, Stripe checkout open
+        ('confirmed',        'Confirmed'),           # Both modes: payment received
+        # Operational states (existing)
+        ('pending',      'Pending'),
+        ('checked_in',   'Checked In'),
+        ('checked_out',  'Checked Out'),
+        ('overstay',     'Overstay'),
     ]
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='bookings')
-    berth = models.ForeignKey('berths.Berth', on_delete=models.PROTECT, related_name='bookings')
-    vessel = models.ForeignKey('vessels.Vessel', on_delete=models.PROTECT, related_name='bookings')
+    berth = models.ForeignKey('berths.Berth', on_delete=models.PROTECT, related_name='bookings', null=True, blank=True)
+    vessel = models.ForeignKey('vessels.Vessel', on_delete=models.PROTECT, related_name='bookings', null=True, blank=True)
     booking_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='transient')
     check_in = models.DateField()
     check_out = models.DateField()
@@ -24,13 +30,27 @@ class Booking(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     paid = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
+
+    # Guest / boater contact (set when no linked vessel/member)
+    guest_name = models.CharField(max_length=200, blank=True)
+    guest_email = models.EmailField(blank=True)
+    guest_phone = models.CharField(max_length=50, blank=True)
+
+    # Boat dimensions for berth compatibility check
+    boat_loa = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    boat_beam = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
+    # Stripe
+    stripe_session_id = models.CharField(max_length=200, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'BK-{self.pk} — {self.vessel} @ {self.berth}'
+        berth_code = self.berth.code if self.berth else 'unassigned'
+        return f'BK-{self.pk} — {self.vessel or self.guest_name} @ {berth_code}'
 
 
 class BookingRequest(models.Model):
