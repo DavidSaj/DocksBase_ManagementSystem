@@ -19,9 +19,9 @@ def make_marina(vat_rate='8.10', stripe_account_id='acct_test123'):
     )
 
 
-def make_user(marina):
+def make_user(marina, email='staff@test.com'):
     return User.objects.create_user(
-        email='staff@test.com', password='pass', marina=marina, role='manager'
+        email=email, password='pass', marina=marina, role='manager'
     )
 
 
