@@ -44,6 +44,7 @@ LOCAL_APPS = [
     'apps.reports',
     'apps.fuel_dock',
     'apps.portal',
+    'apps.admin_portal',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
