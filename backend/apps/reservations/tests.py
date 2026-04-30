@@ -425,7 +425,7 @@ class AssignBerthEndpointTest(TestCase):
         self.assertEqual(self.booking.status, 'awaiting_payment')
         self.assertEqual(self.booking.berth, self.berth)
         from apps.billing.models import Invoice
-        self.assertTrue(Invoice.objects.filter(booking=self.booking).exists())
+        self.assertTrue(Invoice.objects.filter(source_type='booking', source_id=str(self.booking.id)).exists())
         self.assertTrue(mock_mail.called)
 
     @patch('apps.reservations.views.stripe')
@@ -458,17 +458,13 @@ class StripeWebhookTest(TestCase):
             stripe_session_id='cs_test_webhook',
             guest_name='E. Sailor',
         )
-        from apps.billing.models import Invoice
-        import datetime
-        self.invoice = Invoice.objects.create(
-            marina=self.marina,
-            booking=self.booking,
-            invoice_type='berth_fee',
-            amount='300.00',
-            issued=datetime.date.today(),
-            due=datetime.date.today(),
-            status='unpaid',
+        from apps.billing import service as billing_service
+        inv = billing_service.create_invoice(
+            self.marina, source_type='booking', source_id=str(self.booking.id)
         )
+        billing_service.add_line_item(inv, 'Berth WH1 — 4 nights', 1, 300)
+        billing_service.finalize_invoice(inv)
+        self.invoice = inv
 
     @patch('apps.reservations.views.stripe')
     def test_webhook_confirms_booking_and_marks_invoice_paid(self, mock_stripe):

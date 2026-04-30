@@ -175,12 +175,15 @@ class BookingEngineRequestView(APIView):
                     guest_email=d.get('guest_email', ''),
                     guest_phone=d.get('guest_phone', ''),
                 )
-                # TODO (Task 7): create invoice via billing service layer
-                # TODO (Task 7): create Stripe checkout session
+                invoice = _create_booking_invoice(booking, marina)
+                checkout_url = _create_stripe_session(booking, marina, invoice)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)
+        except stripe.StripeError:
+            return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
 
         data = BookingSerializer(booking).data
+        data['checkout_url'] = checkout_url
         return Response(data, status=http_status.HTTP_201_CREATED)
 
 
@@ -220,13 +223,30 @@ class AssignBerthView(APIView):
         price = berth.price_per_night
         amount = (price * nights) if price is not None else 0
 
-        with transaction.atomic():
-            booking.berth = berth
-            booking.amount = amount
-            booking.status = 'awaiting_payment'
-            booking.save(update_fields=['berth', 'amount', 'status'])
-            # TODO (Task 7): create invoice via billing service layer
-            # TODO (Task 7): create Stripe checkout session and email boater
+        try:
+            with transaction.atomic():
+                booking.berth = berth
+                booking.amount = amount
+                booking.status = 'awaiting_payment'
+                booking.save(update_fields=['berth', 'amount', 'status'])
+                invoice = _create_booking_invoice(booking, request.user.marina)
+                checkout_url = _create_stripe_session(booking, request.user.marina, invoice)
+        except stripe.StripeError:
+            return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        if booking.guest_email:
+            send_mail(
+                subject='Your DocksBase Booking — Pay Now',
+                message=(
+                    f"Hello {booking.guest_name or 'there'},\n\n"
+                    f"Your berth ({berth.code}) has been assigned for "
+                    f"{booking.check_in} – {booking.check_out}.\n\n"
+                    f"Please complete payment here:\n{checkout_url}"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[booking.guest_email],
+                fail_silently=True,
+            )
 
         return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)
 
@@ -254,7 +274,6 @@ class StripeWebhookView(APIView):
                     booking.status = 'confirmed'
                     booking.paid = True
                     booking.save(update_fields=['status', 'paid'])
-                    # TODO (Task 5): update invoice via billing service layer
                     Invoice.objects.filter(
                         source_type='booking', source_id=str(booking.id)
                     ).update(status='paid')
@@ -266,7 +285,23 @@ class StripeWebhookView(APIView):
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
 
-def _create_stripe_session(booking, marina):
+def _create_booking_invoice(booking, marina):
+    """Create a finalized invoice for a booking using the billing service layer."""
+    from apps.billing import service as billing_service
+    nights = booking.nights or 1
+    berth_code = booking.berth.code if booking.berth else 'TBD'
+    invoice = billing_service.create_invoice(marina, source_type='booking', source_id=str(booking.id))
+    billing_service.add_line_item(
+        invoice,
+        description=f'Berth {berth_code} — {nights} night{"s" if nights != 1 else ""}',
+        quantity=1,
+        unit_price=booking.amount or 0,
+    )
+    billing_service.finalize_invoice(invoice)
+    return invoice
+
+
+def _create_stripe_session(booking, marina, invoice=None):
     """Create a Stripe Checkout Session for a booking; save session ID; return checkout URL."""
     nights_label = f'{booking.nights} night{"s" if booking.nights != 1 else ""}'
     berth_code = booking.berth.code if booking.berth else 'TBD'
@@ -287,4 +322,7 @@ def _create_stripe_session(booking, marina):
     )
     booking.stripe_session_id = session.id
     booking.save(update_fields=['stripe_session_id'])
+    if invoice:
+        invoice.stripe_checkout_session_id = session.id
+        invoice.save(update_fields=['stripe_checkout_session_id'])
     return session.url

@@ -42,8 +42,8 @@ class FuelDockBillingTest(TestCase):
         self.assertEqual(entry.status, 'completed')
         self.assertAlmostEqual(float(entry.total_amount), 195.0)
         self.assertIsNotNone(entry.invoice)
-        self.assertEqual(entry.invoice.invoice_type, 'fuel')
-        self.assertAlmostEqual(float(entry.invoice.amount), 195.0)
+        self.assertEqual(entry.invoice.source_type, 'fuel_dock')
+        self.assertAlmostEqual(float(entry.invoice.total), 195.0)
         self.assertFalse(entry.pos_paid)
 
     def test_stranger_completion_sets_pos_paid_no_invoice(self):
