@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 
@@ -23,6 +24,7 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'django_filters',
+    'storages',
 ]
 
 LOCAL_APPS = [
@@ -91,8 +93,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-import os
-
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -111,7 +111,7 @@ if _supabase_endpoint:
     AWS_ACCESS_KEY_ID = os.environ.get('SUPABASE_S3_KEY', '')
     AWS_SECRET_ACCESS_KEY = os.environ.get('SUPABASE_S3_SECRET', '')
     AWS_S3_FILE_OVERWRITE = False
-    AWS_DEFAULT_ACL = 'public-read'
+    AWS_DEFAULT_ACL = None
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
