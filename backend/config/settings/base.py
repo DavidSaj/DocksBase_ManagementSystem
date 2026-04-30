@@ -100,6 +100,19 @@ DROPBOX_SIGN_API_KEY = os.environ.get('DROPBOX_SIGN_API_KEY', '')
 DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '')
 DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
 
+DEFAULT_FROM_EMAIL = 'noreply@docksbase.com'
+
+# Supabase Storage (S3-compatible). Falls back to local FileSystemStorage when env vars absent.
+_supabase_endpoint = os.environ.get('SUPABASE_S3_ENDPOINT', '')
+if _supabase_endpoint:
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_S3_ENDPOINT_URL = _supabase_endpoint
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('SUPABASE_S3_BUCKET', 'staff-certs')
+    AWS_ACCESS_KEY_ID = os.environ.get('SUPABASE_S3_KEY', '')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('SUPABASE_S3_SECRET', '')
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = 'public-read'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
