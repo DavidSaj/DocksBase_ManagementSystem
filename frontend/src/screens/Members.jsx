@@ -4,6 +4,7 @@ import useSegments from '../hooks/useSegments.js';
 import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
+import { sendMagicLink } from '../api.js';
 
 function NewMemberModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
@@ -142,6 +143,22 @@ export default function Members() {
   const [sel, setSel] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showUploadDoc, setShowUploadDoc] = useState(false);
+  const [linkSent, setLinkSent]       = useState(false);
+  const [linkSending, setLinkSending] = useState(false);
+
+  async function handleSendPortalLink() {
+    if (!sel?.id) return;
+    setLinkSending(true);
+    try {
+      await sendMagicLink(sel.id);
+      setLinkSent(true);
+      setTimeout(() => setLinkSent(false), 3000);
+    } catch {
+      // silently ignore
+    } finally {
+      setLinkSending(false);
+    }
+  }
 
   const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
@@ -172,7 +189,7 @@ export default function Members() {
                   ) : members.length === 0 ? (
                     <tr><td colSpan={6} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No members found.</td></tr>
                   ) : members.map(m => (
-                    <tr key={m.id} style={{ cursor: 'pointer', background: sel?.id === m.id ? '#f5f8ff' : '' }} onClick={() => setSel(m)}>
+                    <tr key={m.id} style={{ cursor: 'pointer', background: sel?.id === m.id ? '#f5f8ff' : '' }} onClick={() => { setSel(m); setLinkSent(false); }}>
                       <td><div className="tbl-name">{m.name}</div><div className="tbl-sub">{m.email}</div></td>
                       <td style={{ fontWeight: 500 }}>{m.vessel}</td>
                       <td><StatusBadge s={m.type} /></td>
@@ -202,6 +219,16 @@ export default function Members() {
                 <button className="btn btn-primary" style={{ justifyContent: 'center' }}>Send Message</button>
                 <button className="btn btn-ghost" style={{ justifyContent: 'center' }}>View Documents</button>
                 <button className="btn btn-ghost" style={{ justifyContent: 'center' }}>Edit Profile</button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ justifyContent: 'center' }}
+                  onClick={handleSendPortalLink}
+                  disabled={linkSending || !sel?.email}
+                  title={sel?.email ? undefined : 'Member has no email address'}
+                >
+                  {linkSent ? 'Link sent' : linkSending ? 'Sending…' : 'Send portal link'}
+                </button>
               </div>
             </div>
           )}

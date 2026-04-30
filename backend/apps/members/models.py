@@ -23,6 +23,12 @@ class Member(models.Model):
     docs_status = models.CharField(max_length=20, choices=DOCS_STATUS_CHOICES, default='complete')
     joined_at = models.DateField(null=True, blank=True)
     tags = models.JSONField(default=list, blank=True)
+    boater_user = models.OneToOneField(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='member_profile',
+    )
 
     # Contact
     preferred_name = models.CharField(max_length=100, blank=True)
