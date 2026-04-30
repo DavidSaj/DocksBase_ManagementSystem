@@ -11,7 +11,7 @@ urlpatterns = [
         path('', include('apps.reservations.urls')),
         path('', include('apps.vessels.urls')),
         path('', include('apps.members.urls')),
-        path('', include('apps.billing.urls')),
+        path('billing/', include('apps.billing.urls')),
         path('', include('apps.maintenance.urls')),
         path('', include('apps.staff.urls')),
         path('', include('apps.boatyard.urls')),

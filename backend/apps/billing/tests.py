@@ -268,3 +268,172 @@ class SignalReceiverTest(TestCase):
         billing_service.mark_paid_manual(inv, 'cash')
         booking.refresh_from_db()
         self.assertEqual(booking.status, 'awaiting_payment')
+
+
+import json
+
+
+class StripeCheckoutSessionTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_create_checkout_session_stores_session_id_and_returns_url(self, mock_stripe):
+        mock_session = MagicMock()
+        mock_session.id = 'cs_test_abc123'
+        mock_session.url = 'https://checkout.stripe.com/pay/cs_test_abc123'
+        mock_stripe.checkout.Session.create.return_value = mock_session
+
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id='20',
+            due_date=datetime.date(2026, 7, 1),
+        )
+        billing_service.add_line_item(inv, 'Berth A1 — 3 nights', Decimal('1'), Decimal('150.00'))
+        billing_service.finalize_invoice(inv)
+        url = billing_service.create_stripe_checkout_session(inv)
+
+        inv.refresh_from_db()
+        self.assertEqual(inv.stripe_checkout_session_id, 'cs_test_abc123')
+        self.assertEqual(url, 'https://checkout.stripe.com/pay/cs_test_abc123')
+
+    def test_create_checkout_session_rejects_draft_invoice(self):
+        inv = billing_service.create_invoice(
+            self.marina, source_type='berth_booking', source_id='21',
+        )
+        with self.assertRaises(ValueError):
+            billing_service.create_stripe_checkout_session(inv)
+
+
+class StripeWebhookViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.client = APIClient()
+        self.berth = make_berth(self.marina)
+
+    def _open_invoice(self, source_type='berth_booking', source_id='30', session_id='cs_test_xyz'):
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type=source_type, source_id=source_id,
+        )
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('200.00'))
+        billing_service.finalize_invoice(inv)
+        inv.stripe_checkout_session_id = session_id
+        inv.save(update_fields=['stripe_checkout_session_id'])
+        return inv
+
+    @patch('apps.billing.stripe_service.stripe')
+    @patch('apps.billing.views.threading')
+    def test_completed_marks_invoice_paid_and_starts_pdf_thread(self, mock_threading, mock_stripe):
+        mock_threading.Thread.return_value = MagicMock()
+        inv = self._open_invoice()
+        mock_stripe.Webhook.construct_event.return_value = {
+            'type': 'checkout.session.completed',
+            'data': {'object': {
+                'id': 'cs_test_xyz',
+                'payment_intent': 'pi_test_123',
+                'metadata': {'invoice_id': str(inv.id)},
+            }}
+        }
+        resp = self.client.post(
+            '/api/v1/billing/stripe/webhook/',
+            data=b'{}', content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='t=1,v1=fakesig',
+        )
+        self.assertEqual(resp.status_code, 200)
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, 'paid')
+        self.assertEqual(inv.stripe_payment_intent_id, 'pi_test_123')
+        self.assertIsNotNone(inv.paid_at)
+        mock_threading.Thread.assert_called_once()
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_expired_clears_checkout_session_id(self, mock_stripe):
+        inv = self._open_invoice()
+        mock_stripe.Webhook.construct_event.return_value = {
+            'type': 'checkout.session.expired',
+            'data': {'object': {
+                'id': 'cs_test_xyz',
+                'metadata': {'invoice_id': str(inv.id)},
+            }}
+        }
+        resp = self.client.post(
+            '/api/v1/billing/stripe/webhook/',
+            data=b'{}', content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='t=1,v1=fakesig',
+        )
+        self.assertEqual(resp.status_code, 200)
+        inv.refresh_from_db()
+        self.assertEqual(inv.stripe_checkout_session_id, '')
+        self.assertEqual(inv.status, 'open')
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_invalid_signature_returns_400(self, mock_stripe):
+        mock_stripe.Webhook.construct_event.side_effect = Exception('Invalid signature')
+        resp = self.client.post(
+            '/api/v1/billing/stripe/webhook/',
+            data=b'{}', content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='bad',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+
+class BillingAPITest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.user = make_user(self.marina)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_invoice_list_returns_marina_invoices_only(self):
+        billing_service.create_invoice(self.marina, source_type='berth_booking', source_id='40')
+        other_marina = Marina.objects.create(name='Other Marina')
+        billing_service.create_invoice(other_marina, source_type='berth_booking', source_id='41')
+        resp = self.client.get('/api/v1/billing/invoices/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()), 1)
+
+    def test_mark_paid_cash_sets_paid_status(self):
+        inv = billing_service.create_invoice(self.marina, source_type='restaurant_order', source_id='50')
+        billing_service.add_line_item(inv, 'Burger', Decimal('1'), Decimal('16.00'))
+        billing_service.finalize_invoice(inv)
+        resp = self.client.patch(
+            f'/api/v1/billing/invoices/{inv.id}/mark-paid/',
+            {'method': 'cash'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['status'], 'paid')
+
+    def test_mark_paid_invalid_method_returns_400(self):
+        inv = billing_service.create_invoice(self.marina, source_type='restaurant_order', source_id='51')
+        billing_service.add_line_item(inv, 'Coffee', Decimal('1'), Decimal('4.00'))
+        billing_service.finalize_invoice(inv)
+        resp = self.client.patch(
+            f'/api/v1/billing/invoices/{inv.id}/mark-paid/',
+            {'method': 'bitcoin'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_from_order_creates_invoice_with_line_items(self):
+        from apps.restaurant.models import RestTable, MenuItem, Order, OrderItem
+        table = RestTable.objects.create(marina=self.marina, number=1, capacity=4)
+        menu_item = MenuItem.objects.create(
+            marina=self.marina, section='mains', name='Cheeseburger',
+            price=Decimal('16.00'), prep_time=15,
+        )
+        order = Order.objects.create(marina=self.marina, table=table, covers=2)
+        OrderItem.objects.create(order=order, menu_item=menu_item, quantity=2)
+
+        resp = self.client.post(
+            '/api/v1/billing/invoices/from-order/',
+            {'order_id': order.id}, format='json',
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.json()
+        self.assertEqual(data['source_type'], 'restaurant_order')
+        self.assertEqual(data['status'], 'open')
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(Decimal(data['subtotal']), Decimal('32.00'))
