@@ -81,6 +81,7 @@ export async function exchangeMagicToken(token) {
   const { data } = await api.post('/auth/magic/exchange/', { token });
   localStorage.setItem('access_token', data.access);
   localStorage.setItem('refresh_token', data.refresh);
+  storeUser(data.user);
   return data.user;
 }
 

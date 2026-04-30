@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { getStoredUser, clearAuth, isAuthenticated } from '../api.js';
+import { getStoredUser, clearAuth, isAuthenticated, storeUser } from '../api.js';
 
 const AuthContext = createContext(null);
 
@@ -8,15 +8,20 @@ export function AuthProvider({ children }) {
   const [isLoading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Rehydrate from localStorage on first mount
     if (isAuthenticated()) {
       const stored = getStoredUser();
-      setUser(stored);
+      if (stored) {
+        setUser(stored);
+      } else {
+        // Token exists but no user object — clear stale state
+        clearAuth();
+      }
     }
     setLoading(false);
   }, []);
 
   function signIn(userObj) {
+    storeUser(userObj);
     setUser(userObj);
   }
 
