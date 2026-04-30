@@ -5,13 +5,14 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/admin/', include('apps.admin_portal.urls')),
     path('api/v1/', include([
         path('auth/', include('apps.accounts.urls')),
         path('', include('apps.berths.urls')),
         path('', include('apps.reservations.urls')),
         path('', include('apps.vessels.urls')),
         path('', include('apps.members.urls')),
-        path('', include('apps.billing.urls')),
+        path('billing/', include('apps.billing.urls')),
         path('', include('apps.maintenance.urls')),
         path('', include('apps.staff.urls')),
         path('', include('apps.boatyard.urls')),
