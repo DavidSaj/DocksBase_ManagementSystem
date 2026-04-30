@@ -7,14 +7,12 @@ from .views import (
     AvailableBerthsView,
     BookingEngineRequestView,
     AssignBerthView,
-    StripeWebhookView,
 )
 
 urlpatterns = [
     # Booking engine (must precede <int:pk> patterns to avoid any routing ambiguity)
     path('bookings/available-berths/',              AvailableBerthsView.as_view(),          name='available_berths'),
     path('bookings/engine-request/',                BookingEngineRequestView.as_view(),     name='booking_engine_request'),
-    path('bookings/stripe-webhook/',                StripeWebhookView.as_view(),            name='stripe_webhook'),
     # Existing CRUD
     path('bookings/',                               BookingListCreateView.as_view(),        name='booking_list'),
     path('bookings/<int:pk>/',                      BookingDetailView.as_view(),            name='booking_detail'),

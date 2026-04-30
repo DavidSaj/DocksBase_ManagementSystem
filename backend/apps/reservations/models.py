@@ -40,9 +40,6 @@ class Booking(models.Model):
     boat_loa = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     boat_beam = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
-    # Stripe
-    stripe_session_id = models.CharField(max_length=200, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

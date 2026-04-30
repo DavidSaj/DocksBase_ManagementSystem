@@ -346,12 +346,8 @@ class BookingEngineRequestEndpointTest(TestCase):
         self.assertEqual(resp.data['status'], 'pending_approval')
         self.assertIsNone(resp.data['berth'])
 
-    @patch('apps.reservations.views.stripe')
-    def test_mode_b_creates_pending_payment_booking(self, mock_stripe):
-        mock_session = MagicMock()
-        mock_session.id = 'cs_test_123'
-        mock_session.url = 'https://checkout.stripe.com/test'
-        mock_stripe.checkout.Session.create.return_value = mock_session
+    @patch('apps.billing.stripe_service._create_checkout_session', return_value='https://checkout.stripe.com/test')
+    def test_mode_b_creates_pending_payment_booking(self, mock_checkout):
         self.marina.booking_mode = 'auto_tetris'
         self.marina.save()
         resp = self.client.post('/api/v1/bookings/engine-request/', {
@@ -364,12 +360,11 @@ class BookingEngineRequestEndpointTest(TestCase):
             'guest_phone': '',
         })
         self.assertEqual(resp.status_code, 201)
-        self.assertEqual(resp.data['status'], 'pending_payment')
-        self.assertIsNotNone(resp.data['berth'])
+        self.assertEqual(resp.data['booking']['status'], 'pending_payment')
+        self.assertIsNotNone(resp.data['booking']['berth'])
         self.assertIn('checkout_url', resp.data)
 
-    @patch('apps.reservations.views.stripe')
-    def test_mode_b_returns_409_when_no_berth(self, mock_stripe):
+    def test_mode_b_returns_409_when_no_berth(self):
         self.marina.booking_mode = 'auto_tetris'
         self.marina.save()
         # Block all compatible berths
@@ -409,14 +404,9 @@ class AssignBerthEndpointTest(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    @patch('apps.reservations.views.stripe')
+    @patch('apps.billing.stripe_service._create_checkout_session', return_value='https://checkout.stripe.com/assign')
     @patch('apps.reservations.views.send_mail')
-    def test_assign_berth_updates_status_and_creates_invoice(self, mock_mail, mock_stripe):
-        mock_session = MagicMock()
-        mock_session.id = 'cs_test_assign'
-        mock_session.url = 'https://checkout.stripe.com/assign'
-        mock_stripe.checkout.Session.create.return_value = mock_session
-
+    def test_assign_berth_updates_status_and_creates_invoice(self, mock_mail, mock_checkout):
         resp = self.client.post(f'/api/v1/bookings/{self.booking.id}/assign-berth/', {
             'berth_id': self.berth.id,
         })
@@ -425,12 +415,13 @@ class AssignBerthEndpointTest(TestCase):
         self.assertEqual(self.booking.status, 'awaiting_payment')
         self.assertEqual(self.booking.berth, self.berth)
         from apps.billing.models import Invoice
-        self.assertTrue(Invoice.objects.filter(booking=self.booking).exists())
+        self.assertTrue(
+            Invoice.objects.filter(source_type='berth_booking', source_id=str(self.booking.id)).exists()
+        )
         self.assertTrue(mock_mail.called)
 
-    @patch('apps.reservations.views.stripe')
     @patch('apps.reservations.views.send_mail')
-    def test_assign_berth_rejects_incompatible_berth(self, mock_mail, mock_stripe):
+    def test_assign_berth_rejects_incompatible_berth(self, mock_mail):
         small_berth = make_berth_with_dims(self.marina, 'AS2', loa=5.0, beam=2.0)
         resp = self.client.post(f'/api/v1/bookings/{self.booking.id}/assign-berth/', {
             'berth_id': small_berth.id,
@@ -446,63 +437,3 @@ class AssignBerthEndpointTest(TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
-class StripeWebhookTest(TestCase):
-    def setUp(self):
-        self.marina = make_marina()
-        self.berth = make_berth_with_dims(self.marina, 'WH1', loa=20.0, beam=6.0)
-        self.booking = Booking.objects.create(
-            marina=self.marina, berth=self.berth,
-            check_in='2026-10-01', check_out='2026-10-05',
-            nights=4, amount='300.00',
-            status='pending_payment',
-            stripe_session_id='cs_test_webhook',
-            guest_name='E. Sailor',
-        )
-        from apps.billing.models import Invoice
-        import datetime
-        self.invoice = Invoice.objects.create(
-            marina=self.marina,
-            booking=self.booking,
-            invoice_type='berth_fee',
-            amount='300.00',
-            issued=datetime.date.today(),
-            due=datetime.date.today(),
-            status='unpaid',
-        )
-
-    @patch('apps.reservations.views.stripe')
-    def test_webhook_confirms_booking_and_marks_invoice_paid(self, mock_stripe):
-        event_data = {
-            'type': 'checkout.session.completed',
-            'data': {'object': {
-                'id': 'cs_test_webhook',
-                'metadata': {'booking_id': str(self.booking.id)},
-                'payment_status': 'paid',
-            }},
-        }
-        mock_stripe.Webhook.construct_event.return_value = event_data
-
-        resp = self.client.post(
-            '/api/v1/bookings/stripe-webhook/',
-            data=json.dumps(event_data),
-            content_type='application/json',
-            HTTP_STRIPE_SIGNATURE='t=123,v1=abc',
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.booking.refresh_from_db()
-        self.assertEqual(self.booking.status, 'confirmed')
-        self.assertTrue(self.booking.paid)
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.status, 'paid')
-
-    @patch('apps.reservations.views.stripe')
-    def test_webhook_rejects_invalid_signature(self, mock_stripe):
-        import stripe as stripe_lib
-        mock_stripe.Webhook.construct_event.side_effect = stripe_lib.error.SignatureVerificationError('bad sig', 'sig_header')
-        resp = self.client.post(
-            '/api/v1/bookings/stripe-webhook/',
-            data='{}',
-            content_type='application/json',
-            HTTP_STRIPE_SIGNATURE='bad',
-        )
-        self.assertEqual(resp.status_code, 400)
