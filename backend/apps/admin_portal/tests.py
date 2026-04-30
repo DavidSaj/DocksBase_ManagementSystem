@@ -203,6 +203,11 @@ class AdminMarinaActionsTest(TestCase):
         self.marina.refresh_from_db()
         self.assertEqual(self.marina.status, 'active')
 
+    def test_convert_non_trial_returns_400(self):
+        # self.marina has status='active' from setUp
+        resp = self.client.post(f'/api/admin/marinas/{self.marina.id}/convert/')
+        self.assertEqual(resp.status_code, 400)
+
     def test_update_features_toggle(self):
         resp = self.client.patch(
             f'/api/admin/marinas/{self.marina.id}/',

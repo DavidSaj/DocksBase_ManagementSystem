@@ -106,7 +106,7 @@ class AdminMarinaDetailView(APIView):
         marina = get_object_or_404(Marina, pk=pk)
         ser = MarinaUpdateSerializer(marina, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
-        ser.save()
+        marina = ser.save()
         _log(request.user, 'update_marina', marina, changes=list(request.data.keys()))
         return Response(MarinaDetailSerializer(marina).data)
 
@@ -141,6 +141,11 @@ class AdminMarinaConvertView(APIView):
 
     def post(self, request, pk):
         marina = get_object_or_404(Marina, pk=pk)
+        if marina.status != 'trial':
+            return Response(
+                {'detail': 'Only trial marinas can be converted to active.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
         marina.status = 'active'
         marina.trial_ends = None
         today = datetime.date.today()
@@ -291,7 +296,7 @@ class AdminFeatureFlagDetailView(APIView):
     permission_classes = [IsPlatformAdmin]
 
     def patch(self, request, name):
-        flag, _ = GlobalFeatureFlag.objects.get_or_create(name=name)
+        flag = get_object_or_404(GlobalFeatureFlag, name=name)
         enabled = request.data.get('enabled')
         if enabled is None:
             return Response({'detail': 'enabled field required.'}, status=http_status.HTTP_400_BAD_REQUEST)
