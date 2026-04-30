@@ -26,5 +26,11 @@ export default function useBookings(filters = {}) {
     return data;
   }
 
-  return { bookings, loading, error, refetch: fetchBookings, updateBooking };
+  async function assignBerth(bookingId, berthId) {
+    const { data } = await api.post(`/bookings/${bookingId}/assign-berth/`, { berth_id: berthId });
+    setBookings(prev => prev.map(b => b.id === bookingId ? data : b));
+    return data;
+  }
+
+  return { bookings, loading, error, refetch: fetchBookings, updateBooking, assignBerth };
 }
