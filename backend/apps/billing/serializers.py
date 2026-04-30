@@ -25,7 +25,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'invoice_number', 'status', 'source_type', 'source_id',
             'member', 'member_name', 'subtotal', 'vat_rate', 'tax_total', 'total',
-            'due_date', 'paid_at', 'stripe_checkout_session_id', 'created_at',
+            'due_date', 'paid_at', 'created_at',
             'items', 'payments',
         ]
         read_only_fields = [

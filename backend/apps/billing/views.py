@@ -45,16 +45,19 @@ class StripeWebhookView(APIView):
             return HttpResponse(status=200)
 
         if event_type == 'checkout.session.completed':
-            invoice.stripe_payment_intent_id = obj.get('payment_intent', '')
-            invoice.status = 'paid'
-            invoice.paid_at = timezone.now()
-            invoice.save(update_fields=['stripe_payment_intent_id', 'status', 'paid_at'])
-            invoice_paid.send(sender=Invoice, invoice=invoice)
-            threading.Thread(
-                target=_generate_store_and_email_pdf,
-                args=(invoice.id,),
-                daemon=True,
-            ).start()
+            updated = Invoice.objects.filter(pk=invoice.pk, status='open').update(
+                stripe_payment_intent_id=obj.get('payment_intent', ''),
+                status='paid',
+                paid_at=timezone.now(),
+            )
+            if updated:
+                invoice.refresh_from_db()
+                invoice_paid.send(sender=Invoice, invoice=invoice)
+                threading.Thread(
+                    target=_generate_store_and_email_pdf,
+                    args=(invoice.id,),
+                    daemon=True,
+                ).start()
 
         elif event_type == 'checkout.session.expired':
             invoice.stripe_checkout_session_id = ''
@@ -79,7 +82,9 @@ class InvoiceDetailView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Invoice.objects.filter(marina=self.request.user.marina)
+        return Invoice.objects.filter(
+            marina=self.request.user.marina
+        ).select_related('member').prefetch_related('items', 'payments')
 
 
 class MarkPaidView(APIView):
@@ -111,6 +116,14 @@ class FromOrderView(APIView):
             )
         except Order.DoesNotExist:
             return Response({'detail': 'Order not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        existing = Invoice.objects.filter(
+            marina=request.user.marina,
+            source_type='restaurant_order',
+            source_id=str(order_id),
+        ).exclude(status='void').first()
+        if existing:
+            return Response(InvoiceSerializer(existing).data, status=http_status.HTTP_200_OK)
 
         invoice = billing_service.create_invoice(
             request.user.marina,
