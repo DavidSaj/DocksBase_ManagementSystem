@@ -114,3 +114,166 @@ class BookingRequestConvertTest(TestCase):
         req.refresh_from_db()
         self.assertEqual(req.member, member)
         self.assertEqual(req.vessel, vessel)
+
+
+# ── Booking Engine Tests ─────────────────────────────────────────────────────
+
+from apps.berths.models import Pier, Berth
+from .booking_engine import compatible_available_berths, run_tetris, create_manual_approval
+
+
+def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
+    pier, _ = Pier.objects.get_or_create(marina=marina, code='T', defaults={'label': 'Test Pier'})
+    return Berth.objects.create(
+        marina=marina, pier=pier, code=code,
+        length_m=loa, max_beam_m=beam,
+        price_per_night=price, status='available',
+    )
+
+
+class CompatibleBerthsTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.b_small = make_berth_with_dims(self.marina, 'S1', loa=10.0, beam=3.5)
+        self.b_large = make_berth_with_dims(self.marina, 'L1', loa=25.0, beam=8.0)
+
+    def test_filters_by_loa(self):
+        result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=12.0, boat_beam=None)
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_small.id, ids)
+        self.assertIn(self.b_large.id, ids)
+
+    def test_filters_by_beam(self):
+        result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=None, boat_beam=9.0)
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_large.id, ids)
+
+    def test_excludes_berths_with_overlapping_confirmed_booking(self):
+        Booking.objects.create(
+            marina=self.marina, berth=self.b_large,
+            check_in='2026-06-03', check_out='2026-06-07',
+            nights=4, status='confirmed',
+        )
+        result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=12.0, boat_beam=None)
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_large.id, ids)
+
+    def test_excludes_pending_approval_bookings_from_overlap(self):
+        # pending_approval has berth=null so should NOT be counted as blocking
+        Booking.objects.create(
+            marina=self.marina,
+            check_in='2026-06-03', check_out='2026-06-07',
+            nights=4, status='pending_approval',
+        )
+        result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=12.0, boat_beam=None)
+        ids = [b.id for b in result]
+        self.assertIn(self.b_large.id, ids)
+
+    def test_adjacent_bookings_do_not_block(self):
+        Booking.objects.create(
+            marina=self.marina, berth=self.b_large,
+            check_in='2026-05-25', check_out='2026-06-01',  # ends exactly on our check_in
+            nights=7, status='confirmed',
+        )
+        result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=12.0, boat_beam=None)
+        ids = [b.id for b in result]
+        self.assertIn(self.b_large.id, ids)
+
+
+class RunTetrisTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.marina.booking_mode = 'auto_tetris'
+        self.marina.save()
+        self.b1 = make_berth_with_dims(self.marina, 'A1', loa=20.0, beam=6.0, price=80)
+        self.b2 = make_berth_with_dims(self.marina, 'A2', loa=20.0, beam=6.0, price=80)
+
+    def test_selects_berth_with_lowest_gap_score(self):
+        # b1 has a booking ending 1 day before our check-in (gap_before=1)
+        Booking.objects.create(
+            marina=self.marina, berth=self.b1,
+            check_in='2026-05-28', check_out='2026-06-01',
+            nights=4, status='confirmed',
+        )
+        # b2 has a booking ending 10 days before our check-in (gap_before=10)
+        Booking.objects.create(
+            marina=self.marina, berth=self.b2,
+            check_in='2026-05-15', check_out='2026-05-22',
+            nights=7, status='confirmed',
+        )
+        booking = run_tetris(
+            marina=self.marina,
+            check_in='2026-06-01',
+            check_out='2026-06-05',
+            boat_loa=12.0,
+            boat_beam=4.0,
+            guest_name='T. Boater',
+            guest_email='t@example.com',
+            guest_phone='',
+        )
+        self.assertEqual(booking.berth, self.b1)
+        self.assertEqual(booking.status, 'pending_payment')
+        self.assertEqual(booking.nights, 4)
+        self.assertEqual(float(booking.amount), 320.0)
+
+    def test_run_tetris_raises_if_no_compatible_berth(self):
+        from .booking_engine import NoAvailableBerthError
+        Booking.objects.create(
+            marina=self.marina, berth=self.b1,
+            check_in='2026-06-01', check_out='2026-06-10',
+            nights=9, status='confirmed',
+        )
+        Booking.objects.create(
+            marina=self.marina, berth=self.b2,
+            check_in='2026-06-02', check_out='2026-06-08',
+            nights=6, status='confirmed',
+        )
+        with self.assertRaises(NoAvailableBerthError):
+            run_tetris(
+                marina=self.marina,
+                check_in='2026-06-03',
+                check_out='2026-06-06',
+                boat_loa=12.0,
+                boat_beam=4.0,
+                guest_name='A. Guest',
+                guest_email='',
+                guest_phone='',
+            )
+
+
+class CreateManualApprovalTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.marina.booking_mode = 'manual_approval'
+        self.marina.save()
+
+    def test_creates_booking_with_null_berth(self):
+        booking = create_manual_approval(
+            marina=self.marina,
+            check_in='2026-06-01',
+            check_out='2026-06-05',
+            boat_loa=12.0,
+            boat_beam=4.0,
+            guest_name='J. Sailor',
+            guest_email='j@sea.com',
+            guest_phone='+353 87 100 0000',
+        )
+        self.assertIsNone(booking.berth)
+        self.assertEqual(booking.status, 'pending_approval')
+        self.assertEqual(booking.nights, 4)
+        self.assertIsNone(booking.amount)
+
+    def test_creates_booking_with_guest_fields(self):
+        booking = create_manual_approval(
+            marina=self.marina,
+            check_in='2026-06-01',
+            check_out='2026-06-03',
+            boat_loa=10.0,
+            boat_beam=3.5,
+            guest_name='K. Wanderer',
+            guest_email='k@sea.com',
+            guest_phone='+353 87 200 0000',
+        )
+        self.assertEqual(booking.guest_name, 'K. Wanderer')
+        self.assertEqual(booking.guest_email, 'k@sea.com')
+        self.assertEqual(booking.boat_loa, 10.0)
