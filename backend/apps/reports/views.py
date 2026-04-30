@@ -44,18 +44,17 @@ class RevenueReportView(APIView):
         month_start = today.replace(day=1)
 
         invoices = Invoice.objects.filter(marina=marina)
-        month_rev = invoices.filter(issued__gte=month_start).aggregate(total=Sum('amount'))['total'] or 0
+        month_rev = invoices.filter(created_at__date__gte=month_start).aggregate(total=Sum('total'))['total'] or 0
         paid = invoices.filter(status='paid').count()
-        unpaid = invoices.filter(status='unpaid').count()
-        overdue = invoices.filter(status='overdue').count()
-        outstanding = invoices.filter(status__in=['unpaid', 'overdue']).aggregate(total=Sum('amount'))['total'] or 0
+        open_count = invoices.filter(status='open').count()
+        outstanding = invoices.filter(status='open').aggregate(total=Sum('total'))['total'] or 0
 
         return Response({
             'revenue_this_month': month_rev,
             'outstanding': outstanding,
             'invoices_paid': paid,
-            'invoices_unpaid': unpaid,
-            'invoices_overdue': overdue,
+            'invoices_unpaid': open_count,
+            'invoices_overdue': 0,
         })
 
 

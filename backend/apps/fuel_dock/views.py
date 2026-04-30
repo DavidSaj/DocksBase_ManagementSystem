@@ -22,22 +22,8 @@ def _get_phone(entry):
 
 def _bill_completion(entry, total_amount, now):
     """Route billing on completion. Returns dict of extra fields to save on the entry."""
-    from apps.billing.models import Invoice
-
-    if entry.member_id and total_amount is not None:
-        due = now.date() + datetime.timedelta(days=entry.marina.payment_terms)
-        invoice = Invoice.objects.create(
-            marina=entry.marina,
-            member=entry.member,
-            vessel=entry.vessel,
-            invoice_type='fuel',
-            amount=total_amount,
-            issued=now.date(),
-            due=due,
-            status='unpaid',
-        )
-        return {'invoice': invoice}
-
+    # TODO (Task 7): create invoice via billing service layer
+    # Invoice creation removed — new Invoice model no longer has invoice_type/amount/issued/due fields.
     return {'pos_paid': True}
 
 

@@ -6,7 +6,7 @@ from .models import AbsenceReport, CraneRequest
 class PortalInvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
-        fields = ['id', 'invoice_type', 'amount', 'issued', 'due', 'status']
+        fields = ['id', 'invoice_number', 'status', 'source_type', 'subtotal', 'total', 'due_date', 'paid_at', 'created_at']
 
 
 class AbsenceReportSerializer(serializers.ModelSerializer):

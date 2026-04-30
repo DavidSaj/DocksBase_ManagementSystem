@@ -175,23 +175,12 @@ class BookingEngineRequestView(APIView):
                     guest_email=d.get('guest_email', ''),
                     guest_phone=d.get('guest_phone', ''),
                 )
-                Invoice.objects.create(
-                    marina=marina,
-                    booking=booking,
-                    invoice_type='berth_fee',
-                    amount=booking.amount or 0,
-                    issued=datetime.date.today(),
-                    due=datetime.date.today() + datetime.timedelta(days=marina.payment_terms),
-                    status='unpaid',
-                )
-                checkout_url = _create_stripe_session(booking, marina)
+                # TODO (Task 7): create invoice via billing service layer
+                # TODO (Task 7): create Stripe checkout session
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)
-        except stripe.StripeError:
-            return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
 
         data = BookingSerializer(booking).data
-        data['checkout_url'] = checkout_url
         return Response(data, status=http_status.HTTP_201_CREATED)
 
 
@@ -231,40 +220,13 @@ class AssignBerthView(APIView):
         price = berth.price_per_night
         amount = (price * nights) if price is not None else 0
 
-        try:
-            with transaction.atomic():
-                booking.berth = berth
-                booking.amount = amount
-                booking.status = 'awaiting_payment'
-                booking.save(update_fields=['berth', 'amount', 'status'])
-
-                Invoice.objects.create(
-                    marina=request.user.marina,
-                    booking=booking,
-                    invoice_type='berth_fee',
-                    amount=amount,
-                    issued=datetime.date.today(),
-                    due=datetime.date.today() + datetime.timedelta(days=request.user.marina.payment_terms),
-                    status='unpaid',
-                )
-
-                checkout_url = _create_stripe_session(booking, request.user.marina)
-        except stripe.StripeError:
-            return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
-
-        if booking.guest_email:
-            send_mail(
-                subject=f'Your DocksBase Booking — Pay Now',
-                message=(
-                    f"Hello {booking.guest_name or 'there'},\n\n"
-                    f"Your berth ({berth.code}) has been assigned for "
-                    f"{booking.check_in} – {booking.check_out}.\n\n"
-                    f"Please complete payment here:\n{checkout_url}"
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[booking.guest_email],
-                fail_silently=True,
-            )
+        with transaction.atomic():
+            booking.berth = berth
+            booking.amount = amount
+            booking.status = 'awaiting_payment'
+            booking.save(update_fields=['berth', 'amount', 'status'])
+            # TODO (Task 7): create invoice via billing service layer
+            # TODO (Task 7): create Stripe checkout session and email boater
 
         return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)
 
@@ -292,7 +254,10 @@ class StripeWebhookView(APIView):
                     booking.status = 'confirmed'
                     booking.paid = True
                     booking.save(update_fields=['status', 'paid'])
-                    Invoice.objects.filter(booking=booking).update(status='paid')
+                    # TODO (Task 5): update invoice via billing service layer
+                    Invoice.objects.filter(
+                        source_type='booking', source_id=str(booking.id)
+                    ).update(status='paid')
                 except Booking.DoesNotExist:
                     pass
 
