@@ -20,7 +20,7 @@
 | Staff login | No staff login yet — admin manages all data. Mobile app will add staff login in future. |
 | Cert approval | No approval flow until mobile app. Admin uploads and updates certs directly. |
 | Invite flow | Creates inactive User + StaffMember + sends setup email. SMTP not yet configured — `send_mail()` prints to console in dev. |
-| Cert status | Auto-computed on `save()` from expiry date — not manually set |
+| Cert status | Updated daily by `check_document_expiry` cron — not on `save()`, not from client input |
 | Rota entry | Two paths (cell popover + global modal) both call the same `createShift(payload)` hook |
 
 ---
@@ -37,30 +37,38 @@ Links the staff record to their future login account. Optional because staff can
 
 ### `Certification` — add field
 
+```python
+def cert_upload_path(instance, filename):
+    return f"marinas/{instance.staff_member.marina_id}/certs/{filename}"
+
+pdf_file = FileField(upload_to=cert_upload_path, null=True, blank=True)
 ```
-pdf_file    FileField(upload_to='certs/', null=True, blank=True)
-```
+
+Upload path is per-marina to prevent cross-tenant file enumeration.
 
 Stored in Supabase Storage via `django-storages`. The serializer returns the full absolute URL so the frontend can render a direct "View PDF" link.
 
-### `Certification.status` — auto-computed
+### `Certification.status` — daily cron computation
 
-Override `save()`:
+Do **not** compute status in `save()` — a record saved while valid will never self-update as time passes. Instead, extend the existing `check_document_expiry` management command (already built for the eSign/documents module) to also sweep `Certification` records daily.
 
+Command addition (inside `check_document_expiry`):
 ```python
-def save(self, *args, **kwargs):
-    if self.expires:
-        today = date.today()
-        if self.expires < today:
-            self.status = 'expired'
-        elif self.expires <= today + timedelta(days=30):
-            self.status = 'due_soon'
-        else:
-            self.status = 'valid'
+from apps.staff.models import Certification
+today = date.today()
+for cert in Certification.objects.exclude(expires=None):
+    if cert.expires < today:
+        new_status = 'expired'
+    elif cert.expires <= today + timedelta(days=30):
+        new_status = 'due_soon'
     else:
-        self.status = 'valid'
-    super().save(*args, **kwargs)
+        new_status = 'valid'
+    if cert.status != new_status:
+        cert.status = new_status
+        cert.save(update_fields=['status'])
 ```
+
+This keeps status fresh regardless of user activity, and sets up the same cron job to trigger "Your cert is expiring soon" warning emails in future.
 
 ### Migration
 
@@ -150,6 +158,8 @@ Fields: `id`, `name`, `initials`, `role`, `department`, `email`, `phone`, `contr
 
 ### `ShiftSerializer`
 Fields: `id`, `staff_member`, `staff_member_name` (read-only, source `staff_member.name`), `week_start`, `day`, `start_time`, `end_time`, `department`, `is_off`
+
+`start_time` and `end_time` are `allow_null=True` in the serializer — required only when `is_off=False`. Validation: if `is_off=False` and either time is null, raise 400.
 
 ### `CertificationSerializer`
 Fields: `id`, `staff_member`, `staff_member_name` (read-only, source `staff_member.name`), `name`, `issuing_body`, `issued`, `expires`, `status` (read-only — auto-computed), `pdf_file` (SerializerMethodField returning absolute URL or `null`)
@@ -253,7 +263,7 @@ async function createCert(formData) {
 ## Design Constraints
 
 - All models carry `marina` FK — no cross-marina data leakage
-- `Certification.status` is server-computed — never accepted from client input (read-only in serializer)
+- `Certification.status` is updated daily by the `check_document_expiry` management command — never accepted from client input (read-only in serializer). `save()` does not compute it.
 - `User.is_active = False` on invite — staff cannot log in until setup flow is completed (future)
 - `send_mail()` is used as-is; SMTP credentials are not configured yet — dev prints to console
 - Supabase Storage is accessed via the S3-compatible API — Django sees it as a standard S3 bucket
