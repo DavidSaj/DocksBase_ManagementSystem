@@ -29,6 +29,18 @@ class Marina(models.Model):
     booking_mode = models.CharField(max_length=20, choices=BOOKING_MODE_CHOICES, default='manual_approval')
     vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     stripe_account_id = models.CharField(max_length=255, blank=True)
+    MARINA_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('trial', 'Trial'),
+        ('suspended', 'Suspended'),
+    ]
+    status = models.CharField(max_length=20, choices=MARINA_STATUS_CHOICES, default='active')
+    trial_ends = models.DateField(null=True, blank=True)
+    next_renewal = models.DateField(null=True, blank=True)
+    suspend_reason = models.TextField(blank=True)
+    features = models.JSONField(default=dict)
+    mrr_override = models.IntegerField(null=True, blank=True)
+    max_staff = models.IntegerField(default=10)
 
     def __str__(self):
         return self.name
@@ -67,6 +79,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_platform_admin = models.BooleanField(default=False)
+    platform_role = models.CharField(
+        max_length=20,
+        choices=[('admin', 'Admin'), ('support', 'Support')],
+        blank=True,
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

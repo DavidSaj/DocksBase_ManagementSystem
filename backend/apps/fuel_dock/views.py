@@ -22,8 +22,23 @@ def _get_phone(entry):
 
 def _bill_completion(entry, total_amount, now):
     """Route billing on completion. Returns dict of extra fields to save on the entry."""
-    # TODO (Task 7): create invoice via billing service layer
-    # Invoice creation removed — new Invoice model no longer has invoice_type/amount/issued/due fields.
+    if entry.member and total_amount is not None:
+        from apps.billing import service as billing_service
+        invoice = billing_service.create_invoice(
+            entry.marina,
+            source_type='fuel_dock',
+            source_id=str(entry.pk),
+            member=entry.member,
+        )
+        fuel_label = entry.get_fuel_type_display() if entry.fuel_type else 'Fuel'
+        billing_service.add_line_item(
+            invoice,
+            description=fuel_label,
+            quantity=1,
+            unit_price=total_amount,
+        )
+        billing_service.finalize_invoice(invoice)
+        return {'invoice': invoice, 'pos_paid': False}
     return {'pos_paid': True}
 
 
