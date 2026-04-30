@@ -437,3 +437,54 @@ class BillingAPITest(TestCase):
         self.assertEqual(data['status'], 'open')
         self.assertEqual(len(data['items']), 1)
         self.assertEqual(Decimal(data['subtotal']), Decimal('32.00'))
+
+
+class PDFServiceTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+
+    @patch('apps.billing.pdf_service.HTML')
+    @patch('apps.billing.pdf_service.default_storage')
+    @patch('apps.billing.pdf_service.EmailMessage')
+    def test_generate_stores_pdf_and_emails_member(self, mock_email_cls, mock_storage, mock_html):
+        mock_html.return_value.write_pdf.return_value = b'%PDF-1.4 fake'
+        mock_storage.save.return_value = 'invoices/1/INV-2026-0001.pdf'
+
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id='70',
+        )
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('200.00'))
+        billing_service.finalize_invoice(inv)
+        inv.status = 'paid'
+        inv.save(update_fields=['status'])
+
+        from apps.billing.pdf_service import _generate_store_and_email_pdf
+        _generate_store_and_email_pdf(inv.id)
+
+        inv.refresh_from_db()
+        self.assertTrue(bool(inv.pdf_document))
+        mock_email_cls.assert_called_once()
+        mock_email_cls.return_value.send.assert_called_once()
+
+    @patch('apps.billing.pdf_service.HTML')
+    @patch('apps.billing.pdf_service.default_storage')
+    @patch('apps.billing.pdf_service.EmailMessage')
+    def test_no_email_when_no_member(self, mock_email_cls, mock_storage, mock_html):
+        mock_html.return_value.write_pdf.return_value = b'%PDF-1.4 fake'
+        mock_storage.save.return_value = 'invoices/1/INV-2026-0002.pdf'
+
+        inv = billing_service.create_invoice(
+            self.marina, member=None,
+            source_type='restaurant_order', source_id='71',
+        )
+        billing_service.add_line_item(inv, 'Coffee', Decimal('1'), Decimal('4.00'))
+        billing_service.finalize_invoice(inv)
+        inv.status = 'paid'
+        inv.save(update_fields=['status'])
+
+        from apps.billing.pdf_service import _generate_store_and_email_pdf
+        _generate_store_and_email_pdf(inv.id)
+
+        mock_email_cls.assert_not_called()

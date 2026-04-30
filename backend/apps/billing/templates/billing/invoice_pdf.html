@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #222; margin: 0; padding: 40px; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 32px; }
+  .doc-type { font-size: 32px; font-weight: bold; text-transform: uppercase; }
+  .paid-stamp { color: #16a34a; font-size: 26px; font-weight: bold; border: 4px solid #16a34a; display: inline-block; padding: 4px 16px; transform: rotate(-8deg); margin-top: 8px; }
+  .marina-info { text-align: right; font-size: 12px; color: #555; line-height: 1.6; }
+  .invoice-meta { margin-bottom: 24px; font-size: 13px; }
+  .invoice-meta span { margin-right: 32px; }
+  .parties { margin-bottom: 28px; }
+  .party h4 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 0.05em; }
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  table.items th { background: #f3f4f6; text-align: left; padding: 8px 10px; font-size: 12px; }
+  table.items td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+  table.totals { margin-left: auto; width: 280px; border-collapse: collapse; }
+  table.totals td { padding: 5px 10px; }
+  table.totals td:last-child { text-align: right; }
+  .grand-total td { font-weight: bold; font-size: 15px; border-top: 2px solid #222; padding-top: 8px; }
+  .footer { margin-top: 40px; font-size: 11px; color: #888; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="doc-type">{% if invoice.status == 'paid' %}Receipt{% else %}Invoice{% endif %}</div>
+    {% if invoice.status == 'paid' %}<div class="paid-stamp">PAID</div>{% endif %}
+  </div>
+  <div class="marina-info">
+    <strong>{{ invoice.marina.name }}</strong>
+  </div>
+</div>
+
+<div class="invoice-meta">
+  <span><strong>{{ invoice.invoice_number }}</strong></span>
+  {% if invoice.status == 'paid' %}
+    <span>Paid: {{ invoice.paid_at|date:"d M Y" }}</span>
+  {% else %}
+    <span>Issued: {{ invoice.created_at|date:"d M Y" }}</span>
+    {% if invoice.due_date %}<span>Due: {{ invoice.due_date|date:"d M Y" }}</span>{% endif %}
+  {% endif %}
+</div>
+
+<div class="parties">
+  <div class="party">
+    <h4>Billed To</h4>
+    {% if invoice.member %}
+      {{ invoice.member.name }}<br>
+      {% if invoice.member.email %}{{ invoice.member.email }}{% endif %}
+    {% else %}
+      Walk-in Customer
+    {% endif %}
+  </div>
+</div>
+
+<table class="items">
+  <thead>
+    <tr>
+      <th>Description</th>
+      <th>Qty</th>
+      <th>Unit Price</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in invoice.items.all %}
+    <tr>
+      <td>{{ item.description }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>CHF {{ item.unit_price }}</td>
+      <td>CHF {{ item.total_price }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<table class="totals">
+  <tr><td>Subtotal</td><td>CHF {{ invoice.subtotal }}</td></tr>
+  <tr><td>VAT ({{ invoice.vat_rate }}%)</td><td>CHF {{ invoice.tax_total }}</td></tr>
+  <tr class="grand-total"><td>Total</td><td>CHF {{ invoice.total }}</td></tr>
+</table>
+
+{% if invoice.status != 'paid' and invoice.due_date %}
+<div class="footer">
+  Payment due by {{ invoice.due_date|date:"d M Y" }}. Please use the payment link provided in your email.
+</div>
+{% endif %}
+
+</body>
+</html>
