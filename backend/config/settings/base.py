@@ -102,6 +102,10 @@ DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
 
 DEFAULT_FROM_EMAIL = 'noreply@docksbase.com'
 
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
 # Supabase Storage (S3-compatible). Falls back to local FileSystemStorage when env vars absent.
 _supabase_endpoint = os.environ.get('SUPABASE_S3_ENDPOINT', '')
 if _supabase_endpoint:
