@@ -20,6 +20,11 @@ class Marina(models.Model):
     max_draft = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     operations_paused = models.BooleanField(default=False)
+    BOOKING_MODE_CHOICES = [
+        ('manual_approval', 'Manual Approval'),
+        ('auto_tetris', 'Auto-Tetris'),
+    ]
+    booking_mode = models.CharField(max_length=20, choices=BOOKING_MODE_CHOICES, default='manual_approval')
 
     def __str__(self):
         return self.name
