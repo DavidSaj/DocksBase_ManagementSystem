@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar.jsx';
 import Topbar  from './components/layout/Topbar.jsx';
 import { isAuthenticated } from './api.js';
@@ -71,10 +71,7 @@ function DesktopApp() {
 }
 
 function ProtectedField() {
-  if (!isAuthenticated()) {
-    window.location.href = '/';
-    return null;
-  }
+  if (!isAuthenticated()) return <Navigate to="/" replace />;
   return <Field />;
 }
 
