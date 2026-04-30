@@ -1,7 +1,6 @@
 import uuid as _uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.utils import timezone
 
 
 class Marina(models.Model):
