@@ -1,4 +1,6 @@
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
 from apps.accounts.models import Marina
 from apps.maintenance.models import Incident, MaintenanceTask
 
@@ -38,9 +40,6 @@ class ModelTest(TestCase):
         )
         self.assertEqual(str(task), 'Task: Repaint pontoon')
 
-
-from django.contrib.auth import get_user_model
-from rest_framework.test import APIClient
 
 User = get_user_model()
 

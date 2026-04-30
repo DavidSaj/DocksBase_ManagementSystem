@@ -22,6 +22,18 @@ class IncidentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at']
 
+    def validate_vessel(self, value):
+        request = self.context['request']
+        if value and value.marina_id != request.user.marina_id:
+            raise serializers.ValidationError('Vessel does not belong to this marina.')
+        return value
+
+    def validate_berth(self, value):
+        request = self.context['request']
+        if value and value.marina_id != request.user.marina_id:
+            raise serializers.ValidationError('Berth does not belong to this marina.')
+        return value
+
 
 class AssetSerializer(serializers.ModelSerializer):
     class Meta:
@@ -44,6 +56,12 @@ class DefectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['reported_at']
 
+    def validate_asset(self, value):
+        request = self.context['request']
+        if value and value.marina_id != request.user.marina_id:
+            raise serializers.ValidationError('Asset does not belong to this marina.')
+        return value
+
 
 class MaintenanceTaskSerializer(serializers.ModelSerializer):
     asset_name = serializers.CharField(source='asset.name', read_only=True, default='')
@@ -56,3 +74,15 @@ class MaintenanceTaskSerializer(serializers.ModelSerializer):
             'completed_at', 'completion_notes', 'completion_photo',
         ]
         read_only_fields = ['completed_at']
+
+    def validate_asset(self, value):
+        request = self.context['request']
+        if value and value.marina_id != request.user.marina_id:
+            raise serializers.ValidationError('Asset does not belong to this marina.')
+        return value
+
+    def validate_defect(self, value):
+        request = self.context['request']
+        if value and value.marina_id != request.user.marina_id:
+            raise serializers.ValidationError('Defect does not belong to this marina.')
+        return value

@@ -45,6 +45,8 @@ class Migration(migrations.Migration):
                     to='maintenance.defect',
                 )),
             ],
-            options={},
+            options={
+                'ordering': ['-id'],
+            },
         ),
     ]

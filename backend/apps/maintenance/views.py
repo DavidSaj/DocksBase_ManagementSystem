@@ -31,7 +31,7 @@ class IncidentList(generics.ListCreateAPIView):
     serializer_class = IncidentSerializer
 
     def get_queryset(self):
-        return Incident.objects.filter(marina=self.request.user.marina)
+        return Incident.objects.filter(marina=self.request.user.marina).select_related('vessel', 'berth')
 
     def perform_create(self, serializer):
         serializer.save(marina=self.request.user.marina)
@@ -41,7 +41,7 @@ class IncidentDetail(generics.RetrieveUpdateAPIView):
     serializer_class = IncidentSerializer
 
     def get_queryset(self):
-        return Incident.objects.filter(marina=self.request.user.marina)
+        return Incident.objects.filter(marina=self.request.user.marina).select_related('vessel', 'berth')
 
 
 class AssetList(generics.ListCreateAPIView):
@@ -65,7 +65,7 @@ class DefectList(generics.ListCreateAPIView):
     serializer_class = DefectSerializer
 
     def get_queryset(self):
-        return Defect.objects.filter(marina=self.request.user.marina)
+        return Defect.objects.filter(marina=self.request.user.marina).select_related('asset')
 
     def perform_create(self, serializer):
         serializer.save(marina=self.request.user.marina)
@@ -75,14 +75,14 @@ class DefectDetail(generics.RetrieveUpdateAPIView):
     serializer_class = DefectSerializer
 
     def get_queryset(self):
-        return Defect.objects.filter(marina=self.request.user.marina)
+        return Defect.objects.filter(marina=self.request.user.marina).select_related('asset')
 
 
 class DefectCreateTaskView(APIView):
     def post(self, request, pk):
         with transaction.atomic():
             try:
-                defect = Defect.objects.get(pk=pk, marina=request.user.marina)
+                defect = Defect.objects.select_for_update().get(pk=pk, marina=request.user.marina)
             except Defect.DoesNotExist:
                 return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -117,7 +117,7 @@ class MaintenanceTaskList(generics.ListCreateAPIView):
     serializer_class = MaintenanceTaskSerializer
 
     def get_queryset(self):
-        return MaintenanceTask.objects.filter(marina=self.request.user.marina)
+        return MaintenanceTask.objects.filter(marina=self.request.user.marina).select_related('asset')
 
     def perform_create(self, serializer):
         serializer.save(marina=self.request.user.marina)
@@ -127,10 +127,12 @@ class MaintenanceTaskDetail(generics.RetrieveUpdateAPIView):
     serializer_class = MaintenanceTaskSerializer
 
     def get_queryset(self):
-        return MaintenanceTask.objects.filter(marina=self.request.user.marina)
+        return MaintenanceTask.objects.filter(marina=self.request.user.marina).select_related('asset')
 
     def perform_update(self, serializer):
-        if serializer.validated_data.get('status') == 'completed':
+        instance = self.get_object()
+        if (serializer.validated_data.get('status') == 'completed'
+                and not instance.completed_at):
             serializer.save(completed_at=timezone.now())
         else:
             serializer.save()
