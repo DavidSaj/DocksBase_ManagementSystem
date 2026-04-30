@@ -34,9 +34,7 @@ export default function useMaintenanceTasks() {
     form.append('status', 'completed');
     form.append('completion_notes', notes);
     if (photo) form.append('completion_photo', photo);
-    const { data } = await api.patch(`/maintenance-tasks/${id}/`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await api.patch(`/maintenance-tasks/${id}/`, form);
     setTasks(prev => prev.map(t => t.id === id ? data : t));
     return data;
   }
