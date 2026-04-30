@@ -12,7 +12,7 @@ class Invoice(models.Model):
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='invoices')
     member = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
-    invoice_number = models.CharField(max_length=20, unique=True, db_index=True)
+    invoice_number = models.CharField(max_length=20, db_index=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
     source_type = models.CharField(max_length=50, blank=True)
     source_id = models.CharField(max_length=255, blank=True, db_index=True)
@@ -29,6 +29,7 @@ class Invoice(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        unique_together = [('marina', 'invoice_number')]
 
     def __str__(self):
         return f'{self.invoice_number} ({self.status})'

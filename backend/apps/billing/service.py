@@ -13,7 +13,7 @@ def create_invoice(marina, member=None, source_type='', source_id='', due_date=N
     with transaction.atomic():
         last = (
             Invoice.objects.select_for_update()
-            .filter(invoice_number__startswith=f'INV-{year}-')
+            .filter(marina=marina, invoice_number__startswith=f'INV-{year}-')
             .order_by('-invoice_number')
             .first()
         )

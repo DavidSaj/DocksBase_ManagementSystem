@@ -237,6 +237,18 @@ class AssignBerthView(APIView):
         if booking.boat_beam and berth.max_beam_m and berth.max_beam_m < booking.boat_beam:
             return Response({'detail': 'Berth beam limit too narrow for this boat.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
+        from apps.billing.models import Invoice as InvoiceModel
+        existing_invoice = InvoiceModel.objects.filter(
+            marina=request.user.marina,
+            source_type='berth_booking',
+            source_id=str(booking.id),
+        ).exclude(status='void').first()
+        if existing_invoice:
+            return Response(
+                {'detail': 'An invoice already exists for this booking.'},
+                status=http_status.HTTP_409_CONFLICT,
+            )
+
         nights = booking.nights or 1
         price = berth.price_per_night
         amount = (price * nights) if price is not None else 0
