@@ -104,6 +104,14 @@ DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
 
 DEFAULT_FROM_EMAIL = 'noreply@docksbase.com'
 
+PLAN_PRICES = {
+    'starter': 149,
+    'professional': 349,
+    'enterprise': 899,
+}
+
+PLATFORM_FEE_RATE = '0.01'  # 1% of GMV
+
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
@@ -127,6 +135,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
+        'apps.admin_portal.permissions.IsSafeModeReadOnly',
     ),
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',

@@ -29,6 +29,13 @@ class UserInviteSerializer(serializers.ModelSerializer):
 
 
 class DocksBaseTokenSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['is_platform_admin'] = user.is_platform_admin
+        token['role'] = user.role
+        return token
+
     def validate(self, attrs):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
