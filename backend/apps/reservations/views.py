@@ -30,6 +30,7 @@ from .serializers import (
 )
 
 import datetime
+from django.db import transaction
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -105,7 +106,7 @@ class ConvertBookingRequestView(APIView):
 
 class AvailableBerthsView(APIView):
     """GET /api/v1/bookings/available-berths/ — returns compatible berths with gap scores."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         check_in = request.query_params.get('check_in')
@@ -116,13 +117,16 @@ class AvailableBerthsView(APIView):
         boat_loa = request.query_params.get('boat_loa') or None
         boat_beam = request.query_params.get('boat_beam') or None
 
-        berths = compatible_available_berths(
-            marina=request.user.marina,
-            check_in=check_in,
-            check_out=check_out,
-            boat_loa=float(boat_loa) if boat_loa else None,
-            boat_beam=float(boat_beam) if boat_beam else None,
-        )
+        try:
+            berths = compatible_available_berths(
+                marina=request.user.marina,
+                check_in=check_in,
+                check_out=check_out,
+                boat_loa=float(boat_loa) if boat_loa else None,
+                boat_beam=float(boat_beam) if boat_beam else None,
+            )
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
 
         from apps.berths.serializers import BerthSerializer
         return Response(BerthSerializer(berths, many=True).data)
@@ -135,7 +139,7 @@ class BookingEngineRequestView(APIView):
     Mode A → pending_approval (no berth, no payment yet).
     Mode B → pending_payment (berth assigned, Stripe checkout URL returned).
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         ser = BookingEngineRequestSerializer(data=request.data)
@@ -160,31 +164,31 @@ class BookingEngineRequestView(APIView):
 
         # Mode B: auto_tetris
         try:
-            booking = run_tetris(
-                marina=marina,
-                check_in=d['check_in'],
-                check_out=d['check_out'],
-                boat_loa=d.get('boat_loa'),
-                boat_beam=d.get('boat_beam'),
-                guest_name=d.get('guest_name', ''),
-                guest_email=d.get('guest_email', ''),
-                guest_phone=d.get('guest_phone', ''),
-            )
+            with transaction.atomic():
+                booking = run_tetris(
+                    marina=marina,
+                    check_in=d['check_in'],
+                    check_out=d['check_out'],
+                    boat_loa=d.get('boat_loa'),
+                    boat_beam=d.get('boat_beam'),
+                    guest_name=d.get('guest_name', ''),
+                    guest_email=d.get('guest_email', ''),
+                    guest_phone=d.get('guest_phone', ''),
+                )
+                Invoice.objects.create(
+                    marina=marina,
+                    booking=booking,
+                    invoice_type='berth_fee',
+                    amount=booking.amount or 0,
+                    issued=datetime.date.today(),
+                    due=datetime.date.today() + datetime.timedelta(days=marina.payment_terms),
+                    status='unpaid',
+                )
+                checkout_url = _create_stripe_session(booking, marina)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)
-
-        # Create invoice and Stripe Checkout Session
-        invoice = Invoice.objects.create(
-            marina=marina,
-            booking=booking,
-            invoice_type='berth_fee',
-            amount=booking.amount or 0,
-            issued=datetime.date.today(),
-            due=datetime.date.today(),
-            status='unpaid',
-        )
-
-        checkout_url = _create_stripe_session(booking, marina)
+        except stripe.StripeError:
+            return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
 
         data = BookingSerializer(booking).data
         data['checkout_url'] = checkout_url
@@ -197,6 +201,7 @@ class AssignBerthView(APIView):
     Admin assigns a berth to a pending_approval booking.
     Validates physical compatibility, creates Invoice, fires Stripe Checkout link via email.
     """
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         try:
@@ -241,7 +246,10 @@ class AssignBerthView(APIView):
             status='unpaid',
         )
 
-        checkout_url = _create_stripe_session(booking, request.user.marina)
+        try:
+            checkout_url = _create_stripe_session(booking, request.user.marina)
+        except stripe.StripeError:
+            return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
 
         if booking.guest_email:
             send_mail(
@@ -254,7 +262,7 @@ class AssignBerthView(APIView):
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[booking.guest_email],
-                fail_silently=False,
+                fail_silently=True,
             )
 
         return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)
@@ -302,7 +310,7 @@ def _create_stripe_session(booking, marina):
             'price_data': {
                 'currency': marina.currency.lower(),
                 'product_data': {'name': f'Berth {berth_code} — {nights_label}'},
-                'unit_amount': int((booking.amount or 0) * 100),
+                'unit_amount': int(round((booking.amount or 0) * 100)),
             },
             'quantity': 1,
         }],
