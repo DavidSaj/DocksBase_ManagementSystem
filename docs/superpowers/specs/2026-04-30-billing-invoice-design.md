@@ -35,7 +35,7 @@ member            FK → Member (SET_NULL, nullable)
 invoice_number    CharField(20, unique, db_index=True)   e.g. "INV-2026-0042"
 status            CharField — draft | open | paid | void
 source_type       CharField(50)   e.g. "berth_booking" | "restaurant_order"
-source_id         PositiveIntegerField (nullable)
+source_id         CharField(255, db_index=True, blank=True)   ← stores int or UUID as string
 subtotal          DecimalField(10,2, default=0)
 vat_rate          DecimalField(5,2)   ← snapshotted from Marina at creation
 tax_total         DecimalField(10,2, default=0)
@@ -157,8 +157,10 @@ Endpoint: `POST /api/v1/billing/stripe/webhook/` — public (no JWT auth), Strip
 1. Look up `Invoice` by `event.data.object.metadata['invoice_id']`.
 2. Set `stripe_payment_intent_id` from `event.data.object.payment_intent`.
 3. Call internal `_mark_paid_stripe(invoice)`: sets `status='paid'`, `paid_at=now()`, fires `invoice_paid` signal.
-4. Generate PDF via WeasyPrint → upload to Supabase Storage → set `invoice.pdf_document`.
-5. If `invoice.member` exists, email PDF as attachment.
+4. Return `200 OK` to Stripe immediately.
+5. Kick off a background thread for slow I/O: `threading.Thread(target=_generate_store_and_email_pdf, args=(invoice.id,)).start()`. The thread: generates PDF via WeasyPrint → uploads to Supabase Storage → sets `invoice.pdf_document` → emails PDF to `invoice.member.email` if member exists.
+
+**Why threading:** Stripe requires a `200 OK` within seconds. WeasyPrint is CPU-heavy and the Supabase upload + SMTP call are network-bound. Running these synchronously risks a Stripe timeout, which triggers retries and duplicate emails. The thread is fire-and-forget — the webhook returns immediately after marking the invoice paid and firing the signal.
 
 **`checkout.session.expired`:**
 1. Look up `Invoice` by `event.data.object.metadata['invoice_id']`.
@@ -265,7 +267,7 @@ billing/templates/billing/invoice_pdf.html
 
 Both modes show: `invoice_number`, marina name/address/VAT number, member name/address, line items table, subtotal, VAT rate + amount, total.
 
-PDF is generated synchronously in the webhook handler — no Celery required for MVP. It is uploaded to Supabase Storage at `invoices/{marina_id}/{invoice_number}.pdf` and the path saved to `invoice.pdf_document`.
+PDF is generated in a background thread spawned by the webhook handler (`threading.Thread`) — no Celery required for MVP. The webhook returns `200 OK` to Stripe before the thread starts. The thread uploads to Supabase Storage at `invoices/{marina_id}/{invoice_number}.pdf` and saves the path to `invoice.pdf_document`.
 
 ---
 
@@ -294,7 +296,8 @@ PDF is generated synchronously in the webhook handler — no Celery required for
 | Document output | HTML for restaurant, PDF+email for berth | Restaurant needs quick print; berth boater needs formal document |
 | Tax | Single configurable VAT rate per marina | Sufficient for MVP; per-line-item rates deferred |
 | Stripe placement | Centralized in `billing/` only | Single webhook, single source of financial truth |
-| PDF generation | WeasyPrint, synchronous in webhook | No Celery dependency for MVP |
+| PDF generation | WeasyPrint in background thread | Stripe requires 200 OK within seconds; sync PDF/upload/email risks timeout + duplicate retries |
+| source_id type | CharField(255) not PositiveIntegerField | Future-proof for UUID PKs on any spoke model |
 | Invoice numbering | `select_for_update()` sequential | Race-condition-safe, gapless — legally required |
 | VAT rate | Snapshotted onto Invoice at creation | Future rate changes must not alter historical invoices |
 
