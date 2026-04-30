@@ -9,6 +9,7 @@ export default function useBookings(filters = {}) {
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data } = await api.get('/bookings/', { params: filters });
       setBookings(data.results ?? data);
     } catch (e) {

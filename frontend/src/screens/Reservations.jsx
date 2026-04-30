@@ -477,20 +477,25 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
 // ---------------------------------------------------------------------------
 function AssignBerthModal({ booking, berths, onClose, onAssign }) {
   const compatible = berths.filter(b => {
+    if (b.status !== 'available') return false;
     if (booking.boat_loa && b.length_m && parseFloat(b.length_m) < parseFloat(booking.boat_loa)) return false;
     if (booking.boat_beam && b.max_beam_m && parseFloat(b.max_beam_m) < parseFloat(booking.boat_beam)) return false;
     return true;
   });
   const [selectedBerth, setSelectedBerth] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   async function submit(e) {
     e.preventDefault();
     if (!selectedBerth) return;
     setSaving(true);
+    setError(null);
     try {
       await onAssign(booking.id, parseInt(selectedBerth));
       onClose();
+    } catch (err) {
+      setError(err.response?.data?.detail ?? 'Failed to assign berth.');
     } finally {
       setSaving(false);
     }
@@ -516,6 +521,7 @@ function AssignBerthModal({ booking, berths, onClose, onAssign }) {
             </select>
           </label>
           {compatible.length === 0 && <p style={{ fontSize: 12, color: 'var(--red)' }}>No compatible berths available.</p>}
+          {error && <p style={{ fontSize: 12, color: 'var(--red)' }}>{error}</p>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={saving || !selectedBerth}>{saving ? 'Assigning…' : 'Assign & Send Invoice'}</button>
