@@ -231,23 +231,24 @@ class AssignBerthView(APIView):
         price = berth.price_per_night
         amount = (price * nights) if price is not None else 0
 
-        booking.berth = berth
-        booking.amount = amount
-        booking.status = 'awaiting_payment'
-        booking.save(update_fields=['berth', 'amount', 'status'])
-
-        Invoice.objects.create(
-            marina=request.user.marina,
-            booking=booking,
-            invoice_type='berth_fee',
-            amount=amount,
-            issued=datetime.date.today(),
-            due=datetime.date.today() + datetime.timedelta(days=request.user.marina.payment_terms),
-            status='unpaid',
-        )
-
         try:
-            checkout_url = _create_stripe_session(booking, request.user.marina)
+            with transaction.atomic():
+                booking.berth = berth
+                booking.amount = amount
+                booking.status = 'awaiting_payment'
+                booking.save(update_fields=['berth', 'amount', 'status'])
+
+                Invoice.objects.create(
+                    marina=request.user.marina,
+                    booking=booking,
+                    invoice_type='berth_fee',
+                    amount=amount,
+                    issued=datetime.date.today(),
+                    due=datetime.date.today() + datetime.timedelta(days=request.user.marina.payment_terms),
+                    status='unpaid',
+                )
+
+                checkout_url = _create_stripe_session(booking, request.user.marina)
         except stripe.StripeError:
             return Response({'detail': 'Payment provider error. Please try again.'}, status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
 
