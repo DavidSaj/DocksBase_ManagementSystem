@@ -18,3 +18,6 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+STRIPE_SECRET_KEY = 'sk_test_placeholder'
+STRIPE_WEBHOOK_SECRET = 'whsec_placeholder'
