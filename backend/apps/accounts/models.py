@@ -1,5 +1,7 @@
+import uuid as _uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.utils import timezone
 
 
 class Marina(models.Model):
@@ -52,6 +54,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('owner', 'Owner'),
         ('manager', 'Manager'),
         ('staff', 'Staff'),
+        ('boater', 'Boater'),
     ]
 
     marina = models.ForeignKey(Marina, on_delete=models.CASCADE, null=True, blank=True, related_name='users')
@@ -70,3 +73,12 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class MagicToken(models.Model):
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='magic_tokens')
+    token      = models.UUIDField(default=_uuid.uuid4, unique=True, db_index=True)
+    expires_at = models.DateTimeField()
+
+    def __str__(self):
+        return f"MagicToken({self.user.email}, expires {self.expires_at})"
