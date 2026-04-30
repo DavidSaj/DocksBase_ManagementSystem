@@ -176,16 +176,25 @@ class BookingEngineRequestView(APIView):
                     source_id=str(booking.id),
                     due_date=due_date,
                 )
+                if not booking.amount:
+                    raise ValueError('Berth has no price set — cannot create invoice.')
                 billing_service.add_line_item(
                     inv,
                     description=f'Berth {booking.berth.code} — {nights_label} @ {booking.berth.price_per_night}/night',
                     quantity=1,
-                    unit_price=booking.amount or 0,
+                    unit_price=booking.amount,
                 )
                 billing_service.finalize_invoice(inv)
                 checkout_url = billing_service.create_stripe_checkout_session(inv)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response(
+                {'detail': 'Payment provider error. Please try again.'},
+                status=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         return Response(
             {'booking': BookingSerializer(booking).data, 'checkout_url': checkout_url},
