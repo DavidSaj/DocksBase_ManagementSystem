@@ -214,3 +214,57 @@ class ServiceLayerTest(TestCase):
         inv.refresh_from_db()
         self.assertEqual(inv.tax_total, Decimal('0.00'))
         self.assertEqual(inv.total, Decimal('100.00'))
+
+
+from apps.berths.models import Pier, Berth
+from apps.reservations.models import Booking
+
+
+def make_berth(marina, price=Decimal('50.00')):
+    pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
+    return Berth.objects.create(
+        marina=marina, pier=pier, code='A1',
+        price_per_night=price, status='available',
+    )
+
+
+class SignalReceiverTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.berth = make_berth(self.marina)
+
+    def test_berth_booking_invoice_paid_confirms_booking(self):
+        booking = Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 6, 1),
+            check_out=datetime.date(2026, 6, 4),
+            status='awaiting_payment',
+        )
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id=str(booking.id),
+        )
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('150.00'))
+        billing_service.finalize_invoice(inv)
+        billing_service.mark_paid_manual(inv, 'cash')
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'confirmed')
+
+    def test_restaurant_invoice_paid_does_not_touch_bookings(self):
+        booking = Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 6, 1),
+            check_out=datetime.date(2026, 6, 4),
+            status='awaiting_payment',
+        )
+        inv = billing_service.create_invoice(
+            self.marina, source_type='restaurant_order', source_id='999',
+        )
+        billing_service.add_line_item(inv, 'Coffee', Decimal('1'), Decimal('4.00'))
+        billing_service.finalize_invoice(inv)
+        billing_service.mark_paid_manual(inv, 'cash')
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'awaiting_payment')
