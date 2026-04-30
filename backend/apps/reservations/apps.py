@@ -8,4 +8,4 @@ class ReservationsConfig(AppConfig):
     def ready(self):
         from apps.billing.signals import invoice_paid
         from .receivers import on_invoice_paid
-        invoice_paid.connect(on_invoice_paid)
+        invoice_paid.connect(on_invoice_paid, dispatch_uid='reservations.on_invoice_paid')

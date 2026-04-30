@@ -261,7 +261,7 @@ class SignalReceiverTest(TestCase):
             status='awaiting_payment',
         )
         inv = billing_service.create_invoice(
-            self.marina, source_type='restaurant_order', source_id='999',
+            self.marina, source_type='restaurant_order', source_id=str(booking.id),
         )
         billing_service.add_line_item(inv, 'Coffee', Decimal('1'), Decimal('4.00'))
         billing_service.finalize_invoice(inv)
