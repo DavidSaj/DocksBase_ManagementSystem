@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -5,6 +6,7 @@ class StaffMember(models.Model):
     CONTRACT = [('full_time', 'Full Time'), ('part_time', 'Part Time'), ('seasonal', 'Seasonal'), ('contractor', 'Contractor')]
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='staff_members')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_profile')
     name = models.CharField(max_length=200)
     initials = models.CharField(max_length=5, blank=True)
     role = models.CharField(max_length=100, blank=True)
@@ -32,6 +34,10 @@ class Shift(models.Model):
     is_off = models.BooleanField(default=False)
 
 
+def cert_upload_path(instance, filename):
+    return f"marinas/{instance.staff_member.marina_id}/certs/{filename}"
+
+
 class Certification(models.Model):
     STATUS = [('valid', 'Valid'), ('due_soon', 'Due Soon'), ('expired', 'Expired')]
 
@@ -42,3 +48,4 @@ class Certification(models.Model):
     issued = models.DateField(null=True, blank=True)
     expires = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default='valid')
+    pdf_file = models.FileField(upload_to=cert_upload_path, null=True, blank=True)
