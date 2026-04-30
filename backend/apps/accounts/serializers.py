@@ -33,3 +33,11 @@ class DocksBaseTokenSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         return data
+
+
+class SendMagicLinkSerializer(serializers.Serializer):
+    member_id = serializers.IntegerField()
+
+
+class ExchangeMagicTokenSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
