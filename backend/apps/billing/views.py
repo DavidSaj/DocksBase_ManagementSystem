@@ -3,8 +3,6 @@ import threading
 from django.conf import settings
 from django.http import HttpResponse
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import generics, status as http_status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -12,16 +10,14 @@ from rest_framework.views import APIView
 
 from . import service as billing_service
 from . import stripe_service as _stripe_svc
-from .models import Invoice
+from .models import Invoice, InvoiceLineItem, ChargeableItem
 from .pdf_service import _generate_store_and_email_pdf
-from .serializers import InvoiceSerializer
+from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer
 from .signals import invoice_paid
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class StripeWebhookView(APIView):
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     def post(self, request):
         payload = request.body
@@ -30,7 +26,7 @@ class StripeWebhookView(APIView):
             event = _stripe_svc.stripe.Webhook.construct_event(
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
-        except Exception:
+        except (ValueError, _stripe_svc.stripe.error.SignatureVerificationError):
             return HttpResponse(status=400)
 
         event_type = event['type']
@@ -167,3 +163,110 @@ class HTMLReceiptView(APIView):
         except Invoice.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
         return render(request, 'billing/invoice_pdf.html', {'invoice': invoice})
+
+
+class ChargeableItemListCreateView(generics.ListCreateAPIView):
+    serializer_class   = ChargeableItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ChargeableItem.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
+
+
+class ChargeableItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class   = ChargeableItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ChargeableItem.objects.filter(marina=self.request.user.marina)
+
+
+class InvoiceCreateView(APIView):
+    """Create a blank draft invoice for the manual invoice flow."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.members.models import Member
+        member = None
+        member_id = request.data.get('member_id')
+        if member_id:
+            try:
+                member = Member.objects.get(pk=member_id, marina=request.user.marina)
+            except Member.DoesNotExist:
+                pass
+        due_date    = request.data.get('due_date') or None
+        source_type = request.data.get('source_type', 'manual')
+        source_id   = request.data.get('source_id', '')
+        invoice = billing_service.create_invoice(
+            marina=request.user.marina,
+            member=member,
+            source_type=source_type,
+            source_id=source_id,
+            due_date=due_date,
+        )
+        return Response(InvoiceSerializer(invoice).data, status=http_status.HTTP_201_CREATED)
+
+
+class AddLineItemView(APIView):
+    """Add a line item from the Service Catalog to a draft invoice (snapshots price + tax)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            invoice = Invoice.objects.get(pk=pk, marina=request.user.marina)
+        except Invoice.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        item_id  = request.data.get('chargeable_item_id')
+        quantity = request.data.get('quantity', 1)
+
+        try:
+            item = ChargeableItem.objects.get(pk=item_id, marina=request.user.marina)
+        except ChargeableItem.DoesNotExist:
+            return Response({'detail': 'Chargeable item not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        try:
+            line = billing_service.add_line_item_from_catalog(invoice, item, quantity)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        return Response(InvoiceLineItemSerializer(line).data, status=http_status.HTTP_201_CREATED)
+
+
+class RemoveLineItemView(APIView):
+    """Remove a line item from a draft invoice."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            line = InvoiceLineItem.objects.select_related('invoice').get(
+                pk=pk, invoice__marina=request.user.marina
+            )
+        except InvoiceLineItem.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+        if line.invoice.status != 'draft':
+            return Response(
+                {'detail': 'Can only remove items from draft invoices.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        line.delete()
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
+
+
+class FinalizeInvoiceView(APIView):
+    """Finalize a draft invoice — status becomes open, totals are locked."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            invoice = Invoice.objects.get(pk=pk, marina=request.user.marina)
+        except Invoice.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+        try:
+            invoice = billing_service.finalize_invoice(invoice)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(InvoiceSerializer(invoice).data)
