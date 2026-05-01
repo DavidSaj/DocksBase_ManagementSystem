@@ -1,7 +1,8 @@
 import { ASSETS, DEFECTS } from '../data/mock.js';
 import Ic from '../components/ui/Icon.jsx';
 import { useState } from 'react';
-import useBerths from '../hooks/useBerths.js';
+import { useBerths } from '../hooks/useBerths.js';
+import { usePiers } from '../hooks/usePiers.js';
 import useInvoices from '../hooks/useInvoices.js';
 import useMembers from '../hooks/useMembers.js';
 
@@ -38,7 +39,8 @@ function Bar({ val, max, color = 'var(--navy)' }) {
 export default function Reports() {
   const [tab, setTab] = useState('occupancy');
 
-  const { counts, piers, loading: bLoading } = useBerths();
+  const { counts, loading: bLoading } = useBerths();
+  const { piers } = usePiers();
   const { invoices: rawInv, loading: invLoading } = useInvoices();
   const { members, loading: mLoading } = useMembers();
 

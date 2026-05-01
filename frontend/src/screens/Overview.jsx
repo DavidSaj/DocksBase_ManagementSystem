@@ -1,5 +1,5 @@
 import Ic from '../components/ui/Icon.jsx';
-import useBerths from '../hooks/useBerths.js';
+import { useBerths } from '../hooks/useBerths.js';
 import useBookings from '../hooks/useBookings.js';
 
 const ACTIVITY_FEED = [

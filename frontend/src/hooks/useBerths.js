@@ -1,61 +1,50 @@
-import { useState, useEffect } from 'react';
-import api from '../api.js';
+import { useState, useEffect, useCallback } from 'react';
+import api from '../api';
 
-// Transform flat API berths array → HarborMap piers format
-export function berthsToPiers(berths) {
-  const map = {};
-  berths.forEach(b => {
-    if (!map[b.pier_code]) map[b.pier_code] = { port: [], starboard: [] };
-    const side = b.side === 'starboard' ? 'starboard' : 'port';
-    map[b.pier_code][side].push({
-      id: b.code,
-      status: b.status,
-      len: b.length_m ? `${b.length_m}m` : '—',
-      vessel: b.vessel_name || null,
-      owner: null,
-      type: null,
-      draft: null,
-      _apiId: b.id,
-    });
-  });
-  return Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([id, sides]) => ({
-      id,
-      slips: [
-        ...sides.port.sort((a, b) => a.id.localeCompare(b.id)),
-        ...sides.starboard.sort((a, b) => a.id.localeCompare(b.id)),
-      ],
-    }));
-}
-
-export default function useBerths(filters = {}) {
-  const [berths,  setBerths]  = useState([]);
+export function useBerths(filters = {}) {
+  const [berths, setBerths] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [error, setError] = useState(null);
 
-  async function fetchBerths() {
-    try {
-      setLoading(true);
-      const { data } = await api.get('/berths/', { params: filters });
-      setBerths(data.results ?? data);
-    } catch (e) {
-      setError(e);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams(
+      Object.fromEntries(Object.entries(filters).filter(([, v]) => v != null))
+    ).toString();
+    api
+      .get(`/berths/${params ? '?' + params : ''}`)
+      .then(r => { setBerths(r.data); setLoading(false); })
+      .catch(e => { setError(e); setLoading(false); });
+  }, [JSON.stringify(filters)]);
 
-  useEffect(() => { fetchBerths(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const piers  = berthsToPiers(berths);
-  const counts = {
-    total:       berths.length,
-    occupied:    berths.filter(b => b.status === 'occupied').length,
-    available:   berths.filter(b => b.status === 'available').length,
-    reserved:    berths.filter(b => b.status === 'reserved').length,
-    maintenance: berths.filter(b => b.status === 'maintenance').length,
-  };
+  const updateBerth = useCallback(async (id, data) => {
+    const r = await api.patch(`/berths/${id}/`, data);
+    setBerths(prev => prev.map(b => b.id === id ? r.data : b));
+    return r.data;
+  }, []);
 
-  return { berths, piers, counts, loading, error, refetch: fetchBerths };
+  const createBerth = useCallback(async (data) => {
+    const r = await api.post('/berths/', data);
+    setBerths(prev => [...prev, r.data]);
+    return r.data;
+  }, []);
+
+  const deleteBerth = useCallback(async (id) => {
+    await api.delete(`/berths/${id}/`);
+    setBerths(prev => prev.filter(b => b.id !== id));
+  }, []);
+
+  const addBerths = useCallback((newBerths) => {
+    setBerths(prev => [...prev, ...newBerths]);
+  }, []);
+
+  const counts = berths.reduce((acc, b) => {
+    acc[b.status] = (acc[b.status] || 0) + 1;
+    acc.total = (acc.total || 0) + 1;
+    return acc;
+  }, {});
+
+  return { berths, counts, loading, error, reload: load, updateBerth, createBerth, deleteBerth, addBerths };
 }
