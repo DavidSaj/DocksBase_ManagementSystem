@@ -1,10 +1,8 @@
 import datetime
-import uuid
 from django.utils import timezone
 from django.core.mail import send_mail
-from datetime import timedelta
-from django.db import transaction
-from rest_framework import generics, permissions, status
+from django.db import transaction, IntegrityError
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -30,19 +28,21 @@ class SignupView(APIView):
                 plan='professional',
                 trial_ends=datetime.date.today() + datetime.timedelta(days=30),
             )
-            user = User.objects.create_user(
-                email=d['email'],
-                password=d['password'],
-                first_name=d['first_name'],
-                last_name=d['last_name'],
-                role='owner',
-                is_active=False,
-                marina=marina,
-            )
-            token = uuid.uuid4()
-            EmailVerification.objects.create(user=user, token=token)
+            try:
+                user = User.objects.create_user(
+                    email=d['email'],
+                    password=d['password'],
+                    first_name=d['first_name'],
+                    last_name=d['last_name'],
+                    role='owner',
+                    is_active=False,
+                    marina=marina,
+                )
+            except IntegrityError:
+                raise serializers.ValidationError({'email': ['A user with this email already exists.']})
+            ev = EmailVerification.objects.create(user=user)
 
-        send_verification_email(user, token)
+        send_verification_email(user, ev.token)
         return Response(
             {'detail': 'Check your email to confirm your account.'},
             status=status.HTTP_201_CREATED,
@@ -143,7 +143,7 @@ class SendMagicLinkView(APIView):
 
         magic = MagicToken.objects.create(
             user=boater_user,
-            expires_at=timezone.now() + timedelta(days=7),
+            expires_at=timezone.now() + datetime.timedelta(days=7),
         )
 
         frontend_url = request.headers.get('Origin', 'https://app.docksbase.com')
