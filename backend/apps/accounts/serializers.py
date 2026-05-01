@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from .models import Marina, User
 
 
@@ -37,6 +38,16 @@ class DocksBaseTokenSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        email = attrs.get('email', '')
+        try:
+            user = User.objects.get(email=email)
+            if not user.is_active:
+                raise AuthenticationFailed({
+                    'code': 'email_not_verified',
+                    'detail': 'Please verify your email before logging in.',
+                })
+        except User.DoesNotExist:
+            pass
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         return data
