@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import HarborMap from '../components/harbor-map/HarborMap.jsx';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import useBerths from '../hooks/useBerths.js';
+import { useBerths } from '../hooks/useBerths.js';
 import useMapConfig from '../hooks/useMapConfig.js';
 
 // ── Map Creator constants ─────────────────────────────────────────────────────

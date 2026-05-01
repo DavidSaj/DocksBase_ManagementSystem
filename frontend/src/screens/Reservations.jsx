@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import useBookings from '../hooks/useBookings.js';
 import useBookingRequests from '../hooks/useBookingRequests.js';
 import useVessels from '../hooks/useVessels.js';
-import useBerths from '../hooks/useBerths.js';
+import { useBerths } from '../hooks/useBerths.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
