@@ -23,6 +23,7 @@ export default function useOnboarding() {
     }
   }
 
+  // connect_bank and invite_staff are backend-controlled; card hides only when Stripe Connect is built
   const allDone = onboarding
     ? Object.values(onboarding).every(Boolean)
     : false;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { verifyEmail } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -48,9 +48,9 @@ export default function VerifyEmail() {
             <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 20, lineHeight: 1.5, textAlign: 'center' }}>
               This verification link has expired or is invalid.
             </p>
-            <a href="/signup" className="abtn abtn-primary login-submit" style={{ textAlign: 'center', display: 'block' }}>
+            <Link to="/signup" className="abtn abtn-primary login-submit" style={{ textAlign: 'center', display: 'block' }}>
               Back to sign up
-            </a>
+            </Link>
           </>
         )}
       </div>

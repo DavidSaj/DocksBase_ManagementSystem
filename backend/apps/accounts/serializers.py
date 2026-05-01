@@ -70,5 +70,5 @@ class SignupSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError('A user with this email already exists.')
+            raise serializers.ValidationError(['A user with this email already exists.'])
         return value
