@@ -1,23 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import Ic from '../ui/Icon.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import useSidebarCounts from '../../hooks/useSidebarCounts.js';
 
 const NAV = [
   { group: 'Operations', items: [
     { id: 'overview',     icon: 'grid',       label: 'Overview' },
     { id: 'map',          icon: 'map',        label: 'Marina Map' },
-    { id: 'reservations', icon: 'calendar',   label: 'Reservations', count: 3 },
+    { id: 'reservations', icon: 'calendar',   label: 'Reservations' },
     { id: 'operations',   icon: 'zap',        label: 'Operations' },
     { id: 'vessels',      icon: 'ship',       label: 'Vessels' },
     { id: 'documents',   icon: 'clipboard',  label: 'Documents & eSign' },
   ]},
   { group: 'Yard & Crew', items: [
     { id: 'boatyard',     icon: 'crane',      label: 'Boatyard' },
-    { id: 'maintenance',  icon: 'wrench',     label: 'Maintenance', count: 6 },
+    { id: 'maintenance',  icon: 'wrench',     label: 'Maintenance' },
     { id: 'staff',        icon: 'user-check', label: 'Staff' },
   ]},
   { group: 'Finance', items: [
-    { id: 'billing',      icon: 'dollar',     label: 'Billing', count: 2, alert: true },
+    { id: 'billing',      icon: 'dollar',     label: 'Billing', alert: true },
     { id: 'reports',      icon: 'chart',      label: 'Reports' },
   ]},
   { group: 'People', items: [
@@ -64,6 +65,12 @@ function getRoleLabel(role) {
 
 export default function Sidebar({ screen, setScreen }) {
   const { user, signOut } = useAuth();
+  const counts = useSidebarCounts();
+  const LIVE_COUNTS = {
+    reservations: counts.reservations,
+    maintenance:  counts.maintenance,
+    billing:      counts.billing,
+  };
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -126,9 +133,13 @@ export default function Sidebar({ screen, setScreen }) {
               >
                 <Ic n={item.icon} s={14} />
                 {item.label}
-                {item.count != null && (
-                  <span className={`sb-badge${item.alert ? ' alert' : ''}`}>{item.count}</span>
-                )}
+                {(() => {
+                  const live = LIVE_COUNTS[item.id];
+                  const display = live != null ? live : item.count;
+                  return display != null && display > 0 ? (
+                    <span className={`sb-badge${item.alert ? ' alert' : ''}`}>{display}</span>
+                  ) : null;
+                })()}
               </div>
             ))}
           </div>
