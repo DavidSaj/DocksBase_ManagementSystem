@@ -2,6 +2,7 @@ import uuid
 import datetime
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import IntegrityError
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, EmailVerification
@@ -172,3 +173,47 @@ class VerifyEmailViewTest(TestCase):
         resp = self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.data['detail'], 'Invalid or expired link.')
+
+
+class ResendVerificationViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='resend@test.com', password='pass',
+            marina=self.marina, is_active=False
+        )
+        EmailVerification.objects.create(user=self.user)
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_resend_creates_new_token(self):
+        old_ev = self.user.email_verification
+        old_token = old_ev.token
+        resp = self.client.post('/api/v1/auth/resend-verification/', {
+            'email': 'resend@test.com',
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        new_ev = EmailVerification.objects.get(user=self.user)
+        self.assertNotEqual(new_ev.token, old_token)
+
+    def test_resend_rate_limit_60s(self):
+        self.client.post('/api/v1/auth/resend-verification/', {'email': 'resend@test.com'}, format='json')
+        resp = self.client.post('/api/v1/auth/resend-verification/', {'email': 'resend@test.com'}, format='json')
+        self.assertEqual(resp.status_code, 429)
+
+    def test_resend_unknown_email_returns_200(self):
+        resp = self.client.post('/api/v1/auth/resend-verification/', {
+            'email': 'nobody@nowhere.com',
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_resend_already_active_returns_200(self):
+        self.user.is_active = True
+        self.user.save()
+        resp = self.client.post('/api/v1/auth/resend-verification/', {
+            'email': 'resend@test.com',
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
