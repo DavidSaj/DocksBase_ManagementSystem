@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Jost:wght@300;400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Jost', -apple-system, system-ui, sans-serif;
+  background: #fff;
+  color: rgba(0,0,0,0.9);
+  -webkit-font-smoothing: antialiased;
+}
+
+:root {
+  --navy:        #0c1f3d;
+  --navy-mid:    #162d52;
+  --navy-light:  #1e3d6e;
+  --teal:        #1a6b6e;
+  --teal-light:  #2a9d99;
+  --gold:        #b8965a;
+  --gold-light:  #d4b07a;
+  --cream:       #f5f0e6;
+  --cream-dark:  #ede7d8;
+  --blue:        #0075de;
+  --blue-hover:  #005bab;
+  --text:        rgba(0,0,0,0.92);
+  --text-sec:    #4a4540;
+  --text-muted:  #8a8278;
+  --border:      1px solid rgba(0,0,0,0.1);
+  --font-serif:  'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-sans:   'Jost', -apple-system, system-ui, sans-serif;
+}
+
+a { text-decoration: none; color: inherit; }

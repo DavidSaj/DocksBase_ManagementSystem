@@ -1,0 +1,20 @@
+:root {
+  --navy:  #0c1f3d;
+  --navy2: #162d52;
+  --navy3: #1e3d6e;
+  --gold:  #b8965a;
+  --gold2: #d4b07a;
+  --teal:  #1a6b6e;
+  --teal2: #2a9d99;
+  --cream: #f5f0e6;
+  --bg:    #f4f3f0;
+  --bg2:   #eceae6;
+  --white: #ffffff;
+  --green: #1a8c2e;
+  --red:   #c0392b;
+  --border: 1px solid rgba(0,0,0,0.09);
+  --shadow: 0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+  --font:       'IBM Plex Sans', -apple-system, system-ui, sans-serif;
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-brand: 'Jost', -apple-system, system-ui, sans-serif;
+}

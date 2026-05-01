@@ -1,0 +1,58 @@
+.section { background: #fff; padding: 96px 48px; }
+.cream { background: var(--cream); }
+.inner { max-width: 1200px; margin: 0 auto; }
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+.reverse { direction: rtl; }
+.reverse > * { direction: ltr; }
+
+.imageWrap {
+  border-radius: 12px; overflow: hidden;
+  aspect-ratio: 4/3; position: relative;
+}
+.img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.imgOverlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(12,31,61,0.2) 0%, transparent 60%);
+}
+
+.text { display: flex; flex-direction: column; justify-content: center; }
+.eyebrow {
+  font-size: 11px; font-weight: 600; color: var(--gold);
+  letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px;
+  font-family: var(--font-sans);
+}
+.title {
+  font-family: var(--font-serif); font-size: clamp(28px, 3vw, 42px);
+  font-weight: 700; color: var(--navy); line-height: 1.1;
+  letter-spacing: -0.25px; margin-bottom: 18px;
+}
+.body { font-size: 16px; color: var(--text-sec); line-height: 1.65; margin-bottom: 28px; }
+.list {
+  list-style: none; display: flex; flex-direction: column;
+  gap: 10px; margin-bottom: 32px;
+}
+.list li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 14px; color: var(--text-sec); line-height: 1.5;
+}
+.checkIcon {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--navy);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.checkIcon svg { width: 10px; height: 10px; }
+
+.btnText {
+  font-family: var(--font-sans); font-size: 14px; font-weight: 600;
+  color: var(--navy); background: transparent; border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; padding: 0;
+  text-decoration: none; border-bottom: 1.5px solid var(--gold);
+  padding-bottom: 2px; transition: color 0.15s;
+}
+.btnText:hover { color: var(--teal); }
+
+@media (max-width: 900px) {
+  .section { padding: 64px 24px; }
+  .layout { grid-template-columns: 1fr; gap: 36px; }
+  .reverse { direction: ltr; }
+}

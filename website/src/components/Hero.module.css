@@ -1,0 +1,67 @@
+.hero {
+  position: relative; height: 100vh; min-height: 700px;
+  display: flex; align-items: flex-end; overflow: hidden;
+}
+.bg {
+  position: absolute; inset: 0;
+  background-image: url('/images/marina-aerial-hero.jpg');
+  background-size: cover; background-position: center 30%;
+}
+.overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(12,31,61,0.65) 0%,
+    rgba(12,31,61,0.30) 40%,
+    rgba(12,31,61,0.78) 75%,
+    rgba(12,31,61,0.94) 100%
+  );
+}
+.content {
+  position: relative; z-index: 2;
+  max-width: 1200px; margin: 0 auto; padding: 0 48px 80px; width: 100%;
+}
+.eyebrow {
+  font-family: var(--font-sans); font-size: 11px; font-weight: 600;
+  color: var(--gold-light); letter-spacing: 3.5px; text-transform: uppercase;
+  margin-bottom: 16px;
+  text-shadow: 0 1px 12px rgba(0,0,0,0.6);
+}
+.title {
+  font-family: var(--font-serif); font-size: clamp(52px, 7vw, 96px);
+  font-weight: 700; color: #fff; line-height: 0.95;
+  letter-spacing: -1px; margin-bottom: 24px;
+  text-shadow: 0 2px 24px rgba(0,0,0,0.4);
+}
+.title em { font-style: italic; color: rgba(255,255,255,0.7); }
+.sub {
+  font-size: 18px; font-weight: 400; color: rgba(255,255,255,0.75);
+  line-height: 1.55; max-width: 540px; margin-bottom: 36px;
+}
+.actions { display: flex; gap: 14px; align-items: center; }
+.btn {
+  font-family: var(--font-sans); font-size: 15px; font-weight: 600;
+  padding: 13px 28px; border-radius: 4px; cursor: pointer;
+  transition: all 0.15s; border: none; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn:active { transform: scale(0.97); }
+.btnPrimary { background: var(--gold); color: var(--navy); }
+.btnPrimary:hover { background: var(--gold-light); }
+.btnGhost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.4); }
+.btnGhost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.7); }
+
+.scroll {
+  position: absolute; bottom: 30px; right: 48px; z-index: 2;
+  display: flex; align-items: center; gap: 8px;
+}
+.scrollLine { width: 40px; height: 1px; background: rgba(255,255,255,0.3); }
+.scrollText {
+  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.45);
+  letter-spacing: 1.5px; text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .content { padding: 0 24px 60px; }
+  .scroll { right: 24px; }
+}
