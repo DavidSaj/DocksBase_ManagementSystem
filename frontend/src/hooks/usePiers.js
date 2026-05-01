@@ -4,9 +4,12 @@ import api from '../api';
 export function usePiers() {
   const [piers, setPiers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.get('/piers/').then(r => { setPiers(r.data); setLoading(false); });
+    api.get('/piers/')
+      .then(r => { setPiers(r.data); setLoading(false); })
+      .catch(e => { setError(e); setLoading(false); });
   }, []);
 
   const createPier = useCallback(async (data) => {
@@ -31,5 +34,5 @@ export function usePiers() {
     return r.data;
   }, []);
 
-  return { piers, loading, createPier, updatePier, deletePier, bulkGenerate };
+  return { piers, loading, error, createPier, updatePier, deletePier, bulkGenerate };
 }

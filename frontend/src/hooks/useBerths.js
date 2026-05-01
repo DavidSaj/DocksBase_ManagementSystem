@@ -40,5 +40,11 @@ export function useBerths(filters = {}) {
     setBerths(prev => [...prev, ...newBerths]);
   }, []);
 
-  return { berths, loading, error, reload: load, updateBerth, createBerth, deleteBerth, addBerths };
+  const counts = berths.reduce((acc, b) => {
+    acc[b.status] = (acc[b.status] || 0) + 1;
+    acc.total = (acc.total || 0) + 1;
+    return acc;
+  }, {});
+
+  return { berths, counts, loading, error, reload: load, updateBerth, createBerth, deleteBerth, addBerths };
 }
