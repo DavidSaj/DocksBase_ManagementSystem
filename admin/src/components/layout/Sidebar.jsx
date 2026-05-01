@@ -14,7 +14,7 @@ const NAV = [
   ]},
 ];
 
-export default function Sidebar({ screen, setScreen, counts }) {
+export default function Sidebar({ screen, setScreen, counts, onLogout }) {
   return (
     <aside className="sb">
       <div className="sb-logo">
@@ -67,6 +67,16 @@ export default function Sidebar({ screen, setScreen, counts }) {
             <div className="sb-user-role">Platform administrator</div>
           </div>
         </div>
+        {onLogout && (
+          <div
+            className="sb-item"
+            style={{ marginTop: 4 }}
+            onClick={onLogout}
+          >
+            <Ic n="log-out" s={14} />
+            Sign out
+          </div>
+        )}
       </div>
     </aside>
   );
