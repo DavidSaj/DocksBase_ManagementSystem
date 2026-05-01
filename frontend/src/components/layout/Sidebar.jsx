@@ -1,4 +1,6 @@
+import { useState, useEffect, useRef } from 'react';
 import Ic from '../ui/Icon.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 const NAV = [
   { group: 'Operations', items: [
@@ -35,7 +37,58 @@ const NAV = [
 
 export { NAV };
 
+function getInitials(user) {
+  if (!user) return '?';
+  const first = (user.first_name || '').trim();
+  const last = (user.last_name || '').trim();
+  if (first && last) return (first[0] + last[0]).toUpperCase();
+  if (first) return first.slice(0, 2).toUpperCase();
+  if (user.email) return user.email[0].toUpperCase();
+  return '?';
+}
+
+function getDisplayName(user) {
+  if (!user) return 'Unknown User';
+  const first = (user.first_name || '').trim();
+  const last = (user.last_name || '').trim();
+  if (first && last) return `${first[0]}. ${last}`;
+  if (first) return first;
+  return user.email || 'Unknown User';
+}
+
+function getRoleLabel(role) {
+  if (!role) return '';
+  const map = { owner: 'Owner', manager: 'Manager', staff: 'Staff' };
+  return map[role] || role;
+}
+
 export default function Sidebar({ screen, setScreen }) {
+  const { user, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleMouseDown(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleMouseDown);
+    }
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [open]);
+
+  function handleSignOut() {
+    signOut();
+    window.location.href = '/login';
+  }
+
+  const initials = getInitials(user);
+  const displayName = getDisplayName(user);
+  const roleLabel = getRoleLabel(user?.role);
+  const email = user?.email || '';
+
   return (
     <aside className="sb">
       <div className="sb-logo">
@@ -61,31 +114,63 @@ export default function Sidebar({ screen, setScreen }) {
         <div className="sb-marina-sub">Harwich, Essex · 22 active berths</div>
       </div>
 
-      {NAV.map(group => (
-        <div key={group.group} className="sb-section">
-          <div className="sb-section-label">{group.group}</div>
-          {group.items.map(item => (
-            <div
-              key={item.id}
-              className={`sb-item${screen === item.id ? ' active' : ''}`}
-              onClick={() => setScreen(item.id)}
-            >
-              <Ic n={item.icon} s={14} />
-              {item.label}
-              {item.count != null && (
-                <span className={`sb-badge${item.alert ? ' alert' : ''}`}>{item.count}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      ))}
+      <div className="sb-nav">
+        {NAV.map(group => (
+          <div key={group.group} className="sb-section">
+            <div className="sb-section-label">{group.group}</div>
+            {group.items.map(item => (
+              <div
+                key={item.id}
+                className={`sb-item${screen === item.id ? ' active' : ''}`}
+                onClick={() => setScreen(item.id)}
+              >
+                <Ic n={item.icon} s={14} />
+                {item.label}
+                {item.count != null && (
+                  <span className={`sb-badge${item.alert ? ' alert' : ''}`}>{item.count}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
 
       <div className="sb-bottom">
-        <div className="sb-user">
-          <div className="avatar">MH</div>
-          <div className="sb-user-info">
-            <div className="sb-user-name">M. Hargreaves</div>
-            <div className="sb-user-role">Harbor Master</div>
+        <div style={{ position: 'relative' }} ref={wrapperRef}>
+          {open && (
+            <div style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: 0,
+              minWidth: 200,
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: 'var(--shadow2)',
+              border: 'var(--border)',
+              zIndex: 200,
+              overflow: 'hidden',
+              marginBottom: 4,
+            }}>
+              <div style={{ padding: '10px 14px', borderBottom: 'var(--border)' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.85)' }}>{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || email : 'Unknown'}</div>
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{email}</div>
+              </div>
+              <div
+                onClick={handleSignOut}
+                style={{ padding: '10px 14px', fontSize: 12, cursor: 'pointer', color: 'rgba(0,0,0,0.75)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                Log out
+              </div>
+            </div>
+          )}
+          <div className="sb-user" onClick={() => setOpen(o => !o)}>
+            <div className="avatar">{initials}</div>
+            <div className="sb-user-info">
+              <div className="sb-user-name">{displayName}</div>
+              <div className="sb-user-role">{roleLabel}</div>
+            </div>
           </div>
         </div>
       </div>

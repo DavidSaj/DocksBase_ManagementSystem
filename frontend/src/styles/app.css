@@ -16,7 +16,8 @@ body {
 .app { display: flex; height: 100vh; overflow: hidden; }
 
 /* ── SIDEBAR ────────────────────────────────────────────────────────── */
-.sb { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--navy); display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+.sb { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--navy); display: flex; flex-direction: column; overflow: hidden; }
+.sb-nav { flex: 1; overflow-y: auto; overflow-x: hidden; }
 .sb-logo { display: flex; align-items: center; gap: 9px; padding: 18px 16px 12px; border-bottom: 1px solid rgba(255,255,255,0.07); }
 .sb-logo-icon { color: #62aef0; flex-shrink: 0; }
 .sb-logo-text { font-family: var(--font-brand); font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0; text-transform: uppercase; }
@@ -31,7 +32,7 @@ body {
 .sb-item.active::before { content: ''; position: absolute; left: 0; top: 20%; bottom: 20%; width: 2.5px; background: var(--gold); border-radius: 0 2px 2px 0; }
 .sb-badge { margin-left: auto; font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.55); padding: 1px 6px; border-radius: 9999px; }
 .sb-badge.alert { background: rgba(221,91,0,0.25); color: #f59f6a; }
-.sb-bottom { margin-top: auto; padding: 10px 8px; border-top: 1px solid rgba(255,255,255,0.07); }
+.sb-bottom { margin-top: 0; padding: 10px 8px; border-top: 1px solid rgba(255,255,255,0.07); }
 .sb-user { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; cursor: pointer; }
 .sb-user:hover { background: rgba(255,255,255,0.06); }
 .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--navy3); border: 1.5px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
