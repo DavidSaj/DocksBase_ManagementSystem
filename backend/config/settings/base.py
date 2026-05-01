@@ -25,6 +25,7 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'django_filters',
     'storages',
+    'anymail',
 ]
 
 LOCAL_APPS = [
@@ -102,7 +103,7 @@ DROPBOX_SIGN_API_KEY = os.environ.get('DROPBOX_SIGN_API_KEY', '')
 DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '')
 DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
 
-DEFAULT_FROM_EMAIL = 'noreply@docksbase.com'
+DEFAULT_FROM_EMAIL = 'DocksBase <noreply@docksbase.com>'
 
 PLAN_PRICES = {
     'starter': 149,

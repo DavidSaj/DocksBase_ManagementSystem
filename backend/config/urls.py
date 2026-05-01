@@ -5,9 +5,9 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/admin/', include('apps.admin_portal.urls')),
     path('api/v1/', include([
         path('auth/', include('apps.accounts.urls')),
+        path('admin/', include('apps.admin_portal.urls')),
         path('', include('apps.berths.urls')),
         path('', include('apps.reservations.urls')),
         path('', include('apps.vessels.urls')),

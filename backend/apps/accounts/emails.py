@@ -1,27 +1,21 @@
 from django.conf import settings
+from django.core.mail import send_mail
 
 
 def send_verification_email(user, token):
-    """
-    FUTURE: Implement with SendGrid or django-ses.
-    Send to:   user.email
-    Subject:   "Confirm your DocksBase account"
-    Body:      Absolute link to /verify-email?token={token}
-
-    SMTP checklist (when ready):
-    - Add EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD to Railway env
-    - Set DEFAULT_FROM_EMAIL = "noreply@docksbase.com" in settings
-    - Replace print() below with django.core.mail.send_mail() or provider SDK
-    - Call send_welcome_email(user) from VerifyEmailView on successful verification
-    """
     url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
-    print(f"[EMAIL STUB] Verification link for {user.email}: {url}")
+    send_mail(
+        subject="Confirm your DocksBase account",
+        message=f"Hi {user.first_name or user.email},\n\nClick the link below to verify your email address:\n\n{url}\n\nThis link expires in 24 hours.\n\n— The DocksBase Team",
+        from_email=None,  # uses DEFAULT_FROM_EMAIL
+        recipient_list=[user.email],
+    )
 
 
 def send_welcome_email(user):
-    """
-    FUTURE: Send after email is verified.
-    Subject: "Welcome to DocksBase"
-    Body:    Getting-started tips, link to the setup guide.
-    """
-    print(f"[EMAIL STUB] Welcome email for {user.email}")
+    send_mail(
+        subject="Welcome to DocksBase",
+        message=f"Hi {user.first_name or user.email},\n\nYour account is verified and ready to go. Log in to finish setting up your marina:\n\n{settings.FRONTEND_URL}\n\n— The DocksBase Team",
+        from_email=None,
+        recipient_list=[user.email],
+    )

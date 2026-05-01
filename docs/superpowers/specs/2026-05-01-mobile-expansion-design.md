@@ -53,8 +53,10 @@ Each tile is a full-width button with a large icon, bold label, and a subtle cou
 
 **CheckOutFlow.jsx**
 1. List of active bookings (`status: checked_in`) from `GET /api/v1/reservations/?status=checked_in`
+   - Sticky search bar at top of list — filters locally by vessel name or berth number (handles 400+ active bookings without re-fetching)
 2. Tap a booking → detail: vessel, berth, arrival date, nights stayed, estimated amount
 3. "Check Out" button → `PATCH /api/v1/reservations/{id}/` with `status: checked_out` and `actual_departure: today`
+   - Backend side-effect: any draft invoice for this reservation is automatically finalized to `status: open`, so the boater immediately sees "Pay Now" in their portal
 4. Success screen with invoice amount shown → back to grid
 
 **LogTaskFlow.jsx**
@@ -86,6 +88,8 @@ Each tile is a full-width button with a large icon, bold label, and a subtle cou
 | `frontend/src/screens/field/ArrivalsList.jsx` | New |
 
 No new backend endpoints needed — all data available via existing reservation, maintenance, and boatyard APIs.
+
+**Backend change — checkout side-effect:** The existing `PATCH /api/v1/reservations/{id}/` view must be updated so that when `status` is set to `checked_out`, it automatically finds any `Invoice` with `reservation=reservation, status='draft'` and sets `status='open'`. This makes the invoice immediately visible as payable in the boater portal without a separate staff action.
 
 ---
 
@@ -130,8 +134,8 @@ Returns the vessel linked to the member profile, plus all vessel certificates.
 - Vessel card: name, type, length (m), beam (m), registration number, flag/country
 - Certificate list: each cert shows type, expiry date, and a color-coded status:
   - 🟢 Green — valid (>30 days)
-  - 🟡 Amber — expiring within 30 days
-  - 🔴 Red — expired
+  - 🟡 Amber — expiring within 30 days → shows "Email marina" button (mailto link to marina contact email)
+  - 🔴 Red — expired → shows "Email marina" button with subject pre-filled: "Certificate renewal: [cert type] — [vessel name]"
 - If no vessel linked: empty state — "No vessel on file. Contact the marina."
 
 **Backend — new:**
