@@ -9,7 +9,7 @@ export default function useInvoices(filters = {}) {
   const fetchInvoices = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/invoices/', { params: filters });
+      const { data } = await api.get('/billing/invoices/', { params: filters });
       setInvoices(data.results ?? data);
     } catch (e) {
       setError(e);
@@ -21,7 +21,7 @@ export default function useInvoices(filters = {}) {
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
   async function updateInvoice(id, patch) {
-    const { data } = await api.patch(`/invoices/${id}/`, patch);
+    const { data } = await api.patch(`/billing/invoices/${id}/`, patch);
     setInvoices(prev => prev.map(i => i.id === id ? data : i));
     return data;
   }
