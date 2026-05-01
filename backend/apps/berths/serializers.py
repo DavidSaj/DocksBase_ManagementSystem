@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig
+from .models import Pier, Berth, MarinaMapConfig, Amenity
 
 
 class PierSerializer(serializers.ModelSerializer):
@@ -7,11 +7,7 @@ class PierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pier
-        fields = [
-            'id', 'code', 'label',
-            'canvas_x', 'canvas_y', 'canvas_width', 'canvas_height',
-            'berth_count',
-        ]
+        fields = ['id', 'code', 'label', 'polygon_points', 'berth_count']
         read_only_fields = ['id', 'berth_count']
 
     def get_berth_count(self, obj):
@@ -31,13 +27,20 @@ class BerthSerializer(serializers.ModelSerializer):
             'side', 'position_index',
             'length_m', 'max_draft_m', 'max_beam_m', 'amenities', 'price_per_night',
             'status', 'vessel', 'vessel_name',
-            'canvas_x', 'canvas_y', 'canvas_width', 'canvas_height', 'canvas_rotation',
+            'canvas_x', 'canvas_y', 'canvas_rotation',
             'unmapped',
         ]
         read_only_fields = ['id', 'pier_code', 'pier_label', 'vessel_name', 'unmapped']
 
     def get_unmapped(self, obj):
         return obj.canvas_x is None or obj.canvas_y is None
+
+
+class AmenitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Amenity
+        fields = ['id', 'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation']
+        read_only_fields = ['id']
 
 
 class BulkGenerateSerializer(serializers.Serializer):
