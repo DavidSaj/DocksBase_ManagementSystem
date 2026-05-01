@@ -1,3 +1,5 @@
+import uuid
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -11,9 +13,8 @@ def make_marina(name='Test Marina'):
 
 
 def make_user(marina):
-    i = User.objects.count()
     return User.objects.create_user(
-        email=f'user{i}@test.com', password='pass', marina=marina, role='owner'
+        email=f'user{uuid.uuid4().hex[:8]}@test.com', password='pass', marina=marina, role='owner'
     )
 
 
@@ -168,12 +169,14 @@ class BulkGenerateTest(TestCase):
         self.assertEqual(len(resp.json()), 10)
 
     def test_generates_correct_codes(self):
-        self.client.post(self.url, {'prefix': 'A', 'start': 1, 'end': 5})
+        resp = self.client.post(self.url, {'prefix': 'A', 'start': 1, 'end': 5})
+        self.assertEqual(resp.status_code, 201)
         for i in range(1, 6):
             self.assertTrue(Berth.objects.filter(code=f'A{i}', marina=self.marina).exists())
 
     def test_generated_berths_are_unmapped(self):
-        self.client.post(self.url, {'prefix': 'A', 'start': 1, 'end': 5})
+        resp = self.client.post(self.url, {'prefix': 'A', 'start': 1, 'end': 5})
+        self.assertEqual(resp.status_code, 201)
         for berth in Berth.objects.filter(marina=self.marina):
             self.assertIsNone(berth.canvas_x)
 

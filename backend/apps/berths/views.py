@@ -14,7 +14,7 @@ from .serializers import (
 
 class PierListCreateView(generics.ListCreateAPIView):
     serializer_class = PierSerializer
-    pagination_class = None
+    pagination_class = None  # canvas client needs all piers in one response
 
     def get_queryset(self):
         return Pier.objects.filter(marina=self.request.user.marina).prefetch_related('berths')
@@ -33,7 +33,7 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
 class BerthListCreateView(generics.ListCreateAPIView):
     serializer_class = BerthSerializer
     filterset_fields = ['status', 'pier']
-    pagination_class = None
+    pagination_class = None  # canvas client needs all berths in one response
 
     def get_queryset(self):
         return Berth.objects.filter(marina=self.request.user.marina).select_related(
