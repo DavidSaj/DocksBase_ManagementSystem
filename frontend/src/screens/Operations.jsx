@@ -3,7 +3,6 @@ import useFuelQueue from '../hooks/useFuelQueue.js';
 import useVessels from '../hooks/useVessels.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import StripeGateModal from '../components/onboarding/StripeGateModal.jsx';
 
 const FUEL_BERTHS = ['FD-1', 'FD-2'];
 
@@ -234,17 +233,8 @@ function FuelDockTab() {
   );
 }
 
-export default function Operations({ marina }) {
+export default function Operations() {
   const [tab, setTab] = useState('fueldock');
-  const [stripeModalOpen, setStripeModalOpen] = useState(false);
-
-  function handleEnableOnlineBookings() {
-    if (!marina?.stripe_account_id) {
-      setStripeModalOpen(true);
-      return;
-    }
-    // TODO: call marina update API to set booking_mode when Stripe Connect is live
-  }
 
   return (
     <div>
@@ -254,7 +244,6 @@ export default function Operations({ marina }) {
         ))}
       </div>
       {tab === 'fueldock' && <FuelDockTab />}
-      <StripeGateModal open={stripeModalOpen} onClose={() => setStripeModalOpen(false)} />
     </div>
   );
 }
