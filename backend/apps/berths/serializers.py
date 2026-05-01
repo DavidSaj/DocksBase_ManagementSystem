@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig
+from .models import Pier, Berth, MarinaMapConfig, Amenity
 from apps.billing.models import ChargeableItem
 
 
@@ -68,6 +68,13 @@ class BerthSerializer(serializers.ModelSerializer):
         if value and value.category != 'berth':
             raise serializers.ValidationError("pricing_tier must be a Berth Rate item.")
         return value
+
+
+class AmenitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Amenity
+        fields = ['id', 'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation']
+        read_only_fields = ['id']
 
 
 class MarinaMapConfigSerializer(serializers.ModelSerializer):

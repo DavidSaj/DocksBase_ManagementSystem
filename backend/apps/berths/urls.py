@@ -6,6 +6,7 @@ from .views import (
     BulkCreateBerthsView,
     BulkUpdateBerthPricingView,
     BroadcastSMSView,
+    AmenityListCreateView, AmenityDetailView,
 )
 
 urlpatterns = [
@@ -17,4 +18,6 @@ urlpatterns = [
     path('berths/<int:pk>/', BerthDetailView.as_view(), name='berth_detail'),
     path('map/config/', MapConfigView.as_view(), name='map_config'),
     path('broadcast/', BroadcastSMSView.as_view(), name='broadcast_sms'),
+    path('amenities/', AmenityListCreateView.as_view(), name='amenity_list'),
+    path('amenities/<int:pk>/', AmenityDetailView.as_view(), name='amenity_detail'),
 ]
