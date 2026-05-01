@@ -1,7 +1,8 @@
 from rest_framework import generics, permissions
+from rest_framework.permissions import IsAuthenticated
 from apps.billing.models import Invoice
 from .models import AbsenceReport, CraneRequest
-from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer
+from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer
 
 
 class IsBoater(permissions.BasePermission):
@@ -45,3 +46,26 @@ class CraneRequestListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         member = self.request.user.member_profile
         serializer.save(member=member)
+
+
+class CraneRequestStaffListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CraneRequestStaffSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CraneRequest.objects.filter(
+            member__marina=self.request.user.marina
+        ).select_related('member').order_by('-created_at')
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+        return qs
+
+
+class CraneRequestStaffDetailView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CraneRequestStaffSerializer
+
+    def get_queryset(self):
+        return CraneRequest.objects.filter(member__marina=self.request.user.marina)

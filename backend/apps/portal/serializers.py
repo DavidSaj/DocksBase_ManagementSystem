@@ -28,3 +28,12 @@ class CraneRequestSerializer(serializers.ModelSerializer):
         model = CraneRequest
         fields = ['id', 'service_type', 'requested_date', 'notes', 'status', 'created_at']
         read_only_fields = ['id', 'status', 'created_at']
+
+
+class CraneRequestStaffSerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source='member.name', read_only=True)
+
+    class Meta:
+        model = CraneRequest
+        fields = ['id', 'member_name', 'service_type', 'requested_date', 'notes', 'status', 'created_at']
+        read_only_fields = ['id', 'member_name', 'service_type', 'requested_date', 'notes', 'created_at']
