@@ -1,9 +1,11 @@
 from rest_framework import generics, permissions
+from rest_framework.exceptions import NotFound
 from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
 from apps.reservations.models import Booking
+from apps.vessels.models import Vessel
 from .models import AbsenceReport, CraneRequest
-from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer
+from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer, PortalVesselSerializer
 
 
 class IsBoater(permissions.BasePermission):
@@ -85,3 +87,20 @@ class PortalBerthView(generics.ListAPIView):
             marina=self.request.user.marina,
             status__in=['checked_in', 'pending'],
         ).select_related('berth__pier').order_by('-check_in')
+
+
+class PortalVesselView(generics.RetrieveAPIView):
+    permission_classes = [IsBoater]
+    serializer_class = PortalVesselSerializer
+
+    def get_object(self):
+        member = self.request.user.member_profile
+        vessel = (
+            Vessel.objects
+            .filter(owner=member, marina=self.request.user.marina)
+            .prefetch_related('certificates')
+            .first()
+        )
+        if vessel is None:
+            raise NotFound('No vessel on file.')
+        return vessel

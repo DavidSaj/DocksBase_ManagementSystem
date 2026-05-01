@@ -67,3 +67,36 @@ class PortalBerthSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = ['id', 'berth_code', 'pier_label', 'check_in', 'check_out', 'nights_remaining', 'status']
+
+
+from apps.vessels.models import Vessel, VesselCertificate
+
+
+class PortalVesselCertificateSerializer(serializers.ModelSerializer):
+    cert_status = serializers.SerializerMethodField()
+
+    def get_cert_status(self, obj):
+        if not obj.expires:
+            return 'valid'
+        today = datetime.date.today()
+        if obj.expires < today:
+            return 'expired'
+        if (obj.expires - today).days <= 30:
+            return 'due_soon'
+        return 'valid'
+
+    class Meta:
+        model = VesselCertificate
+        fields = ['id', 'name', 'cert_type', 'expires', 'cert_status']
+
+
+class PortalVesselSerializer(serializers.ModelSerializer):
+    certificates = PortalVesselCertificateSerializer(many=True, read_only=True)
+    marina_contact_email = serializers.SerializerMethodField()
+
+    def get_marina_contact_email(self, obj):
+        return self.context['request'].user.marina.contact_email
+
+    class Meta:
+        model = Vessel
+        fields = ['id', 'name', 'vessel_type', 'loa', 'beam', 'reg', 'flag', 'marina_contact_email', 'certificates']

@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.members.models import Member
-from apps.vessels.models import Vessel
+from apps.vessels.models import Vessel, VesselCertificate
 from apps.reservations.models import Booking
 from apps.berths.models import Pier, Berth
 from .models import CraneRequest
@@ -124,3 +124,55 @@ class PortalBerthTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         entries = {e['berth_code']: e for e in resp.json()}
         self.assertEqual(entries['B1']['pier_label'], 'B')
+
+
+class PortalVesselTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()   # contact_email='marina@test.com'
+        self.member = make_member(self.marina)
+        self.boater = make_boater(self.marina, self.member)
+        self.vessel = Vessel.objects.create(
+            marina=self.marina, name='Blue Wave', owner=self.member,
+            vessel_type='sail', loa='12.50', beam='3.80', reg='UK1234',
+        )
+        VesselCertificate.objects.create(
+            marina=self.marina, vessel=self.vessel, name='Registration',
+            cert_type='registration',
+            expires=datetime.date.today() + datetime.timedelta(days=200),
+        )
+        VesselCertificate.objects.create(
+            marina=self.marina, vessel=self.vessel, name='VHF Licence',
+            cert_type='vhf',
+            expires=datetime.date.today() + datetime.timedelta(days=15),
+        )
+        VesselCertificate.objects.create(
+            marina=self.marina, vessel=self.vessel, name='Insurance',
+            cert_type='other',
+            expires=datetime.date.today() - datetime.timedelta(days=5),
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.boater)
+
+    def test_boater_sees_vessel_and_certificates(self):
+        resp = self.client.get('/api/v1/portal/vessel/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['name'], 'Blue Wave')
+        self.assertEqual(data['reg'], 'UK1234')
+        self.assertEqual(len(data['certificates']), 3)
+
+    def test_certificate_status_computed_correctly(self):
+        resp = self.client.get('/api/v1/portal/vessel/')
+        certs = {c['name']: c['cert_status'] for c in resp.json()['certificates']}
+        self.assertEqual(certs['Registration'], 'valid')
+        self.assertEqual(certs['VHF Licence'], 'due_soon')
+        self.assertEqual(certs['Insurance'], 'expired')
+
+    def test_marina_contact_email_included(self):
+        resp = self.client.get('/api/v1/portal/vessel/')
+        self.assertEqual(resp.json()['marina_contact_email'], 'marina@test.com')
+
+    def test_returns_404_when_no_vessel(self):
+        self.vessel.delete()
+        resp = self.client.get('/api/v1/portal/vessel/')
+        self.assertEqual(resp.status_code, 404)

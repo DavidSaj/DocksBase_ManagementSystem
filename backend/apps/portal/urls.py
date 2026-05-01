@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     PortalInvoiceListView, AbsenceReportCreateView, CraneRequestListCreateView,
     CraneRequestStaffListView, CraneRequestStaffDetailView,
-    PortalBerthView,
+    PortalBerthView, PortalVesselView,
 )
 
 urlpatterns = [
@@ -12,4 +12,5 @@ urlpatterns = [
     path('portal/crane-requests/staff/',                  CraneRequestStaffListView.as_view(),     name='portal_crane_staff_list'),
     path('portal/crane-requests/<int:pk>/staff-update/',  CraneRequestStaffDetailView.as_view(),   name='portal_crane_staff_detail'),
     path('portal/berth/',                                 PortalBerthView.as_view(),               name='portal_berth'),
+    path('portal/vessel/',                                PortalVesselView.as_view(),              name='portal_vessel'),
 ]
