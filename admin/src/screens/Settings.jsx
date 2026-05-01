@@ -76,6 +76,7 @@ function FeatureFlags() {
               {flag.enabled ? 'Enabled' : 'Disabled'}
             </span>
             <button
+              type="button"
               className="btn-sm"
               onClick={() => handleToggle(flag)}
               disabled={!!toggling[flag.name]}
@@ -155,8 +156,8 @@ export default function Settings() {
           <div className="grid-3">
             {[
               ['Frontend',   'React 19 · Vite · Vercel'],
-              ['Backend',    'Supabase · PostgreSQL'],
-              ['Auth',       'Supabase Auth · JWT'],
+              ['Backend',    'Django · DRF · Railway'],
+              ['Auth',       'SimpleJWT'],
               ['Payments',   'Stripe'],
               ['Email',      'SendGrid'],
               ['SMS',        'Twilio'],
