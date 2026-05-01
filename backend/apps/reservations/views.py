@@ -49,6 +49,11 @@ class BookingListCreateView(generics.ListCreateAPIView):
         price     = berth.price_per_night if berth else None
         amount    = (price * nights) if price is not None else None
         serializer.save(marina=self.request.user.marina, nights=nights, amount=amount)
+        # Auto-generate a draft invoice from the price book (best-effort — never blocks the booking)
+        try:
+            billing_service.calculate_booking_invoice(serializer.instance)
+        except Exception:
+            pass
 
 
 class BookingDetailView(generics.RetrieveUpdateAPIView):
@@ -67,11 +72,11 @@ class BookingDetailView(generics.RetrieveUpdateAPIView):
                     source_id=str(instance.id),
                     status='draft',
                 ).first()
-                if draft:
+                if draft and draft.items.exists():
                     try:
                         billing_service.finalize_invoice(draft)
-                    except ValueError:
-                        pass  # invoice transitioned out of draft concurrently
+                    except Exception:
+                        pass  # invoice transitioned out of draft concurrently or billing error
 
 
 class BookingRequestListCreateView(generics.ListCreateAPIView):
