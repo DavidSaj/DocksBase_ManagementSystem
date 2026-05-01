@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, EmailVerification
+from apps.accounts.emails import send_verification_email, send_welcome_email
 
 User = get_user_model()
 
@@ -65,3 +66,18 @@ class EmailVerificationModelTest(TestCase):
             'connect_bank': False,
             'invite_staff': False,
         })
+
+
+class EmailStubTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='stub@test.com', password='pass', marina=self.marina
+        )
+
+    def test_send_verification_email_does_not_raise(self):
+        token = uuid.uuid4()
+        send_verification_email(self.user, token)
+
+    def test_send_welcome_email_does_not_raise(self):
+        send_welcome_email(self.user)
