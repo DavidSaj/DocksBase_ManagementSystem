@@ -49,6 +49,36 @@ class SignupView(APIView):
         )
 
 
+class VerifyEmailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        token = request.query_params.get('token')
+        if not token:
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            ev = EmailVerification.objects.select_related('user').get(token=token)
+        except (EmailVerification.DoesNotExist, ValueError):
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if timezone.now() - ev.created_at > datetime.timedelta(hours=24):
+            ev.delete()
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = ev.user
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        ev.delete()
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data,
+        })
+
+
 class LoginView(TokenObtainPairView):
     serializer_class = DocksBaseTokenSerializer
     permission_classes = [permissions.AllowAny]

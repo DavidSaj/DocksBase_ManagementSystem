@@ -134,3 +134,40 @@ class SignupViewTest(TestCase):
             'email': 'incomplete@marina.com',
         }, format='json')
         self.assertEqual(resp.status_code, 400)
+
+
+class VerifyEmailViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='verify@test.com', password='pass',
+            marina=self.marina, is_active=False
+        )
+        self.ev = EmailVerification.objects.create(user=self.user)
+
+    def test_verify_activates_user_and_returns_jwt(self):
+        resp = self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('access', resp.data)
+        self.assertIn('refresh', resp.data)
+        self.assertIn('user', resp.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+
+    def test_verify_deletes_token_after_use(self):
+        self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
+        self.assertFalse(EmailVerification.objects.filter(pk=self.ev.pk).exists())
+
+    def test_verify_invalid_token_returns_400(self):
+        resp = self.client.get('/api/v1/auth/verify-email/?token=00000000-0000-0000-0000-000000000000')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['detail'], 'Invalid or expired link.')
+
+    def test_verify_expired_token_returns_400(self):
+        from django.utils import timezone as tz
+        self.ev.created_at = tz.now() - datetime.timedelta(hours=25)
+        self.ev.save()
+        resp = self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['detail'], 'Invalid or expired link.')
