@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
+from apps.admin_portal.permissions import IsSafeModeReadOnly
 from .models import Pier, Berth, MarinaMapConfig
 from .serializers import (
     PierSerializer, BerthSerializer,
@@ -25,7 +26,7 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PierSerializer
 
     def get_queryset(self):
-        return Pier.objects.filter(marina=self.request.user.marina)
+        return Pier.objects.filter(marina=self.request.user.marina).prefetch_related('berths')
 
 
 class BerthListCreateView(generics.ListCreateAPIView):
@@ -50,7 +51,7 @@ class BerthDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class BulkGenerateBerthsView(APIView):
     """POST /piers/{pk}/bulk-generate/ — create many berths for a pier in one request."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsSafeModeReadOnly]
 
     def post(self, request, pk):
         pier = get_object_or_404(Pier, pk=pk, marina=request.user.marina)
