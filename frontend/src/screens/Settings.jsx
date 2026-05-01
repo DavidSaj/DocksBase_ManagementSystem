@@ -86,7 +86,7 @@ export default function Settings() {
 
   useEffect(() => {
     api.get('/billing/service-catalog/')
-      .then(r => setCatalog(r.data))
+      .then(r => setCatalog(r.data.results ?? r.data))
       .catch(() => {})
       .finally(() => setCatLoading(false));
   }, []);
