@@ -3,6 +3,7 @@ import { UTILITY_METERS, DEBTORS } from '../data/mock.js';
 import useInvoices from '../hooks/useInvoices.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
+import api from '../api.js';
 
 const FUEL_SALES = [
   { vessel: 'Ocean Star',  item: 'Diesel',   qty: '120L', amount: '€170.40', time: '09:15 today' },
@@ -12,8 +13,9 @@ const FUEL_SALES = [
 ];
 
 function fmtInv(inv) {
-  const amount = inv.amount != null
-    ? (String(inv.amount).startsWith('€') ? inv.amount : `€${Number(inv.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`)
+  const rawAmt = inv.total ?? inv.amount;
+  const amount = rawAmt != null
+    ? `€${Number(rawAmt).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`
     : '—';
   return {
     ...inv,
@@ -21,14 +23,109 @@ function fmtInv(inv) {
     owner:  inv.member_name  ?? inv.owner   ?? '—',
     type:   inv.invoice_type ?? inv.type    ?? '—',
     amount,
+    issued: inv.created_at ? inv.created_at.slice(0, 10) : (inv.issued ?? '—'),
+    due:    inv.due_date    ?? inv.due    ?? '—',
   };
 }
 
 export default function Billing() {
   const [tab, setTab] = useState('invoices');
 
-  const { invoices: raw, loading } = useInvoices();
+  const [newInvoiceOpen, setNewInvoiceOpen]     = useState(false);
+  const [invoiceStep, setInvoiceStep]           = useState(1);
+  const [invoiceDraft, setInvoiceDraft]         = useState(null);
+  const [catalogItems, setCatalogItems]         = useState([]);
+  const [memberSearch, setMemberSearch]         = useState('');
+  const [memberResults, setMemberResults]       = useState([]);
+  const [selectedMember, setSelectedMember]     = useState(null);
+  const [dueDate, setDueDate]                   = useState('');
+  const [selectedItem, setSelectedItem]         = useState('');
+  const [itemQty, setItemQty]                   = useState('1');
+  const [invoiceLines, setInvoiceLines]         = useState([]);
+  const [invoiceCreating, setInvoiceCreating]   = useState(false);
+
+  const { invoices: raw, loading, refetch } = useInvoices();
   const invoices = raw.map(fmtInv);
+
+  function openNewInvoice() {
+    setNewInvoiceOpen(true);
+    setInvoiceStep(1);
+    setInvoiceDraft(null);
+    setInvoiceLines([]);
+    setSelectedMember(null);
+    setMemberSearch('');
+    setDueDate('');
+    api.get('/billing/service-catalog/')
+      .then(r => setCatalogItems((r.data.results ?? r.data).filter(i => i.is_active)))
+      .catch(() => {});
+  }
+
+  function searchMembers(q) {
+    setMemberSearch(q);
+    if (q.length < 2) { setMemberResults([]); return; }
+    api.get('/members/', { params: { search: q } })
+      .then(r => setMemberResults((r.data.results ?? r.data).slice(0, 6)))
+      .catch(() => {});
+  }
+
+  async function createDraftAndProceed() {
+    setInvoiceCreating(true);
+    try {
+      const r = await api.post('/billing/invoices/create/', {
+        member_id:   selectedMember?.id ?? null,
+        due_date:    dueDate || null,
+        source_type: 'manual',
+      });
+      setInvoiceDraft(r.data);
+      setInvoiceStep(2);
+    } catch {
+      alert('Could not create invoice. Please try again.');
+    } finally {
+      setInvoiceCreating(false);
+    }
+  }
+
+  async function addLineItem() {
+    if (!invoiceDraft || !selectedItem) return;
+    const item = catalogItems.find(i => String(i.id) === String(selectedItem));
+    if (!item) return;
+    try {
+      const r = await api.post(`/billing/invoices/${invoiceDraft.id}/line-items/`, {
+        chargeable_item_id: item.id,
+        quantity: itemQty,
+      });
+      setInvoiceLines(prev => [...prev, r.data]);
+      setSelectedItem('');
+      setItemQty('1');
+    } catch {
+      alert('Could not add line item.');
+    }
+  }
+
+  async function removeLineItem(lineId) {
+    try {
+      await api.delete(`/billing/line-items/${lineId}/`);
+      setInvoiceLines(prev => prev.filter(l => l.id !== lineId));
+    } catch {
+      alert('Could not remove line item.');
+    }
+  }
+
+  async function finalizeInvoice() {
+    if (!invoiceDraft) return;
+    try {
+      const r = await api.post(`/billing/invoices/${invoiceDraft.id}/finalize/`);
+      setNewInvoiceOpen(false);
+      refetch();
+      alert(`Invoice ${r.data.invoice_number} finalized — Total: €${r.data.total}`);
+    } catch {
+      alert('Could not finalize invoice.');
+    }
+  }
+
+  const lineSubtotal = invoiceLines.reduce((s, l) => s + Number(l.line_subtotal ?? l.total_price ?? 0), 0);
+  const lineTax      = invoiceLines.reduce((s, l) => s + Number(l.line_tax ?? 0), 0);
+  const lineTotal    = lineSubtotal + lineTax;
 
   const count = (s) => invoices.filter(i => i.status === s).length;
 
@@ -53,7 +150,7 @@ export default function Billing() {
                 </div>
               ))}
             </div>
-            <button className="btn btn-primary"><Ic n="plus" s={12} />New Invoice</button>
+            <button className="btn btn-primary" onClick={openNewInvoice}><Ic n="plus" s={12} />New Invoice</button>
           </div>
           <div className="card" style={{ overflow: 'hidden' }}>
             <table className="tbl">
@@ -239,6 +336,128 @@ export default function Billing() {
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}>Import Bank Statement</button>
               <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Auto-Reconcile</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {newInvoiceOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setNewInvoiceOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>New Invoice</div>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Step {invoiceStep} of 2</span>
+            </div>
+
+            {invoiceStep === 1 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>MEMBER / CUSTOMER</div>
+                <div style={{ position: 'relative', marginBottom: 14 }}>
+                  <input
+                    style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 10px', fontSize: 13, fontFamily: 'var(--font)' }}
+                    placeholder="Search by name or email… (optional)"
+                    value={selectedMember ? selectedMember.name : memberSearch}
+                    onChange={e => { setSelectedMember(null); searchMembers(e.target.value); }}
+                  />
+                  {memberResults.length > 0 && !selectedMember && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: 'var(--border)', borderRadius: 6, boxShadow: 'var(--shadow2)', zIndex: 10 }}>
+                      {memberResults.map(m => (
+                        <div key={m.id}
+                          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12 }}
+                          onMouseDown={() => { setSelectedMember(m); setMemberResults([]); }}>
+                          <div style={{ fontWeight: 500 }}>{m.name}</div>
+                          <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: 11 }}>{m.email}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>DUE DATE (OPTIONAL)</div>
+                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                  style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 10px', fontSize: 13, marginBottom: 24 }} />
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost" onClick={() => setNewInvoiceOpen(false)}>Cancel</button>
+                  <button className="btn btn-primary" disabled={invoiceCreating} onClick={createDraftAndProceed}>
+                    {invoiceCreating ? 'Creating…' : 'Next →'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {invoiceStep === 2 && (
+              <div>
+                {selectedMember && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 7, padding: '8px 12px', marginBottom: 16, fontSize: 12 }}>
+                    <span style={{ color: 'rgba(0,0,0,0.45)' }}>Billing to: </span>
+                    <span style={{ fontWeight: 600 }}>{selectedMember.name}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+                  <select value={selectedItem} onChange={e => setSelectedItem(e.target.value)}
+                    style={{ flex: 1, border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}>
+                    <option value="">Select service from catalog…</option>
+                    {catalogItems.map(i => (
+                      <option key={i.id} value={i.id}>
+                        {i.name} — €{Number(i.unit_price).toFixed(2)} ({i.pricing_model_display})
+                      </option>
+                    ))}
+                  </select>
+                  <input type="number" step="0.01" min="0.01" value={itemQty} onChange={e => setItemQty(e.target.value)}
+                    style={{ width: 72, border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}
+                    placeholder="Qty" />
+                  <button className="btn btn-primary btn-sm" onClick={addLineItem} disabled={!selectedItem}>Add</button>
+                </div>
+
+                {invoiceLines.length > 0 ? (
+                  <div className="card" style={{ overflow: 'hidden', marginBottom: 14 }}>
+                    <table className="tbl">
+                      <thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Tax</th><th>Total</th><th></th></tr></thead>
+                      <tbody>
+                        {invoiceLines.map(line => (
+                          <tr key={line.id}>
+                            <td style={{ fontSize: 12 }}>{line.description}</td>
+                            <td style={{ fontSize: 12 }}>{Number(line.quantity).toFixed(2)}</td>
+                            <td style={{ fontSize: 12 }}>€{Number(line.unit_price).toFixed(2)}</td>
+                            <td style={{ fontSize: 12 }}>{line.tax_rate}%</td>
+                            <td style={{ fontWeight: 600, fontSize: 12 }}>€{Number(line.line_total ?? line.total_price).toFixed(2)}</td>
+                            <td>
+                              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 16, lineHeight: 1 }}
+                                onClick={() => removeLineItem(line.id)}>×</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12, marginBottom: 14 }}>
+                    No line items yet — select a service above and click Add.
+                  </div>
+                )}
+
+                {invoiceLines.length > 0 && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
+                    {[['Subtotal', lineSubtotal], ['Tax', lineTax], ['Grand Total', lineTotal]].map(([label, val]) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: label === 'Grand Total' ? 14 : 12, fontWeight: label === 'Grand Total' ? 700 : 400, color: label === 'Grand Total' ? 'var(--navy)' : 'rgba(0,0,0,0.7)' }}>
+                        <span>{label}</span><span>€{val.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost" onClick={() => { setNewInvoiceOpen(false); refetch(); }}>Save as Draft</button>
+                  <button className="btn btn-primary" disabled={invoiceLines.length === 0} onClick={finalizeInvoice}>
+                    Finalize Invoice
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}

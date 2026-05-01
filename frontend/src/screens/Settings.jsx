@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
 
 const RATE_PLANS = [
@@ -78,6 +79,49 @@ export default function Settings() {
   const [notifs, setNotifs] = useState(NOTIF_SETTINGS);
   const [flags, setFlags] = useState(FEATURE_FLAGS_INIT);
 
+  const [catalog, setCatalog]       = useState([]);
+  const [catalogLoading, setCatLoading] = useState(true);
+  const [catalogForm, setCatalogForm]   = useState(null);
+  const [catalogSaving, setCatSaving]   = useState(false);
+
+  useEffect(() => {
+    api.get('/billing/service-catalog/')
+      .then(r => setCatalog(r.data))
+      .catch(() => {})
+      .finally(() => setCatLoading(false));
+  }, []);
+
+  function saveCatalogItem(form) {
+    setCatSaving(true);
+    const payload = {
+      name: form.name,
+      category: form.category,
+      pricing_model: form.pricing_model,
+      unit_price: form.unit_price,
+      tax_rate: form.tax_rate,
+      is_active: form.is_active,
+    };
+    const req = form.id
+      ? api.patch(`/billing/service-catalog/${form.id}/`, payload)
+      : api.post('/billing/service-catalog/', payload);
+    req
+      .then(r => {
+        setCatalog(prev => form.id
+          ? prev.map(i => i.id === form.id ? r.data : i)
+          : [...prev, r.data]);
+        setCatalogForm(null);
+      })
+      .catch(() => {})
+      .finally(() => setCatSaving(false));
+  }
+
+  function deleteCatalogItem(id) {
+    if (!window.confirm('Delete this catalog item?')) return;
+    api.delete(`/billing/service-catalog/${id}/`)
+      .then(() => setCatalog(prev => prev.filter(i => i.id !== id)))
+      .catch(() => {});
+  }
+
   function toggleNotif(gi, ii, channel) {
     setNotifs(prev => prev.map((g, gIdx) => gIdx !== gi ? g : {
       ...g,
@@ -88,7 +132,7 @@ export default function Settings() {
   return (
     <div>
       <div className="tabs">
-        {[['marina','Marina Profile'],['rates','Rate Plans'],['users','Users & Roles'],['notifications','Notifications'],['system','System']].map(([v,l]) => (
+        {[['marina','Marina Profile'],['catalog','Service Catalog'],['users','Users & Roles'],['notifications','Notifications'],['system','System']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -220,58 +264,98 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── RATE PLANS ─────────────────────────────────────────────── */}
-      {tab === 'rates' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── SERVICE CATALOG ────────────────────────────────────────── */}
+      {tab === 'catalog' && (
+        <div>
           <div className="sec-hdr">
-            <div>
-              <div className="sec-hdr-title">Rate Plans</div>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 3 }}>Pricing rules applied automatically at booking</div>
-            </div>
-            <button className="btn btn-primary"><Ic n="plus" s={12} />New Rate Plan</button>
+            <div className="sec-hdr-title">Service Catalog — Price Book</div>
+            <button className="btn btn-primary" onClick={() => setCatalogForm({ name: '', category: 'service', pricing_model: 'flat_fee', unit_price: '', tax_rate: '0', is_active: true })}>
+              + Add Item
+            </button>
           </div>
+
           <div className="card" style={{ overflow: 'hidden' }}>
             <table className="tbl">
               <thead>
-                <tr><th>Plan Name</th><th>Base Rate</th><th>Peak Multiplier</th><th>7-Night Discount</th><th>28-Night Discount</th><th></th></tr>
+                <tr><th>Name</th><th>Category</th><th>Pricing Model</th><th>Unit Price</th><th>Tax Rate</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
-                {RATE_PLANS.map((r, i) => (
-                  <tr key={i}>
-                    <td><div className="tbl-name">{r.name}</div></td>
-                    <td style={{ fontWeight: 600 }}>{r.base} <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.38)', fontSize: 11 }}>{r.unit}</span></td>
-                    <td style={{ fontSize: 12, color: r.peak === '—' ? 'rgba(0,0,0,0.25)' : 'var(--orange)', fontWeight: r.peak !== '—' ? 600 : 400 }}>{r.peak}</td>
-                    <td style={{ fontSize: 12, color: r.discount7 === '—' ? 'rgba(0,0,0,0.25)' : 'var(--green)', fontWeight: r.discount7 !== '—' ? 600 : 400 }}>{r.discount7}</td>
-                    <td style={{ fontSize: 12, color: r.discount28 === '—' ? 'rgba(0,0,0,0.25)' : 'var(--green)', fontWeight: r.discount28 !== '—' ? 600 : 400 }}>{r.discount28}</td>
-                    <td><button className="btn btn-ghost btn-sm">Edit</button></td>
+                {catalogLoading ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</td></tr>
+                ) : catalog.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>No items yet. Add your first service to the price book.</td></tr>
+                ) : catalog.map(item => (
+                  <tr key={item.id}>
+                    <td className="tbl-name">{item.name}</td>
+                    <td><span className="badge badge-navy">{item.category_display}</span></td>
+                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>{item.pricing_model_display}</td>
+                    <td style={{ fontWeight: 600 }}>€{Number(item.unit_price).toFixed(2)}</td>
+                    <td style={{ fontSize: 12 }}>{item.tax_rate}%</td>
+                    <td><span className={`badge ${item.is_active ? 'badge-green' : 'badge-gray'}`}>{item.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setCatalogForm({ ...item, unit_price: String(item.unit_price), tax_rate: String(item.tax_rate) })}>Edit</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => deleteCatalogItem(item.id)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="card">
-            <div className="card-header"><div className="card-header-title">Utility Rates</div></div>
-            <div className="card-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-                {[
-                  ['Electricity', '€0.28', 'per kWh'],
-                  ['Water', '€0.004', 'per litre'],
-                  ['Fuel — Diesel', '€1.42', 'per litre'],
-                  ['Fuel — Petrol', '€1.55', 'per litre'],
-                  ['Pump-out', '€12.00', 'flat fee'],
-                  ['Shore Power Token', '€3.00', 'flat fee'],
-                ].map(([name, rate, unit]) => (
-                  <div key={name} style={{ background: 'var(--bg)', borderRadius: 8, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 6 }}>{name}</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' }}>{rate}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', marginTop: 2 }}>{unit}</div>
+          {catalogForm && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={e => e.target === e.currentTarget && setCatalogForm(null)}>
+              <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 460, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>{catalogForm.id ? 'Edit Item' : 'New Price Book Item'}</div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>NAME</div>
+                  <input style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 10px', fontSize: 13, fontFamily: 'var(--font)' }}
+                    value={catalogForm.name} onChange={e => setCatalogForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Visitor Slip, Shore Power" />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>CATEGORY</div>
+                    <select style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 8px', fontSize: 13 }}
+                      value={catalogForm.category} onChange={e => setCatalogForm(f => ({ ...f, category: e.target.value }))}>
+                      {[['berth','Berth'],['utility','Utility'],['service','Service'],['retail','Retail']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
                   </div>
-                ))}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>PRICING MODEL</div>
+                    <select style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 8px', fontSize: 13 }}
+                      value={catalogForm.pricing_model} onChange={e => setCatalogForm(f => ({ ...f, pricing_model: e.target.value }))}>
+                      {[['flat_fee','Flat Fee'],['per_night','Per Night'],['per_meter_per_night','Per Meter / Night'],['per_kwh','Per kWh'],['per_hour','Per Hour'],['per_meter_flat','Per Meter (flat)']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>UNIT PRICE (€)</div>
+                    <input type="number" step="0.01" min="0" style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 10px', fontSize: 13 }}
+                      value={catalogForm.unit_price} onChange={e => setCatalogForm(f => ({ ...f, unit_price: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>TAX RATE (%)</div>
+                    <input type="number" step="0.01" min="0" max="100" style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '7px 10px', fontSize: 13 }}
+                      value={catalogForm.tax_rate} onChange={e => setCatalogForm(f => ({ ...f, tax_rate: e.target.value }))} />
+                  </div>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 24, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={catalogForm.is_active} onChange={e => setCatalogForm(f => ({ ...f, is_active: e.target.checked }))} />
+                  Active — visible in invoice line item picker
+                </label>
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost" onClick={() => setCatalogForm(null)}>Cancel</button>
+                  <button className="btn btn-primary" disabled={catalogSaving || !catalogForm.name || !catalogForm.unit_price}
+                    onClick={() => saveCatalogItem(catalogForm)}>
+                    {catalogSaving ? 'Saving…' : 'Save Item'}
+                  </button>
+                </div>
               </div>
-              <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }}>Edit Utility Rates</button>
             </div>
-          </div>
+          )}
         </div>
       )}
 
