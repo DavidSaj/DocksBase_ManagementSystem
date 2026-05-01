@@ -37,6 +37,8 @@ class BerthSerializer(serializers.ModelSerializer):
 
 
 class AmenitySerializer(serializers.ModelSerializer):
+    type = serializers.ChoiceField(choices=[t[0] for t in Amenity.AMENITY_TYPES])
+
     class Meta:
         model = Amenity
         fields = ['id', 'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation']
