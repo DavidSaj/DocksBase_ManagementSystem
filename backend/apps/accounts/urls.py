@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
-from .views import LoginView, MeView, SendMagicLinkView, ExchangeMagicTokenView, SignupView, VerifyEmailView, ResendVerificationView
+from .views import LoginView, MeView, SendMagicLinkView, ExchangeMagicTokenView, SignupView, VerifyEmailView, ResendVerificationView, OnboardingView
 
 urlpatterns = [
     path('signup/', SignupView.as_view(), name='signup'),
@@ -12,4 +12,5 @@ urlpatterns = [
     path('me/', MeView.as_view(), name='me'),
     path('magic/send/', SendMagicLinkView.as_view(), name='magic_send'),
     path('magic/exchange/', ExchangeMagicTokenView.as_view(), name='magic_exchange'),
+    path('marina/onboarding/', OnboardingView.as_view(), name='onboarding'),
 ]
