@@ -89,4 +89,38 @@ export async function sendMagicLink(memberId) {
   await api.post('/auth/magic/send/', { member_id: memberId });
 }
 
+export async function signup(firstName, lastName, email, password, marinaName) {
+  const { data } = await api.post('/auth/signup/', {
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    password,
+    marina_name: marinaName,
+  });
+  return data;
+}
+
+export async function verifyEmail(token) {
+  const { data } = await api.get(`/auth/verify-email/?token=${token}`);
+  localStorage.setItem('access_token', data.access);
+  localStorage.setItem('refresh_token', data.refresh);
+  storeUser(data.user);
+  return data.user;
+}
+
+export async function resendVerification(email) {
+  const { data } = await api.post('/auth/resend-verification/', { email });
+  return data;
+}
+
+export async function getOnboarding() {
+  const { data } = await api.get('/auth/marina/onboarding/');
+  return data;
+}
+
+export async function patchOnboarding(updates) {
+  const { data } = await api.patch('/auth/marina/onboarding/', updates);
+  return data;
+}
+
 export default api;
