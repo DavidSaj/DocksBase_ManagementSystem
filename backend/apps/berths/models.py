@@ -105,6 +105,36 @@ class Berth(models.Model):
         return f'Berth {self.code} ({self.marina})'
 
 
+class Amenity(models.Model):
+    AMENITY_TYPES = [
+        ('harbour_master', 'Harbour Master'),
+        ('fuel',           'Fuel Pump'),
+        ('toilets',        'Toilets'),
+        ('showers',        'Showers'),
+        ('restaurant',     'Restaurant'),
+        ('parking',        'Parking'),
+        ('electricity',    'Electricity'),
+        ('water',          'Water'),
+        ('gate',           'Security Gate'),
+        ('waste',          'Waste Disposal'),
+        ('chandlery',      'Chandlery'),
+        ('first_aid',      'First Aid'),
+    ]
+    marina   = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='amenities')
+    type     = models.CharField(max_length=30, choices=AMENITY_TYPES)
+    label    = models.CharField(max_length=100, blank=True)
+    canvas_x = models.FloatField(null=True, blank=True)
+    canvas_y = models.FloatField(null=True, blank=True)
+    scale    = models.FloatField(default=1.0)
+    rotation = models.FloatField(default=0)
+
+    class Meta:
+        ordering = ['type']
+
+    def __str__(self):
+        return f'{self.get_type_display()} ({self.marina})'
+
+
 class MarinaMapConfig(models.Model):
     marina = models.OneToOneField('accounts.Marina', on_delete=models.CASCADE, related_name='map_config')
     config = models.JSONField(default=dict)
