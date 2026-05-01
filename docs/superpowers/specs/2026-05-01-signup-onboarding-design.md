@@ -91,7 +91,9 @@ Returns current `marina.onboarding` dict.
 #### `PATCH /api/v1/auth/marina/onboarding/`
 Permission: IsMarinaStaff
 
-Accepts any subset of the 4 keys (boolean values). Merges into existing dict and saves. Returns updated dict.
+Accepts only `draw_map` and `set_pricing` (boolean values). `connect_bank` and `invite_staff` are **read-only from the frontend** — the endpoint must explicitly ignore or reject any attempt to set them via PATCH (return 400 `{ "detail": "connect_bank and invite_staff are controlled by backend signals only." }` if either key is present in the request body). This prevents a user or a frontend bug from faking Stripe integration or staff invitation.
+
+`connect_bank` and `invite_staff` are exclusively controlled by backend signals (see above). Merges the two accepted keys into the existing dict and saves. Returns the full updated dict.
 
 ---
 
@@ -124,7 +126,36 @@ Reads `?token=` from URL on mount, immediately calls `GET /auth/verify-email/?to
 
 ### Auth gate for `is_active=False`
 
-No special case needed. If an inactive user somehow holds a token, `GET /auth/me/` returns 401, the existing axios interceptor clears auth and redirects to `/login`.
+Django's default authentication backend automatically rejects login attempts where `is_active=False`. The `/auth/token/` endpoint (SimpleJWT's `TokenObtainPairView`) returns the same 401 for both wrong password and inactive account, which makes them indistinguishable on the frontend.
+
+**Fix:** Subclass `TokenObtainPairSerializer` and override `validate()` to catch the inactive-user case and return a distinct error code:
+
+```python
+# In apps/accounts/serializers.py (or a new auth_serializers.py)
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework import serializers
+from .models import User
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        email = attrs.get('email', '')
+        try:
+            user = User.objects.get(email=email)
+            if not user.is_active:
+                raise serializers.ValidationError(
+                    {'code': 'email_not_verified',
+                     'detail': 'Please verify your email before logging in.'}
+                )
+        except User.DoesNotExist:
+            pass  # let super().validate() handle wrong credentials normally
+        return super().validate(attrs)
+```
+
+Wire via a `CustomTokenObtainPairView` that uses this serializer, replacing the default in `urls.py`.
+
+**Frontend:** `Login.jsx` checks the 401 response body. If `error.response.data.code === 'email_not_verified'`, show: *"Please verify your email before logging in."* with a "Resend verification email" link that navigates to `/signup` pre-filled (or opens an inline resend flow).
+
+If an inactive user somehow holds a stale token, `GET /auth/me/` returns 401, and the existing axios interceptor clears auth and redirects to `/login` — no additional handling needed.
 
 ---
 
@@ -136,16 +167,18 @@ Rendered at the top of `Overview.jsx`, above the stat cards, when any onboarding
 
 - Fetches `GET /auth/marina/onboarding/` on mount.
 - Exposes `{ onboarding, markStep, loading }`.
-- `markStep(key)`: optimistically sets the key to `True` locally, then calls `PATCH /auth/marina/onboarding/` with `{ [key]: true }`.
+- `markStep(key)`: only valid for `draw_map` and `set_pricing`. Optimistically sets the key to `True` locally, then calls `PATCH /auth/marina/onboarding/` with `{ [key]: true }`. Must not be called for `connect_bank` or `invite_staff` — those rows have no clickable checkbox.
 
 ### The four steps
 
-| Key | Label | Click action |
-|---|---|---|
-| `draw_map` | Draw your marina map | Navigate to Marina Map screen |
-| `set_pricing` | Set your pricing | Navigate to Billing screen |
-| `connect_bank` | Connect bank account | Open `StripeGateModal` (see Section 4) |
-| `invite_staff` | Invite your first team member | Navigate to Staff screen |
+| Key | Label | Click action | Completable by user? |
+|---|---|---|---|
+| `draw_map` | Draw your marina map | Navigate to Marina Map screen | Yes — `markStep('draw_map')` on map save |
+| `set_pricing` | Set your pricing | Navigate to Billing screen | Yes — `markStep('set_pricing')` on first rate saved |
+| `connect_bank` | Connect bank account | Open `StripeGateModal` (see Section 4) | No — backend signal only |
+| `invite_staff` | Invite your first team member | Navigate to Staff screen | No — backend signal only |
+
+The `connect_bank` and `invite_staff` rows render as a button/link only — no checkbox the user can click. Their checked state is purely driven by the API response.
 
 ### Visual design
 
@@ -179,15 +212,25 @@ The toggle remains off. No state is changed. When Stripe Connect is implemented,
 
 New file: `backend/apps/accounts/emails.py`
 
+Add to `backend/core/settings.py` (reads from environment, no hardcoding):
 ```python
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+```
+
+Add to Railway env vars for production: `FRONTEND_URL=https://app.docksbase.com`
+
+```python
+from django.conf import settings
+
 def send_verification_email(user, token):
     """
     FUTURE: Implement with SendGrid or django-ses.
     Send to:   user.email
     Subject:   "Confirm your DocksBase account"
-    Body:      Link to /verify-email?token={token}  (frontend URL)
+    Body:      Absolute link constructed from settings.FRONTEND_URL
     """
-    print(f"[EMAIL STUB] Verification link for {user.email}: /verify-email?token={token}")
+    url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
+    print(f"[EMAIL STUB] Verification link for {user.email}: {url}")
 
 def send_welcome_email(user):
     """
@@ -198,7 +241,7 @@ def send_welcome_email(user):
     print(f"[EMAIL STUB] Welcome email for {user.email}")
 ```
 
-Both are imported and called from views. To activate real email: implement these two functions only — no view changes required.
+Both are imported and called from views. To activate real email: implement these two functions only — no view changes required. The absolute URL is already correct for production since `settings.FRONTEND_URL` is environment-driven.
 
 **SMTP checklist for future build:**
 - [ ] Choose provider: SendGrid (recommended) or AWS SES
