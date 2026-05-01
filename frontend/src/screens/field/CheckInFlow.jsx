@@ -27,6 +27,7 @@ export default function CheckInFlow({ onBack }) {
   const [selected, setSelected]   = useState(null);
   const [saving, setSaving]       = useState(false);
   const [done, setDone]           = useState(false);
+  const [error, setError]         = useState(null);
 
   useEffect(() => {
     api.get('/bookings/', { params: { status: 'pending' } })
@@ -40,9 +41,12 @@ export default function CheckInFlow({ onBack }) {
 
   async function handleCheckIn() {
     setSaving(true);
+    setError(null);
     try {
       await api.patch(`/bookings/${selected.id}/`, { status: 'checked_in' });
       setDone(true);
+    } catch {
+      setError('Check-in failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -80,6 +84,7 @@ export default function CheckInFlow({ onBack }) {
             <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>Arriving: {selected.check_in}</div>
             <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Departing: {selected.check_out}</div>
           </div>
+          {error && <div style={{ color: '#c0392b', fontSize: 13, marginBottom: 10, textAlign: 'center' }}>{error}</div>}
           <button style={ACTION_BTN} disabled={saving} onClick={handleCheckIn}>
             {saving ? 'Saving…' : '✅ Check In'}
           </button>
