@@ -3,6 +3,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
+from apps.billing.models import Invoice, InvoiceLineItem
+from apps.billing import service as billing_service
 from apps.members.models import Member
 from apps.vessels.models import Vessel
 from .models import Booking, BookingRequest
@@ -437,10 +439,6 @@ class AssignBerthEndpointTest(TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
-from apps.billing.models import Invoice, InvoiceLineItem
-from apps.billing import service as billing_service
-
-
 class CheckoutFinalisesInvoiceTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
@@ -456,7 +454,7 @@ class CheckoutFinalisesInvoiceTest(TestCase):
         # Create a draft invoice linked to the booking
         self.invoice = Invoice.objects.create(
             marina=self.marina, member=self.member,
-            invoice_number='INV-2026-0001',
+            invoice_number='INV-TEST-0001',
             source_type='berth_booking', source_id=str(self.booking.id),
             status='draft',
         )
@@ -476,6 +474,12 @@ class CheckoutFinalisesInvoiceTest(TestCase):
     def test_checkout_does_not_error_when_no_invoice(self):
         # Delete the invoice — checkout should still succeed
         self.invoice.delete()
+        resp = self.client.patch(f'/api/v1/bookings/{self.booking.id}/', {'status': 'checked_out'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_checkout_is_idempotent_when_invoice_already_open(self):
+        self.invoice.status = 'open'
+        self.invoice.save()
         resp = self.client.patch(f'/api/v1/bookings/{self.booking.id}/', {'status': 'checked_out'}, format='json')
         self.assertEqual(resp.status_code, 200)
 
