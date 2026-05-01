@@ -6,6 +6,10 @@ class Pier(models.Model):
     code = models.CharField(max_length=10)
     label = models.CharField(max_length=50, blank=True)
     cx = models.IntegerField(default=0, help_text='SVG centre-x position')
+    canvas_x = models.FloatField(default=0)
+    canvas_y = models.FloatField(default=0)
+    canvas_width = models.FloatField(default=40)
+    canvas_height = models.FloatField(default=8)
 
     class Meta:
         unique_together = ('marina', 'code')
@@ -38,6 +42,11 @@ class Berth(models.Model):
     amenities = models.JSONField(default=list, blank=True)
     price_per_night = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
+    canvas_x = models.FloatField(null=True, blank=True)
+    canvas_y = models.FloatField(null=True, blank=True)
+    canvas_width = models.FloatField(default=4)
+    canvas_height = models.FloatField(default=12)
+    canvas_rotation = models.FloatField(default=0)
     vessel = models.ForeignKey('vessels.Vessel', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_berth')
 
     class Meta:
