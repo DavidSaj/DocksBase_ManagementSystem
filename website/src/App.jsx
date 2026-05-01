@@ -10,6 +10,7 @@ import SplitSection from './components/SplitSection'
 import WhiteLabel from './components/WhiteLabel'
 import HarborSizes from './components/HarborSizes'
 import Quote from './components/Quote'
+import MobileApp from './components/MobileApp'
 import Pricing from './components/Pricing'
 import FeatureRequest from './components/FeatureRequest'
 import CTA from './components/CTA'
@@ -76,8 +77,9 @@ function LandingPage() {
       />
 
       <WhiteLabel />
-      <HarborSizes />
-      <Quote />
+      <MobileApp />
+      {/* <HarborSizes /> */}
+      {/* <Quote /> */}
       <Pricing />
       <FeatureRequest />
       <CTA />

@@ -15,9 +15,9 @@ const strings = {
       eyebrow: 'The all-in-one harbor management platform',
       title1: 'Run your', titleEm: 'whole harbor.', title2: 'One platform.',
       sub: 'From berth assignments to boatyard cranes, billing to eSign — DocksBase gives harbor masters and marina operators every operational tool in one cloud-based system.',
-      cta1: 'Start free — no card needed', cta2: 'See all 14 modules',
+      cta1: 'Start free — no card needed', cta2: 'See all 18 modules',
     },
-    trust: 'Trusted by 200+ marinas worldwide',
+    trust: 'Built for harbor masters. Trusted from day one.',
     features: {
       eyebrow: 'The full platform', title: '14 modules. One platform.',
       sub: 'Every tool a harbor needs — built in, not bolted on.',
@@ -47,9 +47,10 @@ const strings = {
       checklist: [
         'Custom subdomain — reservations.yourmarina.com',
         'Your logo, colours & marina name throughout',
-        'Online bookings, berthing requests & payments',
+        'Automatic berth allocation — mathematical algorithm picks the most efficient available berth',
+        'Or manual mode — your harbor master reviews and assigns every request',
+        'Online bookings, berthing requests & Stripe payments',
         'Boaters never see the DocksBase name',
-        'We build or refresh your full marina website too',
       ],
       cta: 'Request white-label setup',
       flowSteps: [
