@@ -168,6 +168,7 @@ class HTMLReceiptView(APIView):
 class ChargeableItemListCreateView(generics.ListCreateAPIView):
     serializer_class   = ChargeableItemSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class   = None
 
     def get_queryset(self):
         return ChargeableItem.objects.filter(marina=self.request.user.marina)
