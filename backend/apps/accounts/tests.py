@@ -1,7 +1,8 @@
+import uuid
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
-from apps.accounts.models import Marina
+from apps.accounts.models import Marina, EmailVerification
 
 User = get_user_model()
 
@@ -35,3 +36,31 @@ class OperationsPausedTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.marina.refresh_from_db()
         self.assertFalse(self.marina.operations_paused)
+
+
+class EmailVerificationModelTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='owner@test.com', password='pass',
+            marina=self.marina, is_active=False
+        )
+
+    def test_email_verification_created(self):
+        ev = EmailVerification.objects.create(user=self.user)
+        self.assertIsNotNone(ev.token)
+        self.assertIsInstance(ev.token, uuid.UUID)
+
+    def test_email_verification_one_to_one(self):
+        EmailVerification.objects.create(user=self.user)
+        with self.assertRaises(Exception):
+            EmailVerification.objects.create(user=self.user)
+
+    def test_marina_onboarding_default(self):
+        marina = Marina.objects.create(name='New Marina')
+        self.assertEqual(marina.onboarding, {
+            'draw_map': False,
+            'set_pricing': False,
+            'connect_bank': False,
+            'invite_staff': False,
+        })
