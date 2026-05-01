@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import usePortalInvoices from '../hooks/usePortalInvoices.js';
 import usePortalCraneRequests from '../hooks/usePortalCraneRequests.js';
+import usePortalBerth from '../hooks/usePortalBerth.js';
+import usePortalVessel from '../hooks/usePortalVessel.js';
 import api from '../api.js';
 
 const STATUS_BADGE = {
@@ -198,6 +200,134 @@ function CraneTab() {
   );
 }
 
+// ── Berth Tab ─────────────────────────────────────────────────
+function BerthTab() {
+  const { berths, loading, error } = usePortalBerth();
+
+  if (loading) return <div className="portal-loading">Loading berth info…</div>;
+  if (error)   return <div className="portal-loading">{error}</div>;
+  if (!berths.length) return (
+    <div className="portal-empty">
+      <div className="portal-empty-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div className="portal-empty-text">No berth currently assigned. Contact the marina to make a booking.</div>
+    </div>
+  );
+
+  const STATUS_BADGE_CLASS = { checked_in: 'badge badge-green', pending: 'badge badge-gold' };
+
+  const [active, ...upcoming] = berths;
+
+  return (
+    <div className="portal-list">
+      {active && (
+        <div className="card portal-invoice-card">
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 2 }}>
+              Berth {active.berth_code}
+            </div>
+            {active.pier_label && (
+              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 8 }}>{active.pier_label}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              <span className={STATUS_BADGE_CLASS[active.status] || 'badge'}>{active.status.replace('_', ' ')}</span>
+            </div>
+            <div className="portal-invoice-meta">Arrival: {active.check_in}</div>
+            <div className="portal-invoice-meta">Departure: {active.check_out}</div>
+            {active.nights_remaining !== null && (
+              <div className="portal-invoice-meta">{active.nights_remaining} night{active.nights_remaining !== 1 ? 's' : ''} remaining</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <>
+          <div className="portal-section-label">Upcoming</div>
+          {upcoming.map(b => (
+            <div key={b.id} className="card portal-request-card">
+              <div className="portal-request-row">
+                <div>
+                  <div className="portal-request-type">Berth {b.berth_code}</div>
+                  <div className="portal-invoice-meta">{b.check_in} → {b.check_out}</div>
+                </div>
+                <span className={STATUS_BADGE_CLASS[b.status] || 'badge'}>{b.status.replace('_', ' ')}</span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Vessel Tab ────────────────────────────────────────────────
+function VesselTab() {
+  const { vessel, loading, error } = usePortalVessel();
+
+  if (loading) return <div className="portal-loading">Loading vessel info…</div>;
+  if (error)   return <div className="portal-loading">{error}</div>;
+  if (!vessel) return (
+    <div className="portal-empty">
+      <div className="portal-empty-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 20l20-8-20-8v6l14 2-14 2v6z"/></svg>
+      </div>
+      <div className="portal-empty-text">No vessel on file. Contact the marina.</div>
+    </div>
+  );
+
+  const CERT_STATUS_COLOR = { valid: '#27ae60', due_soon: '#e67e22', expired: '#c0392b' };
+  const CERT_STATUS_DOT = { valid: '🟢', due_soon: '🟡', expired: '🔴' };
+
+  return (
+    <div className="portal-list">
+      <div className="card portal-invoice-card">
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{vessel.name}</div>
+        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>{vessel.vessel_type}</div>
+        {vessel.loa   && <div className="portal-invoice-meta">Length: {vessel.loa} m</div>}
+        {vessel.beam  && <div className="portal-invoice-meta">Beam: {vessel.beam} m</div>}
+        {vessel.reg   && <div className="portal-invoice-meta">Reg: {vessel.reg}</div>}
+        {vessel.flag  && <div className="portal-invoice-meta">Flag: {vessel.flag}</div>}
+      </div>
+
+      {vessel.certificates.length > 0 && (
+        <>
+          <div className="portal-section-label">Certificates</div>
+          {vessel.certificates.map(cert => (
+            <div key={cert.id} className="card portal-request-card">
+              <div className="portal-request-row">
+                <div>
+                  <div className="portal-request-type">{cert.name}</div>
+                  {cert.expires && (
+                    <div className="portal-invoice-meta">Expires: {cert.expires}</div>
+                  )}
+                </div>
+                <span style={{ fontSize: 18 }}>{CERT_STATUS_DOT[cert.cert_status] || '⚪'}</span>
+              </div>
+              {(cert.cert_status === 'expired' || cert.cert_status === 'due_soon') && vessel.marina_contact_email && (
+                <a
+                  href={`mailto:${vessel.marina_contact_email}?subject=${encodeURIComponent(`Certificate renewal: ${cert.name} — ${vessel.name}`)}`}
+                  style={{
+                    display: 'block', marginTop: 8, padding: '8px 0',
+                    textAlign: 'center', fontSize: 13, fontWeight: 600,
+                    color: CERT_STATUS_COLOR[cert.cert_status],
+                    textDecoration: 'none',
+                    border: `1px solid ${CERT_STATUS_COLOR[cert.cert_status]}30`,
+                    borderRadius: 8, background: `${CERT_STATUS_COLOR[cert.cert_status]}08`,
+                  }}
+                >
+                  📧 Email marina about this certificate
+                </a>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Shell ─────────────────────────────────────────────────────
 export default function BoaterPortal() {
   const { user, signOut } = useAuth();
@@ -224,12 +354,16 @@ export default function BoaterPortal() {
         <button type="button" className={`tab${tab === 'invoices' ? ' active' : ''}`} onClick={() => setTab('invoices')}>Invoices</button>
         <button type="button" className={`tab${tab === 'absence'  ? ' active' : ''}`} onClick={() => setTab('absence')}>Absence</button>
         <button type="button" className={`tab${tab === 'crane'    ? ' active' : ''}`} onClick={() => setTab('crane')}>Crane</button>
+        <button type="button" className={`tab${tab === 'berth'    ? ' active' : ''}`} onClick={() => setTab('berth')}>Berth</button>
+        <button type="button" className={`tab${tab === 'vessel'   ? ' active' : ''}`} onClick={() => setTab('vessel')}>Vessel</button>
       </div>
 
       <div className="portal-content">
         {tab === 'invoices' && <InvoicesTab />}
         {tab === 'absence'  && <AbsenceTab />}
         {tab === 'crane'    && <CraneTab />}
+        {tab === 'berth'    && <BerthTab />}
+        {tab === 'vessel'   && <VesselTab />}
       </div>
     </div>
   );
