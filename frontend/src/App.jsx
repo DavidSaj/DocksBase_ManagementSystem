@@ -24,6 +24,8 @@ import Operations   from './screens/Operations.jsx';
 import Field        from './screens/Field.jsx';
 import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
+import Signup      from './screens/Signup.jsx';
+import VerifyEmail from './screens/VerifyEmail.jsx';
 import BoaterPortal from './screens/BoaterPortal.jsx';
 
 const SCREEN_MAP = {
@@ -64,6 +66,8 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        <Route path="/signup"       element={<Signup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
         <Route path="/portal" element={<ProtectedRoute element={<BoaterPortal />} allowedRoles={['boater']} />} />

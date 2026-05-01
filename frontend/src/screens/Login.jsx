@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { login } from '../api.js';
+import { useNavigate, Link } from 'react-router-dom';
+import { login, resendVerification } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const ROLE_HOME = { boater: '/portal', staff: '/field', owner: '/', manager: '/' };
@@ -10,22 +10,37 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
   const navigate = useNavigate();
   const { signIn } = useAuth();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setUnverified(false);
     setLoading(true);
     try {
       const user = await login(email, password);
       signIn(user);
       navigate(ROLE_HOME[user.role] ?? '/', { replace: true });
-    } catch {
-      setError('Incorrect email or password.');
+    } catch (err) {
+      const data = err.response?.data;
+      if (data?.code === 'email_not_verified') {
+        setUnverified(true);
+      } else {
+        setError('Incorrect email or password.');
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleResend() {
+    try {
+      await resendVerification(email);
+      setResendSent(true);
+    } catch { /* ignore */ }
   }
 
   return (
@@ -70,10 +85,25 @@ export default function Login() {
 
           {error && <p className="login-error">{error}</p>}
 
+          {unverified && (
+            <div style={{ background: '#fff8e7', border: '1px solid #f0c040', borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.5 }}>
+              Please verify your email before logging in.{' '}
+              {resendSent
+                ? <span style={{ color: '#38a860', fontWeight: 600 }}>Verification email sent!</span>
+                : <button type="button" onClick={handleResend} style={{ background: 'none', border: 'none', color: 'var(--navy)', fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 12 }}>Resend verification email</button>
+              }
+            </div>
+          )}
+
           <button type="submit" className="abtn abtn-primary login-submit" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 16 }}>
+          Don't have an account?{' '}
+          <Link to="/signup" style={{ color: 'var(--navy)', textDecoration: 'none', fontWeight: 600 }}>Sign up</Link>
+        </p>
       </div>
     </div>
   );
