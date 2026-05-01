@@ -13,35 +13,38 @@ function Check({ featured }) {
 const plans = [
   {
     tier: 'Starter',
-    name: 'Buoy',
-    desc: 'For small marinas and private docks getting started with digital management.',
-    price: 'Free',
+    name: 'Starter',
+    desc: 'Core tools for small marinas getting started with digital management.',
+    price: '€149',
+    per: '/ month',
     berths: 'Up to 50 berths',
     features: [
       'Berths, bookings & arrivals',
-      'Vessel registry (up to 100 vessels)',
-      'Weather & tide dashboard',
-      'Basic invoicing & payments',
-      'Documents & eSign (5 templates)',
-      '1 staff account',
+      'Vessel registry',
+      'Reservations & booking engine',
+      'Basic billing & invoicing',
+      'Documents & eSign',
+      'Member portal',
+      '3 staff accounts',
     ],
-    cta: 'Get started free',
+    cta: 'Start free trial',
     featured: false,
   },
   {
     tier: 'Most Popular',
-    name: 'Harbor',
-    desc: 'The full platform — all 14 modules for active marinas that want total operational control.',
-    price: '€49',
+    name: 'Professional',
+    desc: 'The full platform — all 18 modules for active marinas that want total operational control.',
+    price: '€349',
     per: '/ month',
-    berths: 'Up to 300 berths',
+    berths: 'Unlimited berths',
     features: [
-      'All Buoy features',
+      'Everything in Starter',
       'Boatyard — haul-out, dry storage, work orders',
       'Full billing — utility meters, fuel dock POS, aged debtors',
       'Maintenance — tasks, incidents, asset register',
-      'Staff rota, time tracking & skills matrix',
+      'Staff rota, time tracking & certifications',
       'Members, segments & bulk communications',
+      'Mobile field app & offline mode',
       'Restaurant & Events modules',
       'Up to 25 staff accounts',
       'Priority email support',
@@ -51,12 +54,13 @@ const plans = [
   },
   {
     tier: 'Enterprise',
-    name: 'Port',
+    name: 'Enterprise',
     desc: 'For large commercial ports, marina groups, and multi-site operators.',
-    price: 'Custom',
+    price: '€899',
+    per: '/ month',
     berths: 'Unlimited berths & sites',
     features: [
-      'Everything in Harbor',
+      'Everything in Professional',
       'Multi-site management dashboard',
       'REST API & custom integrations',
       'Unlimited staff accounts & roles',
@@ -85,7 +89,7 @@ export default function Pricing() {
               <div className={styles.name}>{plan.name}</div>
               <div className={styles.desc}>{plan.desc}</div>
               <div className={styles.priceRow}>
-                <div className={`${styles.amount} ${plan.name === 'Port' ? styles.amountSmall : ''}`}>{plan.price}</div>
+                <div className={styles.amount}>{plan.price}</div>
                 {plan.per && <div className={styles.per}>{plan.per}</div>}
               </div>
               <div className={styles.berths}>{plan.berths}</div>
@@ -94,13 +98,13 @@ export default function Pricing() {
                   <li key={f}><Check featured={plan.featured} />{f}</li>
                 ))}
               </ul>
-              <a href="#" className={`${styles.btn} ${plan.featured ? styles.btnFeatured : styles.btnOutline}`}>
+              <a href="/signup" className={`${styles.btn} ${plan.featured ? styles.btnFeatured : styles.btnOutline}`}>
                 {plan.cta}
               </a>
             </div>
           ))}
         </div>
-        <p className={styles.note}>All plans include a 14-day free trial. No credit card required.</p>
+        <p className={styles.note}>All plans include a 30-day free trial. No credit card required.</p>
       </div>
     </section>
   )

@@ -1,8 +1,8 @@
 import styles from './Stats.module.css'
 
 const stats = [
-  { num: '200', suffix: '+', desc: 'Marinas and ports actively using DocksBase' },
-  { num: '48', suffix: 'k', desc: 'Vessel arrivals managed every month' },
+  { num: '18', suffix: '', desc: 'Operational modules built and ready to use' },
+  { num: '30', suffix: '-day', desc: 'Free trial — no credit card required' },
   { num: '99', suffix: '.9%', desc: 'Platform uptime — even in peak season' },
   { num: '4', suffix: 'hrs', desc: 'Average onboarding time for new harbors' },
 ]

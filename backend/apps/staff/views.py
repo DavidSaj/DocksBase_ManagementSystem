@@ -44,7 +44,7 @@ class StaffInviteView(APIView):
                 f"Hello {name},\n\n"
                 f"You have been invited to DocksBase. Set up your account here:\n{setup_link}"
             ),
-            from_email='noreply@docksbase.com',
+            from_email=None,
             recipient_list=[email],
             fail_silently=False,
         )

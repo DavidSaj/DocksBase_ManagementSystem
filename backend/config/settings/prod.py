@@ -28,3 +28,8 @@ CORS_ALLOWED_ORIGINS = [o for o in os.environ.get('CORS_ALLOWED_ORIGINS', '').sp
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
+ANYMAIL = {
+    'RESEND_API_KEY': os.environ['RESEND_API_KEY'],
+}

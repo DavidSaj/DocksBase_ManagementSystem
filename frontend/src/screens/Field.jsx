@@ -1,165 +1,106 @@
 import { useState } from 'react';
-import useMaintenanceTasks from '../hooks/useMaintenanceTasks.js';
+import TaskList from './field/TaskList.jsx';
+import CheckInFlow from './field/CheckInFlow.jsx';
+import CheckOutFlow from './field/CheckOutFlow.jsx';
+import LogTaskFlow from './field/LogTaskFlow.jsx';
+import CraneApprovalFlow from './field/CraneApprovalFlow.jsx';
+import ArrivalsList from './field/ArrivalsList.jsx';
 
-const PRIORITY_LABEL = { urgent: '🔥 Urgent', high: '🔥 High', medium: '🟠 Medium', low: '⬜ Low' };
-const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
+const ACTIONS = [
+  { id: 'checkin',   label: 'Check in vessel',   icon: '✅', badge: null },
+  { id: 'checkout',  label: 'Check out vessel',  icon: '🚪', badge: null },
+  { id: 'logtask',   label: 'Log task',           icon: '🔧', badge: null },
+  { id: 'crane',     label: 'Approve crane',      icon: '🏗️', badge: null },
+  { id: 'arrivals',  label: "Today's arrivals",   icon: '🚢', badge: null },
+  { id: 'mytasks',   label: 'My tasks',           icon: '📋', badge: null },
+];
+
+function ActionGrid({ onSelect }) {
+  return (
+    <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {ACTIONS.map(a => (
+        <button
+          key={a.id}
+          onClick={() => onSelect(a.id)}
+          style={{
+            background: '#fff', border: 'none', borderRadius: 16, padding: '20px 12px',
+            cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            position: 'relative',
+          }}
+        >
+          {a.badge !== null && (
+            <span style={{
+              position: 'absolute', top: 8, right: 8,
+              background: '#c0392b', color: '#fff', borderRadius: 10, fontSize: 10, fontWeight: 700,
+              padding: '1px 6px',
+            }}>{a.badge}</span>
+          )}
+          <span style={{ fontSize: 28 }}>{a.icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2d4a', textAlign: 'center', lineHeight: 1.3 }}>{a.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const TAB_BAR = {
+  position: 'fixed', bottom: 0, left: 0, right: 0,
+  background: '#fff', borderTop: '1px solid rgba(0,0,0,0.1)',
+  display: 'flex', height: 60,
+};
+
+function TabBar({ tab, setTab }) {
+  return (
+    <div style={TAB_BAR}>
+      {[{ id: 'actions', label: 'Actions', icon: '⚡' }, { id: 'tasks', label: 'Tasks', icon: '📋' }].map(t => (
+        <button key={t.id} onClick={() => setTab(t.id)} style={{
+          flex: 1, border: 'none', background: 'none', cursor: 'pointer',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+          color: tab === t.id ? '#1a2d4a' : 'rgba(0,0,0,0.35)',
+          fontWeight: tab === t.id ? 700 : 400, fontSize: 11,
+        }}>
+          <span style={{ fontSize: 20 }}>{t.icon}</span>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Field() {
-  const { tasks, loading, updateTask, completeTask } = useMaintenanceTasks();
-  const [selectedId, setSelectedId]       = useState(null);
-  const [showCompletion, setShowCompletion] = useState(false);
-  const [completionNotes, setCompletionNotes] = useState('');
-  const [completionPhoto, setCompletionPhoto] = useState(null);
-  const [submitting, setSubmitting]       = useState(false);
+  const [tab, setTab]   = useState('actions');
+  const [flow, setFlow] = useState(null);
 
-  const activeTasks = tasks
-    .filter(t => t.status !== 'completed')
-    .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9));
-
-  const selected = tasks.find(t => t.id === selectedId);
-
-  async function handleStart() {
-    await updateTask(selected.id, { status: 'in_progress' });
-  }
-
-  async function handleSubmitCompletion() {
-    setSubmitting(true);
-    try {
-      await completeTask(selected.id, completionNotes, completionPhoto);
-      setShowCompletion(false);
-      setSelectedId(null);
-      setCompletionNotes('');
-      setCompletionPhoto(null);
-    } finally {
-      setSubmitting(false);
+  function handleSelect(id) {
+    if (id === 'mytasks') {
+      setTab('tasks');
+      return;
     }
+    setFlow(id);
   }
 
-  const PINNED = {
-    position: 'fixed', bottom: 0, left: 0, right: 0,
-    padding: '12px 20px 28px', background: '#fff',
-    borderTop: '1px solid rgba(0,0,0,0.1)',
-  };
-
-  const ACTION_BTN = {
-    width: '100%', height: 60, borderRadius: 12,
-    background: '#1a2d4a', color: '#fff',
-    border: 'none', fontSize: 17, fontWeight: 700,
-    cursor: 'pointer',
-  };
-
-  // Screen 3 — Completion Modal (slides up)
-  if (showCompletion && selected) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-        <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px 0' }}>
-          <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Complete Task</div>
-          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 20 }}>{selected.title}</div>
-
-          <textarea
-            value={completionNotes}
-            onChange={e => setCompletionNotes(e.target.value)}
-            placeholder="Add a completion note…"
-            style={{ width: '100%', minHeight: 100, padding: 14, fontSize: 15, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.15)', resize: 'none', boxSizing: 'border-box', marginBottom: 14 }}
-          />
-
-          <label style={{ display: 'block', width: '100%', height: 52, lineHeight: '52px', textAlign: 'center', background: '#f4f6f8', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 20 }}>
-            📷 {completionPhoto ? completionPhoto.name : 'Add Photo'}
-            <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => setCompletionPhoto(e.target.files[0] || null)} />
-          </label>
-
-          <button style={{ ...ACTION_BTN, marginBottom: 12 }} disabled={submitting} onClick={handleSubmitCompletion}>
-            {submitting ? 'Submitting…' : 'Submit'}
-          </button>
-          <button style={{ width: '100%', height: 48, background: 'transparent', border: 'none', fontSize: 15, color: 'rgba(0,0,0,0.5)', cursor: 'pointer', marginBottom: 16 }} onClick={() => setShowCompletion(false)}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
+  function handleBack() {
+    setFlow(null);
   }
 
-  // Screen 2 — Task Detail
-  if (selected) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f4f6f8', paddingBottom: 100 }}>
-        <div style={{ background: '#fff', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-          <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1, minWidth: 44, minHeight: 44 }}>←</button>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Task Detail</div>
-        </div>
+  if (flow === 'checkin')  return <CheckInFlow onBack={handleBack} />;
+  if (flow === 'checkout') return <CheckOutFlow onBack={handleBack} />;
+  if (flow === 'logtask')  return <LogTaskFlow onBack={handleBack} />;
+  if (flow === 'crane')    return <CraneApprovalFlow onBack={handleBack} />;
+  if (flow === 'arrivals') return <ArrivalsList onBack={handleBack} />;
 
-        <div style={{ padding: '20px 20px 0' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, lineHeight: 1.3 }}>{selected.title}</div>
-          {selected.asset_name && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 12 }}>{selected.asset_name}</div>}
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <span style={{ padding: '4px 12px', borderRadius: 20, background: '#1a2d4a', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-              {PRIORITY_LABEL[selected.priority] ?? selected.priority}
-            </span>
-            <span style={{ padding: '4px 12px', borderRadius: 20, background: '#e8ecf0', color: 'rgba(0,0,0,0.6)', fontSize: 12 }}>
-              {selected.status.replace('_', ' ')}
-            </span>
-          </div>
-
-          {selected.description && (
-            <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.65)', lineHeight: 1.65, background: '#fff', borderRadius: 12, padding: 16, marginBottom: 14 }}>
-              {selected.description}
-            </div>
-          )}
-
-          {selected.due_date && (
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 8 }}>Due: <b>{selected.due_date}</b></div>
-          )}
-          {selected.assigned_to && (
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Assigned: <b>{selected.assigned_to}</b></div>
-          )}
-        </div>
-
-        <div style={PINNED}>
-          {selected.status === 'pending'     && <button style={ACTION_BTN} onClick={handleStart}>▶ START TASK</button>}
-          {selected.status === 'in_progress' && <button style={ACTION_BTN} onClick={() => setShowCompletion(true)}>✔ MARK DONE</button>}
-          {selected.status === 'blocked'     && <div style={{ textAlign: 'center', fontSize: 15, color: 'rgba(0,0,0,0.4)', fontWeight: 600, padding: '18px 0' }}>Blocked — contact manager</div>}
-        </div>
-      </div>
-    );
-  }
-
-  // Screen 1 — Roster
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f6f8', paddingBottom: 60 }}>
       <div style={{ background: '#1a2d4a', padding: '20px 20px 16px', color: '#fff' }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>My Tasks</div>
-        <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>{activeTasks.length} active</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>Field App</div>
+        <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>What do you need to do?</div>
       </div>
 
-      {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
-      ) : (
-        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {activeTasks.map(t => (
-            <div
-              key={t.id}
-              onClick={() => setSelectedId(t.id)}
-              style={{ background: '#fff', borderRadius: 14, padding: 18, minHeight: 60, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
-            >
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t.title}</div>
-              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 8 }}>
-                {[t.asset_name, t.assigned_to].filter(Boolean).join(' · ')}
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: (t.priority === 'urgent' || t.priority === 'high') ? '#c0392b' : t.priority === 'medium' ? '#e67e22' : 'rgba(0,0,0,0.4)' }}>
-                {PRIORITY_LABEL[t.priority] ?? t.priority}
-              </span>
-            </div>
-          ))}
-          {activeTasks.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 60, color: 'rgba(0,0,0,0.35)' }}>
-              <div style={{ fontSize: 32, marginBottom: 10 }}>✓</div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>All done!</div>
-              <div style={{ fontSize: 13, marginTop: 4 }}>No active tasks.</div>
-            </div>
-          )}
-        </div>
-      )}
+      {tab === 'actions' && <ActionGrid onSelect={handleSelect} />}
+      {tab === 'tasks'   && <TaskList />}
+
+      <TabBar tab={tab} setTab={setTab} />
     </div>
   );
 }

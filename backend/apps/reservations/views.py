@@ -12,6 +12,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.berths.models import Berth
 from apps.billing import service as billing_service
+from apps.billing.models import Invoice as InvoiceModel
 from .booking_engine import (
     NoAvailableBerthError,
     compatible_available_berths,
@@ -55,6 +56,22 @@ class BookingDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return Booking.objects.filter(marina=self.request.user.marina)
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            instance = serializer.save()
+            if instance.status == 'checked_out':
+                draft = InvoiceModel.objects.filter(
+                    marina=self.request.user.marina,
+                    source_type='berth_booking',
+                    source_id=str(instance.id),
+                    status='draft',
+                ).first()
+                if draft:
+                    try:
+                        billing_service.finalize_invoice(draft)
+                    except ValueError:
+                        pass  # invoice transitioned out of draft concurrently
 
 
 class BookingRequestListCreateView(generics.ListCreateAPIView):

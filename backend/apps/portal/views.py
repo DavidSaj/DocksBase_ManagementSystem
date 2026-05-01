@@ -1,7 +1,11 @@
 from rest_framework import generics, permissions
+from rest_framework.exceptions import NotFound
+from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
+from apps.reservations.models import Booking
+from apps.vessels.models import Vessel
 from .models import AbsenceReport, CraneRequest
-from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer
+from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer, PortalVesselSerializer
 
 
 class IsBoater(permissions.BasePermission):
@@ -45,3 +49,58 @@ class CraneRequestListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         member = self.request.user.member_profile
         serializer.save(member=member)
+
+
+class CraneRequestStaffListView(generics.ListAPIView):
+    permission_classes = [IsMarinaStaff]
+    serializer_class = CraneRequestStaffSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CraneRequest.objects.filter(
+            member__marina=self.request.user.marina
+        ).select_related('member').order_by('-created_at')
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+        return qs
+
+
+class CraneRequestStaffDetailView(generics.UpdateAPIView):
+    permission_classes = [IsMarinaStaff]
+    serializer_class = CraneRequestStaffSerializer
+    http_method_names = ['patch']
+
+    def get_queryset(self):
+        return CraneRequest.objects.filter(member__marina=self.request.user.marina)
+
+
+class PortalBerthView(generics.ListAPIView):
+    permission_classes = [IsBoater]
+    serializer_class = PortalBerthSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        member = self.request.user.member_profile
+        return Booking.objects.filter(
+            vessel__owner=member,
+            marina=self.request.user.marina,
+            status__in=['checked_in', 'pending'],
+        ).select_related('berth__pier').order_by('-check_in')
+
+
+class PortalVesselView(generics.RetrieveAPIView):
+    permission_classes = [IsBoater]
+    serializer_class = PortalVesselSerializer
+
+    def get_object(self):
+        member = self.request.user.member_profile
+        vessel = (
+            Vessel.objects
+            .filter(owner=member, marina=self.request.user.marina)
+            .prefetch_related('certificates')
+            .first()
+        )
+        if vessel is None:
+            raise NotFound('No vessel on file.')
+        return vessel
