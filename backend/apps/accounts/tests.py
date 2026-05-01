@@ -166,8 +166,9 @@ class VerifyEmailViewTest(TestCase):
 
     def test_verify_expired_token_returns_400(self):
         from django.utils import timezone as tz
-        self.ev.created_at = tz.now() - datetime.timedelta(hours=25)
-        self.ev.save()
+        EmailVerification.objects.filter(pk=self.ev.pk).update(
+            created_at=tz.now() - datetime.timedelta(hours=25)
+        )
         resp = self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.data['detail'], 'Invalid or expired link.')
