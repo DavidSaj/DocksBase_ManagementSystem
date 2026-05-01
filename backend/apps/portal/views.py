@@ -1,5 +1,5 @@
 from rest_framework import generics, permissions
-from rest_framework.permissions import IsAuthenticated
+from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
 from .models import AbsenceReport, CraneRequest
 from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer
@@ -49,7 +49,7 @@ class CraneRequestListCreateView(generics.ListCreateAPIView):
 
 
 class CraneRequestStaffListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsMarinaStaff]
     serializer_class = CraneRequestStaffSerializer
     pagination_class = None
 
@@ -64,8 +64,9 @@ class CraneRequestStaffListView(generics.ListAPIView):
 
 
 class CraneRequestStaffDetailView(generics.UpdateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsMarinaStaff]
     serializer_class = CraneRequestStaffSerializer
+    http_method_names = ['patch']
 
     def get_queryset(self):
         return CraneRequest.objects.filter(member__marina=self.request.user.marina)

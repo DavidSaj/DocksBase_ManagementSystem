@@ -1,11 +1,7 @@
-import datetime
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.members.models import Member
-from apps.vessels.models import Vessel, VesselCertificate
-from apps.reservations.models import Booking
-from apps.berths.models import Pier, Berth
 from .models import CraneRequest
 
 
@@ -52,3 +48,17 @@ class CraneStaffListTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         req.refresh_from_db()
         self.assertEqual(req.status, 'rejected')
+
+    def test_boater_cannot_access_staff_list(self):
+        boater = User.objects.create_user(email='boater@test.com', password='pass', marina=self.marina, role='boater')
+        self.client.force_authenticate(user=boater)
+        resp = self.client.get('/api/v1/portal/crane-requests/staff/')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_staff_from_other_marina_sees_nothing(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_staff = User.objects.create_user(email='other@test.com', password='pass', marina=other_marina, role='staff')
+        self.client.force_authenticate(user=other_staff)
+        resp = self.client.get('/api/v1/portal/crane-requests/staff/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()), 0)
