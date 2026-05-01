@@ -110,6 +110,47 @@ class ResendVerificationView(APIView):
         return Response({'detail': 'Verification email resent.'})
 
 
+class IsMarinaStaff(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in ('owner', 'manager', 'staff')
+        )
+
+
+class OnboardingView(APIView):
+    permission_classes = [IsMarinaStaff]
+    PROTECTED_KEYS = {'connect_bank', 'invite_staff'}
+    ALLOWED_KEYS   = {'draw_map', 'set_pricing'}
+
+    def _get_onboarding(self, marina):
+        defaults = {
+            'draw_map': False, 'set_pricing': False,
+            'connect_bank': False, 'invite_staff': False,
+        }
+        return {**defaults, **marina.onboarding}
+
+    def get(self, request):
+        return Response(self._get_onboarding(request.user.marina))
+
+    def patch(self, request):
+        invalid = set(request.data.keys()) & self.PROTECTED_KEYS
+        if invalid:
+            return Response(
+                {'detail': 'connect_bank and invite_staff are controlled by backend signals only.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        marina = request.user.marina
+        current = self._get_onboarding(marina)
+        for key in self.ALLOWED_KEYS:
+            if key in request.data:
+                current[key] = bool(request.data[key])
+        marina.onboarding = current
+        marina.save(update_fields=['onboarding'])
+        return Response(current)
+
+
 class LoginView(TokenObtainPairView):
     serializer_class = DocksBaseTokenSerializer
     permission_classes = [permissions.AllowAny]
@@ -148,15 +189,6 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
-
-
-class IsMarinaStaff(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and request.user.role in ('owner', 'manager', 'staff')
-        )
 
 
 class SendMagicLinkView(APIView):

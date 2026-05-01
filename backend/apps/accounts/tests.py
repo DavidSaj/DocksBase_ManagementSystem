@@ -219,6 +219,60 @@ class ResendVerificationViewTest(TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
+class OnboardingViewTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='owner@test.com', password='pass',
+            marina=self.marina, role='owner'
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_get_onboarding_returns_dict(self):
+        resp = self.client.get('/api/v1/auth/marina/onboarding/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('draw_map', resp.data)
+        self.assertIn('set_pricing', resp.data)
+        self.assertIn('connect_bank', resp.data)
+        self.assertIn('invite_staff', resp.data)
+
+    def test_patch_draw_map_and_set_pricing(self):
+        resp = self.client.patch('/api/v1/auth/marina/onboarding/', {
+            'draw_map': True,
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.data['draw_map'])
+
+    def test_patch_connect_bank_rejected(self):
+        resp = self.client.patch('/api/v1/auth/marina/onboarding/', {
+            'connect_bank': True,
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_patch_invite_staff_rejected(self):
+        resp = self.client.patch('/api/v1/auth/marina/onboarding/', {
+            'invite_staff': True,
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_invite_staff_signal_fires_when_second_user_added(self):
+        User.objects.create_user(
+            email='staff@test.com', password='pass',
+            marina=self.marina, role='staff', is_active=True
+        )
+        self.marina.refresh_from_db()
+        self.assertTrue(self.marina.onboarding.get('invite_staff'))
+
+    def test_invite_staff_signal_does_not_fire_for_boater(self):
+        User.objects.create_user(
+            email='boater@test.com', password='pass',
+            marina=self.marina, role='boater', is_active=True
+        )
+        self.marina.refresh_from_db()
+        self.assertFalse(self.marina.onboarding.get('invite_staff'))
+
+
 class LoginUnverifiedTest(TestCase):
     def setUp(self):
         self.client = APIClient()
