@@ -5,11 +5,8 @@ class Pier(models.Model):
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
     code = models.CharField(max_length=10)
     label = models.CharField(max_length=50, blank=True)
-    cx = models.IntegerField(default=0, help_text='SVG centre-x position')
-    canvas_x = models.FloatField(default=0)
-    canvas_y = models.FloatField(default=0)
-    canvas_width = models.FloatField(default=40)
-    canvas_height = models.FloatField(default=8)
+    polygon_points = models.JSONField(default=list)
+    # Format: [[x1,y1],[x2,y2],...] in meters. Empty list = unmapped.
 
     class Meta:
         unique_together = ('marina', 'code')
@@ -44,8 +41,6 @@ class Berth(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
     canvas_x = models.FloatField(null=True, blank=True)
     canvas_y = models.FloatField(null=True, blank=True)
-    canvas_width = models.FloatField(default=4)
-    canvas_height = models.FloatField(default=12)
     canvas_rotation = models.FloatField(default=0)
     vessel = models.ForeignKey('vessels.Vessel', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_berth')
 
@@ -55,6 +50,36 @@ class Berth(models.Model):
 
     def __str__(self):
         return f'Berth {self.code} ({self.marina})'
+
+
+class Amenity(models.Model):
+    AMENITY_TYPES = [
+        ('harbour_master', 'Harbour Master'),
+        ('fuel',           'Fuel Pump'),
+        ('toilets',        'Toilets'),
+        ('showers',        'Showers'),
+        ('restaurant',     'Restaurant'),
+        ('parking',        'Parking'),
+        ('electricity',    'Electricity'),
+        ('water',          'Water'),
+        ('gate',           'Security Gate'),
+        ('waste',          'Waste Disposal'),
+        ('chandlery',      'Chandlery'),
+        ('first_aid',      'First Aid'),
+    ]
+    marina   = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='amenities')
+    type     = models.CharField(max_length=30, choices=AMENITY_TYPES)
+    label    = models.CharField(max_length=100, blank=True)
+    canvas_x = models.FloatField(null=True, blank=True)
+    canvas_y = models.FloatField(null=True, blank=True)
+    scale    = models.FloatField(default=1.0)
+    rotation = models.FloatField(default=0)
+
+    class Meta:
+        ordering = ['type']
+
+    def __str__(self):
+        return f'{self.get_type_display()} ({self.marina})'
 
 
 class MarinaMapConfig(models.Model):
