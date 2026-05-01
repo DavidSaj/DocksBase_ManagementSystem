@@ -247,3 +247,11 @@ class LoginUnverifiedTest(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 401)
         self.assertNotEqual(resp.data.get('code'), 'email_not_verified')
+
+    def test_unverified_user_wrong_password_still_returns_email_not_verified(self):
+        resp = self.client.post('/api/v1/auth/token/', {
+            'email': 'unverified@test.com',
+            'password': 'wrongpass',
+        }, format='json')
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.data.get('code'), 'email_not_verified')
