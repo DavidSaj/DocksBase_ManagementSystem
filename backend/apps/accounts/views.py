@@ -66,10 +66,11 @@ class VerifyEmailView(APIView):
             ev.delete()
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = ev.user
-        user.is_active = True
-        user.save(update_fields=['is_active'])
-        ev.delete()
+        with transaction.atomic():
+            user = ev.user
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+            ev.delete()
 
         refresh = RefreshToken.for_user(user)
         return Response({
