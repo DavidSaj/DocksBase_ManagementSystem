@@ -12,8 +12,9 @@ const FUEL_SALES = [
 ];
 
 function fmtInv(inv) {
-  const amount = inv.amount != null
-    ? (String(inv.amount).startsWith('€') ? inv.amount : `€${Number(inv.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`)
+  const rawAmt = inv.total ?? inv.amount;
+  const amount = rawAmt != null
+    ? `€${Number(rawAmt).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`
     : '—';
   return {
     ...inv,
@@ -21,6 +22,8 @@ function fmtInv(inv) {
     owner:  inv.member_name  ?? inv.owner   ?? '—',
     type:   inv.invoice_type ?? inv.type    ?? '—',
     amount,
+    issued: inv.created_at ? inv.created_at.slice(0, 10) : (inv.issued ?? '—'),
+    due:    inv.due_date    ?? inv.due    ?? '—',
   };
 }
 

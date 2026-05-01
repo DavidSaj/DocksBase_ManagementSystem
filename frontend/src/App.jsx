@@ -79,7 +79,7 @@ function DesktopApp() {
       <div className="main">
         <Topbar screen={screen} />
         <div className="content">
-          <ScreenErrorBoundary setScreen={setScreen}>
+          <ScreenErrorBoundary key={screen} setScreen={setScreen}>
             <Screen setScreen={setScreen} />
           </ScreenErrorBoundary>
         </div>
