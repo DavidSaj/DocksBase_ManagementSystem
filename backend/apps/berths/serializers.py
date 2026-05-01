@@ -37,7 +37,7 @@ class BerthSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'pier_code', 'pier_label', 'vessel_name', 'unmapped']
 
     def get_unmapped(self, obj):
-        return obj.canvas_x is None
+        return obj.canvas_x is None or obj.canvas_y is None
 
 
 class BulkGenerateSerializer(serializers.Serializer):
@@ -52,9 +52,9 @@ class BulkGenerateSerializer(serializers.Serializer):
 
     def validate(self, data):
         if data['end'] < data['start']:
-            raise serializers.ValidationError({'end': 'end must be >= start'})
+            raise serializers.ValidationError('end must be >= start')
         if (data['end'] - data['start'] + 1) > 200:
-            raise serializers.ValidationError({'end': 'Cannot generate more than 200 berths at once'})
+            raise serializers.ValidationError('Cannot generate more than 200 berths at once')
         return data
 
 
