@@ -31,13 +31,13 @@ export default function SetupGuide({ setScreen }) {
     {
       key: 'draw_map',
       label: 'Draw your marina map',
-      action: () => { markStep('draw_map'); setScreen('map'); },
+      action: () => { markStep('draw_map'); setScreen?.('map'); },
       manual: true,
     },
     {
       key: 'set_pricing',
       label: 'Set your pricing',
-      action: () => { markStep('set_pricing'); setScreen('billing'); },
+      action: () => { markStep('set_pricing'); setScreen?.('billing'); },
       manual: true,
     },
     {
@@ -49,7 +49,7 @@ export default function SetupGuide({ setScreen }) {
     {
       key: 'invite_staff',
       label: 'Invite your first team member',
-      action: () => setScreen('staff'),
+      action: () => setScreen?.('staff'),
       manual: false,
     },
   ];
