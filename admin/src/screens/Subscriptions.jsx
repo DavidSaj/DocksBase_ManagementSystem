@@ -1,5 +1,11 @@
-import { MARINAS, PLANS } from '../data/mock.js';
-import Ic from '../components/ui/Icon.jsx';
+import { useState, useEffect } from 'react';
+import api from '../api.js';
+
+const PLANS = [
+  { id: 'starter',      name: 'Starter',      price: 149 },
+  { id: 'professional', name: 'Professional',  price: 349 },
+  { id: 'enterprise',   name: 'Enterprise',    price: 899 },
+];
 
 function PlanBadge({ plan }) {
   const colors = { starter: 'badge-gray', professional: 'badge-blue', enterprise: 'badge-gold' };
@@ -9,20 +15,33 @@ function PlanBadge({ plan }) {
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr) - new Date('2026-04-27')) / 86400000);
+  return Math.ceil((new Date(dateStr) - new Date()) / 86400000);
 }
 
-const paid = MARINAS.filter(m => !m.trial && m.status !== 'suspended');
-const trials = MARINAS.filter(m => m.trial);
-const suspended = MARINAS.filter(m => m.status === 'suspended');
-
 export default function Subscriptions() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.get('admin/subscriptions/')
+      .then(r => setData(r.data))
+      .catch(e => setError(e.message || 'Failed to load subscriptions'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.38)' }}>Loading…</div>;
+  if (error)   return <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>{error}</div>;
+
+  const { plan_summary = [], active = [], trial = [], suspended = [] } = data;
+
   return (
     <div>
       <div className="grid-3" style={{ marginBottom: 20 }}>
         {PLANS.map(p => {
-          const count = paid.filter(m => m.plan === p.id).length;
-          const rev   = paid.filter(m => m.plan === p.id).reduce((s, m) => s + m.mrr, 0);
+          const summary = plan_summary.find(s => s.plan === p.id) || {};
+          const count = summary.count ?? 0;
+          const rev   = summary.revenue ?? 0;
           return (
             <div key={p.id} className="card stat-card">
               <div className="stat-label">{p.name} plan</div>
@@ -35,9 +54,9 @@ export default function Subscriptions() {
       </div>
 
       <div className="grid-2">
-        {/* Paid subscriptions */}
+        {/* Active subscriptions */}
         <div>
-          <div className="sec-hdr"><div className="sec-hdr-title">Active subscriptions ({paid.length})</div></div>
+          <div className="sec-hdr"><div className="sec-hdr-title">Active subscriptions ({active.length})</div></div>
           <div className="card">
             <table className="tbl">
               <thead>
@@ -49,20 +68,20 @@ export default function Subscriptions() {
                 </tr>
               </thead>
               <tbody>
-                {paid.map(m => {
-                  const days = daysUntil(m.nextRenewal);
+                {active.map(m => {
+                  const days = daysUntil(m.next_renewal);
                   const urgent = days !== null && days <= 14;
                   return (
                     <tr key={m.id} style={{ cursor: 'default' }}>
                       <td>
                         <div className="tbl-name">{m.name}</div>
-                        <div className="tbl-sub">{m.location}</div>
+                        <div className="tbl-sub">{m.timezone}</div>
                       </td>
                       <td><PlanBadge plan={m.plan} /></td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>€{m.mrr}</td>
                       <td>
                         <span style={{ fontSize: 12, color: urgent ? 'var(--orange)' : 'rgba(0,0,0,0.65)' }}>
-                          {m.nextRenewal}
+                          {m.next_renewal}
                         </span>
                         {urgent && <div style={{ fontSize: 10, color: 'var(--orange)' }}>{days} days</div>}
                       </td>
@@ -76,7 +95,7 @@ export default function Subscriptions() {
 
         <div>
           {/* Trials */}
-          <div className="sec-hdr"><div className="sec-hdr-title">Trial accounts ({trials.length})</div></div>
+          <div className="sec-hdr"><div className="sec-hdr-title">Trial accounts ({trial.length})</div></div>
           <div className="card" style={{ marginBottom: 16 }}>
             <table className="tbl">
               <thead>
@@ -87,20 +106,20 @@ export default function Subscriptions() {
                 </tr>
               </thead>
               <tbody>
-                {trials.map(m => {
-                  const days = daysUntil(m.trialEnds);
+                {trial.map(m => {
+                  const days = daysUntil(m.trial_ends);
                   return (
                     <tr key={m.id} style={{ cursor: 'default' }}>
                       <td>
                         <div className="tbl-name">{m.name}</div>
-                        <div className="tbl-sub">{m.location}</div>
+                        <div className="tbl-sub">{m.timezone}</div>
                       </td>
                       <td><PlanBadge plan={m.plan} /></td>
                       <td>
-                        <span style={{ fontSize: 12, color: days <= 14 ? 'var(--orange)' : 'rgba(0,0,0,0.65)' }}>
-                          {m.trialEnds}
+                        <span style={{ fontSize: 12, color: days !== null && days <= 14 ? 'var(--orange)' : 'rgba(0,0,0,0.65)' }}>
+                          {m.trial_ends}
                         </span>
-                        <div style={{ fontSize: 10, color: days <= 14 ? 'var(--orange)' : 'rgba(0,0,0,0.35)' }}>
+                        <div style={{ fontSize: 10, color: days !== null && days <= 14 ? 'var(--orange)' : 'rgba(0,0,0,0.35)' }}>
                           {days} days left
                         </div>
                       </td>
@@ -130,7 +149,7 @@ export default function Subscriptions() {
                           <div className="tbl-name">{m.name}</div>
                           <div className="tbl-sub">{m.plan} plan</div>
                         </td>
-                        <td style={{ fontSize: 11, color: 'var(--red)' }}>{m.suspendReason}</td>
+                        <td style={{ fontSize: 11, color: 'var(--red)' }}>{m.suspend_reason}</td>
                       </tr>
                     ))}
                   </tbody>

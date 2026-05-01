@@ -8,7 +8,7 @@ const TITLE_MAP = {
   settings:      'Settings',
 };
 
-export default function Topbar({ screen }) {
+export default function Topbar({ screen, user }) {
   const now = new Date();
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -28,6 +28,9 @@ export default function Topbar({ screen }) {
           <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.38)', fontWeight: 500 }}>All systems normal</span>
         </div>
         <div className="topbar-icon-btn"><Ic n="bell" s={14} /></div>
+        {user?.email && (
+          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</span>
+        )}
         <div className="avatar" style={{ background: 'var(--navy)', border: '1.5px solid rgba(0,0,0,0.1)', color: 'rgba(255,255,255,0.85)', cursor: 'pointer', fontSize: 10 }}>SA</div>
       </div>
     </div>
