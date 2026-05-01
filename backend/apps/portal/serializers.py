@@ -95,7 +95,10 @@ class PortalVesselSerializer(serializers.ModelSerializer):
     marina_contact_email = serializers.SerializerMethodField()
 
     def get_marina_contact_email(self, obj):
-        return self.context['request'].user.marina.contact_email
+        request = self.context.get('request')
+        if request is None:
+            return None
+        return request.user.marina.contact_email
 
     class Meta:
         model = Vessel
