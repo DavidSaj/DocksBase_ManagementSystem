@@ -12,6 +12,16 @@ class Pier(models.Model):
         unique_together = ('marina', 'code')
         ordering = ['code']
 
+    def clean(self):
+        pts = self.polygon_points
+        if pts:  # empty list = unmapped, skip validation
+            if not isinstance(pts, list) or len(pts) < 3:
+                from django.core.exceptions import ValidationError
+                raise ValidationError({'polygon_points': 'A polygon requires at least 3 points.'})
+            if not all(isinstance(p, (list, tuple)) and len(p) == 2 for p in pts):
+                from django.core.exceptions import ValidationError
+                raise ValidationError({'polygon_points': 'Each point must be [x, y].'})
+
     def __str__(self):
         return f'{self.marina} — Pier {self.code}'
 
