@@ -272,6 +272,20 @@ class OnboardingViewTest(TestCase):
         self.marina.refresh_from_db()
         self.assertFalse(self.marina.onboarding.get('invite_staff'))
 
+    def test_invite_staff_signal_preserves_other_keys_when_onboarding_empty(self):
+        self.marina.onboarding = {}
+        self.marina.save(update_fields=['onboarding'])
+        User.objects.create_user(
+            email='staff2@test.com', password='pass',
+            marina=self.marina, role='staff', is_active=True
+        )
+        self.marina.refresh_from_db()
+        onboarding = self.marina.onboarding
+        self.assertTrue(onboarding.get('invite_staff'))
+        self.assertIn('draw_map', onboarding)
+        self.assertIn('set_pricing', onboarding)
+        self.assertIn('connect_bank', onboarding)
+
 
 class LoginUnverifiedTest(TestCase):
     def setUp(self):
