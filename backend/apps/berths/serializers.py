@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig
+from .models import Pier, Berth, MarinaMapConfig, Amenity
 
 
 class PierSerializer(serializers.ModelSerializer):
@@ -9,13 +9,20 @@ class PierSerializer(serializers.ModelSerializer):
         model = Pier
         fields = [
             'id', 'code', 'label',
-            'canvas_x', 'canvas_y', 'canvas_width', 'canvas_height',
+            'polygon_points',
             'berth_count',
         ]
         read_only_fields = ['id', 'berth_count']
 
     def get_berth_count(self, obj):
         return obj.berths.count()
+
+
+class AmenitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Amenity
+        fields = ['id', 'label', 'type', 'canvas_x', 'canvas_y', 'scale', 'rotation']
+        read_only_fields = ['id']
 
 
 class BerthSerializer(serializers.ModelSerializer):

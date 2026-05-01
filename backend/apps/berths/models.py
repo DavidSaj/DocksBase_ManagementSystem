@@ -5,11 +5,10 @@ class Pier(models.Model):
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
     code = models.CharField(max_length=10)
     label = models.CharField(max_length=50, blank=True)
-    cx = models.IntegerField(default=0, help_text='SVG centre-x position')
-    canvas_x = models.FloatField(default=0)
-    canvas_y = models.FloatField(default=0)
-    canvas_width = models.FloatField(default=40)
-    canvas_height = models.FloatField(default=8)
+    polygon_points = models.JSONField(
+        default=list, blank=True,
+        help_text='List of [x, y] pairs defining the pier polygon on the canvas',
+    )
 
     class Meta:
         unique_together = ('marina', 'code')
@@ -55,6 +54,38 @@ class Berth(models.Model):
 
     def __str__(self):
         return f'Berth {self.code} ({self.marina})'
+
+
+class Amenity(models.Model):
+    TYPE_CHOICES = [
+        ('fuel', 'Fuel'),
+        ('electricity', 'Electricity'),
+        ('water', 'Water'),
+        ('wifi', 'WiFi'),
+        ('toilet', 'Toilet'),
+        ('shower', 'Shower'),
+        ('laundry', 'Laundry'),
+        ('parking', 'Parking'),
+        ('restaurant', 'Restaurant'),
+        ('shop', 'Shop'),
+        ('pump_out', 'Pump Out'),
+        ('crane', 'Crane'),
+        ('other', 'Other'),
+    ]
+
+    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='amenities')
+    label = models.CharField(max_length=100)
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES, default='other')
+    canvas_x = models.FloatField(null=True, blank=True)
+    canvas_y = models.FloatField(null=True, blank=True)
+    scale = models.FloatField(default=1.0)
+    rotation = models.FloatField(default=0.0)
+
+    class Meta:
+        ordering = ['label']
+
+    def __str__(self):
+        return f'{self.label} ({self.marina})'
 
 
 class MarinaMapConfig(models.Model):
