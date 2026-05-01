@@ -1,3 +1,4 @@
+import datetime
 from rest_framework import serializers
 from apps.billing.models import Invoice
 from .models import AbsenceReport, CraneRequest
@@ -37,3 +38,30 @@ class CraneRequestStaffSerializer(serializers.ModelSerializer):
         model = CraneRequest
         fields = ['id', 'member_name', 'service_type', 'requested_date', 'notes', 'status', 'created_at']
         read_only_fields = ['id', 'member_name', 'service_type', 'requested_date', 'notes', 'created_at']
+
+
+from apps.reservations.models import Booking
+
+class PortalBerthSerializer(serializers.ModelSerializer):
+    berth_code = serializers.SerializerMethodField()
+    pier_label = serializers.SerializerMethodField()
+    nights_remaining = serializers.SerializerMethodField()
+
+    def get_berth_code(self, obj):
+        return obj.berth.code if obj.berth else None
+
+    def get_pier_label(self, obj):
+        if not obj.berth:
+            return None
+        pier = obj.berth.pier
+        return pier.label or pier.code
+
+    def get_nights_remaining(self, obj):
+        if not obj.check_out:
+            return None
+        remaining = (obj.check_out - datetime.date.today()).days
+        return max(remaining, 0)
+
+    class Meta:
+        model = Booking
+        fields = ['id', 'berth_code', 'pier_label', 'check_in', 'check_out', 'nights_remaining', 'status']

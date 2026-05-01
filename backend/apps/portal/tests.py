@@ -1,7 +1,11 @@
+import datetime
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.members.models import Member
+from apps.vessels.models import Vessel
+from apps.reservations.models import Booking
+from apps.berths.models import Pier, Berth
 from .models import CraneRequest
 
 
@@ -13,6 +17,12 @@ def make_staff(marina):
 
 def make_member(marina):
     return Member.objects.create(marina=marina, name='J. Sailor', email='j@sailor.com')
+
+def make_boater(marina, member):
+    user = User.objects.create_user(email='boater@test.com', password='pass', marina=marina, role='boater')
+    member.boater_user = user
+    member.save()
+    return user
 
 
 class CraneStaffListTest(TestCase):
@@ -62,3 +72,41 @@ class CraneStaffListTest(TestCase):
         resp = self.client.get('/api/v1/portal/crane-requests/staff/')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()), 0)
+
+
+class PortalBerthTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+        self.boater = make_boater(self.marina, self.member)
+        self.vessel = Vessel.objects.create(marina=self.marina, name='Blue Wave', owner=self.member)
+        pier = Pier.objects.create(marina=self.marina, code='A', label='Pier A')
+        berth = Berth.objects.create(marina=self.marina, pier=pier, code='A1', status='available')
+        self.booking = Booking.objects.create(
+            marina=self.marina, berth=berth, vessel=self.vessel,
+            booking_type='transient', check_in='2026-06-01', check_out='2026-06-07',
+            nights=6, status='checked_in',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.boater)
+
+    def test_boater_sees_active_booking(self):
+        resp = self.client.get('/api/v1/portal/berth/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['berth_code'], 'A1')
+        self.assertEqual(data[0]['pier_label'], 'Pier A')
+        self.assertEqual(data[0]['status'], 'checked_in')
+
+    def test_boater_sees_empty_when_no_bookings(self):
+        self.booking.delete()
+        resp = self.client.get('/api/v1/portal/berth/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), [])
+
+    def test_staff_cannot_access_berth_portal(self):
+        staff = make_staff(self.marina)
+        self.client.force_authenticate(user=staff)
+        resp = self.client.get('/api/v1/portal/berth/')
+        self.assertEqual(resp.status_code, 403)

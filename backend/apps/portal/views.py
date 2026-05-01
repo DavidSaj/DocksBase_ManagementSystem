@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions
 from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
+from apps.reservations.models import Booking
 from .models import AbsenceReport, CraneRequest
 from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer
 
@@ -70,3 +71,19 @@ class CraneRequestStaffDetailView(generics.UpdateAPIView):
 
     def get_queryset(self):
         return CraneRequest.objects.filter(member__marina=self.request.user.marina)
+
+
+from .serializers import PortalBerthSerializer
+
+class PortalBerthView(generics.ListAPIView):
+    permission_classes = [IsBoater]
+    serializer_class = PortalBerthSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        member = self.request.user.member_profile
+        return Booking.objects.filter(
+            vessel__owner=member,
+            marina=self.request.user.marina,
+            status__in=['checked_in', 'pending'],
+        ).select_related('berth__pier').order_by('-check_in')
