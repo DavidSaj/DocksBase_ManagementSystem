@@ -1,6 +1,7 @@
 import Ic from '../components/ui/Icon.jsx';
 import { useBerths } from '../hooks/useBerths.js';
 import useBookings from '../hooks/useBookings.js';
+import SetupGuide from '../components/onboarding/SetupGuide.jsx';
 
 const ACTIVITY_FEED = [
   { text: 'Nomad III checked in to Slip A2', time: '08:14',      color: '#38a860' },
@@ -39,6 +40,7 @@ export default function Overview({ setScreen }) {
 
   return (
     <div>
+      <SetupGuide setScreen={setScreen} />
       <div className="stat-row">
         {stats.map(s => (
           <div key={s.label} className="card stat-card">
