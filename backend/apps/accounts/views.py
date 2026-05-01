@@ -1,6 +1,7 @@
 import datetime
 from django.utils import timezone
 from django.core.mail import send_mail
+from django.core.cache import cache
 from django.db import transaction, IntegrityError
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.views import APIView
@@ -78,6 +79,35 @@ class VerifyEmailView(APIView):
             'refresh': str(refresh),
             'user': UserSerializer(user).data,
         })
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'detail': 'Verification email resent.'})
+
+        if user.is_active:
+            return Response({'detail': 'Verification email resent.'})
+
+        cache_key = f'resend_verification:{email}'
+        if cache.get(cache_key):
+            return Response(
+                {'detail': 'Please wait 60 seconds before requesting another email.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        EmailVerification.objects.filter(user=user).delete()
+        ev = EmailVerification.objects.create(user=user)
+        send_verification_email(user, ev.token)
+        cache.set(cache_key, True, timeout=60)
+
+        return Response({'detail': 'Verification email resent.'})
 
 
 class LoginView(TokenObtainPairView):
