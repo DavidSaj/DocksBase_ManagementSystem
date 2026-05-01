@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { signup, resendVerification } from '../api.js';
 
 export default function Signup() {
@@ -139,7 +140,7 @@ export default function Signup() {
 
         <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 16 }}>
           Already have an account?{' '}
-          <a href="/login" style={{ color: 'var(--navy)', textDecoration: 'none', fontWeight: 600 }}>Sign in</a>
+          <Link to="/login" style={{ color: 'var(--navy)', textDecoration: 'none', fontWeight: 600 }}>Sign in</Link>
         </p>
       </div>
     </div>

@@ -13,12 +13,13 @@ export default function useOnboarding() {
   }, []);
 
   async function markStep(key) {
+    const snapshot = onboarding;
     setOnboarding(prev => prev ? { ...prev, [key]: true } : prev);
     try {
       const updated = await patchOnboarding({ [key]: true });
       setOnboarding(updated);
     } catch {
-      setOnboarding(prev => prev ? { ...prev, [key]: false } : prev);
+      setOnboarding(snapshot);
     }
   }
 
