@@ -217,3 +217,33 @@ class ResendVerificationViewTest(TestCase):
             'email': 'resend@test.com',
         }, format='json')
         self.assertEqual(resp.status_code, 200)
+
+
+class LoginUnverifiedTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='unverified@test.com', password='rightpass',
+            marina=self.marina, is_active=False
+        )
+
+    def test_unverified_login_returns_email_not_verified_code(self):
+        resp = self.client.post('/api/v1/auth/token/', {
+            'email': 'unverified@test.com',
+            'password': 'rightpass',
+        }, format='json')
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.data.get('code'), 'email_not_verified')
+
+    def test_wrong_password_does_not_return_email_not_verified(self):
+        active_user = User.objects.create_user(
+            email='active@test.com', password='correct',
+            marina=self.marina, is_active=True
+        )
+        resp = self.client.post('/api/v1/auth/token/', {
+            'email': 'active@test.com',
+            'password': 'wrong',
+        }, format='json')
+        self.assertEqual(resp.status_code, 401)
+        self.assertNotEqual(resp.data.get('code'), 'email_not_verified')
