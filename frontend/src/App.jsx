@@ -1,7 +1,31 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
-import { useState } from 'react';
+import { useState, Component } from 'react';
+
+class ScreenErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { crashed: false };
+  }
+  static getDerivedStateFromError() {
+    localStorage.setItem('db_app_screen', 'overview');
+    return { crashed: true };
+  }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="empty">
+          <div className="empty-title">Something went wrong.</div>
+          <button className="btn" onClick={() => { this.setState({ crashed: false }); this.props.setScreen('overview'); }}>
+            Go to Overview
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import Sidebar from './components/layout/Sidebar.jsx';
 import Topbar  from './components/layout/Topbar.jsx';
 
@@ -55,7 +79,9 @@ function DesktopApp() {
       <div className="main">
         <Topbar screen={screen} />
         <div className="content">
-          <Screen setScreen={setScreen} />
+          <ScreenErrorBoundary setScreen={setScreen}>
+            <Screen setScreen={setScreen} />
+          </ScreenErrorBoundary>
         </div>
       </div>
     </div>
