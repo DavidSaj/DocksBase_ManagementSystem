@@ -1,14 +1,52 @@
+import datetime
+import uuid
 from django.utils import timezone
 from django.core.mail import send_mail
 from datetime import timedelta
+from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Marina, User, MagicToken
-from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer
+from .models import Marina, User, MagicToken, EmailVerification
+from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer
+from .emails import send_verification_email, send_welcome_email
 from apps.members.models import Member
+
+
+class SignupView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        ser = SignupSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = ser.validated_data
+
+        with transaction.atomic():
+            marina = Marina.objects.create(
+                name=d['marina_name'],
+                status='trial',
+                plan='professional',
+                trial_ends=datetime.date.today() + datetime.timedelta(days=30),
+            )
+            user = User.objects.create_user(
+                email=d['email'],
+                password=d['password'],
+                first_name=d['first_name'],
+                last_name=d['last_name'],
+                role='owner',
+                is_active=False,
+                marina=marina,
+            )
+            token = uuid.uuid4()
+            EmailVerification.objects.create(user=user, token=token)
+
+        send_verification_email(user, token)
+        return Response(
+            {'detail': 'Check your email to confirm your account.'},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class LoginView(TokenObtainPairView):

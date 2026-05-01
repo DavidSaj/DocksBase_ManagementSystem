@@ -1,4 +1,5 @@
 import uuid
+import datetime
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
@@ -81,3 +82,55 @@ class EmailStubTest(TestCase):
 
     def test_send_welcome_email_does_not_raise(self):
         send_welcome_email(self.user)
+
+
+class SignupViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_signup_creates_marina_and_user(self):
+        resp = self.client.post('/api/v1/auth/signup/', {
+            'first_name': 'Anna', 'last_name': 'Schmidt',
+            'email': 'anna@marina.com', 'password': 'securepass123',
+            'marina_name': 'Port de Vidy',
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertIn('detail', resp.data)
+
+        user = User.objects.get(email='anna@marina.com')
+        self.assertFalse(user.is_active)
+        self.assertEqual(user.role, 'owner')
+        self.assertEqual(user.first_name, 'Anna')
+
+        marina = user.marina
+        self.assertEqual(marina.name, 'Port de Vidy')
+        self.assertEqual(marina.status, 'trial')
+        self.assertEqual(marina.plan, 'professional')
+        self.assertIsNotNone(marina.trial_ends)
+        self.assertEqual(marina.trial_ends, datetime.date.today() + datetime.timedelta(days=30))
+
+    def test_signup_creates_email_verification_token(self):
+        self.client.post('/api/v1/auth/signup/', {
+            'first_name': 'Anna', 'last_name': 'Schmidt',
+            'email': 'anna2@marina.com', 'password': 'securepass123',
+            'marina_name': 'Test Port',
+        }, format='json')
+        user = User.objects.get(email='anna2@marina.com')
+        self.assertTrue(hasattr(user, 'email_verification'))
+
+    def test_signup_duplicate_email_returns_400(self):
+        Marina.objects.create(name='Existing')
+        User.objects.create_user(email='taken@marina.com', password='pass')
+        resp = self.client.post('/api/v1/auth/signup/', {
+            'first_name': 'Bob', 'last_name': 'Jones',
+            'email': 'taken@marina.com', 'password': 'pass2',
+            'marina_name': 'Another Port',
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('email', resp.data)
+
+    def test_signup_requires_all_fields(self):
+        resp = self.client.post('/api/v1/auth/signup/', {
+            'email': 'incomplete@marina.com',
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)

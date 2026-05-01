@@ -48,3 +48,16 @@ class SendMagicLinkSerializer(serializers.Serializer):
 
 class ExchangeMagicTokenSerializer(serializers.Serializer):
     token = serializers.UUIDField()
+
+
+class SignupSerializer(serializers.Serializer):
+    first_name  = serializers.CharField(max_length=100)
+    last_name   = serializers.CharField(max_length=100)
+    email       = serializers.EmailField()
+    password    = serializers.CharField(min_length=8, write_only=True)
+    marina_name = serializers.CharField(max_length=200)
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        return value
