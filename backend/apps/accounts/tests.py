@@ -110,16 +110,16 @@ class SignupViewTest(TestCase):
         self.assertEqual(marina.trial_ends, datetime.date.today() + datetime.timedelta(days=30))
 
     def test_signup_creates_email_verification_token(self):
-        self.client.post('/api/v1/auth/signup/', {
+        resp = self.client.post('/api/v1/auth/signup/', {
             'first_name': 'Anna', 'last_name': 'Schmidt',
             'email': 'anna2@marina.com', 'password': 'securepass123',
             'marina_name': 'Test Port',
         }, format='json')
+        self.assertEqual(resp.status_code, 201)
         user = User.objects.get(email='anna2@marina.com')
         self.assertTrue(hasattr(user, 'email_verification'))
 
     def test_signup_duplicate_email_returns_400(self):
-        Marina.objects.create(name='Existing')
         User.objects.create_user(email='taken@marina.com', password='pass')
         resp = self.client.post('/api/v1/auth/signup/', {
             'first_name': 'Bob', 'last_name': 'Jones',
