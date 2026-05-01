@@ -110,3 +110,17 @@ class PortalBerthTest(TestCase):
         self.client.force_authenticate(user=staff)
         resp = self.client.get('/api/v1/portal/berth/')
         self.assertEqual(resp.status_code, 403)
+
+    def test_pier_label_falls_back_to_pier_code_when_label_blank(self):
+        # Create a pier with no label
+        pier2 = Pier.objects.create(marina=self.marina, code='B', label='')
+        berth2 = Berth.objects.create(marina=self.marina, pier=pier2, code='B1', status='available')
+        booking2 = Booking.objects.create(
+            marina=self.marina, berth=berth2, vessel=self.vessel,
+            booking_type='transient', check_in='2026-07-01', check_out='2026-07-05',
+            nights=4, status='pending',
+        )
+        resp = self.client.get('/api/v1/portal/berth/')
+        self.assertEqual(resp.status_code, 200)
+        entries = {e['berth_code']: e for e in resp.json()}
+        self.assertEqual(entries['B1']['pier_label'], 'B')

@@ -40,6 +40,9 @@ class CraneRequestStaffSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'member_name', 'service_type', 'requested_date', 'notes', 'created_at']
 
 
+# Deferred import: serializers.py is imported by views.py; Booking is in reservations which
+# has no dependency on portal, so no circular import risk — but placed here to keep related
+# serializers grouped together.
 from apps.reservations.models import Booking
 
 class PortalBerthSerializer(serializers.ModelSerializer):
@@ -58,9 +61,8 @@ class PortalBerthSerializer(serializers.ModelSerializer):
 
     def get_nights_remaining(self, obj):
         if not obj.check_out:
-            return None
-        remaining = (obj.check_out - datetime.date.today()).days
-        return max(remaining, 0)
+            return 0
+        return max((obj.check_out - datetime.date.today()).days, 0)
 
     class Meta:
         model = Booking

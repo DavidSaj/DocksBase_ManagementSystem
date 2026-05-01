@@ -3,7 +3,7 @@ from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
 from apps.reservations.models import Booking
 from .models import AbsenceReport, CraneRequest
-from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer
+from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer
 
 
 class IsBoater(permissions.BasePermission):
@@ -72,8 +72,6 @@ class CraneRequestStaffDetailView(generics.UpdateAPIView):
     def get_queryset(self):
         return CraneRequest.objects.filter(member__marina=self.request.user.marina)
 
-
-from .serializers import PortalBerthSerializer
 
 class PortalBerthView(generics.ListAPIView):
     permission_classes = [IsBoater]
