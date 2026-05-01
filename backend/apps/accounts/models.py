@@ -4,6 +4,15 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 
+def _default_onboarding():
+    return {
+        'draw_map': False,
+        'set_pricing': False,
+        'connect_bank': False,
+        'invite_staff': False,
+    }
+
+
 class Marina(models.Model):
     name = models.CharField(max_length=200)
     address = models.TextField(blank=True)
@@ -39,6 +48,7 @@ class Marina(models.Model):
     next_renewal = models.DateField(null=True, blank=True)
     suspend_reason = models.TextField(blank=True)
     features = models.JSONField(default=dict)
+    onboarding = models.JSONField(default=_default_onboarding)
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
 
@@ -102,3 +112,12 @@ class MagicToken(models.Model):
 
     def __str__(self):
         return f"MagicToken({self.user.email}, expires {self.expires_at})"
+
+
+class EmailVerification(models.Model):
+    user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name='email_verification')
+    token      = models.UUIDField(default=_uuid.uuid4, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"EmailVerification({self.user.email})"
