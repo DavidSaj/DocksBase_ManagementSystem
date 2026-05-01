@@ -1,4 +1,11 @@
-import { PLANS } from '../data/mock.js';
+import { useState, useEffect } from 'react';
+import api from '../api.js';
+
+const PLANS = [
+  { id: 'starter',      name: 'Starter',      price: 149 },
+  { id: 'professional', name: 'Professional',  price: 349 },
+  { id: 'enterprise',   name: 'Enterprise',    price: 899 },
+];
 
 const FEATURES = {
   starter:      ['Marina map', 'Reservations', 'Vessel registry', 'Members', 'Billing & invoicing', 'Maintenance', 'Basic reports'],
@@ -15,7 +22,6 @@ function PlanCard({ plan }) {
       )}
       <div className="plan-card-name">{plan.name}</div>
       <div className="plan-card-price">€{plan.price}<span>/month</span></div>
-      <div className="plan-card-desc">{plan.desc}</div>
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12 }}>
         {feats.map(f => (
           <div key={f} className="plan-feature">
@@ -29,6 +35,58 @@ function PlanCard({ plan }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function FeatureFlags() {
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [toggling, setToggling] = useState({});
+
+  useEffect(() => {
+    api.get('admin/feature-flags/')
+      .then(r => setFlags(r.data))
+      .catch(e => setError(e.message || 'Failed to load feature flags'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleToggle(flag) {
+    setToggling(t => ({ ...t, [flag.name]: true }));
+    try {
+      const { data } = await api.patch(`admin/feature-flags/${flag.name}/`, { enabled: !flag.enabled });
+      setFlags(prev => prev.map(f => f.name === flag.name ? { ...f, enabled: data.enabled } : f));
+    } catch (e) {
+      // silently leave state unchanged on error
+    } finally {
+      setToggling(t => ({ ...t, [flag.name]: false }));
+    }
+  }
+
+  if (loading) return <div style={{ padding: 16, color: 'rgba(0,0,0,0.38)', fontSize: 12 }}>Loading feature flags…</div>;
+  if (error)   return <div style={{ padding: 16, color: 'var(--red)', fontSize: 12 }}>{error}</div>;
+
+  return (
+    <>
+      {flags.map(flag => (
+        <div key={flag.name} className="detail-row" style={{ alignItems: 'center' }}>
+          <span className="detail-key" style={{ fontFamily: 'monospace', fontSize: 12 }}>{flag.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className={`badge ${flag.enabled ? 'badge-green' : 'badge-gray'}`}>
+              {flag.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <button
+              className="btn-sm"
+              onClick={() => handleToggle(flag)}
+              disabled={!!toggling[flag.name]}
+              style={{ fontSize: 11, opacity: toggling[flag.name] ? 0.5 : 1 }}
+            >
+              {toggling[flag.name] ? '…' : flag.enabled ? 'Disable' : 'Enable'}
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -91,7 +149,7 @@ export default function Settings() {
       </div>
 
       {/* Platform info */}
-      <div className="card">
+      <div className="card" style={{ marginBottom: 24 }}>
         <div className="card-header"><span className="card-header-title">Platform</span></div>
         <div className="card-body">
           <div className="grid-3">
@@ -109,6 +167,14 @@ export default function Settings() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Feature flags */}
+      <div className="sec-hdr"><div className="sec-hdr-title">Feature flags</div></div>
+      <div className="card">
+        <div className="card-body">
+          <FeatureFlags />
         </div>
       </div>
     </div>
