@@ -1,6 +1,7 @@
 import uuid
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, EmailVerification
 
@@ -53,7 +54,7 @@ class EmailVerificationModelTest(TestCase):
 
     def test_email_verification_one_to_one(self):
         EmailVerification.objects.create(user=self.user)
-        with self.assertRaises(Exception):
+        with self.assertRaises(IntegrityError):
             EmailVerification.objects.create(user=self.user)
 
     def test_marina_onboarding_default(self):
