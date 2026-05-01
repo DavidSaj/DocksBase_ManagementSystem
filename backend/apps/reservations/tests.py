@@ -437,3 +437,45 @@ class AssignBerthEndpointTest(TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+from apps.billing.models import Invoice, InvoiceLineItem
+from apps.billing import service as billing_service
+
+
+class CheckoutFinalisesInvoiceTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user   = make_user(self.marina)
+        self.berth  = make_berth(self.marina, price=100)
+        self.member = Member.objects.create(marina=self.marina, name='A. Smith')
+        self.vessel = Vessel.objects.create(marina=self.marina, name='Blue Wave', owner=self.member)
+        self.booking = Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            booking_type='transient', check_in='2026-06-01', check_out='2026-06-04',
+            nights=3, amount=300, status='checked_in',
+        )
+        # Create a draft invoice linked to the booking
+        self.invoice = Invoice.objects.create(
+            marina=self.marina, member=self.member,
+            invoice_number='INV-2026-0001',
+            source_type='berth_booking', source_id=str(self.booking.id),
+            status='draft',
+        )
+        InvoiceLineItem.objects.create(
+            invoice=self.invoice, description='Berth fee', quantity=1, unit_price=300,
+            total_price=300,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_checkout_patch_finalises_draft_invoice(self):
+        resp = self.client.patch(f'/api/v1/bookings/{self.booking.id}/', {'status': 'checked_out'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, 'open')
+
+    def test_checkout_does_not_error_when_no_invoice(self):
+        # Delete the invoice — checkout should still succeed
+        self.invoice.delete()
+        resp = self.client.patch(f'/api/v1/bookings/{self.booking.id}/', {'status': 'checked_out'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+

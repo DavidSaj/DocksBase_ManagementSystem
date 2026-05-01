@@ -56,6 +56,19 @@ class BookingDetailView(generics.RetrieveUpdateAPIView):
     def get_queryset(self):
         return Booking.objects.filter(marina=self.request.user.marina)
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'checked_out':
+            from apps.billing.models import Invoice as InvoiceModel
+            draft = InvoiceModel.objects.filter(
+                marina=self.request.user.marina,
+                source_type='berth_booking',
+                source_id=str(instance.id),
+                status='draft',
+            ).first()
+            if draft:
+                billing_service.finalize_invoice(draft)
+
 
 class BookingRequestListCreateView(generics.ListCreateAPIView):
     serializer_class = BookingRequestSerializer
