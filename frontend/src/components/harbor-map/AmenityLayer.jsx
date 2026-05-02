@@ -62,7 +62,7 @@ function AmenityShape({ amenity, isSelected, onSelect, draggable, onTransformEnd
             canvas_x: node.x() / CELL,
             canvas_y: node.y() / CELL,
             rotation: node.rotation(),
-            scale: amenity.scale * node.scaleX(),
+            scale: node.scaleX(),
           });
           node.scaleX(1);
           node.scaleY(1);
