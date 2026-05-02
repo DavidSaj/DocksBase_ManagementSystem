@@ -66,6 +66,11 @@ export default function Billing() {
   const [acctSearch, setAcctSearch]   = useState('');
   const [acctShowAll, setAcctShowAll] = useState(false);
 
+  const [payAmount, setPayAmount]   = useState('');
+  const [payMethod, setPayMethod]   = useState('bank_transfer');
+  const [payNotes, setPayNotes]     = useState('');
+  const [payLoading, setPayLoading] = useState(false);
+
   // Batch billing state
   const defaultPeriod = (() => {
     const d = new Date();
@@ -320,6 +325,32 @@ export default function Billing() {
   const lineTotal    = lineSubtotal + lineTax;
 
   const count = (s) => invoices.filter(i => i.status === s).length;
+
+  async function recordPayment() {
+    if (!selectedId || !payAmount) return;
+    setPayLoading(true);
+    try {
+      await api.post(`/billing/accounts/${selectedId}/payments/`, {
+        amount: payAmount, method: payMethod, notes: payNotes,
+      });
+      setPayAmount(''); setPayNotes('');
+      await refreshDrawer(selectedId);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Payment failed.');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function sendInvite(memberId, email) {
+    try {
+      await api.post(`/billing/accounts/${memberId}/generate-invite/`);
+      alert(`Invite sent to ${email}`);
+      await refreshDrawer(memberId);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Failed to send invite.');
+    }
+  }
 
   return (
     <div>
@@ -859,6 +890,162 @@ export default function Billing() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'boater-accounts' && selectedId && (
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+          {/* Dimmed list behind drawer */}
+          <div style={{ flex: 1, opacity: 0.4, pointerEvents: 'none', overflow: 'hidden', maxHeight: 400 }}>
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <table className="tbl">
+                <thead><tr><th>Name</th><th>Outstanding</th><th>Portal</th></tr></thead>
+                <tbody>
+                  {accounts.map(a => (
+                    <tr key={a.member_id}>
+                      <td className="tbl-name">{a.name}</td>
+                      <td>€{Number(a.total_outstanding).toFixed(2)}</td>
+                      <td>{a.portal_active ? '✓' : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Drawer */}
+          <div className="card" style={{ width: 480, flexShrink: 0, padding: 24 }}>
+            {drawerLoading && !drawerData ? (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '20px 0', textAlign: 'center' }}>Loading…</div>
+            ) : drawerData ? (
+              <>
+                {/* Header */}
+                <div style={{ marginBottom: 18 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={closeDrawer}>
+                    ← Back
+                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>{drawerData.member.name}</div>
+                      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                        <span className="badge badge-navy" style={{ marginRight: 6 }}>{drawerData.member.member_type}</span>
+                        {drawerData.member.berth_code ?? 'No berth'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--navy)' }}>
+                        €{Number(drawerData.summary.total_outstanding).toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>outstanding</div>
+                      {Number(drawerData.summary.credit_on_account) > 0 && (
+                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginTop: 4 }}>
+                          Credit: €{Number(drawerData.summary.credit_on_account).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}
+                    onClick={() => sendInvite(drawerData.member.id, drawerData.member.email)}
+                  >
+                    {drawerData.member.portal_active ? 'Re-send Portal Invite' : 'Generate Portal Invite'}
+                  </button>
+                </div>
+
+                {/* Record Payment form */}
+                <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Record Payment</div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder="Amount"
+                      value={payAmount}
+                      onChange={e => setPayAmount(e.target.value)}
+                      style={{ flex: 1, border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}
+                    />
+                    <select
+                      value={payMethod}
+                      onChange={e => setPayMethod(e.target.value)}
+                      style={{ border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}
+                    >
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="cash">Cash</option>
+                      <option value="external_card">Card</option>
+                    </select>
+                  </div>
+                  <input
+                    placeholder="Notes (optional)"
+                    value={payNotes}
+                    onChange={e => setPayNotes(e.target.value)}
+                    style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}
+                  />
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    disabled={!payAmount || payLoading}
+                    onClick={recordPayment}
+                  >
+                    {payLoading ? 'Recording…' : 'Record Payment'}
+                  </button>
+                </div>
+
+                {/* Invoice groups */}
+                {(['berth', 'fuel', 'restaurant', 'other']).map(cat => {
+                  const catLabels = { berth: 'Berth Fees', fuel: 'Fuel Dock', restaurant: 'Restaurant', other: 'Other' };
+                  const catSources = { berth: ['berth','booking'], fuel: ['fuel_dock'], restaurant: ['restaurant_order'], other: [] };
+                  const invoices = drawerData.open_invoices.filter(inv =>
+                    cat === 'other'
+                      ? !['berth','booking','fuel_dock','restaurant_order'].includes(inv.source_type)
+                      : catSources[cat].includes(inv.source_type)
+                  );
+                  if (invoices.length === 0) return null;
+                  const catTotal = invoices.reduce((s, inv) => s + Number(inv.total) - Number(inv.amount_paid_so_far), 0);
+                  return (
+                    <div key={cat} style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                        <span>{catLabels[cat]}</span>
+                        <span>€{catTotal.toFixed(2)}</span>
+                      </div>
+                      {invoices.map(inv => {
+                        const isOverdue = inv.due_date && new Date(inv.due_date) < new Date();
+                        const partiallyPaid = Number(inv.amount_paid_so_far) > 0;
+                        return (
+                          <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{inv.invoice_number}</div>
+                              <div style={{ fontSize: 11, color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.4)' }}>
+                                {inv.due_date ? `Due ${inv.due_date}` : 'No due date'}
+                                {isOverdue && <span className="badge badge-red" style={{ marginLeft: 6, fontSize: 9 }}>OVERDUE</span>}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 700 }}>
+                                €{(Number(inv.total) - Number(inv.amount_paid_so_far)).toFixed(2)}
+                              </div>
+                              {partiallyPaid && (
+                                <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>
+                                  €{Number(inv.amount_paid_so_far).toFixed(2)} of €{Number(inv.total).toFixed(2)} paid
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {drawerData.open_invoices.length === 0 && (
+                  <div style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', fontSize: 12, padding: '20px 0' }}>
+                    No outstanding charges.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Could not load account data.</div>
+            )}
           </div>
         </div>
       )}
