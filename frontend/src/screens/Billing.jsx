@@ -1,16 +1,10 @@
-import { useState } from 'react';
-import { UTILITY_METERS, DEBTORS } from '../data/mock.js';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useInvoices from '../hooks/useInvoices.js';
+import useFuelEntries from '../hooks/useFuelEntries.js';
+import usePOSCatalog from '../hooks/usePOSCatalog.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
-
-const FUEL_SALES = [
-  { vessel: 'Ocean Star',  item: 'Diesel',   qty: '120L', amount: '€170.40', time: '09:15 today' },
-  { vessel: 'Blue Horizon',item: 'Petrol',   qty: '80L',  amount: '€124.00', time: '08:50 today' },
-  { vessel: 'Nautilus V',  item: 'Diesel',   qty: '340L', amount: '€482.80', time: 'Yesterday 17:20' },
-  { vessel: 'Lady K',      item: 'Pump-out', qty: '1×',   amount: '€12.00',  time: 'Yesterday 14:00' },
-];
 
 function fmtInv(inv) {
   const rawAmt = inv.total ?? inv.amount;
@@ -44,8 +38,116 @@ export default function Billing() {
   const [invoiceLines, setInvoiceLines]         = useState([]);
   const [invoiceCreating, setInvoiceCreating]   = useState(false);
 
-  const { invoices: raw, loading, refetch } = useInvoices();
-  const invoices = raw.map(fmtInv);
+  const { invoices: rawInv, loading, refetch } = useInvoices();
+  const invoices = rawInv.map(fmtInv);
+
+  // Fuel Dock POS — real completed entries
+  const { entries: fuelEntries, loading: fuelLoading, refetch: refetchFuelEntries } = useFuelEntries({ limit: 20 });
+
+  // Quick Sale state
+  const [selectedPOSItem,  setSelectedPOSItem]  = useState(null);
+  const [posLitres,        setPosLitres]        = useState('');
+  const [posQuery,         setPosQuery]         = useState('');
+  const [posSuggestions,   setPosSuggestions]   = useState([]);
+  const [posResolved,      setPosResolved]      = useState(null);
+  const [posSubmitting,    setPosSubmitting]    = useState(false);
+  const [posError,         setPosError]         = useState('');
+  const debounceRef = useRef(null);
+
+  const { items: posCatalog, loading: posLoading } = usePOSCatalog();
+
+  // Batch billing state
+  const defaultPeriod = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const [batchPeriod, setBatchPeriod] = useState(defaultPeriod);
+  const [batchMemberType, setBatchMemberType] = useState('all');
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchResult, setBatchResult] = useState(null);
+
+  // Z-Report state
+  const [zDate, setZDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [zReport, setZReport] = useState(null);
+  const [zLoading, setZLoading] = useState(false);
+
+  const fetchZReport = useCallback((date) => {
+    setZLoading(true);
+    api.get('/billing/z-report/', { params: { date } })
+      .then(r => setZReport(r.data))
+      .catch(() => setZReport(null))
+      .finally(() => setZLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'accounts') fetchZReport(zDate);
+  }, [tab, zDate, fetchZReport]);
+
+  async function runBatch() {
+    setBatchLoading(true);
+    setBatchResult(null);
+    try {
+      const r = await api.post('/billing/invoices/batch/', {
+        billing_period: batchPeriod,
+        member_type: batchMemberType,
+      });
+      setBatchResult(r.data);
+      refetch();
+    } catch (e) {
+      setBatchResult({ error: e?.response?.data?.detail ?? 'Batch billing failed.' });
+    } finally {
+      setBatchLoading(false);
+    }
+  }
+
+  async function exportCSV() {
+    try {
+      const resp = await api.get('/billing/invoices/export/', { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([resp.data], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Export failed. Please try again.');
+    }
+  }
+
+  // Generate last 6 months for the batch period selector
+  const batchPeriodOptions = (() => {
+    const opts = [];
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      opts.push({ val, label });
+    }
+    return opts;
+  })();
+
+  const today = new Date();
+  const debtors = rawInv
+    .filter(inv => inv.status === 'open' || inv.status === 'overdue')
+    .map(inv => {
+      const dueDate = inv.due_date ? new Date(inv.due_date) : null;
+      const daysOverdue = dueDate ? Math.max(0, Math.floor((today - dueDate) / 86400000)) : 0;
+      const bucket = daysOverdue === 0 ? 'current'
+        : daysOverdue <= 7 ? '0–7'
+        : daysOverdue <= 30 ? '8–30'
+        : '31–60';
+      return {
+        id: inv.invoice_number,
+        vessel: inv.vessel_name ?? inv.member_name ?? '—',
+        owner: inv.member_name ?? '—',
+        amount: `€${Number(inv.total ?? 0).toFixed(2)}`,
+        due: inv.due_date ?? '—',
+        daysOverdue,
+        bucket,
+        reminders: 0,
+      };
+    });
 
   function openNewInvoice() {
     setNewInvoiceOpen(true);
@@ -123,6 +225,82 @@ export default function Billing() {
     }
   }
 
+  const FUEL_COLORS = { diesel: '#0075de', petrol: '#dd5b00', pump_out: '#2a9d99' };
+
+  function posTotal() {
+    if (!selectedPOSItem) return 0;
+    if (selectedPOSItem.pricing_model === 'per_litre') {
+      const l = parseFloat(posLitres);
+      return (isNaN(l) || l <= 0) ? 0 : +(l * parseFloat(selectedPOSItem.unit_price)).toFixed(2);
+    }
+    return parseFloat(selectedPOSItem.unit_price);
+  }
+
+  function posPriceLabel(item) {
+    return item.pricing_model === 'per_litre'
+      ? `€${Number(item.unit_price).toFixed(2)}/L`
+      : `€${Number(item.unit_price).toFixed(2)} flat`;
+  }
+
+  function handlePosQueryChange(e) {
+    const val = e.target.value;
+    setPosQuery(val);
+    setPosResolved(null);
+    clearTimeout(debounceRef.current);
+    if (val.length < 2) { setPosSuggestions([]); return; }
+    debounceRef.current = setTimeout(() => {
+      api.get('/members/', { params: { search: val } })
+        .then(r => setPosSuggestions((r.data.results ?? r.data).slice(0, 5)))
+        .catch(() => {});
+    }, 300);
+  }
+
+  function handlePosSuggestionSelect(member) {
+    const vessel = member.vessels?.[0] ?? null;
+    setPosResolved({ id: member.id, vesselId: vessel?.id ?? null });
+    setPosQuery(vessel ? `${member.name} — ${vessel.name}` : member.name);
+    setPosSuggestions([]);
+  }
+
+  function clearPosForm() {
+    clearTimeout(debounceRef.current);
+    setSelectedPOSItem(null);
+    setPosLitres('');
+    setPosQuery('');
+    setPosSuggestions([]);
+    setPosResolved(null);
+    setPosSubmitting(false);
+    setPosError('');
+  }
+
+  async function handleProcessSale() {
+    const total = posTotal();
+    if (total <= 0) return;
+    setPosSubmitting(true);
+    setPosError('');
+    try {
+      const isPerLitre = selectedPOSItem.pricing_model === 'per_litre';
+      await api.post('/fuel-dock/queue/', {
+        status:          'completed',
+        fuel_type:       selectedPOSItem.fuel_dock_type,
+        actual_litres:   isPerLitre ? posLitres : null,
+        price_per_litre: isPerLitre ? selectedPOSItem.unit_price : null,
+        total_amount:    isPerLitre ? null : String(parseFloat(selectedPOSItem.unit_price).toFixed(2)),
+        ...(posResolved
+          ? { member: posResolved.id, ...(posResolved.vesselId ? { vessel: posResolved.vesselId } : {}) }
+          : { guest_description: posQuery || 'Walk-up' }),
+      });
+      clearPosForm();
+      refetchFuelEntries();
+    } catch {
+      setPosError('Sale failed — please try again.');
+    } finally {
+      setPosSubmitting(false);
+    }
+  }
+
+  const total = posTotal();
+
   const lineSubtotal = invoiceLines.reduce((s, l) => s + Number(l.line_subtotal ?? l.total_price ?? 0), 0);
   const lineTax      = invoiceLines.reduce((s, l) => s + Number(l.line_tax ?? 0), 0);
   const lineTotal    = lineSubtotal + lineTax;
@@ -188,28 +366,11 @@ export default function Billing() {
             <table className="tbl">
               <thead><tr><th>Berth</th><th>Vessel</th><th>Electricity (kWh)</th><th>Usage</th><th>Water (L)</th><th>Usage</th><th>Est. Charge</th></tr></thead>
               <tbody>
-                {UTILITY_METERS.map(m => {
-                  const elec   = m.elec_cur - m.elec_start;
-                  const water  = m.water_cur - m.water_start;
-                  const charge = `€${((elec * 0.28) + (water * 0.004)).toFixed(2)}`;
-                  return (
-                    <tr key={m.berth}>
-                      <td style={{ fontWeight: 600, color: 'var(--navy)' }}>{m.berth}</td>
-                      <td className="tbl-name">{m.vessel}</td>
-                      <td>
-                        <div style={{ fontSize: 12 }}>{m.elec_start} → {m.elec_cur}</div>
-                        <div className="meter-bar-wrap"><div className="meter-bar" style={{ width: `${Math.min(100,(elec/200)*100)}%`, background: '#0075de' }} /></div>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{elec} kWh</td>
-                      <td>
-                        <div style={{ fontSize: 12 }}>{m.water_start} → {m.water_cur}</div>
-                        <div className="meter-bar-wrap"><div className="meter-bar" style={{ width: `${Math.min(100,(water/100)*100)}%`, background: 'var(--teal2)' }} /></div>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{water} L</td>
-                      <td style={{ fontWeight: 700, color: 'var(--navy)' }}>{charge}</td>
-                    </tr>
-                  );
-                })}
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '32px 0', fontSize: 12 }}>
+                    Utility meter readings coming soon — enter readings manually via the berth detail panel.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -222,30 +383,140 @@ export default function Billing() {
             <div className="card-header"><div className="card-header-title">Fuel Dock — Quick Sale</div></div>
             <div className="card-body">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                {[['Diesel','€1.42/L','#0075de'],['Petrol','€1.55/L','#dd5b00'],['Pump-out','€12 flat','#2a9d99'],['Ice (5kg)','€4.50','#615d59'],['Shore Power Token','€3.00','#213183'],['Merchandise','Price varies','#b8965a']].map(([item,price,c]) => (
-                  <div key={item} style={{ background: 'var(--bg)', borderRadius: 8, padding: '14px', cursor: 'pointer', border: 'var(--border)', transition: 'box-shadow 0.1s' }}
+                {posLoading ? (
+                  <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: 8 }}>Loading catalog…</div>
+                ) : posCatalog.length === 0 ? (
+                  <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: 8 }}>
+                    No POS items configured. Add items in Settings → Service Catalog and enable "Show in POS".
+                  </div>
+                ) : posCatalog.map(item => (
+                  <div key={item.id}
+                    onClick={() => { setPosLitres(''); setPosError(''); setPosSubmitting(false); setSelectedPOSItem(item); }}
+                    style={{
+                      background: selectedPOSItem?.id === item.id ? 'var(--bg-active, #eef4ff)' : 'var(--bg)',
+                      borderRadius: 8, padding: '14px', cursor: 'pointer',
+                      border: selectedPOSItem?.id === item.id ? '1.5px solid var(--blue, #0075de)' : 'var(--border)',
+                      transition: 'box-shadow 0.1s',
+                    }}
                     onMouseOver={e => e.currentTarget.style.boxShadow = 'var(--shadow2)'}
                     onMouseOut={e  => e.currentTarget.style.boxShadow = ''}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.8)' }}>{item}</div>
-                    <div style={{ fontSize: 12, color: c, fontWeight: 600, marginTop: 4 }}>{price}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.8)' }}>{item.name}</div>
+                    <div style={{ fontSize: 12, color: FUEL_COLORS[item.fuel_dock_type] ?? '#888', fontWeight: 600, marginTop: 4 }}>
+                      {posPriceLabel(item)}
+                    </div>
                   </div>
                 ))}
               </div>
-              <button className="btn btn-gold" style={{ width: '100%', justifyContent: 'center', fontSize: 13, padding: '10px' }}>Process Sale</button>
+              {selectedPOSItem && (
+                <div style={{ marginTop: 12, padding: '12px 0 4px', borderTop: 'var(--border)' }}>
+
+                  {/* Member / Guest combobox */}
+                  <div style={{ position: 'relative', marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 3 }}>
+                      Vessel / Member <span style={{ fontWeight: 400 }}>(optional)</span>
+                    </div>
+                    <input
+                      value={posQuery}
+                      onChange={handlePosQueryChange}
+                      onBlur={() => setTimeout(() => setPosSuggestions([]), 200)}
+                      placeholder="Search member or type guest name…"
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '7px 10px',
+                        border: 'var(--border)', borderRadius: 6, outline: 'none',
+                        borderColor: posResolved ? 'var(--green, #2a9d50)' : undefined }}
+                    />
+                    {posResolved && (
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-2px)',
+                        color: 'var(--green, #2a9d50)', fontSize: 13, fontWeight: 700 }}>✓</span>
+                    )}
+                    {posSuggestions.length > 0 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                        background: '#fff', border: 'var(--border)', borderRadius: 6,
+                        boxShadow: 'var(--shadow2)', marginTop: 2 }}>
+                        {posSuggestions.map(m => (
+                          <div key={m.id}
+                            onMouseDown={() => handlePosSuggestionSelect(m)}
+                            style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}
+                            onMouseOver={e => e.currentTarget.style.background = 'var(--bg)'}
+                            onMouseOut={e  => e.currentTarget.style.background = '#fff'}>
+                            <span style={{ fontWeight: 600 }}>{m.name}</span>
+                            {m.vessels?.[0] && <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>— {m.vessels[0].name}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Litres input (per_litre items only) */}
+                  {selectedPOSItem.pricing_model === 'per_litre' && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 3 }}>Litres</div>
+                      <input
+                        type="number" min="0" step="0.1"
+                        value={posLitres}
+                        onChange={e => setPosLitres(e.target.value)}
+                        placeholder="0.0"
+                        style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '7px 10px',
+                          border: 'var(--border)', borderRadius: 6, outline: 'none' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  {total > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      marginBottom: 10, fontSize: 13 }}>
+                      <span style={{ color: 'rgba(0,0,0,0.5)' }}>Total</span>
+                      <span style={{ fontWeight: 700 }}>€{total.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {posError && (
+                    <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{posError}</div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={clearPosForm} style={{ flex: 1 }}>Cancel</button>
+                    <button
+                      className="btn btn-gold"
+                      onClick={handleProcessSale}
+                      disabled={posSubmitting || total <= 0}
+                      style={{ flex: 2, justifyContent: 'center', fontSize: 13, padding: '10px' }}>
+                      {posSubmitting ? 'Processing…' : 'Process Sale'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!selectedPOSItem && (
+                <button className="btn btn-gold" style={{ width: '100%', justifyContent: 'center', fontSize: 13, padding: '10px', marginTop: 12 }} disabled>
+                  Select item above
+                </button>
+              )}
             </div>
           </div>
           <div className="card">
             <div className="card-header"><div className="card-header-title">Recent Fuel Sales</div></div>
             <div className="card-body" style={{ padding: 0 }}>
-              {FUEL_SALES.map((s,i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px', borderBottom: 'var(--border)' }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>{s.vessel}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>{s.item} · {s.qty} · {s.time}</div>
+              {fuelLoading ? (
+                <div style={{ padding: '16px 18px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+              ) : fuelEntries.length === 0 ? (
+                <div style={{ padding: '16px 18px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No completed sales yet.</div>
+              ) : fuelEntries.map(e => {
+                const name = e.vessel_name ?? e.guest_description ?? '—';
+                const litres = e.actual_litres ? `${e.actual_litres}L` : '—';
+                const fuelLabel = e.fuel_type === 'pump_out' ? 'Pump-out' : (e.fuel_type ?? '—').charAt(0).toUpperCase() + (e.fuel_type ?? '').slice(1);
+                const amount = e.total_amount != null ? `€${Number(e.total_amount).toFixed(2)}` : '—';
+                const when = e.completed_at ? new Date(e.completed_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+                return (
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px', borderBottom: 'var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{name}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>{fuelLabel} · {litres} · {when}</div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{amount}</div>
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{s.amount}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -256,13 +527,13 @@ export default function Billing() {
           <div className="sec-hdr">
             <div className="sec-hdr-title">Aged Debtor Report</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <span className="badge badge-red">{DEBTORS.filter(d=>d.daysOverdue>0).length} Overdue</span>
+              <span className="badge badge-red">{debtors.filter(d=>d.daysOverdue>0).length} Overdue</span>
               <button className="btn btn-ghost btn-sm"><Ic n="file" s={11}/>Export</button>
               <button className="btn btn-primary btn-sm">Chase All Overdue</button>
             </div>
           </div>
           <div className="grid-2" style={{ alignItems: 'start', marginBottom: 16 }}>
-            {[['0–7 Days',DEBTORS.filter(d=>d.bucket==='0–7').length,'badge-orange'],['8–30 Days',DEBTORS.filter(d=>d.bucket==='8–30').length,'badge-red'],['31–60 Days',DEBTORS.filter(d=>d.bucket==='31–60').length,'badge-red'],['Current / Upcoming',DEBTORS.filter(d=>d.bucket==='current').length,'badge-gray']].map(([l,c,b]) => (
+            {[['0–7 Days',debtors.filter(d=>d.bucket==='0–7').length,'badge-orange'],['8–30 Days',debtors.filter(d=>d.bucket==='8–30').length,'badge-red'],['31–60 Days',debtors.filter(d=>d.bucket==='31–60').length,'badge-red'],['Current / Upcoming',debtors.filter(d=>d.bucket==='current').length,'badge-gray']].map(([l,c,b]) => (
               <div key={l} className="card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>{l}</span>
                 <span className={`badge ${b}`} style={{ fontSize: 14, fontWeight: 700 }}>{c}</span>
@@ -273,7 +544,7 @@ export default function Billing() {
             <table className="tbl">
               <thead><tr><th>Invoice</th><th>Vessel / Owner</th><th>Amount</th><th>Due Date</th><th>Days Overdue</th><th>Bucket</th><th>Reminders</th><th></th></tr></thead>
               <tbody>
-                {DEBTORS.map(d => (
+                {debtors.map(d => (
                   <tr key={d.id}>
                     <td className="tbl-name">{d.id}</td>
                     <td><div style={{ fontSize: 12, fontWeight: 600 }}>{d.vessel}</div><div className="tbl-sub">{d.owner}</div></td>
@@ -300,41 +571,91 @@ export default function Billing() {
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Batch Billing</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.6 }}>Generate invoices for all berth holders for the selected billing period.</div>
-                <select><option>Monthly Berth Fees — May 2026</option><option>Monthly Berth Fees — Apr 2026</option><option>Utility Charges — Apr 2026</option></select>
-                <select><option>All berth holders ({invoices.length > 0 ? '...' : '—'})</option><option>Seasonal only</option><option>Transient only</option></select>
-                <button className="btn btn-primary" style={{ justifyContent: 'center' }}>Generate Batch Invoices</button>
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.6 }}>
+                  Generate invoices for all active berth holders in the selected billing period.
+                  Re-running is safe — already-invoiced bookings are skipped automatically.
+                </div>
+                <select value={batchPeriod} onChange={e => setBatchPeriod(e.target.value)}>
+                  {batchPeriodOptions.map(o => (
+                    <option key={o.val} value={o.val}>{o.label}</option>
+                  ))}
+                </select>
+                <select value={batchMemberType} onChange={e => setBatchMemberType(e.target.value)}>
+                  <option value="all">All berth holders</option>
+                  <option value="seasonal">Seasonal only</option>
+                  <option value="transient">Transient only</option>
+                </select>
+                <button
+                  className="btn btn-primary"
+                  style={{ justifyContent: 'center' }}
+                  disabled={batchLoading}
+                  onClick={runBatch}
+                >
+                  {batchLoading ? 'Generating…' : 'Generate Batch Invoices'}
+                </button>
+                {batchResult && !batchResult.error && (
+                  <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>
+                    ✓ Created {batchResult.created} invoice{batchResult.created !== 1 ? 's' : ''}, skipped {batchResult.skipped} (already invoiced)
+                  </div>
+                )}
+                {batchResult?.error && (
+                  <div style={{ fontSize: 12, color: 'var(--red)' }}>{batchResult.error}</div>
+                )}
               </div>
             </div>
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Exports</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[['All Invoices (CSV)','file'],['Debtor Report (PDF)','file'],['Revenue Summary (XLSX)','file'],['Utility Charges (CSV)','file']].map(([l,i]) => (
-                  <button key={l} className="btn btn-ghost" style={{ justifyContent: 'flex-start', gap: 8 }}><Ic n={i} s={12}/>{l}</button>
+                <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', gap: 8 }} onClick={exportCSV}>
+                  <Ic n="file" s={12}/>All Invoices (CSV)
+                </button>
+                {[['Debtor Report (PDF)','file'],['Revenue Summary (XLSX)','file'],['Utility Charges (CSV)','file']].map(([l,i]) => (
+                  <button key={l} className="btn btn-ghost" style={{ justifyContent: 'flex-start', gap: 8, opacity: 0.45, cursor: 'not-allowed' }} disabled>
+                    <Ic n={i} s={12}/>{l} <span style={{ fontSize: 10, marginLeft: 'auto', color: 'rgba(0,0,0,0.35)' }}>Coming soon</span>
+                  </button>
                 ))}
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>End-of-Day Z-Report</div>
-              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', marginBottom: 14, lineHeight: 1.6 }}>Summarise all POS transactions for today including fuel sales, pump-outs, and marina store.</div>
-              {[['Fuel Sales', '€777.20'],['Pump-outs','€36.00'],['Marina Store','€18.50'],['Shore Power Tokens','€9.00']].map(([l,v]) => (
-                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
-                  <span style={{ color: 'rgba(0,0,0,0.55)' }}>{l}</span>
-                  <span style={{ fontWeight: 700 }}>{v}</span>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>
-                <span>Total</span><span>€840.70</span>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>End-of-Day Z-Report</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <input
+                  type="date"
+                  value={zDate}
+                  onChange={e => setZDate(e.target.value)}
+                  style={{ border: 'var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 12, fontFamily: 'var(--font)' }}
+                />
+                <button className="btn btn-ghost btn-sm" onClick={() => fetchZReport(zDate)}>Refresh</button>
               </div>
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Print Z-Report</button>
+              {zLoading ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>Loading…</div>
+              ) : zReport ? (
+                <>
+                  {zReport.lines.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>No POS activity on {zDate}.</div>
+                  ) : zReport.lines.map(line => (
+                    <div key={line.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
+                      <span style={{ color: 'rgba(0,0,0,0.55)' }}>{line.label}</span>
+                      <span style={{ fontWeight: 700 }}>€{line.total}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>
+                    <span>Total</span><span>€{zReport.grand_total}</span>
+                  </div>
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => window.print()}>Print Z-Report</button>
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Could not load report.</div>
+              )}
             </div>
             <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Payment Reconciliation</div>
-              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.6, marginBottom: 14 }}>Match bank statement transactions against open invoices.</div>
-              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}>Import Bank Statement</button>
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Auto-Reconcile</button>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Reconciliation</div>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', lineHeight: 1.6 }}>
+                Automatic bank statement reconciliation is planned for a future release.
+                For now, invoices can be marked paid manually via the Invoices tab.
+              </div>
             </div>
           </div>
         </div>

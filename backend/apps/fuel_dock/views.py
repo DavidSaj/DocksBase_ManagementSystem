@@ -34,8 +34,8 @@ def _bill_completion(entry, total_amount, now):
         billing_service.add_line_item(
             invoice,
             description=fuel_label,
-            quantity=1,
-            unit_price=total_amount,
+            quantity=entry.actual_litres if entry.actual_litres is not None else 1,
+            unit_price=entry.price_per_litre if entry.price_per_litre is not None else total_amount,
         )
         billing_service.finalize_invoice(invoice)
         return {'invoice': invoice, 'pos_paid': False}
@@ -61,9 +61,15 @@ class FuelQueueListCreateView(generics.ListCreateAPIView):
         extra  = {'marina': self.request.user.marina}
 
         if status == 'completed':
-            actual = serializer.validated_data.get('actual_litres')
-            price  = serializer.validated_data.get('price_per_litre')
-            total  = (actual * price) if (actual and price) else None
+            actual         = serializer.validated_data.get('actual_litres')
+            price          = serializer.validated_data.get('price_per_litre')
+            explicit_total = serializer.validated_data.get('total_amount')
+            if explicit_total is not None:
+                total = explicit_total
+            elif actual is not None and price is not None:
+                total = actual * price
+            else:
+                total = None
             extra['completed_at'] = now
             extra['total_amount'] = total
 
@@ -103,7 +109,7 @@ class FuelQueueDetailView(generics.RetrieveUpdateDestroyAPIView):
             if new_status == 'completed':
                 actual = serializer.validated_data.get('actual_litres', entry.actual_litres)
                 price  = serializer.validated_data.get('price_per_litre', entry.price_per_litre)
-                total  = (actual * price) if (actual and price) else None
+                total  = (actual * price) if (actual is not None and price is not None) else None
                 extra['completed_at']  = now
                 extra['total_amount']  = total
                 extra.update(_bill_completion(entry, total, now))

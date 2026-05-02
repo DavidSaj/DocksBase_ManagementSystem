@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.db import models
+from apps.fuel_dock.models import FuelDockEntry
 
 
 class Invoice(models.Model):
@@ -22,6 +23,7 @@ class Invoice(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     stripe_checkout_session_id = models.CharField(max_length=200, blank=True)
     stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
+    billing_period = models.CharField(max_length=7, blank=True, db_index=True)  # "YYYY-MM"
     due_date = models.DateField(null=True, blank=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     pdf_document = models.FileField(upload_to='invoices/', null=True, blank=True)
@@ -96,6 +98,7 @@ class ChargeableItem(models.Model):
         PER_KWH             = 'per_kwh',             'Per kWh'
         PER_HOUR            = 'per_hour',             'Per Hour'
         PER_METER_FLAT      = 'per_meter_flat',      'Per Meter (flat)'
+        PER_LITRE           = 'per_litre',           'Per Litre'
 
     marina        = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='chargeable_items')
     name          = models.CharField(max_length=200)
@@ -104,6 +107,13 @@ class ChargeableItem(models.Model):
     unit_price    = models.DecimalField(max_digits=10, decimal_places=2)
     tax_rate      = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     is_active     = models.BooleanField(default=True)
+    show_in_pos    = models.BooleanField(default=False)
+    fuel_dock_type = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        choices=FuelDockEntry.FUEL_TYPE_CHOICES,
+    )
     created_at    = models.DateTimeField(auto_now_add=True)
 
     class Meta:
