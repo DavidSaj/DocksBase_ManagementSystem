@@ -173,4 +173,12 @@ describe('snapBerthToPier', () => {
     expect(result).not.toBeNull()
     expect(result.position_on_parent.side).toBe('starboard')
   })
+
+  it('slot_index is 0 for the topmost berth position', () => {
+    // pier: canvas_y=5, canvas_h=8 → top of pier = cy - halfH = 1
+    // berthH=1, so top slot center clamps to cy - halfH + 0.5 = 1.5
+    const result = snapBerthToPier(8, 1, [pier], 2, 1)
+    expect(result).not.toBeNull()
+    expect(result.position_on_parent.slot_index).toBe(0)
+  })
 })

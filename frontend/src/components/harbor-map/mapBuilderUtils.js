@@ -122,6 +122,8 @@ const SNAP_RADIUS = 2
  * @returns {{ pierId, local_x, local_y, absX, absY, position_on_parent } | null}
  */
 export function snapBerthToPier(mouseGx, mouseGy, piers, berthW, berthH) {
+  // NOTE: Only valid for axis-aligned piers (rotation === 0).
+  // Rotated-pier snap requires transforming mouse coords into the pier's local frame first.
   for (const pier of piers) {
     const { canvas_x: cx, canvas_y: cy, canvas_w: pw, canvas_h: ph } = pier
     const halfW = pw / 2
@@ -137,7 +139,7 @@ export function snapBerthToPier(mouseGx, mouseGy, piers, berthW, berthH) {
         const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
         const local_x = leftEdgeX - berthW / 2 - cx
         const local_y = clampedY - cy
-        const slot_index = Math.round((clampedY - (cy - halfH)) / berthH)
+        const slot_index = Math.floor((clampedY - (cy - halfH)) / berthH)
         return {
           pierId: pier.id,
           local_x,
@@ -151,7 +153,7 @@ export function snapBerthToPier(mouseGx, mouseGy, piers, berthW, berthH) {
         const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
         const local_x = rightEdgeX + berthW / 2 - cx
         const local_y = clampedY - cy
-        const slot_index = Math.round((clampedY - (cy - halfH)) / berthH)
+        const slot_index = Math.floor((clampedY - (cy - halfH)) / berthH)
         return {
           pierId: pier.id,
           local_x,
