@@ -13,6 +13,23 @@ from .serializers import (
 )
 
 
+def resolve_pier_code(marina, code_template):
+    """Replace {n} in code_template with the next available integer for this marina."""
+    if '{n}' not in code_template:
+        return code_template
+    parts = code_template.split('{n}')
+    prefix, suffix = parts[0], parts[1]
+    existing = set(
+        Pier.objects.filter(marina=marina).values_list('code', flat=True)
+    )
+    n = 1
+    while True:
+        candidate = f'{prefix}{n}{suffix}'
+        if candidate not in existing:
+            return candidate
+        n += 1
+
+
 class PierListCreateView(generics.ListCreateAPIView):
     serializer_class = PierSerializer
     pagination_class = None  # canvas client needs all piers in one response
@@ -21,7 +38,10 @@ class PierListCreateView(generics.ListCreateAPIView):
         return Pier.objects.filter(marina=self.request.user.marina).prefetch_related('berths')
 
     def perform_create(self, serializer):
-        serializer.save(marina=self.request.user.marina)
+        marina = self.request.user.marina
+        raw_code = serializer.validated_data.get('code', '')
+        resolved_code = resolve_pier_code(marina, raw_code)
+        serializer.save(marina=marina, code=resolved_code)
 
 
 class PierDetailView(generics.RetrieveUpdateDestroyAPIView):

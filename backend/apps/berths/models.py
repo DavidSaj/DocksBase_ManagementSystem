@@ -10,7 +10,7 @@ PIER_TYPE_CHOICES = [
 
 class Pier(models.Model):
     marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
-    code           = models.CharField(max_length=10)
+    code           = models.CharField(max_length=50)
     label          = models.CharField(max_length=50, blank=True)
     polygon_points = models.JSONField(default=list)
     # Format: [[x1,y1],[x2,y2],...] in meters. Empty list = unmapped.

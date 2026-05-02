@@ -90,3 +90,38 @@ class PierSerializerValidationTest(TestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
+
+
+class PierLabelTemplateTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('label@test.com')
+        self.client = auth_client(self.user)
+
+    def test_n_template_resolved_to_1_when_no_existing(self):
+        resp = self.client.post('/api/v1/piers/', {
+            'code': 'Pontoon {n}',
+            'pier_type': 'pontoon',
+            'polygon_points': [[0,0],[10,0],[10,5],[0,5]],
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()['code'], 'Pontoon 1')
+
+    def test_n_template_increments_when_collision(self):
+        Pier.objects.create(marina=self.marina, code='Dock 1',
+                            polygon_points=[[0,0],[5,0],[5,5],[0,5]])
+        resp = self.client.post('/api/v1/piers/', {
+            'code': 'Dock {n}',
+            'pier_type': 'concrete',
+            'polygon_points': [[0,0],[10,0],[10,5],[0,5]],
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()['code'], 'Dock 2')
+
+    def test_code_without_template_saved_as_is(self):
+        resp = self.client.post('/api/v1/piers/', {
+            'code': 'A',
+            'pier_type': 'concrete',
+            'polygon_points': [[0,0],[10,0],[10,5],[0,5]],
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()['code'], 'A')
