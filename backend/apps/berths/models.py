@@ -15,8 +15,12 @@ class Pier(models.Model):
     polygon_points = models.JSONField(default=list)
     pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='concrete')
     ghost_slots    = models.JSONField(default=list)
-    # ghost_slots format: [{ x, y, rotation, width_m, height_m }, ...]
-    # x, y in metres (canvas origin). Removed when a real berth is dropped on the slot.
+    # Canvas layout fields (center-origin, grid units)
+    canvas_x = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    canvas_y = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    canvas_w = models.IntegerField(default=2)
+    canvas_h = models.IntegerField(default=10)
+    rotation = models.IntegerField(default=0)
 
     class Meta:
         unique_together = ('marina', 'code')
@@ -48,17 +52,24 @@ class Berth(models.Model):
     ]
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='berths')
-    pier = models.ForeignKey(Pier, on_delete=models.CASCADE, related_name='berths')
-    code = models.CharField(max_length=10)
-    side = models.CharField(max_length=10, choices=SIDE_CHOICES, default='port')
+    pier   = models.ForeignKey(Pier, on_delete=models.SET_NULL, related_name='berths',
+                               null=True, blank=True)   # null = unplaced on canvas
+    code           = models.CharField(max_length=10)
+    side           = models.CharField(max_length=10, choices=SIDE_CHOICES, default='port')
     position_index = models.IntegerField(default=0)
-    length_m = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
-    max_draft_m = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    max_beam_m = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    amenities = models.JSONField(default=list, blank=True)
+    length_m       = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    max_draft_m    = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    max_beam_m     = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    amenities      = models.JSONField(default=list, blank=True)
     price_per_night = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
-    vessel = models.ForeignKey('vessels.Vessel', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_berth')
+    status  = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
+    vessel  = models.ForeignKey('vessels.Vessel', on_delete=models.SET_NULL,
+                                null=True, blank=True, related_name='current_berth')
+    # Canvas layout fields (local to parent pier, grid units, center-based)
+    local_x            = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    local_y            = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    position_on_parent = models.JSONField(null=True, blank=True)
+    # position_on_parent format: {"side": "port"|"starboard", "slot_index": int}
 
     class Meta:
         unique_together = ('marina', 'code')
