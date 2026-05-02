@@ -5,6 +5,7 @@ from .views import (
     BulkGenerateBerthsView,
     MapConfigView,
     AmenityListCreateView, AmenityDetailView,
+    MapPrefabListCreateView, MapPrefabDetailView,
 )
 
 urlpatterns = [
@@ -16,4 +17,6 @@ urlpatterns = [
     path('map/config/', MapConfigView.as_view(), name='map_config'),
     path('amenities/', AmenityListCreateView.as_view(), name='amenity_list'),
     path('amenities/<int:pk>/', AmenityDetailView.as_view(), name='amenity_detail'),
+    path('prefabs/', MapPrefabListCreateView.as_view(), name='prefab_list'),
+    path('prefabs/<int:pk>/', MapPrefabDetailView.as_view(), name='prefab_detail'),
 ]

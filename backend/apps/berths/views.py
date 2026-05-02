@@ -4,13 +4,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError
+from django.db.models import Q
 
 from apps.admin_portal.permissions import IsSafeModeReadOnly
-from .models import Pier, Berth, MarinaMapConfig, Amenity
+from .models import Pier, Berth, MarinaMapConfig, Amenity, MapPrefab
 from .serializers import (
     PierSerializer, BerthSerializer,
     BulkGenerateSerializer, MarinaMapConfigSerializer,
-    AmenitySerializer,
+    AmenitySerializer, MapPrefabSerializer,
 )
 
 
@@ -149,3 +150,32 @@ class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Amenity.objects.filter(marina=self.request.user.marina)
+
+
+class MapPrefabListCreateView(generics.ListCreateAPIView):
+    serializer_class = MapPrefabSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        marina = self.request.user.marina
+        return MapPrefab.objects.filter(Q(marina=marina) | Q(is_base=True))
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina, is_base=False)
+
+
+class MapPrefabDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = MapPrefabSerializer
+
+    def get_queryset(self):
+        marina = self.request.user.marina
+        return MapPrefab.objects.filter(Q(marina=marina) | Q(is_base=True))
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if obj.is_base:
+            return Response(
+                {'detail': 'Base prefabs cannot be deleted.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)

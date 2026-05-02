@@ -109,3 +109,25 @@ class MarinaMapConfig(models.Model):
 
     def __str__(self):
         return f'Map config — {self.marina}'
+
+
+class MapPrefab(models.Model):
+    marina         = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='prefabs',
+        null=True, blank=True,
+    )  # null for is_base=True prefabs
+    name           = models.CharField(max_length=100)
+    pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES)
+    polygon_points = models.JSONField()
+    # Normalized to origin: bounding box min = [0,0]. Drop offset applied at render time.
+    berth_slots    = models.JSONField(default=list)
+    # format: [{ x, y, rotation, width_m, height_m }, ...] — also normalized to origin
+    label_template = models.CharField(max_length=50, blank=True)
+    is_base        = models.BooleanField(default=False)
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-is_base', 'name']
+
+    def __str__(self):
+        return f'Prefab: {self.name}'

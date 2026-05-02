@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig, Amenity, PIER_TYPE_CHOICES
+from .models import Pier, Berth, MarinaMapConfig, Amenity, MapPrefab, PIER_TYPE_CHOICES
 
 
 class PierSerializer(serializers.ModelSerializer):
@@ -86,3 +86,14 @@ class MarinaMapConfigSerializer(serializers.ModelSerializer):
         model = MarinaMapConfig
         fields = ['config', 'updated_at']
         read_only_fields = ['updated_at']
+
+
+class MapPrefabSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MapPrefab
+        fields = [
+            'id', 'name', 'pier_type',
+            'polygon_points', 'berth_slots',
+            'label_template', 'is_base', 'created_at',
+        ]
+        read_only_fields = ['id', 'is_base', 'created_at']
