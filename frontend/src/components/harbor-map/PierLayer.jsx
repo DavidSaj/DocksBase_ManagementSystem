@@ -1,4 +1,4 @@
-import { Layer, Line, Text } from 'react-konva';
+import { Layer, Line, Text, Group } from 'react-konva';
 import { CELL } from './mapConstants';
 
 function centroid(points) {
@@ -16,7 +16,7 @@ export default function PierLayer({ piers = [], selectedPierId, onPierClick }) {
         const [cx, cy] = centroid(pier.polygon_points);
         const selected = pier.id === selectedPierId;
         return (
-          <div key={pier.id}>
+          <Group key={pier.id}>
             <Line
               points={pts}
               closed
@@ -33,7 +33,7 @@ export default function PierLayer({ piers = [], selectedPierId, onPierClick }) {
               fontSize={11} fill="#ffffff" fontStyle="bold"
               listening={false}
             />
-          </div>
+          </Group>
         );
       })}
     </Layer>
