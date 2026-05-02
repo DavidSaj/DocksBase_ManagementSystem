@@ -10,6 +10,8 @@ class PierSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'label',
             'polygon_points',
+            'pier_type',
+            'ghost_slots',
             'berth_count',
         ]
         read_only_fields = ['id', 'berth_count']

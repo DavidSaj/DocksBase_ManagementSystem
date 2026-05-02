@@ -1,12 +1,23 @@
 from django.db import models
 
 
+PIER_TYPE_CHOICES = [
+    ('concrete', 'Concrete Pier'),
+    ('pontoon',  'Wooden Pontoon'),
+    ('land',     'Land / Grass'),
+]
+
+
 class Pier(models.Model):
-    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
-    code = models.CharField(max_length=10)
-    label = models.CharField(max_length=50, blank=True)
+    marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
+    code           = models.CharField(max_length=10)
+    label          = models.CharField(max_length=50, blank=True)
     polygon_points = models.JSONField(default=list)
     # Format: [[x1,y1],[x2,y2],...] in meters. Empty list = unmapped.
+    pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='concrete')
+    ghost_slots    = models.JSONField(default=list)
+    # ghost_slots format: [{ x, y, rotation, width_m, height_m }, ...]
+    # x, y in metres (canvas origin). Removed when a real berth is dropped on the slot.
 
     class Meta:
         unique_together = ('marina', 'code')
