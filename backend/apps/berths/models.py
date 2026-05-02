@@ -1,12 +1,23 @@
 from django.db import models
 
 
+PIER_TYPE_CHOICES = [
+    ('concrete', 'Concrete Pier'),
+    ('pontoon',  'Wooden Pontoon'),
+    ('land',     'Land / Grass'),
+]
+
+
 class Pier(models.Model):
-    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
-    code = models.CharField(max_length=10)
-    label = models.CharField(max_length=50, blank=True)
+    marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
+    code           = models.CharField(max_length=50)
+    label          = models.CharField(max_length=50, blank=True)
     polygon_points = models.JSONField(default=list)
     # Format: [[x1,y1],[x2,y2],...] in meters. Empty list = unmapped.
+    pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='concrete')
+    ghost_slots    = models.JSONField(default=list)
+    # ghost_slots format: [{ x, y, rotation, width_m, height_m }, ...]
+    # x, y in metres (canvas origin). Removed when a real berth is dropped on the slot.
 
     class Meta:
         unique_together = ('marina', 'code')
@@ -98,3 +109,25 @@ class MarinaMapConfig(models.Model):
 
     def __str__(self):
         return f'Map config — {self.marina}'
+
+
+class MapPrefab(models.Model):
+    marina         = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='prefabs',
+        null=True, blank=True,
+    )  # null for is_base=True prefabs
+    name           = models.CharField(max_length=100)
+    pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES)
+    polygon_points = models.JSONField()
+    # Normalized to origin: bounding box min = [0,0]. Drop offset applied at render time.
+    berth_slots    = models.JSONField(default=list)
+    # format: [{ x, y, rotation, width_m, height_m }, ...] — also normalized to origin
+    label_template = models.CharField(max_length=50, blank=True)
+    is_base        = models.BooleanField(default=False)
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-is_base', 'name']
+
+    def __str__(self):
+        return f'Prefab: {self.name}'

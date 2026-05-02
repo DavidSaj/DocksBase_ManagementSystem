@@ -1,16 +1,35 @@
 from rest_framework import generics, status as http_status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from django.db import IntegrityError
+from django.db.models import Q
 
 from apps.admin_portal.permissions import IsSafeModeReadOnly
-from .models import Pier, Berth, MarinaMapConfig, Amenity
+from .models import Pier, Berth, MarinaMapConfig, Amenity, MapPrefab
 from .serializers import (
     PierSerializer, BerthSerializer,
     BulkGenerateSerializer, MarinaMapConfigSerializer,
-    AmenitySerializer,
+    AmenitySerializer, MapPrefabSerializer,
 )
+
+
+def resolve_pier_code(marina, code_template):
+    """Replace {n} in code_template with the next available integer for this marina."""
+    if '{n}' not in code_template:
+        return code_template
+    prefix, suffix = code_template.split('{n}', 1)
+    existing = set(
+        Pier.objects.filter(marina=marina).values_list('code', flat=True)
+    )
+    for n in range(1, 10_000):
+        candidate = f'{prefix}{n}{suffix}'
+        if candidate not in existing:
+            return candidate
+    from rest_framework.exceptions import ValidationError
+    raise ValidationError({'code': 'Could not find an available pier code slot.'})
 
 
 class PierListCreateView(generics.ListCreateAPIView):
@@ -21,7 +40,17 @@ class PierListCreateView(generics.ListCreateAPIView):
         return Pier.objects.filter(marina=self.request.user.marina).prefetch_related('berths')
 
     def perform_create(self, serializer):
-        serializer.save(marina=self.request.user.marina)
+        marina = self.request.user.marina
+        raw_code = serializer.validated_data.get('code', '')
+        for _ in range(10):
+            resolved_code = resolve_pier_code(marina, raw_code)
+            try:
+                serializer.save(marina=marina, code=resolved_code)
+                return
+            except IntegrityError:
+                pass  # concurrent request claimed this slot; retry with next n
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({'code': 'Could not allocate a unique pier code after retries.'})
 
 
 class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -122,3 +151,29 @@ class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Amenity.objects.filter(marina=self.request.user.marina)
+
+
+class MapPrefabListCreateView(generics.ListCreateAPIView):
+    serializer_class = MapPrefabSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        marina = self.request.user.marina
+        return MapPrefab.objects.filter(Q(marina=marina) | Q(is_base=True))
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina, is_base=False)
+
+
+class MapPrefabDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = MapPrefabSerializer
+
+    def get_queryset(self):
+        marina = self.request.user.marina
+        return MapPrefab.objects.filter(Q(marina=marina) | Q(is_base=True))
+
+    def get_object(self):
+        obj = super().get_object()
+        if self.request.method not in ('GET', 'HEAD', 'OPTIONS') and obj.is_base:
+            raise PermissionDenied('Base prefabs cannot be modified.')
+        return obj

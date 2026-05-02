@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import Ic from '../ui/Icon.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import useMarina from '../../hooks/useMarina.js';
 import useSidebarCounts from '../../hooks/useSidebarCounts.js';
 
-const NAV = [
+// Items with a `flag` key are hidden unless marina.features[flag] is true.
+export const NAV = [
   { group: 'Operations', items: [
     { id: 'overview',     icon: 'grid',       label: 'Overview' },
     { id: 'map',          icon: 'map',        label: 'Marina Map' },
     { id: 'reservations', icon: 'calendar',   label: 'Reservations' },
     { id: 'operations',   icon: 'zap',        label: 'Operations' },
     { id: 'vessels',      icon: 'ship',       label: 'Vessels' },
-    { id: 'documents',   icon: 'clipboard',  label: 'Documents & eSign' },
+    { id: 'documents',    icon: 'clipboard',  label: 'Documents & eSign' },
   ]},
   { group: 'Yard & Crew', items: [
     { id: 'boatyard',     icon: 'crane',      label: 'Boatyard' },
@@ -25,7 +27,8 @@ const NAV = [
     { id: 'members',      icon: 'users',      label: 'Members' },
   ]},
   { group: 'Hospitality', items: [
-    { id: 'events',       icon: 'star',       label: 'Events' },
+    { id: 'restaurant',   icon: 'utensils',   label: 'Restaurant', flag: 'restaurant' },
+    { id: 'events',       icon: 'star',       label: 'Events',     flag: 'events' },
   ]},
   { group: 'Sales', items: [
     { id: 'sales',        icon: 'tag',        label: 'Boat Sales' },
@@ -34,8 +37,6 @@ const NAV = [
     { id: 'settings',     icon: 'settings',   label: 'Settings' },
   ]},
 ];
-
-export { NAV };
 
 function getInitials(user) {
   if (!user) return '?';
@@ -64,6 +65,8 @@ function getRoleLabel(role) {
 
 export default function Sidebar({ screen, setScreen }) {
   const { user, signOut } = useAuth();
+  const { marina } = useMarina();
+  const features = marina?.features ?? {};
   const counts = useSidebarCounts();
   const LIVE_COUNTS = {
     reservations: counts.reservations,
@@ -116,33 +119,37 @@ export default function Sidebar({ screen, setScreen }) {
       </div>
 
       <div className="sb-marina">
-        <div className="sb-marina-name">Harwich Marina</div>
-        <div className="sb-marina-sub">Harwich, Essex · 22 active berths</div>
+        <div className="sb-marina-name">{marina?.name ?? '…'}</div>
+        <div className="sb-marina-sub">{marina?.total_berths != null ? `${marina.total_berths} active berths` : ''}</div>
       </div>
 
       <div className="sb-nav">
-        {NAV.map(group => (
-          <div key={group.group} className="sb-section">
-            <div className="sb-section-label">{group.group}</div>
-            {group.items.map(item => (
-              <div
-                key={item.id}
-                className={`sb-item${screen === item.id ? ' active' : ''}`}
-                onClick={() => setScreen(item.id)}
-              >
-                <Ic n={item.icon} s={14} />
-                {item.label}
-                {(() => {
-                  const live = LIVE_COUNTS[item.id];
-                  const display = live != null ? live : item.count;
-                  return display != null && display > 0 ? (
-                    <span className={`sb-badge${item.alert ? ' alert' : ''}`}>{display}</span>
-                  ) : null;
-                })()}
-              </div>
-            ))}
-          </div>
-        ))}
+        {NAV.map(group => {
+          const visibleItems = group.items.filter(item => !item.flag || features[item.flag]);
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={group.group} className="sb-section">
+              <div className="sb-section-label">{group.group}</div>
+              {visibleItems.map(item => (
+                <div
+                  key={item.id}
+                  className={`sb-item${screen === item.id ? ' active' : ''}`}
+                  onClick={() => setScreen(item.id)}
+                >
+                  <Ic n={item.icon} s={14} />
+                  {item.label}
+                  {(() => {
+                    const live = LIVE_COUNTS[item.id];
+                    const display = live != null ? live : item.count;
+                    return display != null && display > 0 ? (
+                      <span className={`sb-badge${item.alert ? ' alert' : ''}`}>{display}</span>
+                    ) : null;
+                  })()}
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       <div className="sb-bottom">
