@@ -5,11 +5,15 @@ from django.utils import timezone
 
 
 def allocate_payment(member, amount, method, notes='', recorded_by=None):
+    # deferred import to avoid circular dependency at module load time
     from .models import AccountPayment, PaymentAllocation, Invoice
 
     amount = Decimal(str(amount))
     if amount <= Decimal('0'):
         raise ValueError('amount must be greater than zero')
+
+    if member is None or member.pk is None:
+        raise ValueError('member must be a saved Member instance')
 
     payment = AccountPayment.objects.create(
         marina=member.marina,
@@ -23,11 +27,12 @@ def allocate_payment(member, amount, method, notes='', recorded_by=None):
 
     open_invoices = list(
         Invoice.objects
+        .select_for_update()
         .filter(member=member, status='open')
         .annotate(
             already_paid=Coalesce(
                 Sum('allocations__allocated_amount'),
-                Value(Decimal('0.00'), output_field=DecimalField()),
+                Value(Decimal('0.00'), output_field=DecimalField(max_digits=10, decimal_places=2)),
             )
         )
         .order_by(F('due_date').asc(nulls_last=True), 'created_at')
@@ -50,7 +55,7 @@ def allocate_payment(member, amount, method, notes='', recorded_by=None):
             allocated_amount=apply,
         )
         remaining -= apply
-        if apply >= balance_due:
+        if apply == balance_due:
             Invoice.objects.filter(pk=inv.pk, status='open').update(
                 status='paid',
                 paid_at=timezone.now(),

@@ -106,3 +106,18 @@ class AllocationEngineTest(TestCase):
         for key in ('payment_id', 'amount_received', 'amount_allocated', 'credit_remaining',
                     'invoices_settled', 'invoices_partial'):
             self.assertIn(key, result)
+        self.assertIsInstance(result['amount_received'], str)
+        self.assertIsInstance(result['amount_allocated'], str)
+        self.assertIsInstance(result['credit_remaining'], str)
+        self.assertEqual(Decimal(result['amount_received']), Decimal('100.00'))
+        self.assertEqual(Decimal(result['amount_allocated']), Decimal('100.00'))
+        self.assertEqual(Decimal(result['credit_remaining']), Decimal('0.00'))
+
+    def test_null_due_date_invoice_settled_last(self):
+        inv_dated = make_invoice(self.marina, self.member, Decimal('100.00'), date(2026, 3, 1))
+        inv_null = make_invoice(self.marina, self.member, Decimal('100.00'))  # due_date=None
+        allocate_payment(self.member, Decimal('100.00'), 'cash')
+        inv_dated.refresh_from_db()
+        inv_null.refresh_from_db()
+        self.assertEqual(inv_dated.status, 'paid')
+        self.assertEqual(inv_null.status, 'open')
