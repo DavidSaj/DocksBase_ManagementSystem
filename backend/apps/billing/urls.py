@@ -6,6 +6,9 @@ from .views import (
     InvoiceCreateView, AddLineItemView, RemoveLineItemView, FinalizeInvoiceView,
     BatchInvoiceView, ZReportView, InvoiceExportView,
 )
+from .account_views import (
+    AccountListView, AccountDetailView, RecordPaymentView, GenerateInviteView,
+)
 
 urlpatterns = [
     path('stripe/webhook/',              StripeWebhookView.as_view(),            name='stripe_webhook'),
@@ -24,4 +27,8 @@ urlpatterns = [
     path('service-catalog/',             ChargeableItemListCreateView.as_view(), name='service_catalog_list'),
     path('service-catalog/<int:pk>/',    ChargeableItemDetailView.as_view(),     name='service_catalog_detail'),
     path('z-report/',                    ZReportView.as_view(),                  name='z_report'),
+    path('accounts/',                                 AccountListView.as_view(),    name='account_list'),
+    path('accounts/<int:member_id>/',                 AccountDetailView.as_view(),  name='account_detail'),
+    path('accounts/<int:member_id>/payments/',        RecordPaymentView.as_view(),  name='account_payments'),
+    path('accounts/<int:member_id>/generate-invite/', GenerateInviteView.as_view(), name='account_generate_invite'),
 ]
