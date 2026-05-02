@@ -1,7 +1,11 @@
+import csv
+import datetime
+import io
 import threading
 
 from django.conf import settings
-from django.http import HttpResponse
+from django.db.models import Sum
+from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import generics, status as http_status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -271,3 +275,140 @@ class FinalizeInvoiceView(APIView):
         except ValueError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
         return Response(InvoiceSerializer(invoice).data)
+
+
+class BatchInvoiceView(APIView):
+    """Generate invoices in bulk for all active bookings in a billing period."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from . import batch_service
+
+        billing_period = request.data.get('billing_period', '').strip()
+        if not billing_period or len(billing_period) != 7:
+            return Response(
+                {'detail': 'billing_period is required in YYYY-MM format.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        member_type = request.data.get('member_type', 'all')
+        if member_type not in ('all', 'seasonal', 'transient'):
+            return Response(
+                {'detail': "member_type must be 'all', 'seasonal', or 'transient'."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        chargeable_item_id = request.data.get('chargeable_item_id') or None
+
+        try:
+            result = batch_service.run_batch(
+                marina=request.user.marina,
+                billing_period=billing_period,
+                member_type=member_type,
+                chargeable_item_id=chargeable_item_id,
+            )
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=http_status.HTTP_200_OK)
+
+
+class ZReportView(APIView):
+    """End-of-day Z-report: aggregate POS activity for a given date."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.fuel_dock.models import FuelDockEntry
+
+        date_str = request.query_params.get('date', str(datetime.date.today()))
+        try:
+            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'detail': 'date must be in YYYY-MM-DD format.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        marina = request.user.marina
+        lines = []
+        grand_total = 0
+
+        # Fuel breakdown by type
+        fuel_labels = {'diesel': 'Diesel', 'petrol': 'Petrol', 'pump_out': 'Pump-outs'}
+        fuel_rows = (
+            FuelDockEntry.objects
+            .filter(marina=marina, status='completed', completed_at__date=target_date)
+            .values('fuel_type')
+            .annotate(total=Sum('total_amount'))
+            .order_by('fuel_type')
+        )
+        for row in fuel_rows:
+            t = float(row['total'] or 0)
+            lines.append({'label': fuel_labels.get(row['fuel_type'], row['fuel_type'].title()), 'total': f'{t:.2f}'})
+            grand_total += t
+
+        # Payments today on non-fuel invoices (cash / card)
+        from .models import Payment
+        other_rows = (
+            Payment.objects
+            .filter(invoice__marina=marina, paid_at__date=target_date)
+            .exclude(invoice__source_type='fuel_dock')
+            .values('invoice__items__chargeable_item__category')
+            .annotate(total=Sum('amount'))
+        )
+        cat_labels = {
+            'berth': 'Berth Fees', 'utility': 'Utilities',
+            'service': 'Services', 'retail': 'Marina Store', None: 'Other',
+        }
+        cat_totals = {}
+        for row in other_rows:
+            cat = row['invoice__items__chargeable_item__category']
+            cat_totals[cat] = cat_totals.get(cat, 0) + float(row['total'] or 0)
+        for cat, t in sorted(cat_totals.items(), key=lambda x: x[0] or ''):
+            lines.append({'label': cat_labels.get(cat, 'Other'), 'total': f'{t:.2f}'})
+            grand_total += t
+
+        return Response({
+            'date': str(target_date),
+            'lines': lines,
+            'grand_total': f'{grand_total:.2f}',
+        })
+
+
+class InvoiceExportView(APIView):
+    """Stream all invoices for this marina as a CSV download."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        marina = request.user.marina
+        invoices = (
+            Invoice.objects
+            .filter(marina=marina)
+            .select_related('member')
+            .order_by('-created_at')
+        )
+
+        def rows():
+            header = io.StringIO()
+            w = csv.writer(header)
+            w.writerow(['Invoice #', 'Member', 'Status', 'Billing Period', 'Total', 'Due Date', 'Paid At', 'Created At'])
+            yield header.getvalue()
+
+            for inv in invoices.iterator():
+                buf = io.StringIO()
+                w = csv.writer(buf)
+                w.writerow([
+                    inv.invoice_number,
+                    inv.member.name if inv.member_id else '',
+                    inv.status,
+                    inv.billing_period,
+                    str(inv.total),
+                    str(inv.due_date) if inv.due_date else '',
+                    str(inv.paid_at) if inv.paid_at else '',
+                    str(inv.created_at.date()),
+                ])
+                yield buf.getvalue()
+
+        response = StreamingHttpResponse(rows(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="invoices.csv"'
+        return response

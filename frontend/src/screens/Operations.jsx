@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import useFuelQueue from '../hooks/useFuelQueue.js';
 import useVessels from '../hooks/useVessels.js';
+import { useMarinaContext } from '../context/MarinaContext.jsx';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
-
-const FUEL_BERTHS = ['FD-1', 'FD-2'];
 
 function AddQueueForm({ vessels, onAdd, onCancel }) {
   const [mode, setMode] = useState('stranger'); // 'member' | 'stranger'
@@ -106,6 +105,8 @@ function CompletionForm({ entry, onComplete, onCancel }) {
 function FuelDockTab() {
   const { queue, loading, addToQueue, advanceEntry, removeEntry } = useFuelQueue();
   const { vessels } = useVessels();
+  const { marina } = useMarinaContext();
+  const fuelBerths = marina?.fuel_berths?.length ? marina.fuel_berths : ['FD-1', 'FD-2'];
   const [showAddForm, setShowAddForm]   = useState(false);
   const [completingId, setCompletingId] = useState(null);
 
@@ -157,7 +158,7 @@ function FuelDockTab() {
         <div className="grid-2" style={{ alignItems: 'start' }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Fuel Dock Berths</div>
-            {FUEL_BERTHS.map(berth => {
+            {fuelBerths.map(berth => {
               const occ = serviceEntries.find(e => e.fuel_berth === berth);
               return (
                 <div key={berth} className="fuel-berth">

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
 import { useState, Component } from 'react';
 
@@ -98,7 +99,7 @@ export default function App() {
         <Route path="/magic"  element={<MagicLink />} />
         <Route path="/portal" element={<ProtectedRoute element={<BoaterPortal />} allowedRoles={['boater']} />} />
         <Route path="/field"  element={<ProtectedRoute element={<Field />}        allowedRoles={['staff', 'owner', 'manager']} />} />
-        <Route path="/*"      element={<ProtectedRoute element={<DesktopApp />}   allowedRoles={['owner', 'manager']} />} />
+        <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />
       </Routes>
     </AuthProvider>
   );

@@ -8,7 +8,7 @@ from .models import Invoice, InvoiceLineItem, Payment
 from .signals import invoice_paid
 
 
-def create_invoice(marina, member=None, source_type='', source_id='', due_date=None):
+def create_invoice(marina, member=None, source_type='', source_id='', due_date=None, billing_period=''):
     year = datetime.date.today().year
     with transaction.atomic():
         last = (
@@ -27,6 +27,7 @@ def create_invoice(marina, member=None, source_type='', source_id='', due_date=N
             source_id=str(source_id) if source_id else '',
             vat_rate=None,
             due_date=due_date,
+            billing_period=billing_period,
         )
 
 

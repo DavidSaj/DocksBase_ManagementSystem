@@ -40,11 +40,15 @@ export function useBerths(filters = {}) {
     setBerths(prev => [...prev, ...newBerths]);
   }, []);
 
+  const removeBerthsByPier = useCallback((pierId) => {
+    setBerths(prev => prev.filter(b => b.pier !== pierId));
+  }, []);
+
   const counts = berths.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1;
     acc.total = (acc.total || 0) + 1;
     return acc;
   }, {});
 
-  return { berths, counts, loading, error, reload: load, updateBerth, createBerth, deleteBerth, addBerths };
+  return { berths, counts, loading, error, reload: load, updateBerth, createBerth, deleteBerth, addBerths, removeBerthsByPier };
 }
