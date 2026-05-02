@@ -14,3 +14,4 @@ s3transfer>=0.17,<1.0
 stripe==15.1.0
 weasyprint
 django-anymail[resend]>=12.0,<13.0
+django-csp>=3.8,<4.0

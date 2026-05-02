@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { getStoredUser, clearAuth, isAuthenticated, storeUser } from '../api.js';
+import api, { getStoredUser, clearAuth, isAuthenticated, storeUser } from '../api.js';
 
 const AuthContext = createContext(null);
 
@@ -12,12 +12,28 @@ export function AuthProvider({ children }) {
       const stored = getStoredUser();
       if (stored) {
         setUser(stored);
+        // Validate token server-side and refresh the user object with
+        // authoritative data — prevents a tampered localStorage role from
+        // granting elevated access.
+        api.get('auth/me/')
+          .then(r => {
+            storeUser(r.data);
+            setUser(r.data);
+          })
+          .catch(() => {
+            // Token is invalid or expired — force logout
+            clearAuth();
+            setUser(null);
+          })
+          .finally(() => setLoading(false));
       } else {
         // Token exists but no user object — clear stale state
         clearAuth();
+        setLoading(false);
       }
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   function signIn(userObj) {

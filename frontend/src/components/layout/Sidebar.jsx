@@ -25,7 +25,6 @@ const NAV = [
     { id: 'members',      icon: 'users',      label: 'Members' },
   ]},
   { group: 'Hospitality', items: [
-    { id: 'restaurant',   icon: 'utensils',   label: 'Restaurant' },
     { id: 'events',       icon: 'star',       label: 'Events' },
   ]},
   { group: 'Sales', items: [

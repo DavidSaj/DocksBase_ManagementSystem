@@ -46,6 +46,13 @@ class CertificationSerializer(serializers.ModelSerializer):
         fields = ['id', 'staff_member', 'staff_member_name', 'name', 'issuing_body',
                   'issued', 'expires', 'status', 'pdf_file']
 
+    def validate_pdf_file(self, value):
+        if not value.name.lower().endswith('.pdf'):
+            raise serializers.ValidationError('Only PDF files are allowed.')
+        if hasattr(value, 'content_type') and value.content_type not in ('application/pdf',):
+            raise serializers.ValidationError('Invalid file type.')
+        return value
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         request = self.context.get('request')

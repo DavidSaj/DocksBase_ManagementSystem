@@ -63,6 +63,9 @@ api.interceptors.response.use(
 
 export async function login(email, password) {
   const { data } = await api.post('/auth/token/', { email, password });
+  // Security note: tokens are stored in localStorage (XSS-accessible).
+  // Future hardening: migrate to httpOnly cookies set by the server.
+  // Until then, CSP headers on the backend reduce XSS exposure.
   localStorage.setItem('access_token', data.access);
   localStorage.setItem('refresh_token', data.refresh);
   storeUser(data.user);
@@ -79,6 +82,9 @@ export function isAuthenticated() {
 
 export async function exchangeMagicToken(token) {
   const { data } = await api.post('/auth/magic/exchange/', { token });
+  // Security note: tokens are stored in localStorage (XSS-accessible).
+  // Future hardening: migrate to httpOnly cookies set by the server.
+  // Until then, CSP headers on the backend reduce XSS exposure.
   localStorage.setItem('access_token', data.access);
   localStorage.setItem('refresh_token', data.refresh);
   storeUser(data.user);
@@ -101,7 +107,11 @@ export async function signup(firstName, lastName, email, password, marinaName) {
 }
 
 export async function verifyEmail(token) {
-  const { data } = await api.get(`/auth/verify-email/?token=${token}`);
+  // FIX 6: changed from GET (token in query param) to POST (token in request body)
+  const { data } = await api.post('/auth/verify-email/', { token });
+  // Security note: tokens are stored in localStorage (XSS-accessible).
+  // Future hardening: migrate to httpOnly cookies set by the server.
+  // Until then, CSP headers on the backend reduce XSS exposure.
   localStorage.setItem('access_token', data.access);
   localStorage.setItem('refresh_token', data.refresh);
   storeUser(data.user);

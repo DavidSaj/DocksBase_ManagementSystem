@@ -1,3 +1,7 @@
+import os as _os
+if _os.environ.get('DJANGO_ENV') == 'production':
+    raise RuntimeError('Dev settings must not be used in production. Set DJANGO_SETTINGS_MODULE to config.settings.prod')
+
 from .base import *
 
 DEBUG = True

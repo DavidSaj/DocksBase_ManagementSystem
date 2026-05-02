@@ -14,7 +14,10 @@ class IsBoater(permissions.BasePermission):
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated and request.user.role == 'boater'):
             return False
-        return hasattr(request.user, 'member_profile')
+        member = getattr(request.user, 'member_profile', None)
+        if member is None:
+            return False
+        return member.marina_id == request.user.marina_id
 
 
 class PortalInvoiceListView(generics.ListAPIView):
