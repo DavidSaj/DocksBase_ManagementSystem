@@ -67,10 +67,10 @@ function AddQueueForm({ vessels, onAdd, onCancel }) {
               </select>
               <input className="input" placeholder="Est. litres" type="number" value={form.estimated_litres} onChange={e => set('estimated_litres', e.target.value)} />
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Adding…' : 'Add to Queue'}</button>
-            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Adding…' : 'Add to Queue'}</button>
           </div>
         </form>
       </div>
