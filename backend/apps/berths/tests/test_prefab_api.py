@@ -88,3 +88,57 @@ class PrefabCRUDTest(TestCase):
         )
         resp = self.client.delete(f'/api/v1/prefabs/{other_prefab.id}/')
         self.assertEqual(resp.status_code, 404)
+
+    def test_patch_own_prefab(self):
+        prefab = MapPrefab.objects.create(
+            marina=self.marina, name='Edit Me', pier_type='concrete',
+            polygon_points=SAMPLE_POLYGON,
+        )
+        resp = self.client.patch(f'/api/v1/prefabs/{prefab.id}/', {'name': 'Edited'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['name'], 'Edited')
+
+    def test_cannot_patch_base_prefab(self):
+        base = MapPrefab.objects.create(
+            marina=None, name='Base', pier_type='pontoon',
+            polygon_points=SAMPLE_POLYGON, is_base=True,
+        )
+        resp = self.client.patch(f'/api/v1/prefabs/{base.id}/', {'name': 'Hacked'}, format='json')
+        self.assertEqual(resp.status_code, 403)
+        base.refresh_from_db()
+        self.assertEqual(base.name, 'Base')
+
+    def test_cannot_set_is_base_via_post(self):
+        resp = self.client.post('/api/v1/prefabs/', {
+            'name': 'Fake Base',
+            'pier_type': 'concrete',
+            'polygon_points': SAMPLE_POLYGON,
+            'is_base': True,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertFalse(resp.json()['is_base'])
+
+
+class PrefabValidationTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('val@test.com')
+        self.client = auth_client(self.user)
+
+    def test_polygon_points_too_few_rejected(self):
+        resp = self.client.post('/api/v1/prefabs/', {
+            'name': 'Bad',
+            'pier_type': 'concrete',
+            'polygon_points': [[0, 0], [1, 1]],
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('polygon_points', resp.json())
+
+    def test_berth_slots_missing_key_rejected(self):
+        resp = self.client.post('/api/v1/prefabs/', {
+            'name': 'Bad Slots',
+            'pier_type': 'concrete',
+            'polygon_points': SAMPLE_POLYGON,
+            'berth_slots': [{'x': 0, 'y': 0}],
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('berth_slots', resp.json())

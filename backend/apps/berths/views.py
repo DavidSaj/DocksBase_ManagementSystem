@@ -1,4 +1,5 @@
 from rest_framework import generics, status as http_status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -171,11 +172,8 @@ class MapPrefabDetailView(generics.RetrieveUpdateDestroyAPIView):
         marina = self.request.user.marina
         return MapPrefab.objects.filter(Q(marina=marina) | Q(is_base=True))
 
-    def destroy(self, request, *args, **kwargs):
-        obj = self.get_object()
-        if obj.is_base:
-            return Response(
-                {'detail': 'Base prefabs cannot be deleted.'},
-                status=http_status.HTTP_403_FORBIDDEN,
-            )
-        return super().destroy(request, *args, **kwargs)
+    def get_object(self):
+        obj = super().get_object()
+        if self.request.method not in ('GET', 'HEAD', 'OPTIONS') and obj.is_base:
+            raise PermissionDenied('Base prefabs cannot be modified.')
+        return obj

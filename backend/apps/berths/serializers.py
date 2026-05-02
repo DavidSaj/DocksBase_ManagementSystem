@@ -97,3 +97,27 @@ class MapPrefabSerializer(serializers.ModelSerializer):
             'label_template', 'is_base', 'created_at',
         ]
         read_only_fields = ['id', 'is_base', 'created_at']
+
+    def validate_polygon_points(self, value):
+        if not isinstance(value, list) or len(value) < 3:
+            raise serializers.ValidationError('polygon_points must be a list of at least 3 points.')
+        for point in value:
+            if not (isinstance(point, list) and len(point) == 2 and
+                    all(isinstance(c, (int, float)) for c in point)):
+                raise serializers.ValidationError('Each point must be [x, y] with numeric values.')
+        return value
+
+    def validate_berth_slots(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError('berth_slots must be a list.')
+        required_keys = {'x', 'y', 'rotation', 'width_m', 'height_m'}
+        for slot in value:
+            if not isinstance(slot, dict):
+                raise serializers.ValidationError('Each slot must be an object.')
+            missing = required_keys - slot.keys()
+            if missing:
+                raise serializers.ValidationError(f'Slot missing keys: {missing}')
+            for k in required_keys:
+                if not isinstance(slot[k], (int, float)):
+                    raise serializers.ValidationError(f'Slot key {k!r} must be numeric.')
+        return value
