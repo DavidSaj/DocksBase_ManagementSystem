@@ -27,7 +27,7 @@ class BerthSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'pier_code', 'vessel_name', 'is_placed']
 
     def get_is_placed(self, obj):
-        return obj.pier_id is not None and obj.local_x is not None
+        return obj.pier_id is not None and obj.local_x is not None and obj.local_y is not None
 
 
 class MarinaMapConfigSerializer(serializers.ModelSerializer):
