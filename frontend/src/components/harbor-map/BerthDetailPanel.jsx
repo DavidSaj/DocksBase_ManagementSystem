@@ -16,11 +16,14 @@ export default function BerthDetailPanel({ berth, onClose }) {
       .then(({ data }) => {
         const results = data.results ?? data
         setBooking(results[0] ?? null)
+        setLoadingBooking(false)
       })
       .catch(err => {
-        if (err.name !== 'CanceledError') setBooking(null)
+        if (err.name !== 'CanceledError') {
+          setBooking(null)
+          setLoadingBooking(false)
+        }
       })
-      .finally(() => setLoadingBooking(false))
 
     return () => controller.abort()
   }, [berth?.id, berth?.status])

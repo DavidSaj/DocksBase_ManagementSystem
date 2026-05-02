@@ -1,5 +1,5 @@
 // frontend/src/components/harbor-map/LiveMap.jsx
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import usePiers from '../../hooks/usePiers.js'
 import useBerths from '../../hooks/useBerths.js'
 import useMapConfig from '../../hooks/useMapConfig.js'

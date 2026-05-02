@@ -42,7 +42,7 @@ export function rotateAndSnap(gx, gy, w, h, deg) {
 // Sort items so environment is drawn first, selection handles always last.
 const LAYER = (type) => {
   if (['water', 'shore'].includes(type))                      return 0
-  if (['quay', 'parallel-wall', 'pier-v', 'pier-h'].includes(type)) return 1
+  if (['quay', 'parallel-wall', 'pier-v', 'pier-h', 'pier'].includes(type)) return 1
   if (['tri-ul','tri-ur','tri-bl','tri-br','tri-up','tri-rt'].includes(type)) return 1
   if (type === 'berth')                                       return 2
   if (['slip','slip-t','fuel-dock','gangway','ramp'].includes(type)) return 2
