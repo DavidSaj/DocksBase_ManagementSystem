@@ -25,8 +25,6 @@ function BerthShape({ berth, isSelected, onSelect, draggable, onDragEnd }) {
         ref={groupRef}
         x={centerX}
         y={centerY}
-        offsetX={w / 2}
-        offsetY={h / 2}
         rotation={berth.canvas_rotation || 0}
         draggable={draggable}
         onClick={onSelect}
