@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   snapToGrid, snapRotation, rotateAndSnap,
-  sortItemsForRender, groupOrigin, wallSnapPos, GRID, COLS, ROWS
+  sortItemsForRender, groupOrigin, wallSnapPos, newId, GRID, COLS, ROWS
 } from '../mapBuilderUtils.js'
 
 const rect = { left: 0, top: 0 }
@@ -78,6 +78,9 @@ describe('groupOrigin', () => {
     ]
     expect(groupOrigin(items)).toEqual({ gx: 1, gy: 2 })
   })
+  it('throws when called with empty array', () => {
+    expect(() => groupOrigin([])).toThrow()
+  })
 })
 
 describe('wallSnapPos', () => {
@@ -100,5 +103,14 @@ describe('wallSnapPos', () => {
     const result = wallSnapPos(3, 4, 2, [wall])
     expect(result.slotIndex).toBeGreaterThanOrEqual(0)
     expect(Number.isInteger(result.slotIndex)).toBe(true)
+  })
+})
+
+describe('newId', () => {
+  it('returns an 8-character alphanumeric string', () => {
+    expect(newId()).toMatch(/^[a-z0-9]{8}$/)
+  })
+  it('returns unique values on successive calls', () => {
+    expect(newId()).not.toBe(newId())
   })
 })

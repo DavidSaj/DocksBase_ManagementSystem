@@ -57,6 +57,7 @@ export function sortItemsForRender(items) {
 // Group origin is Math.min of all gx and Math.min of all gy — NOT centroid.
 // This ensures relative offsets are non-negative integers that snap cleanly.
 export function groupOrigin(items) {
+  if (items.length === 0) throw new Error('groupOrigin requires at least one item')
   return {
     gx: Math.min(...items.map(i => i.gx)),
     gy: Math.min(...items.map(i => i.gy)),
