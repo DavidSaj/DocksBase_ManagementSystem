@@ -62,13 +62,9 @@ describe('CanvasCore', () => {
       const { container } = render(
         <CanvasCore shapes={[makeShape({ label: '' })]} />
       )
-      // Only rotation-handle text (↻) might exist in builder mode, but in viewer
-      // mode (default) there should be no text at all
+      // viewer mode (default): no text elements at all (no label, no rotation handle)
       const texts = container.querySelectorAll('text')
-      const labelText = Array.from(texts).find(t => t.textContent === '')
-      // No text element with empty content, and no 'A1' text
-      const a1Text = Array.from(texts).find(t => t.textContent === 'A1')
-      expect(a1Text).toBeUndefined()
+      expect(texts.length).toBe(0)
     })
 
     it('does NOT render label text when label is missing/undefined', () => {
@@ -176,6 +172,27 @@ describe('CanvasCore', () => {
       )
       const circle = container.querySelector('circle')
       expect(circle).toBeNull()
+    })
+
+    it('calls onRotateHandlePointerDown and stops propagation so onItemPointerDown is NOT called', () => {
+      const onItemPointerDown = vi.fn()
+      const onRotateHandlePointerDown = vi.fn()
+      const shape = makeShape()
+      const { container } = render(
+        <CanvasCore
+          shapes={[shape]}
+          mode="builder"
+          selectedIds={new Set(['shape-1'])}
+          onItemPointerDown={onItemPointerDown}
+          onRotateHandlePointerDown={onRotateHandlePointerDown}
+        />
+      )
+      const circle = container.querySelector('circle[fill="#b8965a"]')
+      expect(circle).not.toBeNull()
+      circle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+      expect(onRotateHandlePointerDown).toHaveBeenCalledTimes(1)
+      expect(onRotateHandlePointerDown).toHaveBeenCalledWith(expect.any(Object), shape)
+      expect(onItemPointerDown).not.toHaveBeenCalled()
     })
   })
 

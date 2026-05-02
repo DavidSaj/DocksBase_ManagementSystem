@@ -1,4 +1,5 @@
 // frontend/src/components/harbor-map/CanvasCore.jsx
+import { useId } from 'react'
 import { GRID, COLS, ROWS, CW, CH } from './mapBuilderUtils.js'
 
 /**
@@ -27,7 +28,7 @@ export default function CanvasCore({
   mode = 'viewer',
   snapZones = [],       // [{absX, absY, w, h}] — highlight these in builder mode
   selectedIds = new Set(),
-  onItemClick,          // (e, item) => void
+  onItemClick,          // (e, item) => void — viewer mode only, berth type only
   onItemPointerDown,    // (e, item) => void  — builder only
   onRotateHandlePointerDown, // (e, item) => void  — builder only
   onCanvasPointerMove,
@@ -38,6 +39,9 @@ export default function CanvasCore({
   onCanvasDragLeave,
   ghost,                // { absX, absY, w, h, fill, stroke } | null — drag preview
 }) {
+  const uid = useId()
+  const minorId = `ccMinorGrid${uid}`
+  const majorId = `ccMajorGrid${uid}`
   return (
     <svg
       className="canvas-core"
@@ -53,16 +57,16 @@ export default function CanvasCore({
     >
       {/* Grid */}
       <defs>
-        <pattern id="ccMinorGrid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
+        <pattern id={minorId} width={GRID} height={GRID} patternUnits="userSpaceOnUse">
           <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="#1a3a55" strokeWidth={0.5} />
         </pattern>
-        <pattern id="ccMajorGrid" width={GRID * 5} height={GRID * 5} patternUnits="userSpaceOnUse">
-          <rect width={GRID * 5} height={GRID * 5} fill="url(#ccMinorGrid)" />
+        <pattern id={majorId} width={GRID * 5} height={GRID * 5} patternUnits="userSpaceOnUse">
+          <rect width={GRID * 5} height={GRID * 5} fill={`url(#${minorId})`} />
           <path d={`M ${GRID * 5} 0 L 0 0 0 ${GRID * 5}`} fill="none" stroke="#2a5a7a" strokeWidth={1} />
         </pattern>
       </defs>
       <rect width={CW} height={CH} fill="#0d2235" />
-      <rect width={CW} height={CH} fill="url(#ccMajorGrid)" />
+      <rect width={CW} height={CH} fill={`url(#${majorId})`} />
 
       {/* Shapes — rendered in array order (controller is responsible for layer ordering) */}
       {shapes.map(item => {
