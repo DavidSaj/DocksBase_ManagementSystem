@@ -5,7 +5,7 @@ from .models import Pier, Berth, MarinaMapConfig
 class PierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pier
-        fields = ['id', 'code', 'label', 'cx']
+        fields = ['id', 'code', 'label', 'polygon_points', 'pier_type', 'ghost_slots']
 
 
 class BerthSerializer(serializers.ModelSerializer):

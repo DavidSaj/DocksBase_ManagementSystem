@@ -1,15 +1,35 @@
 from django.db import models
 
 
+PIER_TYPE_CHOICES = [
+    ('concrete', 'Concrete Pier'),
+    ('pontoon',  'Wooden Pontoon'),
+    ('land',     'Land / Grass'),
+]
+
+
 class Pier(models.Model):
-    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
-    code = models.CharField(max_length=10)
-    label = models.CharField(max_length=50, blank=True)
-    cx = models.IntegerField(default=0, help_text='SVG centre-x position')
+    marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
+    code           = models.CharField(max_length=10)
+    label          = models.CharField(max_length=50, blank=True)
+    polygon_points = models.JSONField(default=list)
+    pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='concrete')
+    ghost_slots    = models.JSONField(default=list)
+    # ghost_slots format: [{ x, y, rotation, width_m, height_m }, ...]
+    # x, y in metres (canvas origin). Removed when a real berth is dropped on the slot.
 
     class Meta:
         unique_together = ('marina', 'code')
         ordering = ['code']
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        pts = self.polygon_points
+        if pts:
+            if not isinstance(pts, list) or len(pts) < 3:
+                raise ValidationError({'polygon_points': 'A polygon requires at least 3 points.'})
+            if not all(isinstance(p, (list, tuple)) and len(p) == 2 for p in pts):
+                raise ValidationError({'polygon_points': 'Each point must be [x, y].'})
 
     def __str__(self):
         return f'{self.marina} — Pier {self.code}'

@@ -4,7 +4,17 @@ from .models import Pier, Berth, MarinaMapConfig
 from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer
 
 
-class PierListView(generics.ListAPIView):
+class PierListView(generics.ListCreateAPIView):
+    serializer_class = PierSerializer
+
+    def get_queryset(self):
+        return Pier.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
+
+
+class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PierSerializer
 
     def get_queryset(self):

@@ -4,7 +4,7 @@ from .models import Pier, Berth, MarinaMapConfig
 
 @admin.register(Pier)
 class PierAdmin(admin.ModelAdmin):
-    list_display = ['code', 'marina', 'cx']
+    list_display = ['code', 'marina', 'pier_type']
     list_filter = ['marina']
 
 
