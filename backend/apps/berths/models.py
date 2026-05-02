@@ -15,6 +15,8 @@ class Pier(models.Model):
     polygon_points = models.JSONField(default=list)
     pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='concrete')
     ghost_slots    = models.JSONField(default=list)
+    # ghost_slots format: [{ x, y, rotation, width_m, height_m }, ...]
+    # Removed when a real berth is dropped on the slot.
     # Canvas layout fields (center-origin, grid units)
     canvas_x = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     canvas_y = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
@@ -34,6 +36,8 @@ class Pier(models.Model):
                 raise ValidationError({'polygon_points': 'A polygon requires at least 3 points.'})
             if not all(isinstance(p, (list, tuple)) and len(p) == 2 for p in pts):
                 raise ValidationError({'polygon_points': 'Each point must be [x, y].'})
+        if self.rotation % 45 != 0:
+            raise ValidationError({'rotation': 'Rotation must be a multiple of 45 degrees.'})
 
     def __str__(self):
         return f'{self.marina} — Pier {self.code}'
