@@ -35,40 +35,45 @@ function AddQueueForm({ vessels, onAdd, onCancel }) {
   }
 
   return (
-    <div className="card" style={{ padding: 18, marginBottom: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Add to Queue</div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        {[['member','Known Vessel'],['stranger','Free Text']].map(([v,l]) => (
-          <button key={v} className={`btn ${mode === v ? 'btn-primary' : 'btn-ghost'} btn-sm`} onClick={() => setMode(v)}>{l}</button>
-        ))}
-      </div>
-      <form onSubmit={submit}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {mode === 'member' ? (
-            <select className="input" value={form.vessel} onChange={e => set('vessel', e.target.value)} required>
-              <option value="">Select vessel…</option>
-              {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-          ) : (
-            <>
-              <input className="input" placeholder='Description (e.g. "White Sailboat")' value={form.guest_description} onChange={e => set('guest_description', e.target.value)} />
-              <input className="input" placeholder="Phone number" value={form.guest_phone} onChange={e => set('guest_phone', e.target.value)} />
-            </>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <select className="input" value={form.fuel_type} onChange={e => set('fuel_type', e.target.value)}>
-              <option value="diesel">Diesel</option>
-              <option value="petrol">Petrol</option>
-              <option value="pump_out">Pump-out</option>
-            </select>
-            <input className="input" placeholder="Est. litres" type="number" value={form.estimated_litres} onChange={e => set('estimated_litres', e.target.value)} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>{submitting ? 'Adding…' : 'Add to Queue'}</button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
-          </div>
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <div className="modal-hdr">
+          <span className="modal-title">Add to Queue</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}><Ic n="x" s={13}/></button>
         </div>
-      </form>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {[['member','Known Vessel'],['stranger','Free Text']].map(([v,l]) => (
+            <button key={v} type="button" className={`btn ${mode === v ? 'btn-primary' : 'btn-ghost'} btn-sm`} onClick={() => setMode(v)}>{l}</button>
+          ))}
+        </div>
+        <form onSubmit={submit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {mode === 'member' ? (
+              <select className="input" value={form.vessel} onChange={e => set('vessel', e.target.value)} required>
+                <option value="">Select vessel…</option>
+                {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            ) : (
+              <>
+                <input className="input" placeholder='Description (e.g. "White Sailboat")' value={form.guest_description} onChange={e => set('guest_description', e.target.value)} />
+                <input className="input" placeholder="Phone number" value={form.guest_phone} onChange={e => set('guest_phone', e.target.value)} />
+              </>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <select className="input" value={form.fuel_type} onChange={e => set('fuel_type', e.target.value)}>
+                <option value="diesel">Diesel</option>
+                <option value="petrol">Petrol</option>
+                <option value="pump_out">Pump-out</option>
+              </select>
+              <input className="input" placeholder="Est. litres" type="number" value={form.estimated_litres} onChange={e => set('estimated_litres', e.target.value)} />
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Adding…' : 'Add to Queue'}</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
