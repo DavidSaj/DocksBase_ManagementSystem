@@ -5,14 +5,21 @@ class Pier(models.Model):
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
     code = models.CharField(max_length=10)
     label = models.CharField(max_length=50, blank=True)
-    polygon_points = models.JSONField(
-        default=list, blank=True,
-        help_text='List of [x, y] pairs defining the pier polygon on the canvas',
-    )
+    polygon_points = models.JSONField(default=list)
+    # Format: [[x1,y1],[x2,y2],...] in meters. Empty list = unmapped.
 
     class Meta:
         unique_together = ('marina', 'code')
         ordering = ['code']
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        pts = self.polygon_points
+        if pts:
+            if not isinstance(pts, list) or len(pts) < 3:
+                raise ValidationError({'polygon_points': 'A polygon requires at least 3 points.'})
+            if not all(isinstance(p, (list, tuple)) and len(p) == 2 for p in pts):
+                raise ValidationError({'polygon_points': 'Each point must be [x, y].'})
 
     def __str__(self):
         return f'{self.marina} — Pier {self.code}'
@@ -43,8 +50,6 @@ class Berth(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
     canvas_x = models.FloatField(null=True, blank=True)
     canvas_y = models.FloatField(null=True, blank=True)
-    canvas_width = models.FloatField(default=4)
-    canvas_height = models.FloatField(default=12)
     canvas_rotation = models.FloatField(default=0)
     vessel = models.ForeignKey('vessels.Vessel', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_berth')
 
@@ -57,35 +62,33 @@ class Berth(models.Model):
 
 
 class Amenity(models.Model):
-    TYPE_CHOICES = [
-        ('fuel', 'Fuel'),
-        ('electricity', 'Electricity'),
-        ('water', 'Water'),
-        ('wifi', 'WiFi'),
-        ('toilet', 'Toilet'),
-        ('shower', 'Shower'),
-        ('laundry', 'Laundry'),
-        ('parking', 'Parking'),
-        ('restaurant', 'Restaurant'),
-        ('shop', 'Shop'),
-        ('pump_out', 'Pump Out'),
-        ('crane', 'Crane'),
-        ('other', 'Other'),
+    AMENITY_TYPES = [
+        ('harbour_master', 'Harbour Master'),
+        ('fuel',           'Fuel Pump'),
+        ('toilets',        'Toilets'),
+        ('showers',        'Showers'),
+        ('restaurant',     'Restaurant'),
+        ('parking',        'Parking'),
+        ('electricity',    'Electricity'),
+        ('water',          'Water'),
+        ('gate',           'Security Gate'),
+        ('waste',          'Waste Disposal'),
+        ('chandlery',      'Chandlery'),
+        ('first_aid',      'First Aid'),
     ]
-
-    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='amenities')
-    label = models.CharField(max_length=100)
-    type = models.CharField(max_length=30, choices=TYPE_CHOICES, default='other')
+    marina   = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='amenities')
+    type     = models.CharField(max_length=30, choices=AMENITY_TYPES)
+    label    = models.CharField(max_length=100, blank=True)
     canvas_x = models.FloatField(null=True, blank=True)
     canvas_y = models.FloatField(null=True, blank=True)
-    scale = models.FloatField(default=1.0)
-    rotation = models.FloatField(default=0.0)
+    scale    = models.FloatField(default=1.0)
+    rotation = models.FloatField(default=0)
 
     class Meta:
-        ordering = ['label']
+        ordering = ['type']
 
     def __str__(self):
-        return f'{self.label} ({self.marina})'
+        return f'{self.get_type_display()} ({self.marina})'
 
 
 class MarinaMapConfig(models.Model):

@@ -38,7 +38,7 @@ class BerthSerializer(serializers.ModelSerializer):
             'side', 'position_index',
             'length_m', 'max_draft_m', 'max_beam_m', 'amenities', 'price_per_night',
             'status', 'vessel', 'vessel_name',
-            'canvas_x', 'canvas_y', 'canvas_width', 'canvas_height', 'canvas_rotation',
+            'canvas_x', 'canvas_y', 'canvas_rotation',
             'unmapped',
         ]
         read_only_fields = ['id', 'pier_code', 'pier_label', 'vessel_name', 'unmapped']
