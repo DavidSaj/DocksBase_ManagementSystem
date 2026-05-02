@@ -304,7 +304,7 @@ export default function MapBuilder() {
     : 'Save'
 
   // A berth is placed when it has a pier FK and local coordinates
-  const placedBerthIds = new Set(berths.filter(b => b.pier != null && b.local_x != null).map(b => b.id))
+  const placedBerthIds = new Set(berths.filter(b => b.is_placed).map(b => b.id))
 
   if (cfgLoading || berthsLoading || piersLoading) {
     return <div style={{ padding: 40, color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Loading…</div>
