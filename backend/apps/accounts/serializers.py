@@ -7,26 +7,54 @@ from .models import Marina, User
 class MarinaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Marina
-        fields = '__all__'
+        # FIX 4: explicit fields instead of __all__ — sensitive/admin-only fields are read-only
+        fields = [
+            # read-writable by the owner
+            'name', 'address', 'lat', 'lng', 'timezone', 'contact_email', 'phone',
+            'currency', 'vat_rate', 'vat_number', 'payment_terms', 'booking_mode',
+            'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft',
+            # read-only: owner can see but not change
+            'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
+            'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',
+            'created_at',
+        ]
+        read_only_fields = [
+            'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
+            'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',
+            'created_at',
+        ]
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'is_platform_admin', 'is_active', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        # FIX 3: removed is_platform_admin from fields; role and is_active are now read-only
+        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'is_platform_admin', 'platform_role', 'created_at']
+        read_only_fields = ['id', 'role', 'is_platform_admin', 'platform_role', 'is_active', 'created_at']
 
 
 class UserInviteSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
     class Meta:
         model = User
-        fields = ['email', 'first_name', 'last_name', 'role', 'password']
+        # FIX 5: removed password field (invite flow no longer sets a plaintext password);
+        # is_platform_admin is intentionally absent
+        fields = ['email', 'first_name', 'last_name', 'role']
+
+    # FIX 5: validate that only safe roles can be assigned via invite
+    def validate_role(self, value):
+        allowed = {'staff', 'manager'}
+        if value not in allowed:
+            raise serializers.ValidationError(f"Role must be one of: {', '.join(sorted(allowed))}")
+        return value
 
     def create(self, validated_data):
         marina = self.context['request'].user.marina
-        return User.objects.create_user(marina=marina, **validated_data)
+        # FIX 8: create invited user as inactive; no password set here
+        return User.objects.create_user(
+            marina=marina,
+            is_active=False,
+            **validated_data,
+        )
 
 
 class DocksBaseTokenSerializer(TokenObtainPairSerializer):

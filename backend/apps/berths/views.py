@@ -5,10 +5,11 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
 from apps.admin_portal.permissions import IsSafeModeReadOnly
-from .models import Pier, Berth, MarinaMapConfig
+from .models import Pier, Berth, MarinaMapConfig, Amenity
 from .serializers import (
     PierSerializer, BerthSerializer,
     BulkGenerateSerializer, MarinaMapConfigSerializer,
+    AmenitySerializer,
 )
 
 
@@ -103,3 +104,21 @@ class MapConfigView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         obj, _ = MarinaMapConfig.objects.get_or_create(marina=self.request.user.marina)
         return obj
+
+
+class AmenityListCreateView(generics.ListCreateAPIView):
+    serializer_class = AmenitySerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return Amenity.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
+
+
+class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AmenitySerializer
+
+    def get_queryset(self):
+        return Amenity.objects.filter(marina=self.request.user.marina)

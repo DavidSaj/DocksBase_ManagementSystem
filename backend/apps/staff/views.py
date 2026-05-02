@@ -5,6 +5,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,10 +16,17 @@ User = get_user_model()
 
 
 class StaffInviteView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
+        if request.user.role not in ('owner', 'manager'):
+            return Response({'detail': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
         name = request.data.get('name', '').strip()
         email = request.data.get('email', '').strip()
         role = request.data.get('role', 'staff').strip()
+        if role not in ('staff', 'manager'):
+            return Response({'detail': 'Invalid role. Must be staff or manager.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not name or not email:
             return Response({'detail': 'name and email are required.'}, status=status.HTTP_400_BAD_REQUEST)

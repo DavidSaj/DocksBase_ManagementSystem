@@ -1,10 +1,12 @@
 import datetime
-import secrets
-import string
 from decimal import Decimal
 from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
 from django.db.models import Sum, Q
 from django.shortcuts import get_object_or_404
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status as http_status
@@ -193,20 +195,31 @@ class AdminMarinaResetPasswordView(APIView):
 
     def post(self, request, pk):
         marina = get_object_or_404(Marina, pk=pk)
+
         user_id = request.data.get('user_id')
+        if not isinstance(user_id, int):
+            return Response({'detail': 'user_id must be an integer.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
         target = get_object_or_404(User, pk=user_id, marina=marina)
 
-        alphabet = string.ascii_letters + string.digits
-        new_password = ''.join(secrets.choice(alphabet) for _ in range(16))
-        target.set_password(new_password)
-        target.save(update_fields=['password'])
+        uid = urlsafe_base64_encode(force_bytes(target.pk))
+        token = default_token_generator.make_token(target)
+        link = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
+
+        send_mail(
+            subject="Your DocksBase password has been reset",
+            message=(
+                f"A platform admin has triggered a password reset for your account.\n\n"
+                f"Set a new password here:\n{link}\n\n"
+                f"This link expires in 24 hours."
+            ),
+            from_email=None,
+            recipient_list=[target.email],
+        )
 
         _log(request.user, 'reset_password', marina, target_user=target.email)
 
-        return Response({
-            'detail': f'Password reset for {target.email}.',
-            'temporary_password': new_password,
-        })
+        return Response({'detail': f'Password reset email sent to {target.email}.'})
 
 
 # ── Finance ───────────────────────────────────────────────────────────────────

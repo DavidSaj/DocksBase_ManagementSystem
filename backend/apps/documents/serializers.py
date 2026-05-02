@@ -12,6 +12,13 @@ class DocTemplateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['uses_count', 'last_used', 'created_at', 'dropboxsign_template_id']
 
+    def validate_file(self, value):
+        if not value.name.lower().endswith('.pdf'):
+            raise serializers.ValidationError('Only PDF files are allowed.')
+        if hasattr(value, 'content_type') and value.content_type not in ('application/pdf',):
+            raise serializers.ValidationError('Invalid file type.')
+        return value
+
 
 class EnvelopeSerializer(serializers.ModelSerializer):
     template_name = serializers.CharField(source='template.name', read_only=True)
@@ -41,3 +48,12 @@ class MemberDocumentSerializer(serializers.ModelSerializer):
             'doc_type', 'file', 'expiry_date', 'status', 'notes', 'uploaded_at',
         ]
         read_only_fields = ['uploaded_at']
+
+    def validate_file(self, value):
+        allowed_extensions = ('.pdf', '.jpg', '.jpeg', '.png')
+        allowed_content_types = ('application/pdf', 'image/jpeg', 'image/png')
+        if not value.name.lower().endswith(allowed_extensions):
+            raise serializers.ValidationError('Only PDF and common image files (JPEG, PNG) are allowed.')
+        if hasattr(value, 'content_type') and value.content_type not in allowed_content_types:
+            raise serializers.ValidationError('Invalid file type.')
+        return value

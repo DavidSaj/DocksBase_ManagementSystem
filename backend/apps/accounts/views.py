@@ -1,8 +1,12 @@
 import datetime
+from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.core.cache import cache
 from django.db import transaction, IntegrityError
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -53,8 +57,9 @@ class SignupView(APIView):
 class VerifyEmailView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request):
-        token = request.query_params.get('token')
+    # FIX 6: changed from GET (token in query param) to POST (token in request body)
+    def post(self, request):
+        token = request.data.get('token')
         if not token:
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -87,25 +92,27 @@ class ResendVerificationView(APIView):
     def post(self, request):
         email = request.data.get('email', '')
 
+        # FIX 7: rate-limit check BEFORE user lookup to prevent user enumeration.
+        # Both real and non-existent email addresses receive the same 200 response.
+        cache_key = f'resend_verification:{email}'
+        if cache.get(cache_key):
+            # Return the same success-shaped response regardless so attackers
+            # cannot distinguish rate-limited real users from unknown emails.
+            return Response({'detail': 'Verification email resent.'}, status=status.HTTP_200_OK)
+        cache.set(cache_key, True, timeout=60)
+
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
+            # Unknown email — silently succeed to avoid enumeration
             return Response({'detail': 'Verification email resent.'})
 
         if user.is_active:
             return Response({'detail': 'Verification email resent.'})
 
-        cache_key = f'resend_verification:{email}'
-        if cache.get(cache_key):
-            return Response(
-                {'detail': 'Please wait 60 seconds before requesting another email.'},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-
         EmailVerification.objects.filter(user=user).delete()
         ev = EmailVerification.objects.create(user=user)
         send_verification_email(user, ev.token)
-        cache.set(cache_key, True, timeout=60)
 
         return Response({'detail': 'Verification email resent.'})
 
@@ -176,6 +183,29 @@ class InviteUserView(generics.CreateAPIView):
     def get_queryset(self):
         return User.objects.filter(marina=self.request.user.marina)
 
+    # FIX 8: after the serializer creates the inactive user, generate a password-setup
+    # link and email it to the invited address.
+    def perform_create(self, serializer):
+        user = serializer.save()
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        link = f"{settings.FRONTEND_URL}/setup-account?uid={uid}&token={token}"
+        try:
+            send_mail(
+                subject="You've been invited to DocksBase",
+                message=(
+                    f"Hi {user.first_name or user.email},\n\n"
+                    f"You've been invited to join {user.marina.name} on DocksBase.\n\n"
+                    f"Click the link below to set your password and activate your account:\n{link}\n\n"
+                    "DocksBase"
+                ),
+                from_email=None,
+                recipient_list=[user.email],
+            )
+        except Exception:
+            # Don't roll back the user creation — the admin can resend manually
+            pass
+
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
@@ -236,16 +266,17 @@ class SendMagicLinkView(APIView):
 
         magic = MagicToken.objects.create(
             user=boater_user,
-            expires_at=timezone.now() + datetime.timedelta(days=7),
+            # FIX 2: reduced expiry from 7 days to 1 hour
+            expires_at=timezone.now() + datetime.timedelta(hours=1),
         )
 
-        frontend_url = request.headers.get('Origin', 'https://app.docksbase.com')
-        link = f"{frontend_url}/magic?token={magic.token}"
+        # FIX 1: use settings.FRONTEND_URL instead of the attacker-controlled Origin header
+        link = f"{settings.FRONTEND_URL}/magic?token={magic.token}"
 
         try:
             send_mail(
                 subject='Your DockBase portal link',
-                message=f"Hi {member.name},\n\nClick to access your marina portal (valid 7 days):\n{link}\n\nDockBase",
+                message=f"Hi {member.name},\n\nClick to access your marina portal (valid 1 hour):\n{link}\n\nDockBase",
                 from_email=None,
                 recipient_list=[member.email],
             )
