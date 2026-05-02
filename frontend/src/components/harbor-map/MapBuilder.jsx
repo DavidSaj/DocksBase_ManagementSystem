@@ -4,7 +4,7 @@ import useBerths from '../../hooks/useBerths.js'
 import MapBuilderCanvas from './MapBuilderCanvas.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
-import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS } from './mapBuilderUtils.js'
+import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS, rotateAndSnap, snapRotation } from './mapBuilderUtils.js'
 
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
@@ -22,6 +22,8 @@ export default function MapBuilder() {
   const dragPayloadRef = useRef(null)
   const moveRef = useRef(null)
   // { itemId, startGx, startGy, startClientX, startClientY, moved, snapshot }
+  const rotateRef = useRef(null)
+  // { itemId, itemSnapshot, centerX, centerY }
 
   useEffect(() => {
     if (!config) return
@@ -70,7 +72,41 @@ export default function MapBuilder() {
     }
   }
 
+  function handleRotateHandlePointerDown(e, item) {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const centerX = (item.gx + item.w / 2) * GRID
+    const centerY = (item.gy + item.h / 2) * GRID
+    rotateRef.current = {
+      itemId: item.id,
+      itemSnapshot: { gx: item.gx, gy: item.gy, w: item.w, h: item.h },
+      centerX,
+      centerY,
+      snapshot: items,
+    }
+  }
+
   function handleCanvasPointerMove(e) {
+    if (rotateRef.current) {
+      const svgRect = document.querySelector('.mb-canvas')?.getBoundingClientRect()
+      if (!svgRect) return
+      const { centerX, centerY, itemId, itemSnapshot } = rotateRef.current
+      const mx = e.clientX - svgRect.left - centerX
+      const my = e.clientY - svgRect.top  - centerY
+      // atan2 with +90° offset so "up" = 0°
+      const rawDeg = (Math.atan2(my, mx) * 180) / Math.PI + 90
+      const snapped = snapRotation(rawDeg)
+      const { gx, gy, w, h } = rotateAndSnap(
+        itemSnapshot.gx, itemSnapshot.gy,
+        itemSnapshot.w,  itemSnapshot.h,
+        snapped
+      )
+      setItems(prev => prev.map(i =>
+        i.id === itemId ? { ...i, gx, gy, w, h, rotation: snapped } : i
+      ))
+      return
+    }
+
     if (drawMode && e.buttons === 0) {
       const rect = e.currentTarget.getBoundingClientRect()
       const gx = Math.round((e.clientX - rect.left) / GRID)
@@ -97,6 +133,12 @@ export default function MapBuilder() {
   }
 
   function handleCanvasPointerUp() {
+    if (rotateRef.current) {
+      historyRef.current = [...historyRef.current.slice(-19), rotateRef.current.snapshot]
+      rotateRef.current = null
+      return
+    }
+
     if (moveRef.current?.moved && moveRef.current.snapshot) {
       historyRef.current = [...historyRef.current.slice(-19), moveRef.current.snapshot]
     }
@@ -334,7 +376,7 @@ export default function MapBuilder() {
           onCanvasDrop={handleCanvasDrop}
           onCanvasDragLeave={handleCanvasDragLeave}
           onItemPointerDown={handleItemPointerDown}
-          onRotateHandlePointerDown={() => {}}
+          onRotateHandlePointerDown={handleRotateHandlePointerDown}
           onWallResizePointerDown={() => {}}
         />
       </div>
