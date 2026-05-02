@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { usePiers } from '../hooks/usePiers';
 import { useBerths } from '../hooks/useBerths';
-import DigitalTwinCanvas from '../components/harbor-map/DigitalTwinCanvas';
+import { useAmenities } from '../hooks/useAmenities';
+import LiveCanvas from '../components/harbor-map/LiveCanvas';
+import EditorCanvas from '../components/harbor-map/EditorCanvas';
 import BerthStatusSidebar from '../components/harbor-map/BerthStatusSidebar';
 import UnmappedBerthsSidebar from '../components/harbor-map/UnmappedBerthsSidebar';
 import DocksBerthsTab from '../components/harbor-map/DocksBerthsTab';
@@ -51,33 +53,41 @@ export default function MarinaMap() {
 
   const { piers, createPier, updatePier, deletePier, bulkGenerate } = usePiers();
   const { berths, updateBerth, deleteBerth, addBerths } = useBerths();
+  const { amenities, createAmenity, updateAmenity, deleteAmenity } = useAmenities();
 
-  const [pendingPositions, setPendingPositions] = useState({});
-  const [saving, setSaving] = useState(false);
+  async function handleEditorSave(draft) {
+    // Update existing berths
+    const berthUpdates = Object.entries(draft.berths).map(([id, data]) =>
+      updateBerth(Number(id), data)
+    );
+    // Update existing amenities
+    const amenityUpdates = Object.entries(draft.amenities).map(([id, data]) =>
+      updateAmenity(Number(id), data)
+    );
+    // Create new amenities
+    const amenityCreates = draft.newAmenities.map(data => createAmenity(data));
+    // Delete amenities
+    const amenityDeletes = draft.deletedAmenityIds.map(id => deleteAmenity(id));
+    // Piers: update polygon_points on existing piers
+    const pierUpdates = Object.entries(draft.piers).map(([id, data]) =>
+      updatePier(Number(id), data)
+    );
+    // deletedPierIds: already handled by onPierDelete (called immediately when user clicks Delete Pier)
+    // newPiers: already created by onPierCreate (called immediately when user closes polygon)
 
-  const handleBerthDrop = useCallback((berthId, canvasX, canvasY) => {
-    const berth = berths.find(b => b.id === berthId);
-    if (!berth) return;
-    setPendingPositions(prev => ({ ...prev, [berthId]: { canvas_x: canvasX, canvas_y: canvasY } }));
-    updateBerth(berthId, {
-      canvas_x: canvasX,
-      canvas_y: canvasY,
-      canvas_width: berth.canvas_width || 4,
-      canvas_height: berth.canvas_height || 12,
-      canvas_rotation: berth.canvas_rotation || 0,
-    });
-  }, [berths, updateBerth]);
+    await Promise.allSettled([
+      ...berthUpdates, ...amenityUpdates, ...amenityCreates,
+      ...amenityDeletes, ...pierUpdates,
+    ]);
+  }
 
-  const handleSaveLayout = async () => {
-    setSaving(true);
-    try {
-      setPendingPositions({});
-    } finally {
-      setSaving(false);
-    }
-  };
+  function handlePierCreate(pierData) {
+    createPier(pierData);
+  }
 
-  const pendingCount = Object.keys(pendingPositions).length;
+  function handlePierDelete(pierId) {
+    deletePier(pierId);
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -88,33 +98,18 @@ export default function MarinaMap() {
         <button style={tabStyle(tab === 'live')}   onClick={() => setTab('live')}>Marina Map</button>
         <button style={tabStyle(tab === 'editor')} onClick={() => setTab('editor')}>Map Editor</button>
         <button style={tabStyle(tab === 'docks')}  onClick={() => setTab('docks')}>Docks & Berths</button>
-
-        {tab === 'editor' && pendingCount > 0 && (
-          <button
-            onClick={handleSaveLayout}
-            disabled={saving}
-            style={{
-              marginLeft: 'auto', marginRight: 16,
-              background: '#2563eb', color: 'white', border: 'none',
-              borderRadius: 6, padding: '6px 16px', fontSize: 12,
-              fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
-            }}
-          >
-            {saving ? 'Saving…' : `Save Layout (${pendingCount} changes)`}
-          </button>
-        )}
       </div>
 
       {tab === 'live' && (
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
           <div style={{ flex: 1, position: 'relative' }}>
-            <DigitalTwinCanvas
+            <LiveCanvas
               piers={piers}
               berths={berths}
-              mode="view"
+              amenities={amenities}
               selectedBerthId={selectedBerth?.id}
               onBerthClick={setSelectedBerth}
-              showGrid={false}
+              onAmenityClick={() => {}}
             />
             <BerthDetailPanel
               berth={selectedBerth}
@@ -134,14 +129,13 @@ export default function MarinaMap() {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <UnmappedBerthsSidebar berths={berths} piers={piers} />
           <div style={{ flex: 1, position: 'relative' }}>
-            <DigitalTwinCanvas
+            <EditorCanvas
               piers={piers}
               berths={berths}
-              mode="edit"
-              selectedBerthId={selectedBerth?.id}
-              onBerthClick={setSelectedBerth}
-              onBerthDrop={handleBerthDrop}
-              showGrid={true}
+              amenities={amenities}
+              onSave={handleEditorSave}
+              onPierCreate={handlePierCreate}
+              onPierDelete={handlePierDelete}
             />
           </div>
         </div>
