@@ -34,7 +34,21 @@ export default function MapBuilder() {
   }, [config])
 
   function closePolygon() {
-    // Implemented in Task 13
+    if (drawPoints.length < 3) return
+    const name = window.prompt('Prefab name:', 'Custom Shape')
+    if (!name) { setDrawMode(false); setDrawPoints([]); return }
+
+    const fill = window.prompt('Fill colour (hex):', '#3a5f8f') || '#3a5f8f'
+    const stroke = '#2a4f7f'
+
+    // Normalise points relative to bounding-box origin so the prefab snaps cleanly when re-placed
+    const origin = groupOrigin(drawPoints)
+    const relPoints = drawPoints.map(p => ({ gx: p.gx - origin.gx, gy: p.gy - origin.gy }))
+
+    const newPrefab = { id: newId(), name, kind: 'polygon', points: relPoints, fill, stroke }
+    setCustomPrefabs(prev => [...prev, newPrefab])
+    setDrawMode(false)
+    setDrawPoints([])
   }
 
   const pushHistory = useCallback((prevItems) => {
@@ -393,7 +407,7 @@ export default function MapBuilder() {
           )}
           {drawMode && drawPoints.length >= 3 && (
             <button
-              onClick={() => {}}
+              onClick={closePolygon}
               style={{ fontSize: 11, padding: '3px 10px', background: '#1e3a5f', border: '1px solid #b8965a', borderRadius: 4, color: '#b8965a', cursor: 'pointer' }}>
               Close Shape
             </button>
