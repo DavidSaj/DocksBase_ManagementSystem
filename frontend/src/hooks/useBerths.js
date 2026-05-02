@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 
-// Transform flat API berths array → HarborMap piers format
+// Transform flat API berths array → piers format
 export function berthsToPiers(berths) {
   const map = {};
   berths.forEach(b => {
