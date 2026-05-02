@@ -127,3 +127,87 @@ class AccountDetailViewTest(TestCase):
         foreign = make_member(other, 'Foreigner', 'f@test.com')
         resp = self.client.get(f'/api/v1/billing/accounts/{foreign.pk}/')
         self.assertEqual(resp.status_code, 404)
+
+
+class RecordPaymentViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.member = make_member(self.marina)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_allocates_payment_and_returns_result(self):
+        make_open_invoice(self.marina, self.member, Decimal('300.00'))
+        resp = self.client.post(
+            f'/api/v1/billing/accounts/{self.member.pk}/payments/',
+            {'amount': '300.00', 'method': 'cash'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['credit_remaining'], '0.00')
+        self.assertEqual(len(data['invoices_settled']), 1)
+
+    def test_rejects_zero_amount(self):
+        resp = self.client.post(
+            f'/api/v1/billing/accounts/{self.member.pk}/payments/',
+            {'amount': '0', 'method': 'cash'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_rejects_invalid_method(self):
+        resp = self.client.post(
+            f'/api/v1/billing/accounts/{self.member.pk}/payments/',
+            {'amount': '100', 'method': 'bitcoin'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_404_for_foreign_member(self):
+        other = make_marina('Other')
+        foreign = make_member(other, 'F', 'f@test.com')
+        resp = self.client.post(
+            f'/api/v1/billing/accounts/{foreign.pk}/payments/',
+            {'amount': '100', 'method': 'cash'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 404)
+
+
+class GenerateInviteViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.member = make_member(self.marina, email='hans@test.com')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_creates_inactive_boater_user_and_sends_email(self):
+        from django.core import mail
+        resp = self.client.post(f'/api/v1/billing/accounts/{self.member.pk}/generate-invite/')
+        self.assertEqual(resp.status_code, 200)
+        self.member.refresh_from_db()
+        self.assertIsNotNone(self.member.boater_user)
+        self.assertFalse(self.member.boater_user.is_active)
+        self.assertEqual(self.member.boater_user.role, 'boater')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('hans@test.com', mail.outbox[0].to)
+        self.assertIn('/activate/', mail.outbox[0].body)
+
+    def test_resends_invite_without_creating_duplicate_user(self):
+        from django.core import mail
+        from apps.accounts.models import User
+        self.client.post(f'/api/v1/billing/accounts/{self.member.pk}/generate-invite/')
+        user_count_before = User.objects.filter(email='hans@test.com').count()
+        resp = self.client.post(f'/api/v1/billing/accounts/{self.member.pk}/generate-invite/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(User.objects.filter(email='hans@test.com').count(), user_count_before)
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_400_when_member_has_no_email(self):
+        no_email = Member.objects.create(marina=self.marina, name='NoEmail')
+        resp = self.client.post(f'/api/v1/billing/accounts/{no_email.pk}/generate-invite/')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('email', resp.json()['detail'].lower())
