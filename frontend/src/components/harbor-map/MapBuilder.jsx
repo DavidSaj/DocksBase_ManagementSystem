@@ -1,5 +1,5 @@
 // frontend/src/components/harbor-map/MapBuilder.jsx
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import useMapConfig from '../../hooks/useMapConfig.js'
 import useBerths from '../../hooks/useBerths.js'
 import usePiers from '../../hooks/usePiers.js'
@@ -7,10 +7,9 @@ import CanvasCore from './CanvasCore.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
 import {
-  newId, snapToGrid, GRID, COLS, ROWS, rotateAndSnap, snapRotation,
-  groupOrigin, sortItemsForRender, computeAbsPosition, snapBerthToPier,
+  newId, snapToGrid, GRID,
+  sortItemsForRender, computeAbsPosition, snapBerthToPier,
 } from './mapBuilderUtils.js'
-import { PREFAB_BY_TYPE } from './mapBuilderPrefabs.js'
 import api from '../../api.js'
 
 // Docking prefab types that create Pier DB records when dropped
@@ -25,25 +24,28 @@ const TRANSPARENT_IMG = (() => {
 })()
 
 // Build shapes[] for CanvasCore from piers (DB), berths (DB), and env items (MarinaMapConfig)
-function buildShapes(piers, berths, envItems, selectedIds) {
+function buildShapes(piers, berths, envItems, dragOverride) {
   const pierById = Object.fromEntries(piers.map(p => [p.id, p]))
 
-  // Pier shapes — center coords from DB
+  // Pier shapes — center coords from DB (with live drag override applied)
   const pierShapes = piers
     .filter(p => p.canvas_x != null && p.canvas_y != null)
-    .map(p => ({
-      id:       `pier-${p.id}`,
-      _pierId:  p.id,
-      type:     'pier',
-      absX:     parseFloat(p.canvas_x),
-      absY:     parseFloat(p.canvas_y),
-      w:        p.canvas_w,
-      h:        p.canvas_h,
-      rotation: p.rotation,
-      fill:     '#c8b97a',
-      stroke:   '#a8994a',
-      label:    p.code,
-    }))
+    .map(p => {
+      const ov = dragOverride?.pierId === p.id ? dragOverride : null
+      return {
+        id:       `pier-${p.id}`,
+        _pierId:  p.id,
+        type:     'pier',
+        absX:     ov ? ov.absX : parseFloat(p.canvas_x),
+        absY:     ov ? ov.absY : parseFloat(p.canvas_y),
+        w:        p.canvas_w,
+        h:        p.canvas_h,
+        rotation: p.rotation,
+        fill:     '#c8b97a',
+        stroke:   '#a8994a',
+        label:    p.code,
+      }
+    })
 
   // Berth shapes — position computed from parent pier
   const berthShapes = berths
@@ -84,7 +86,7 @@ function buildShapes(piers, berths, envItems, selectedIds) {
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
   const { berths, loading: berthsLoading, refetch: refetchBerths } = useBerths()
-  const { piers, loading: piersLoading, createPier, updatePierCanvas, deletePier } = usePiers()
+  const { piers, loading: piersLoading, createPier, updatePierCanvas } = usePiers()
 
   const [envItems,      setEnvItems]      = useState([])
   const [customPrefabs, setCustomPrefabs] = useState([])
@@ -93,11 +95,11 @@ export default function MapBuilder() {
   const [snapZones,     setSnapZones]     = useState([])
   const [saveStatus,    setSaveStatus]    = useState(null)
   const [canUndo,       setCanUndo]       = useState(false)
+  const [dragOverride,  setDragOverride]  = useState(null)  // { pierId, absX, absY } | null
 
   const historyRef      = useRef([])
   const dragPayloadRef  = useRef(null)
   const moveRef         = useRef(null)
-  const rotateRef       = useRef(null)
 
   useEffect(() => {
     if (!config) return
@@ -109,7 +111,7 @@ export default function MapBuilder() {
     }
   }, [config])
 
-  const shapes = buildShapes(piers, berths, envItems, selectedIds)
+  const shapes = buildShapes(piers, berths, envItems, dragOverride)
 
   // ── Drag start ──────────────────────────────────────────────────────────────
 
@@ -171,66 +173,70 @@ export default function MapBuilder() {
     dragPayloadRef.current = null
     if (!payload || !ghost) { setGhost(null); setSnapZones([]); return }
 
-    if (payload.kind === 'berth') {
-      const placedPiers = piers.filter(p => p.canvas_x != null)
-        .map(p => ({
-          id: p.id,
-          canvas_x: parseFloat(p.canvas_x),
-          canvas_y: parseFloat(p.canvas_y),
-          canvas_w: p.canvas_w,
-          canvas_h: p.canvas_h,
-          rotation: p.rotation,
-        }))
+    try {
+      if (payload.kind === 'berth') {
+        const placedPiers = piers.filter(p => p.canvas_x != null)
+          .map(p => ({
+            id: p.id,
+            canvas_x: parseFloat(p.canvas_x),
+            canvas_y: parseFloat(p.canvas_y),
+            canvas_w: p.canvas_w,
+            canvas_h: p.canvas_h,
+            rotation: p.rotation,
+          }))
+        const rect = e.currentTarget.getBoundingClientRect()
+        const { gx, gy } = snapToGrid(e.clientX, e.clientY, rect)
+        const snap = snapBerthToPier(gx, gy, placedPiers, 2, 1)
+        if (snap) {
+          await api.patch(`/berths/${payload.berth.id}/`, {
+            pier: snap.pierId,
+            local_x: snap.local_x.toFixed(2),
+            local_y: snap.local_y.toFixed(2),
+            position_on_parent: snap.position_on_parent,
+          })
+          await refetchBerths()
+        }
+        return
+      }
+
+      // Prefab drop
+      const p = payload.prefab
       const rect = e.currentTarget.getBoundingClientRect()
       const { gx, gy } = snapToGrid(e.clientX, e.clientY, rect)
-      const snap = snapBerthToPier(gx, gy, placedPiers, 2, 1)
-      if (snap) {
-        await api.patch(`/berths/${payload.berth.id}/`, {
-          pier: snap.pierId,
-          local_x: snap.local_x.toFixed(2),
-          local_y: snap.local_y.toFixed(2),
-          position_on_parent: snap.position_on_parent,
+      const dropCenterX = gx + p.w / 2
+      const dropCenterY = gy + p.h / 2
+
+      if (DOCKING_TYPES.has(p.type)) {
+        // Creates a Pier DB record
+        await createPier({
+          code:     `${p.type.toUpperCase()}-${newId().slice(0, 4).toUpperCase()}`,
+          pier_type: p.type === 'pier-v' || p.type === 'pier-h' ? 'concrete' : 'pontoon',
+          canvas_x:  dropCenterX.toFixed(2),
+          canvas_y:  dropCenterY.toFixed(2),
+          canvas_w:  p.w,
+          canvas_h:  p.h,
+          rotation:  0,
         })
-        await refetchBerths()
+      } else {
+        // Environmental item — goes to MarinaMapConfig
+        const newItem = {
+          id: newId(), type: p.type, shape: 'rect',
+          gx, gy, w: p.w, h: p.h,
+          bg: p.bg, border: p.border, label: p.label ?? '',
+          rotation: 0,
+        }
+        historyRef.current = [...historyRef.current.slice(-19), envItems]
+        setEnvItems(prev => [...prev, newItem])
+        setCanUndo(true)
       }
+    } catch (err) {
+      console.error('[MapBuilder] drop failed', err)
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus(null), 2500)
+    } finally {
       setGhost(null)
       setSnapZones([])
-      return
     }
-
-    // Prefab drop
-    const p = payload.prefab
-    const rect = e.currentTarget.getBoundingClientRect()
-    const { gx, gy } = snapToGrid(e.clientX, e.clientY, rect)
-    const dropCenterX = gx + p.w / 2
-    const dropCenterY = gy + p.h / 2
-
-    if (DOCKING_TYPES.has(p.type)) {
-      // Creates a Pier DB record
-      await createPier({
-        code:     `${p.type.toUpperCase()}-${newId().slice(0, 4).toUpperCase()}`,
-        pier_type: p.type === 'pier-v' || p.type === 'pier-h' ? 'concrete' : 'pontoon',
-        canvas_x:  dropCenterX.toFixed(2),
-        canvas_y:  dropCenterY.toFixed(2),
-        canvas_w:  p.w,
-        canvas_h:  p.h,
-        rotation:  0,
-      })
-    } else {
-      // Environmental item — goes to MarinaMapConfig
-      const newItem = {
-        id: newId(), type: p.type, shape: 'rect',
-        gx, gy, w: p.w, h: p.h,
-        bg: p.bg, border: p.border, label: p.label ?? '',
-        rotation: 0,
-      }
-      historyRef.current = [...historyRef.current.slice(-19), envItems]
-      setEnvItems(prev => [...prev, newItem])
-      setCanUndo(true)
-    }
-
-    setGhost(null)
-    setSnapZones([])
   }
 
   // ── Pointer events for moving pier shapes ────────────────────────────────────
@@ -257,20 +263,23 @@ export default function MapBuilder() {
     const dgy = (e.clientY - startClientY) / GRID
     if (Math.abs(dgx) < 0.1 && Math.abs(dgy) < 0.1) return
     moveRef.current.moved = true
-    // Live update: mutate piers state optimistically for smooth drag
-    // (actual API call on pointer up)
     moveRef.current.liveX = startAbsX + dgx
     moveRef.current.liveY = startAbsY + dgy
-    // Force re-render by triggering a state update
-    setSelectedIds(prev => new Set(prev))
+    setDragOverride({ pierId: moveRef.current.pierId, absX: moveRef.current.liveX, absY: moveRef.current.liveY })
   }
 
   async function handleCanvasPointerUp() {
-    if (moveRef.current?.moved && moveRef.current.pierId) {
-      const { pierId, liveX, liveY } = moveRef.current
-      await updatePierCanvas(pierId, liveX.toFixed(2), liveY.toFixed(2))
+    try {
+      if (moveRef.current?.moved && moveRef.current.pierId) {
+        const { pierId, liveX, liveY } = moveRef.current
+        await updatePierCanvas(pierId, liveX.toFixed(2), liveY.toFixed(2))
+      }
+    } catch (err) {
+      console.error('[MapBuilder] pier move failed', err)
+    } finally {
+      moveRef.current = null
+      setDragOverride(null)
     }
-    moveRef.current = null
   }
 
   // ── Undo (env items only) ────────────────────────────────────────────────────
