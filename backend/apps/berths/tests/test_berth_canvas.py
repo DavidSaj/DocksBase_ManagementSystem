@@ -43,3 +43,80 @@ class PierCanvasFieldsTest(TestCase):
         self.assertIsNone(berth.local_x)
         self.assertIsNone(berth.local_y)
         self.assertIsNone(berth.position_on_parent)
+
+
+class PierSerializerCanvasTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('serial@test.com')
+        self.client = auth_client(self.user)
+
+    def test_pier_api_returns_canvas_fields(self):
+        resp = self.client.post('/api/v1/piers/', {
+            'code': 'P1',
+            'canvas_x': '5.50',
+            'canvas_y': '8.00',
+            'canvas_w': 1,
+            'canvas_h': 8,
+            'rotation': 0,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        data = resp.json()
+        self.assertEqual(data['canvas_x'], '5.50')
+        self.assertEqual(data['canvas_y'], '8.00')
+        self.assertEqual(data['canvas_w'], 1)
+        self.assertEqual(data['canvas_h'], 8)
+
+    def test_pier_canvas_position_patchable(self):
+        pier = Pier.objects.create(marina=self.marina, code='P2')
+        resp = self.client.patch(
+            f'/api/v1/piers/{pier.id}/',
+            {'canvas_x': '12.00', 'canvas_y': '6.50'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        pier.refresh_from_db()
+        self.assertEqual(float(pier.canvas_x), 12.0)
+
+    def test_berth_api_allows_null_pier(self):
+        resp = self.client.post('/api/v1/berths/', {
+            'code': 'B99',
+            'pier': None,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertIsNone(resp.json()['pier'])
+
+    def test_berth_local_coords_patchable(self):
+        pier = Pier.objects.create(marina=self.marina, code='P3',
+                                   canvas_x='10', canvas_y='5')
+        berth = Berth.objects.create(marina=self.marina, pier=None, code='B1')
+        resp = self.client.patch(
+            f'/api/v1/berths/{berth.id}/',
+            {
+                'pier': pier.id,
+                'local_x': '-3.00',
+                'local_y': '0.00',
+                'position_on_parent': {'side': 'port', 'slot_index': 0},
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        berth.refresh_from_db()
+        self.assertEqual(berth.pier_id, pier.id)
+        self.assertEqual(float(berth.local_x), -3.0)
+
+    def test_berth_is_placed_false_when_no_pier(self):
+        berth = Berth.objects.create(marina=self.marina, pier=None, code='B2')
+        resp = self.client.get(f'/api/v1/berths/{berth.id}/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()['is_placed'])
+
+    def test_berth_is_placed_true_when_pier_and_local_x_set(self):
+        pier = Pier.objects.create(marina=self.marina, code='P4',
+                                   canvas_x='5', canvas_y='5')
+        berth = Berth.objects.create(
+            marina=self.marina, pier=pier, code='B3',
+            local_x='1.00', local_y='0.00',
+        )
+        resp = self.client.get(f'/api/v1/berths/{berth.id}/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['is_placed'])

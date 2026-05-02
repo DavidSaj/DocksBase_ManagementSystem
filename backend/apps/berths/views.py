@@ -21,13 +21,16 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Pier.objects.filter(marina=self.request.user.marina)
 
 
-class BerthListView(generics.ListAPIView):
+class BerthListView(generics.ListCreateAPIView):
     serializer_class = BerthSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['status', 'pier']
 
     def get_queryset(self):
         return Berth.objects.filter(marina=self.request.user.marina).select_related('pier', 'vessel')
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
 
 
 class BerthDetailView(generics.RetrieveUpdateAPIView):
