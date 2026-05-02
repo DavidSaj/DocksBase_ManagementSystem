@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   snapToGrid, snapRotation, rotateAndSnap,
-  sortItemsForRender, groupOrigin, wallSnapPos, newId, GRID, COLS, ROWS
+  sortItemsForRender, groupOrigin, wallSnapPos, newId, GRID, COLS, ROWS,
+  computeAbsPosition, snapBerthToPier
 } from '../mapBuilderUtils.js'
 
 const rect = { left: 0, top: 0 }
@@ -112,5 +113,64 @@ describe('newId', () => {
   })
   it('returns unique values on successive calls', () => {
     expect(newId()).not.toBe(newId())
+  })
+})
+
+describe('computeAbsPosition', () => {
+  it('returns pier center when local_x and local_y are both 0', () => {
+    const pier = { canvas_x: 10, canvas_y: 5, rotation: 0 }
+    const berth = { local_x: 0, local_y: 0 }
+    const result = computeAbsPosition(pier, berth)
+    expect(result.absX).toBeCloseTo(10)
+    expect(result.absY).toBeCloseTo(5)
+  })
+
+  it('offsets berth correctly when rotation is 0', () => {
+    const pier = { canvas_x: 10, canvas_y: 5, rotation: 0 }
+    const berth = { local_x: 3, local_y: -2 }
+    const result = computeAbsPosition(pier, berth)
+    expect(result.absX).toBeCloseTo(13)
+    expect(result.absY).toBeCloseTo(3)
+  })
+
+  it('rotates berth 90° correctly', () => {
+    // At 90°: rotated_x = local_x*cos(90) - local_y*sin(90) = 0 - 0 = 0
+    //          rotated_y = local_x*sin(90) + local_y*cos(90) = 3 + 0 = 3
+    const pier = { canvas_x: 10, canvas_y: 5, rotation: 90 }
+    const berth = { local_x: 3, local_y: 0 }
+    const result = computeAbsPosition(pier, berth)
+    expect(result.absX).toBeCloseTo(10)
+    expect(result.absY).toBeCloseTo(8)
+  })
+
+  it('rotates berth 180° flips both axes', () => {
+    const pier = { canvas_x: 10, canvas_y: 5, rotation: 180 }
+    const berth = { local_x: 3, local_y: 2 }
+    const result = computeAbsPosition(pier, berth)
+    expect(result.absX).toBeCloseTo(7)
+    expect(result.absY).toBeCloseTo(3)
+  })
+})
+
+describe('snapBerthToPier', () => {
+  const pier = { id: 1, canvas_x: 10, canvas_y: 5, canvas_w: 2, canvas_h: 8, rotation: 0 }
+
+  it('returns null when mouse is far from any pier', () => {
+    expect(snapBerthToPier(0, 0, [pier], 2, 1)).toBeNull()
+  })
+
+  it('snaps to port side (left edge) when mouse is near left edge', () => {
+    // Pier left edge absX = canvas_x - canvas_w/2 = 10 - 1 = 9
+    const result = snapBerthToPier(8, 5, [pier], 2, 1)
+    expect(result).not.toBeNull()
+    expect(result.pierId).toBe(1)
+    expect(result.position_on_parent.side).toBe('port')
+  })
+
+  it('snaps to starboard side (right edge) when mouse is near right edge', () => {
+    // Pier right edge absX = canvas_x + canvas_w/2 = 10 + 1 = 11
+    const result = snapBerthToPier(12, 5, [pier], 2, 1)
+    expect(result).not.toBeNull()
+    expect(result.position_on_parent.side).toBe('starboard')
   })
 })
