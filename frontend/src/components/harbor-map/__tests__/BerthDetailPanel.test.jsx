@@ -156,7 +156,7 @@ describe('BerthDetailPanel', () => {
     expect(screen.getByText('2026-05-01')).toBeTruthy()
     expect(screen.getByText('2026-05-05')).toBeTruthy()
     expect(screen.getByText('4')).toBeTruthy()
-    expect(screen.getByText('€240')).toBeTruthy()
+    expect(screen.getByText('€240.00')).toBeTruthy()
   })
 
   it('falls back to guest_name when vessel_name is null', async () => {
@@ -227,8 +227,8 @@ describe('BerthDetailPanel', () => {
 
     render(<BerthDetailPanel berth={makeBerth({ status: 'occupied', id: 7 })} onClose={vi.fn()} />)
 
-    expect(api.get).toHaveBeenCalledWith('/bookings/', {
+    expect(api.get).toHaveBeenCalledWith('/bookings/', expect.objectContaining({
       params: { berth: 7, status: 'checked_in' },
-    })
+    }))
   })
 })

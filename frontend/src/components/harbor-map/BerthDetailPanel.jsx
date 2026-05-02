@@ -10,15 +10,20 @@ export default function BerthDetailPanel({ berth, onClose }) {
     if (!berth) { setBooking(null); return }
     if (!['occupied', 'reserved'].includes(berth.status)) { setBooking(null); return }
 
+    const controller = new AbortController()
     setLoadingBooking(true)
-    api.get('/bookings/', { params: { berth: berth.id, status: 'checked_in' } })
+    api.get('/bookings/', { params: { berth: berth.id, status: 'checked_in' }, signal: controller.signal })
       .then(({ data }) => {
         const results = data.results ?? data
         setBooking(results[0] ?? null)
       })
-      .catch(() => setBooking(null))
+      .catch(err => {
+        if (err.name !== 'CanceledError') setBooking(null)
+      })
       .finally(() => setLoadingBooking(false))
-  }, [berth?.id])
+
+    return () => controller.abort()
+  }, [berth?.id, berth?.status])
 
   if (!berth) return null
 
@@ -71,7 +76,7 @@ export default function BerthDetailPanel({ berth, onClose }) {
         {berth.price_per_night && (
           <>
             <Label style={{ marginTop: 10 }}>Pricing</Label>
-            <Row label="Per Night" value={`€${berth.price_per_night}`} />
+            <Row label="Per Night" value={`€${Number(berth.price_per_night).toFixed(2)}`} />
           </>
         )}
 
@@ -110,7 +115,7 @@ export default function BerthDetailPanel({ berth, onClose }) {
             <Row label="Check In"  value={booking.check_in} />
             <Row label="Check Out" value={booking.check_out} />
             <Row label="Nights"    value={booking.nights} />
-            <Row label="Amount"    value={booking.amount ? `€${booking.amount}` : '—'} />
+            <Row label="Amount"    value={booking.amount ? `€${Number(booking.amount).toFixed(2)}` : '—'} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
               <ActionButton onClick={() => alert('Check-out flow TBD')}>
@@ -150,7 +155,7 @@ function ActionButton({ children, onClick, href, secondary }) {
   const style = {
     display: 'block', textAlign: 'center', textDecoration: 'none',
     padding: '7px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-    cursor: 'pointer', border: 'none',
+    cursor: 'pointer',
     background: secondary ? 'transparent' : '#b8965a',
     color: secondary ? '#7a9ab8' : 'white',
     border: secondary ? '1px solid #2a5a7a' : 'none',
