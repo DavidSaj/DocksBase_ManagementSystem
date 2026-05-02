@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import useMapConfig from '../../hooks/useMapConfig.js'
-import useBerths from '../../hooks/useBerths.js'
+import { useBerths } from '../../hooks/useBerths.js'
 import MapBuilderCanvas from './MapBuilderCanvas.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
