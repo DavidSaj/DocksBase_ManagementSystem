@@ -6,6 +6,13 @@ import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
 import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS, rotateAndSnap, snapRotation, groupOrigin } from './mapBuilderUtils.js'
 
+// Created once at module load — avoids allocating a new Image on every drag start
+const TRANSPARENT_IMG = (() => {
+  const img = new Image()
+  img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+  return img
+})()
+
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
   const { berths, loading: berthsLoading } = useBerths()
@@ -19,6 +26,7 @@ export default function MapBuilder() {
   const [hoverG,        setHoverG]        = useState(null)
   const [saveStatus,    setSaveStatus]    = useState(null)
   const historyRef = useRef([])
+  const [canUndo, setCanUndo] = useState(false)
   const dragPayloadRef = useRef(null)
   const moveRef = useRef(null)
   // { itemId, startGx, startGy, startClientX, startClientY, moved, snapshot }
@@ -60,6 +68,7 @@ export default function MapBuilder() {
       pushHistory(prev)
       return updater(prev)
     })
+    setCanUndo(true)
   }, [pushHistory])
 
   function handleItemPointerDown(e, item) {
@@ -144,22 +153,16 @@ export default function MapBuilder() {
       // atan2 with +90° offset so "up" = 0°
       const rawDeg = (Math.atan2(my, mx) * 180) / Math.PI + 90
       const snapped = snapRotation(rawDeg)
-      const { gx, gy, w, h } = rotateAndSnap(
-        itemSnapshot.gx, itemSnapshot.gy,
-        itemSnapshot.w,  itemSnapshot.h,
-        snapped
-      )
+      // During drag: only update rotation for live visual (gx/gy/w/h stay original)
       setItems(prev => prev.map(i =>
-        i.id === itemId ? { ...i, gx, gy, w, h, rotation: snapped } : i
+        i.id === itemId ? { ...i, rotation: snapped } : i
       ))
       return
     }
 
     if (drawMode && e.buttons === 0) {
       const rect = e.currentTarget.getBoundingClientRect()
-      const gx = Math.round((e.clientX - rect.left) / GRID)
-      const gy = Math.round((e.clientY - rect.top) / GRID)
-      setHoverG({ gx: Math.max(0, Math.min(COLS - 1, gx)), gy: Math.max(0, Math.min(ROWS - 1, gy)) })
+      setHoverG(snapToGrid(e.clientX, e.clientY, rect))
       return
     }
 
@@ -188,7 +191,20 @@ export default function MapBuilder() {
     }
 
     if (rotateRef.current) {
-      historyRef.current = [...historyRef.current.slice(-19), rotateRef.current.snapshot]
+      // On commit: snap bounding box from original dims + current rotation, then clear rotation
+      const { itemId, itemSnapshot, snapshot } = rotateRef.current
+      setItems(prev => {
+        const item = prev.find(i => i.id === itemId)
+        if (!item) return prev
+        const snapped = item.rotation
+        const { gx, gy, w, h } = rotateAndSnap(
+          itemSnapshot.gx, itemSnapshot.gy,
+          itemSnapshot.w, itemSnapshot.h,
+          snapped
+        )
+        return prev.map(i => i.id === itemId ? { ...i, gx, gy, w, h, rotation: 0 } : i)
+      })
+      historyRef.current = [...historyRef.current.slice(-19), snapshot]
       rotateRef.current = null
       return
     }
@@ -202,10 +218,7 @@ export default function MapBuilder() {
   function handleCanvasClick(e) {
     if (drawMode) {
       const rect = e.currentTarget.getBoundingClientRect()
-      const gx = Math.round((e.clientX - rect.left) / GRID)
-      const gy = Math.round((e.clientY - rect.top) / GRID)
-      const snappedGx = Math.max(0, Math.min(COLS - 1, gx))
-      const snappedGy = Math.max(0, Math.min(ROWS - 1, gy))
+      const { gx: snappedGx, gy: snappedGy } = snapToGrid(e.clientX, e.clientY, rect)
 
       if (drawPoints.length >= 3) {
         const f = drawPoints[0]
@@ -223,17 +236,13 @@ export default function MapBuilder() {
   function handlePrefabDragStart(e, prefab) {
     dragPayloadRef.current = { kind: 'prefab', prefab }
     e.dataTransfer.effectAllowed = 'copy'
-    const img = new Image()
-    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-    e.dataTransfer.setDragImage(img, 0, 0)
+    e.dataTransfer.setDragImage(TRANSPARENT_IMG, 0, 0)
   }
 
   function handleBerthDragStart(e, berth) {
     dragPayloadRef.current = { kind: 'berth', berth }
     e.dataTransfer.effectAllowed = 'copy'
-    const img = new Image()
-    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-    e.dataTransfer.setDragImage(img, 0, 0)
+    e.dataTransfer.setDragImage(TRANSPARENT_IMG, 0, 0)
   }
 
   function handleGroupToPrefab() {
@@ -361,6 +370,7 @@ export default function MapBuilder() {
     if (!historyRef.current.length) return
     const prev = historyRef.current.pop()
     setItems(prev)
+    setCanUndo(historyRef.current.length > 0)
   }
 
   useEffect(() => {
@@ -422,7 +432,7 @@ export default function MapBuilder() {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <button
               onClick={handleUndo}
-              disabled={!historyRef.current.length}
+              disabled={!canUndo}
               style={{ fontSize: 11, padding: '4px 12px', background: '#1e3a5f', border: '1px solid #2a5a7a', borderRadius: 4, color: '#c8d8e8', cursor: 'pointer' }}>
               Undo
             </button>
