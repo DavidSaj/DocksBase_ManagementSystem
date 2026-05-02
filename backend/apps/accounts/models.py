@@ -49,6 +49,7 @@ class Marina(models.Model):
     suspend_reason = models.TextField(blank=True)
     features = models.JSONField(default=dict)
     onboarding = models.JSONField(default=_default_onboarding)
+    fuel_berths = models.JSONField(default=list)
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
 

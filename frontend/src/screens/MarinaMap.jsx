@@ -8,6 +8,7 @@ import EditorCanvas    from '../components/harbor-map/EditorCanvas';
 import AssetPanel      from '../components/harbor-map/AssetPanel';
 import BerthStatusSidebar from '../components/harbor-map/BerthStatusSidebar';
 import DocksBerthsTab  from '../components/harbor-map/DocksBerthsTab';
+import MapBuilder      from '../components/harbor-map/MapBuilder';
 
 const tabStyle = (active) => ({
   padding: '8px 18px', cursor: 'pointer', fontSize: 13, fontWeight: active ? 700 : 500,
@@ -91,9 +92,10 @@ export default function MarinaMap() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Tab bar */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', background: 'white', paddingLeft: 16, flexShrink: 0 }}>
-        <button style={tabStyle(tab === 'live')}   onClick={() => setTab('live')}>Marina Map</button>
-        <button style={tabStyle(tab === 'editor')} onClick={() => setTab('editor')}>Map Editor</button>
-        <button style={tabStyle(tab === 'docks')}  onClick={() => setTab('docks')}>Docks & Berths</button>
+        <button style={tabStyle(tab === 'live')}    onClick={() => setTab('live')}>Marina Map</button>
+        <button style={tabStyle(tab === 'editor')}  onClick={() => setTab('editor')}>Map Editor</button>
+        <button style={tabStyle(tab === 'docks')}   onClick={() => setTab('docks')}>Docks & Berths</button>
+        <button style={tabStyle(tab === 'creator')} onClick={() => setTab('creator')}>Map Builder</button>
       </div>
 
       {tab === 'live' && (
@@ -153,6 +155,8 @@ export default function MarinaMap() {
           />
         </div>
       )}
+
+      {tab === 'creator' && <MapBuilder />}
     </div>
   );
 }

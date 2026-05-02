@@ -43,3 +43,53 @@ Staff members have no login today. The invite flow creates an inactive `User` re
 - Or link `assigned_to` to the User model and add a `/maintenance-tasks/mine/` endpoint.
 
 Note: `assigned_to` is currently a freetext `CharField` with no User FK, so a User-linked filter requires a model change.
+
+---
+
+## Fuel Dock Quick Sale — Smoke Test Checklist
+
+Manual smoke test required before production use. Automated tests cover the backend paths; this verifies the full UI flow.
+
+### Prerequisites
+
+Start both servers:
+```
+cd backend && python manage.py runserver
+cd frontend && npm run dev
+```
+
+### Step 1: Seed POS items via Django admin
+
+Navigate to `/admin/` → Billing → Chargeable Items → Add three items:
+
+| Name | Category | Pricing model | Unit price | Fuel dock type | Show in POS |
+|---|---|---|---|---|---|
+| Diesel | Utility | Per Litre | marina rate | diesel | ✓ |
+| Petrol | Utility | Per Litre | marina rate | petrol | ✓ |
+| Pump-out | Utility | Flat Fee | marina rate | pump_out | ✓ |
+
+### Step 2: Verify tile grid
+
+Open the app → Billing → POS tab. The three tiles should appear with correct prices. The old hardcoded tiles (Ice, Shore Power Token, Merchandise) should be gone.
+
+### Step 3: Test guest diesel sale
+
+Tap Diesel → enter 30 in Litres → leave Vessel/Member blank → Process Sale.
+- Total should show `€<price × 30>`
+- "Recent Fuel Sales" list refreshes showing the new entry (guest, Diesel, 30L)
+- In Django admin: `FuelDockEntry` with `pos_paid=True`, `invoice=None`, `actual_litres=30`
+
+### Step 4: Test member sale
+
+Tap Diesel → type a member name in the combobox → select from dropdown (green ✓ appears) → enter 50 Litres → Process Sale.
+- In Django admin: `FuelDockEntry` with `pos_paid=False` and an associated `Invoice`
+- Invoice line item should show `Diesel × 50 @ €<price/L>` (not `× 1 @ total`)
+
+### Step 5: Test pump-out (flat fee)
+
+Tap Pump-out tile — no Litres input should appear (flat fee). Total shows immediately. Process Sale.
+- In Django admin: `FuelDockEntry` with `actual_litres=None`, `price_per_litre=None`, correct `total_amount`
+
+### Step 6: Test empty catalog state
+
+Temporarily set all POS items to `show_in_pos=False` in admin. Reload POS tab — should show "No POS items configured" message instead of tiles.

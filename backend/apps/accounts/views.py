@@ -213,6 +213,13 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
     def get_queryset(self):
         return User.objects.filter(marina=self.request.user.marina)
 
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if 'is_active' in request.data and instance.role != 'owner':
+            instance.is_active = bool(request.data['is_active'])
+            instance.save(update_fields=['is_active'])
+        return Response(UserSerializer(instance).data)
+
 
 class MeView(generics.RetrieveAPIView):
     serializer_class = UserSerializer

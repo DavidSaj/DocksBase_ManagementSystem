@@ -4,12 +4,15 @@ from .views import (
     FromOrderView, PDFDownloadView, HTMLReceiptView,
     ChargeableItemListCreateView, ChargeableItemDetailView,
     InvoiceCreateView, AddLineItemView, RemoveLineItemView, FinalizeInvoiceView,
+    BatchInvoiceView, ZReportView, InvoiceExportView,
 )
 
 urlpatterns = [
     path('stripe/webhook/',              StripeWebhookView.as_view(),            name='stripe_webhook'),
     path('invoices/',                    InvoiceListView.as_view(),              name='invoice_list'),
     path('invoices/create/',             InvoiceCreateView.as_view(),            name='invoice_create'),
+    path('invoices/batch/',              BatchInvoiceView.as_view(),             name='invoice_batch'),
+    path('invoices/export/',             InvoiceExportView.as_view(),            name='invoice_export'),
     path('invoices/from-order/',         FromOrderView.as_view(),                name='invoice_from_order'),
     path('invoices/<int:pk>/',           InvoiceDetailView.as_view(),            name='invoice_detail'),
     path('invoices/<int:pk>/mark-paid/', MarkPaidView.as_view(),                 name='invoice_mark_paid'),
@@ -20,4 +23,5 @@ urlpatterns = [
     path('line-items/<int:pk>/',         RemoveLineItemView.as_view(),           name='line_item_delete'),
     path('service-catalog/',             ChargeableItemListCreateView.as_view(), name='service_catalog_list'),
     path('service-catalog/<int:pk>/',    ChargeableItemDetailView.as_view(),     name='service_catalog_detail'),
+    path('z-report/',                    ZReportView.as_view(),                  name='z_report'),
 ]

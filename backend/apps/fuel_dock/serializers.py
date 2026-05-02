@@ -19,6 +19,6 @@ class FuelDockEntrySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'vessel_name', 'member_name', 'member_phone',
-            'total_amount', 'arrived_at', 'service_start', 'completed_at',
+            'arrived_at', 'service_start', 'completed_at',
             'invoice', 'pos_paid',
         ]
