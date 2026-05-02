@@ -24,6 +24,8 @@ export default function MapBuilder() {
   // { itemId, startGx, startGy, startClientX, startClientY, moved, snapshot }
   const rotateRef = useRef(null)
   // { itemId, itemSnapshot, centerX, centerY }
+  const wallResizeRef = useRef(null)
+  // { wallId, side: 'left'|'right', startClientX, startW, startGx, snapshot }
 
   useEffect(() => {
     if (!config) return
@@ -86,7 +88,39 @@ export default function MapBuilder() {
     }
   }
 
+  function handleWallResizePointerDown(e, wall, side) {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    wallResizeRef.current = {
+      wallId: wall.id,
+      side,
+      startClientX: e.clientX,
+      startW: wall.w,
+      startGx: wall.gx,
+      snapshot: items,
+    }
+  }
+
   function handleCanvasPointerMove(e) {
+    if (wallResizeRef.current) {
+      const { wallId, side, startClientX, startW, startGx } = wallResizeRef.current
+      const dg = Math.round((e.clientX - startClientX) / GRID)
+      if (side === 'right') {
+        const newW = Math.max(1, startW + dg)
+        setItems(prev => prev.map(i =>
+          i.id === wallId ? { ...i, w: newW } : i
+        ))
+      } else {
+        // left handle: wall shrinks/grows from left, gx shifts
+        const newW = Math.max(1, startW - dg)
+        const newGx = Math.max(0, startGx + (startW - newW))
+        setItems(prev => prev.map(i =>
+          i.id === wallId ? { ...i, w: newW, gx: newGx } : i
+        ))
+      }
+      return
+    }
+
     if (rotateRef.current) {
       const svgRect = document.querySelector('.mb-canvas')?.getBoundingClientRect()
       if (!svgRect) return
@@ -133,6 +167,12 @@ export default function MapBuilder() {
   }
 
   function handleCanvasPointerUp() {
+    if (wallResizeRef.current) {
+      historyRef.current = [...historyRef.current.slice(-19), wallResizeRef.current.snapshot]
+      wallResizeRef.current = null
+      return
+    }
+
     if (rotateRef.current) {
       historyRef.current = [...historyRef.current.slice(-19), rotateRef.current.snapshot]
       rotateRef.current = null
@@ -377,7 +417,7 @@ export default function MapBuilder() {
           onCanvasDragLeave={handleCanvasDragLeave}
           onItemPointerDown={handleItemPointerDown}
           onRotateHandlePointerDown={handleRotateHandlePointerDown}
-          onWallResizePointerDown={() => {}}
+          onWallResizePointerDown={handleWallResizePointerDown}
         />
       </div>
 
