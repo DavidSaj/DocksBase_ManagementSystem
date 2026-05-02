@@ -1,5 +1,5 @@
 // frontend/src/components/harbor-map/LiveMap.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import usePiers from '../../hooks/usePiers.js'
 import useBerths from '../../hooks/useBerths.js'
 import useMapConfig from '../../hooks/useMapConfig.js'
@@ -78,8 +78,14 @@ export default function LiveMap() {
     setSelectedBerth(berthData)
   }
 
-  const envItems = config?.env_items ?? config?.custom_elements ?? []
-  const shapes = buildLiveShapes(piers, berths, envItems)
+  const envItems = useMemo(
+    () => config?.env_items ?? config?.custom_elements ?? [],
+    [config]
+  )
+  const shapes = useMemo(
+    () => buildLiveShapes(piers, berths, envItems),
+    [piers, berths, envItems]
+  )
 
   if (piersLoading || berthsLoading || cfgLoading) {
     return <div style={{ padding: 40, color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Loading harbor map…</div>

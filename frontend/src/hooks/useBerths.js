@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 
 // Transform flat API berths array → HarborMap piers format
@@ -34,7 +34,7 @@ export default function useBerths(filters = {}) {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
-  async function fetchBerths() {
+  const fetchBerths = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await api.get('/berths/', { params: filters });
@@ -44,9 +44,9 @@ export default function useBerths(filters = {}) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filters]);
 
-  useEffect(() => { fetchBerths(); }, []);
+  useEffect(() => { fetchBerths(); }, [fetchBerths]);
 
   const piers  = berthsToPiers(berths);
   const counts = {
