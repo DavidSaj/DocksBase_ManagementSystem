@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import useInvoices from '../hooks/useInvoices.js';
 import useFuelEntries from '../hooks/useFuelEntries.js';
 import usePOSCatalog from '../hooks/usePOSCatalog.js';
+import useBoaterAccounts from '../hooks/useBoaterAccounts.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
@@ -56,6 +57,15 @@ export default function Billing() {
 
   const { items: posCatalog, loading: posLoading } = usePOSCatalog();
 
+  const {
+    accounts, loading: acctLoading, fetchAccounts,
+    selectedId, drawerData, drawerLoading,
+    openDrawer, refreshDrawer, closeDrawer,
+  } = useBoaterAccounts();
+
+  const [acctSearch, setAcctSearch]   = useState('');
+  const [acctShowAll, setAcctShowAll] = useState(false);
+
   // Batch billing state
   const defaultPeriod = (() => {
     const d = new Date();
@@ -82,6 +92,10 @@ export default function Billing() {
   useEffect(() => {
     if (tab === 'accounts') fetchZReport(zDate);
   }, [tab, zDate, fetchZReport]);
+
+  useEffect(() => {
+    if (tab === 'boater-accounts') fetchAccounts({ search: acctSearch, showAll: acctShowAll });
+  }, [tab, acctSearch, acctShowAll, fetchAccounts]);
 
   async function runBatch() {
     setBatchLoading(true);
@@ -310,7 +324,7 @@ export default function Billing() {
   return (
     <div>
       <div className="tabs">
-        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
+        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts'],['boater-accounts','Boater Accounts']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -779,6 +793,72 @@ export default function Billing() {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {tab === 'boater-accounts' && !selectedId && (
+        <div>
+          <div className="sec-hdr">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                placeholder="Search member name…"
+                value={acctSearch}
+                onChange={e => setAcctSearch(e.target.value)}
+                style={{ border: 'var(--border)', borderRadius: 5, padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', width: 220 }}
+              />
+              <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                <input type="checkbox" checked={acctShowAll} onChange={e => setAcctShowAll(e.target.checked)} />
+                Show settled
+              </label>
+            </div>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Type</th><th>Berth</th>
+                  <th>Outstanding</th><th>Credit</th>
+                  <th>Open Inv.</th><th>Oldest Due</th><th>Portal</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {acctLoading ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : accounts.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No outstanding balances.</td></tr>
+                ) : accounts.map(a => {
+                  const isOverdue = a.oldest_due_date && new Date(a.oldest_due_date) < new Date();
+                  return (
+                    <tr key={a.member_id}>
+                      <td className="tbl-name">{a.name}</td>
+                      <td><span className="badge badge-navy">{a.member_type}</span></td>
+                      <td style={{ fontSize: 12 }}>{a.berth_code ?? '—'}</td>
+                      <td style={{ fontWeight: 700, color: isOverdue ? 'var(--red)' : 'inherit' }}>
+                        €{Number(a.total_outstanding).toFixed(2)}
+                      </td>
+                      <td style={{ fontSize: 12, color: Number(a.credit_on_account) > 0 ? 'var(--green)' : 'rgba(0,0,0,0.35)' }}>
+                        {Number(a.credit_on_account) > 0 ? `€${Number(a.credit_on_account).toFixed(2)}` : '—'}
+                      </td>
+                      <td style={{ fontSize: 12 }}>{a.open_invoice_count}</td>
+                      <td style={{ fontSize: 12, color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.45)' }}>
+                        {a.oldest_due_date ?? '—'}
+                      </td>
+                      <td>
+                        {a.portal_active
+                          ? <span className="badge badge-green">Active</span>
+                          : <span className="badge badge-gray">No portal</span>}
+                      </td>
+                      <td>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openDrawer(a.member_id)}>
+                          View Account →
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
