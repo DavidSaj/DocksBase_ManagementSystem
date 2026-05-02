@@ -136,8 +136,11 @@ export default function EditorCanvas({
   const [confirmPanel, setConfirmPanel]   = useState(null); // { screenX, screenY, points }
   const [stageScale, setStageScale]       = useState(1);
   const [stagePos, setStagePos]           = useState({ x: 0, y: 0 });
+  const [stageDims, setStageDims]         = useState({ width: 900, height: 600 });
+  const [pendingSlotRemovals, setPendingSlotRemovals] = useState([]); // [{ pierId, slotIndex }]
   const isPanning    = useRef(false);
   const lastPointer  = useRef(null);
+  const lastClickTime = useRef(0);
   const stageRef     = useRef(null);
   const containerRef = useRef(null);
 
@@ -151,6 +154,16 @@ export default function EditorCanvas({
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect;
+      setStageDims({ width, height });
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   // When parent selects a material type, switch to draw-pier mode automatically
@@ -177,7 +190,18 @@ export default function EditorCanvas({
   ];
   const mergedPiers = piers
     .filter(p => !draft.deletedPierIds.includes(p.id))
-    .map(p => { const o = draft.piers[p.id]; return o ? { ...p, ...o } : p; });
+    .map(p => {
+      const o = draft.piers[p.id];
+      const merged = o ? { ...p, ...o } : p;
+      const removedIndices = pendingSlotRemovals
+        .filter(r => r.pierId === p.id)
+        .map(r => r.slotIndex);
+      if (removedIndices.length === 0) return merged;
+      return {
+        ...merged,
+        ghost_slots: (merged.ghost_slots || []).filter((_, i) => !removedIndices.includes(i)),
+      };
+    });
 
   // --- Zoom / pan ---
   function handleWheel(e) {
@@ -218,6 +242,8 @@ export default function EditorCanvas({
   function handleStageClick(e) {
     if (isPanning.current) return;
     if (e.target !== e.target.getStage() && e.target.name() !== 'background') return;
+    if (Date.now() - lastClickTime.current < 300) return; // suppress second click of dblclick
+    lastClickTime.current = Date.now();
     if (activeTool === 'select') {
       setSelectedBerthId(null); setSelectedAmenityId(null); setSelectedPierId(null);
       return;
@@ -232,10 +258,8 @@ export default function EditorCanvas({
   // --- Double-click: close polygon, show floating confirm panel ---
   function handleStageDblClick(e) {
     if (activeTool !== 'draw-pier' || drawingPoints.length < 3) return;
-    const container = containerRef.current;
-    const rect = container.getBoundingClientRect();
     const lastPt = drawingPoints[drawingPoints.length - 1];
-    const screenX = lastPt[0] * CELL * stageScale + stagePos.x + rect.left - rect.left;
+    const screenX = lastPt[0] * CELL * stageScale + stagePos.x;
     const screenY = lastPt[1] * CELL * stageScale + stagePos.y;
     setConfirmPanel({ screenX, screenY, points: drawingPoints });
     setDrawingPoints([]);
@@ -268,6 +292,7 @@ export default function EditorCanvas({
       finalX = ghostSnap.slot.x;
       finalY = ghostSnap.slot.y;
       finalRot = ghostSnap.slot.rotation;
+      setPendingSlotRemovals(prev => [...prev, { pierId: ghostSnap.pierId, slotIndex: ghostSnap.slotIndex }]);
       onGhostSlotRemove?.(ghostSnap.pierId, ghostSnap.slotIndex);
     }
     setDraft(prev => ({
@@ -338,6 +363,7 @@ export default function EditorCanvas({
         canvas_x = ghostSnap.slot.x;
         canvas_y = ghostSnap.slot.y;
         canvas_rotation = ghostSnap.slot.rotation;
+        setPendingSlotRemovals(prev => [...prev, { pierId: ghostSnap.pierId, slotIndex: ghostSnap.slotIndex }]);
         onGhostSlotRemove?.(ghostSnap.pierId, ghostSnap.slotIndex);
       }
       setDraft(prev => ({ ...prev, berths: { ...prev.berths, [berthId]: { canvas_x, canvas_y, canvas_rotation } } }));
@@ -427,8 +453,8 @@ export default function EditorCanvas({
       >
         <Stage
           ref={stageRef}
-          width={containerRef.current?.clientWidth || 900}
-          height={containerRef.current?.clientHeight || 600}
+          width={stageDims.width}
+          height={stageDims.height}
           scaleX={stageScale} scaleY={stageScale}
           x={stagePos.x} y={stagePos.y}
           onWheel={handleWheel}

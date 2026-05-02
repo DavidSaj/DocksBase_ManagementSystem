@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { usePiers }    from '../hooks/usePiers';
 import { useBerths }   from '../hooks/useBerths';
 import { useAmenities } from '../hooks/useAmenities';
@@ -80,12 +80,12 @@ export default function MarinaMap() {
     removeBerthsByPier(pierId);
   }
 
-  function handleGhostSlotRemove(pierId, slotIndex) {
+  const handleGhostSlotRemove = useCallback((pierId, slotIndex) => {
     const pier = piers.find(p => p.id === pierId);
     if (!pier) return;
     const newSlots = pier.ghost_slots.filter((_, i) => i !== slotIndex);
     updatePier(pierId, { ghost_slots: newSlots });
-  }
+  }, [piers, updatePier]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>

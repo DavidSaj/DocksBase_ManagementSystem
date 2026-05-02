@@ -53,17 +53,20 @@ export default function PrefabLibrary({
       }));
 
     setSaving(true);
-    await onSavePrefab({
-      name:           saveName.trim(),
-      pier_type:      selectedPier.pier_type || 'concrete',
-      polygon_points: normalizedPts,
-      berth_slots:    slots,
-      label_template: saveTemplate.trim(),
-    });
-    setSaving(false);
-    setSaveName('');
-    setSaveTemplate('');
-    setShowSaveForm(false);
+    try {
+      await onSavePrefab({
+        name:           saveName.trim(),
+        pier_type:      selectedPier.pier_type || 'concrete',
+        polygon_points: normalizedPts,
+        berth_slots:    slots,
+        label_template: saveTemplate.trim(),
+      });
+      setSaveName('');
+      setSaveTemplate('');
+      setShowSaveForm(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   const inputStyle = {
