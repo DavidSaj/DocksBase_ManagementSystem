@@ -109,6 +109,7 @@ DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '')
 DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
 
 DEFAULT_FROM_EMAIL = 'DocksBase <noreply@docksbase.com>'
+PORTAL_BASE_URL = os.environ.get('PORTAL_BASE_URL', 'https://portal.docksbase.com')
 
 PLAN_PRICES = {
     'starter': 149,
