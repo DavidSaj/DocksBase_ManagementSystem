@@ -4,7 +4,7 @@ import useBerths from '../../hooks/useBerths.js'
 import MapBuilderCanvas from './MapBuilderCanvas.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
-import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS, rotateAndSnap, snapRotation } from './mapBuilderUtils.js'
+import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS, rotateAndSnap, snapRotation, groupOrigin } from './mapBuilderUtils.js'
 
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
@@ -222,6 +222,24 @@ export default function MapBuilder() {
     e.dataTransfer.setDragImage(img, 0, 0)
   }
 
+  function handleGroupToPrefab() {
+    if (selectedIds.size < 2) return
+    const selected = items.filter(i => selectedIds.has(i.id))
+    const name = window.prompt('Prefab name:', 'My Prefab')
+    if (!name) return
+
+    const origin = groupOrigin(selected)
+    // Store each element's position relative to origin (not absolute gx/gy)
+    const elements = selected.map(i => ({ ...i, gx: i.gx - origin.gx, gy: i.gy - origin.gy }))
+
+    const newPrefab = { id: newId(), name, kind: 'group', elements }
+    setCustomPrefabs(prev => [...prev, newPrefab])
+
+    // Remove grouped items from canvas and push undo snapshot
+    mutateItems(prev => prev.filter(i => !selectedIds.has(i.id)))
+    setSelectedIds(new Set())
+  }
+
   function handleCanvasDragOver(e) {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
@@ -362,7 +380,7 @@ export default function MapBuilder() {
         drawMode={drawMode}
         onPrefabDragStart={handlePrefabDragStart}
         onStartDraw={() => setDrawMode(true)}
-        onGroupToPrefab={() => {}}
+        onGroupToPrefab={handleGroupToPrefab}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', position: 'relative' }}>
