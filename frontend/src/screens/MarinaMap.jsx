@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { usePiers } from '../hooks/usePiers';
-import { useBerths } from '../hooks/useBerths';
+import { usePiers }    from '../hooks/usePiers';
+import { useBerths }   from '../hooks/useBerths';
 import { useAmenities } from '../hooks/useAmenities';
-import LiveCanvas from '../components/harbor-map/LiveCanvas';
-import EditorCanvas from '../components/harbor-map/EditorCanvas';
+import { usePrefabs }  from '../hooks/usePrefabs';
+import LiveCanvas      from '../components/harbor-map/LiveCanvas';
+import EditorCanvas    from '../components/harbor-map/EditorCanvas';
+import AssetPanel      from '../components/harbor-map/AssetPanel';
 import BerthStatusSidebar from '../components/harbor-map/BerthStatusSidebar';
-import UnmappedBerthsSidebar from '../components/harbor-map/UnmappedBerthsSidebar';
-import DocksBerthsTab from '../components/harbor-map/DocksBerthsTab';
+import DocksBerthsTab  from '../components/harbor-map/DocksBerthsTab';
 
 const tabStyle = (active) => ({
   padding: '8px 18px', cursor: 'pointer', fontSize: 13, fontWeight: active ? 700 : 500,
@@ -48,37 +49,26 @@ function BerthDetailPanel({ berth, onClose, onUpdateBerth }) {
 }
 
 export default function MarinaMap() {
-  const [tab, setTab] = useState('live');
+  const [tab, setTab]               = useState('live');
   const [selectedBerth, setSelectedBerth] = useState(null);
+  const [activePierType, setActivePierType] = useState('concrete');
+  const [selectedPierId, setSelectedPierId] = useState(null);
 
   const { piers, createPier, updatePier, deletePier, bulkGenerate } = usePiers();
-  const { berths, updateBerth, deleteBerth, addBerths } = useBerths();
+  const { berths, updateBerth, deleteBerth, addBerths, removeBerthsByPier } = useBerths();
   const { amenities, createAmenity, updateAmenity, deleteAmenity } = useAmenities();
+  const { prefabs, createPrefab, deletePrefab } = usePrefabs();
+
+  const selectedPier  = piers.find(p => p.id === selectedPierId) || null;
+  const pierBerths    = selectedPierId ? berths.filter(b => b.pier === selectedPierId) : [];
 
   async function handleEditorSave(draft) {
-    // Update existing berths
-    const berthUpdates = Object.entries(draft.berths).map(([id, data]) =>
-      updateBerth(Number(id), data)
-    );
-    // Update existing amenities
-    const amenityUpdates = Object.entries(draft.amenities).map(([id, data]) =>
-      updateAmenity(Number(id), data)
-    );
-    // Create new amenities
+    const berthUpdates   = Object.entries(draft.berths).map(([id, data]) => updateBerth(Number(id), data));
+    const amenityUpdates = Object.entries(draft.amenities).map(([id, data]) => updateAmenity(Number(id), data));
     const amenityCreates = draft.newAmenities.map(data => createAmenity(data));
-    // Delete amenities
     const amenityDeletes = draft.deletedAmenityIds.map(id => deleteAmenity(id));
-    // Piers: update polygon_points on existing piers
-    const pierUpdates = Object.entries(draft.piers).map(([id, data]) =>
-      updatePier(Number(id), data)
-    );
-    // deletedPierIds: already handled by onPierDelete (called immediately when user clicks Delete Pier)
-    // newPiers: already created by onPierCreate (called immediately when user closes polygon)
-
-    await Promise.allSettled([
-      ...berthUpdates, ...amenityUpdates, ...amenityCreates,
-      ...amenityDeletes, ...pierUpdates,
-    ]);
+    const pierUpdates    = Object.entries(draft.piers).map(([id, data]) => updatePier(Number(id), data));
+    await Promise.allSettled([...berthUpdates, ...amenityUpdates, ...amenityCreates, ...amenityDeletes, ...pierUpdates]);
   }
 
   function handlePierCreate(pierData) {
@@ -87,14 +77,20 @@ export default function MarinaMap() {
 
   function handlePierDelete(pierId) {
     deletePier(pierId);
+    removeBerthsByPier(pierId);
+  }
+
+  function handleGhostSlotRemove(pierId, slotIndex) {
+    const pier = piers.find(p => p.id === pierId);
+    if (!pier) return;
+    const newSlots = pier.ghost_slots.filter((_, i) => i !== slotIndex);
+    updatePier(pierId, { ghost_slots: newSlots });
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        borderBottom: '1px solid #e5e7eb', background: 'white', paddingLeft: 16, flexShrink: 0,
-      }}>
+      {/* Tab bar */}
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', background: 'white', paddingLeft: 16, flexShrink: 0 }}>
         <button style={tabStyle(tab === 'live')}   onClick={() => setTab('live')}>Marina Map</button>
         <button style={tabStyle(tab === 'editor')} onClick={() => setTab('editor')}>Map Editor</button>
         <button style={tabStyle(tab === 'docks')}  onClick={() => setTab('docks')}>Docks & Berths</button>
@@ -103,39 +99,37 @@ export default function MarinaMap() {
       {tab === 'live' && (
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
           <div style={{ flex: 1, position: 'relative' }}>
-            <LiveCanvas
-              piers={piers}
-              berths={berths}
-              amenities={amenities}
-              selectedBerthId={selectedBerth?.id}
-              onBerthClick={setSelectedBerth}
-              onAmenityClick={() => {}}
-            />
-            <BerthDetailPanel
-              berth={selectedBerth}
-              onClose={() => setSelectedBerth(null)}
-              onUpdateBerth={updateBerth}
-            />
+            <LiveCanvas piers={piers} berths={berths} amenities={amenities} selectedBerthId={selectedBerth?.id} onBerthClick={setSelectedBerth} onAmenityClick={() => {}} />
+            <BerthDetailPanel berth={selectedBerth} onClose={() => setSelectedBerth(null)} onUpdateBerth={updateBerth} />
           </div>
-          <BerthStatusSidebar
-            berths={berths}
-            selectedBerthId={selectedBerth?.id}
-            onBerthClick={setSelectedBerth}
-          />
+          <BerthStatusSidebar berths={berths} selectedBerthId={selectedBerth?.id} onBerthClick={setSelectedBerth} />
         </div>
       )}
 
       {tab === 'editor' && (
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <UnmappedBerthsSidebar berths={berths} piers={piers} />
+          <AssetPanel
+            activePierType={activePierType}
+            onMaterialSelect={(pierType) => { setActivePierType(pierType); }}
+            prefabs={prefabs}
+            selectedPier={selectedPier}
+            pierBerths={pierBerths}
+            onSavePrefab={createPrefab}
+            onDeletePrefab={deletePrefab}
+            berths={berths}
+            piers={piers}
+          />
           <div style={{ flex: 1, position: 'relative' }}>
             <EditorCanvas
               piers={piers}
               berths={berths}
               amenities={amenities}
+              prefabs={prefabs}
+              activePierType={activePierType}
               onSave={handleEditorSave}
               onPierCreate={handlePierCreate}
-              onPierDelete={handlePierDelete}
+              onPierDelete={(id) => handlePierDelete(id)}
+              onGhostSlotRemove={handleGhostSlotRemove}
             />
           </div>
         </div>
@@ -148,7 +142,7 @@ export default function MarinaMap() {
             berths={berths}
             onCreatePier={createPier}
             onUpdatePier={updatePier}
-            onDeletePier={deletePier}
+            onDeletePier={(id) => handlePierDelete(id)}
             onBulkGenerate={async (pierId, data) => {
               const created = await bulkGenerate(pierId, data);
               addBerths(created);
