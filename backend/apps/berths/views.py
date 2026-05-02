@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from django.db import IntegrityError
 
 from apps.admin_portal.permissions import IsSafeModeReadOnly
 from .models import Pier, Berth, MarinaMapConfig, Amenity
@@ -17,17 +18,16 @@ def resolve_pier_code(marina, code_template):
     """Replace {n} in code_template with the next available integer for this marina."""
     if '{n}' not in code_template:
         return code_template
-    parts = code_template.split('{n}')
-    prefix, suffix = parts[0], parts[1]
+    prefix, suffix = code_template.split('{n}', 1)
     existing = set(
         Pier.objects.filter(marina=marina).values_list('code', flat=True)
     )
-    n = 1
-    while True:
+    for n in range(1, 10_000):
         candidate = f'{prefix}{n}{suffix}'
         if candidate not in existing:
             return candidate
-        n += 1
+    from rest_framework.exceptions import ValidationError
+    raise ValidationError({'code': 'Could not find an available pier code slot.'})
 
 
 class PierListCreateView(generics.ListCreateAPIView):
@@ -40,8 +40,15 @@ class PierListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         marina = self.request.user.marina
         raw_code = serializer.validated_data.get('code', '')
-        resolved_code = resolve_pier_code(marina, raw_code)
-        serializer.save(marina=marina, code=resolved_code)
+        for _ in range(10):
+            resolved_code = resolve_pier_code(marina, raw_code)
+            try:
+                serializer.save(marina=marina, code=resolved_code)
+                return
+            except IntegrityError:
+                pass  # concurrent request claimed this slot; retry with next n
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({'code': 'Could not allocate a unique pier code after retries.'})
 
 
 class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
