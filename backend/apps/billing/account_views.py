@@ -1,7 +1,13 @@
 from decimal import Decimal
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import F, Sum, Value, DecimalField
 from django.db.models.functions import Coalesce
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from rest_framework import status as http_status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,6 +15,8 @@ from rest_framework.views import APIView
 
 from apps.members.models import Member
 from .models import Invoice, AccountPayment
+
+User = get_user_model()
 
 
 SOURCE_TO_CAT = {
@@ -57,13 +65,10 @@ def _build_detail(member):
     invoices_data = []
 
     for inv in open_invoices:
-        already_paid = inv.allocations.aggregate(
-            s=Coalesce(
-                Sum('allocated_amount'),
-                Value(Decimal('0.00'), output_field=DecimalField(max_digits=10, decimal_places=2)),
-            )
-        )['s']
-        already_paid = already_paid.quantize(Decimal('0.01'))
+        already_paid = sum(
+            (a.allocated_amount for a in inv.allocations.all()),
+            Decimal('0.00')
+        ).quantize(Decimal('0.01'))
         balance = inv.total - already_paid
         total_outstanding += balance
         cat = SOURCE_TO_CAT.get(inv.source_type, 'other')
@@ -89,9 +94,7 @@ def _build_detail(member):
         })
 
     credit = _credit_on_account(member)
-    portal_active = bool(
-        member.boater_user_id and hasattr(member, 'boater_user') and member.boater_user.is_active
-    )
+    portal_active = bool(member.boater_user_id and member.boater_user.is_active)
 
     return {
         'member': {
@@ -135,12 +138,10 @@ class AccountListView(APIView):
             oldest_due = None
 
             for inv in open_invoices:
-                already_paid = inv.allocations.aggregate(
-                    s=Coalesce(
-                        Sum('allocated_amount'),
-                        Value(Decimal('0.00'), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    )
-                )['s']
+                already_paid = sum(
+                    (a.allocated_amount for a in inv.allocations.all()),
+                    Decimal('0.00')
+                ).quantize(Decimal('0.01'))
                 total_outstanding += inv.total - already_paid
                 if inv.due_date and (oldest_due is None or inv.due_date < oldest_due):
                     oldest_due = inv.due_date
@@ -148,19 +149,20 @@ class AccountListView(APIView):
             if not show_all and total_outstanding == Decimal('0.00'):
                 continue
 
-            credit = _credit_on_account(member)
+            credit = sum(
+                (p.credit_remaining for p in member.account_payments.all()),
+                Decimal('0.00')
+            )
             results.append({
                 'member_id': member.pk,
                 'name': member.name,
                 'member_type': member.member_type,
                 'berth_code': _berth_code_for_member(member),
-                'total_outstanding': str(total_outstanding),
+                'total_outstanding': str(total_outstanding.quantize(Decimal('0.01'))),
                 'credit_on_account': str(credit),
                 'open_invoice_count': len(open_invoices),
                 'oldest_due_date': str(oldest_due) if oldest_due else None,
-                'portal_active': bool(
-                    member.boater_user_id and hasattr(member, 'boater_user') and member.boater_user.is_active
-                ),
+                'portal_active': bool(member.boater_user_id and member.boater_user.is_active),
             })
 
         results.sort(key=lambda r: Decimal(r['total_outstanding']), reverse=True)
@@ -238,47 +240,39 @@ class GenerateInviteView(APIView):
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
 
-        from django.contrib.auth import get_user_model
-        from django.contrib.auth.tokens import default_token_generator
-        from django.core.mail import send_mail
-        from django.conf import settings
-        from django.utils.encoding import force_bytes
-        from django.utils.http import urlsafe_base64_encode
-
-        User = get_user_model()
-
-        if member.boater_user is None:
-            user = User.objects.create_user(
-                email=member.email,
-                password=None,
-                marina=member.marina,
-                role='boater',
-                is_active=False,
-            )
-            member.boater_user = user
-            member.save(update_fields=['boater_user'])
-        else:
-            user = member.boater_user
-
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
-        portal_url = getattr(settings, 'PORTAL_BASE_URL', 'https://portal.docksbase.com')
-        link = f'{portal_url}/activate/{uid}/{token}/'
-
         try:
-            send_mail(
-                subject='Your DocksBase Boater Portal Access',
-                message=(
-                    f'Hello {member.name},\n\n'
-                    f'You have been invited to access your boater account at '
-                    f'{request.user.marina.name}.\n\n'
-                    f'Set your password here:\n{link}\n\n'
-                    f'This link expires in 3 days.\n\nDocksBase'
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[member.email],
-                fail_silently=False,
-            )
+            with transaction.atomic():
+                if member.boater_user is None:
+                    user = User.objects.create_user(
+                        email=member.email,
+                        password=None,
+                        marina=member.marina,
+                        role='boater',
+                        is_active=False,
+                    )
+                    member.boater_user = user
+                    member.save(update_fields=['boater_user'])
+                else:
+                    user = member.boater_user
+
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+                portal_url = getattr(settings, 'PORTAL_BASE_URL', 'https://portal.docksbase.com')
+                link = f'{portal_url}/activate/{uid}/{token}/'
+
+                send_mail(
+                    subject='Your DocksBase Boater Portal Access',
+                    message=(
+                        f'Hello {member.name},\n\n'
+                        f'You have been invited to access your boater account at '
+                        f'{request.user.marina.name}.\n\n'
+                        f'Set your password here:\n{link}\n\n'
+                        f'This link expires in 3 days.\n\nDocksBase'
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[member.email],
+                    fail_silently=False,
+                )
         except Exception:
             return Response(
                 {'detail': 'Failed to send invite email. Please try again.'},
