@@ -1,9 +1,10 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig, Amenity
+from .models import Pier, Berth, MarinaMapConfig, Amenity, PIER_TYPE_CHOICES
 
 
 class PierSerializer(serializers.ModelSerializer):
     berth_count = serializers.SerializerMethodField()
+    pier_type = serializers.ChoiceField(choices=[c[0] for c in PIER_TYPE_CHOICES], default='concrete')
 
     class Meta:
         model = Pier
@@ -18,6 +19,19 @@ class PierSerializer(serializers.ModelSerializer):
 
     def get_berth_count(self, obj):
         return obj.berths.count()
+
+    def validate_ghost_slots(self, value):
+        required_keys = {'x', 'y', 'rotation', 'width_m', 'height_m'}
+        for i, slot in enumerate(value):
+            if not isinstance(slot, dict):
+                raise serializers.ValidationError(f'Slot {i} must be an object.')
+            missing = required_keys - slot.keys()
+            if missing:
+                raise serializers.ValidationError(f'Slot {i} missing keys: {missing}.')
+            for key in required_keys:
+                if not isinstance(slot[key], (int, float)):
+                    raise serializers.ValidationError(f'Slot {i}.{key} must be numeric.')
+        return value
 
 
 class AmenitySerializer(serializers.ModelSerializer):

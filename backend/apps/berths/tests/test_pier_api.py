@@ -54,3 +54,39 @@ class PierTypeFieldTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         pier.refresh_from_db()
         self.assertEqual(pier.ghost_slots, slots)
+
+
+class PierSerializerValidationTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('validation@test.com')
+        self.client = auth_client(self.user)
+
+    def test_invalid_pier_type_rejected(self):
+        resp = self.client.post('/api/v1/piers/', {
+            'code': 'X',
+            'pier_type': 'invalid_type',
+            'polygon_points': [[0,0],[10,0],[10,5],[0,5]],
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_ghost_slots_missing_key_rejected(self):
+        pier = Pier.objects.create(
+            marina=self.marina, code='Y', polygon_points=[[0,0],[5,0],[5,5],[0,5]]
+        )
+        resp = self.client.patch(
+            f'/api/v1/piers/{pier.id}/',
+            {'ghost_slots': [{'x': 1, 'y': 2}]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_ghost_slots_non_numeric_value_rejected(self):
+        pier = Pier.objects.create(
+            marina=self.marina, code='Z', polygon_points=[[0,0],[5,0],[5,5],[0,5]]
+        )
+        resp = self.client.patch(
+            f'/api/v1/piers/{pier.id}/',
+            {'ghost_slots': [{'x': 'not-a-number', 'y': 2, 'rotation': 0, 'width_m': 4, 'height_m': 12}]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
