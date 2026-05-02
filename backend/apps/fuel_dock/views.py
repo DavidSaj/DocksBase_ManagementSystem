@@ -56,7 +56,24 @@ class FuelQueueListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(marina=self.request.user.marina)
+        now    = timezone.now()
+        status = serializer.validated_data.get('status', 'waiting')
+        extra  = {'marina': self.request.user.marina}
+
+        if status == 'completed':
+            actual = serializer.validated_data.get('actual_litres')
+            price  = serializer.validated_data.get('price_per_litre')
+            total  = (actual * price) if (actual and price) else None
+            extra['completed_at'] = now
+            extra['total_amount'] = total
+
+        entry = serializer.save(**extra)
+
+        if status == 'completed':
+            billing_extra = _bill_completion(entry, entry.total_amount, now)
+            for field, val in billing_extra.items():
+                setattr(entry, field, val)
+            entry.save(update_fields=list(billing_extra.keys()))
 
 
 class FuelQueueDetailView(generics.RetrieveUpdateDestroyAPIView):

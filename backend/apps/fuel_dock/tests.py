@@ -76,3 +76,46 @@ class FuelDockBillingTest(TestCase):
             self.assertEqual(resp.status_code, 200, f'Failed advancing to {expected_status}')
             entry.refresh_from_db()
             self.assertEqual(entry.status, expected_status)
+
+
+class FuelDockQuickSaleTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user   = make_user(self.marina)
+        self.member = Member.objects.create(marina=self.marina, name='T. Berg', phone='+353 87 200 0000')
+        self.vessel = Vessel.objects.create(marina=self.marina, name='Sea Whisper', owner=self.member)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_quicksale_guest_sets_pos_paid(self):
+        resp = self.client.post('/api/v1/fuel-dock/queue/', {
+            'status':          'completed',
+            'fuel_type':       'diesel',
+            'actual_litres':   '30.00',
+            'price_per_litre': '1.42',
+            'guest_description': 'Red sloop',
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        entry = FuelDockEntry.objects.get(pk=resp.data['id'])
+        self.assertEqual(entry.status, 'completed')
+        self.assertAlmostEqual(float(entry.total_amount), 42.6)
+        self.assertTrue(entry.pos_paid)
+        self.assertIsNone(entry.invoice)
+        self.assertIsNotNone(entry.completed_at)
+
+    def test_quicksale_member_creates_invoice(self):
+        resp = self.client.post('/api/v1/fuel-dock/queue/', {
+            'status':          'completed',
+            'fuel_type':       'petrol',
+            'actual_litres':   '20.00',
+            'price_per_litre': '1.55',
+            'member':          self.member.id,
+            'vessel':          self.vessel.id,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        entry = FuelDockEntry.objects.get(pk=resp.data['id'])
+        self.assertEqual(entry.status, 'completed')
+        self.assertAlmostEqual(float(entry.total_amount), 31.0)
+        self.assertFalse(entry.pos_paid)
+        self.assertIsNotNone(entry.invoice)
+        self.assertEqual(entry.invoice.source_type, 'fuel_dock')
