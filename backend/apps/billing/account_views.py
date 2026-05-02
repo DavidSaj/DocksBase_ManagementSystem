@@ -106,9 +106,9 @@ def _build_detail(member):
             'portal_active': portal_active,
         },
         'summary': {
-            'total_outstanding': str(total_outstanding),
+            'total_outstanding': str(total_outstanding.quantize(Decimal('0.01'))),
             'credit_on_account': str(credit),
-            'by_category': {k: str(v) for k, v in by_category.items()},
+            'by_category': {k: str(v.quantize(Decimal('0.01'))) for k, v in by_category.items()},
         },
         'open_invoices': invoices_data,
     }
