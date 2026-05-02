@@ -59,7 +59,7 @@ function buildLiveShapes(piers, berths, envItems) {
 
 const POLL_INTERVAL_MS = 30_000  // refresh berth statuses every 30 seconds
 
-export default function LiveMap() {
+export default function LiveMap({ onBerthsChange } = {}) {
   const { piers, loading: piersLoading } = usePiers()
   const { berths, loading: berthsLoading, refetch: refetchBerths } = useBerths()
   const { config, loading: cfgLoading } = useMapConfig()
@@ -70,6 +70,11 @@ export default function LiveMap() {
     const timer = setInterval(refetchBerths, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [refetchBerths])
+
+  // Notify parent whenever berths data changes
+  useEffect(() => {
+    if (onBerthsChange) onBerthsChange(berths)
+  }, [berths, onBerthsChange])
 
   function handleItemClick(e, item) {
     if (item.type !== 'berth') return

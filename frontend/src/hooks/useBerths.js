@@ -29,7 +29,9 @@ export function berthsToPiers(berths) {
     }));
 }
 
-export default function useBerths(filters = {}) {
+const EMPTY_FILTERS = {}
+
+export default function useBerths(filters = EMPTY_FILTERS) {
   const [berths,  setBerths]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);

@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import LiveMap from '../components/harbor-map/LiveMap.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import useBerths from '../hooks/useBerths.js';
 import MapBuilder from '../components/harbor-map/MapBuilder.jsx';
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function MarinaMap() {
   const [tab, setTab] = useState('live');
-  const { counts, loading } = useBerths();
+  const [liveBerths, setLiveBerths] = useState([]);
+
+  const counts = {
+    available:   liveBerths.filter(b => b.status === 'available').length,
+    occupied:    liveBerths.filter(b => b.status === 'occupied').length,
+    reserved:    liveBerths.filter(b => b.status === 'reserved').length,
+    maintenance: liveBerths.filter(b => b.status === 'maintenance').length,
+  };
 
   return (
     <div>
@@ -22,7 +28,7 @@ export default function MarinaMap() {
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             {[['Occupied',counts.occupied,'badge-blue'],['Available',counts.available,'badge-green'],['Reserved',counts.reserved,'badge-gold'],['Maintenance',counts.maintenance,'badge-red']].map(([l,c,b]) => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--white)', border: 'var(--border)', borderRadius: 8, padding: '8px 14px' }}>
-                <span className={`badge ${b}`}>{loading ? '…' : c}</span>
+                <span className={`badge ${b}`}>{c}</span>
                 <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(0,0,0,0.6)' }}>{l}</span>
               </div>
             ))}
@@ -30,7 +36,7 @@ export default function MarinaMap() {
           </div>
 
           <div>
-            <LiveMap />
+            <LiveMap onBerthsChange={setLiveBerths} />
             <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
               {[['Occupied','#c6dcf5','#3a7fc8'],['Available','#c2ecce','#38a860'],['Reserved','#f6e7b0','#c89020'],['Maintenance','#f5cccc','#c04040']].map(([l,bg,stroke]) => (
                 <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>
