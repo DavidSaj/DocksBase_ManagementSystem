@@ -4,7 +4,7 @@ import useBerths from '../../hooks/useBerths.js'
 import MapBuilderCanvas from './MapBuilderCanvas.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
-import { newId } from './mapBuilderUtils.js'
+import { newId, snapToGrid, wallSnapPos, GRID } from './mapBuilderUtils.js'
 
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
@@ -19,6 +19,7 @@ export default function MapBuilder() {
   const [hoverG,        setHoverG]        = useState(null)
   const [saveStatus,    setSaveStatus]    = useState(null)
   const historyRef = useRef([])
+  const dragPayloadRef = useRef(null)
 
   useEffect(() => {
     if (!config) return
@@ -36,6 +37,118 @@ export default function MapBuilder() {
       return updater(prev)
     })
   }, [pushHistory])
+
+  function handlePrefabDragStart(e, prefab) {
+    dragPayloadRef.current = { kind: 'prefab', prefab }
+    e.dataTransfer.effectAllowed = 'copy'
+    const img = new Image()
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    e.dataTransfer.setDragImage(img, 0, 0)
+  }
+
+  function handleBerthDragStart(e, berth) {
+    dragPayloadRef.current = { kind: 'berth', berth }
+    e.dataTransfer.effectAllowed = 'copy'
+    const img = new Image()
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    e.dataTransfer.setDragImage(img, 0, 0)
+  }
+
+  function handleCanvasDragOver(e) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    const payload = dragPayloadRef.current
+    if (!payload) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const { gx, gy } = snapToGrid(e.clientX, e.clientY, rect)
+
+    const w = payload.kind === 'prefab' ? payload.prefab.w : 2
+    const h = payload.kind === 'prefab' ? payload.prefab.h : 1
+    const bg     = payload.kind === 'prefab' ? payload.prefab.bg     : '#2a5f8f'
+    const border = payload.kind === 'prefab' ? payload.prefab.border : '#5a8fbf'
+
+    let pos = { gx, gy }
+    let snapBorder = border
+
+    if (payload.kind === 'berth') {
+      const walls = items.filter(i => i.type === 'parallel-wall')
+      const snap = wallSnapPos(gx, gy, w, walls)
+      if (snap) {
+        pos = { gx: snap.gx, gy: snap.gy }
+        snapBorder = '#38a860'
+      }
+    }
+
+    setGhost({ gx: pos.gx, gy: pos.gy, w, h, bg, border: snapBorder })
+  }
+
+  function handleCanvasDrop(e) {
+    e.preventDefault()
+    const payload = dragPayloadRef.current
+    dragPayloadRef.current = null
+    if (!payload || !ghost) { setGhost(null); return }
+
+    if (payload.kind === 'prefab') {
+      const p = payload.prefab
+
+      const customPrefab = customPrefabs.find(cp => cp.id === p.type)
+      if (customPrefab) {
+        if (customPrefab.kind === 'group') {
+          const newItems = customPrefab.elements.map(el => ({
+            ...el,
+            id: newId(),
+            gx: ghost.gx + el.gx,
+            gy: ghost.gy + el.gy,
+          }))
+          mutateItems(prev => [...prev, ...newItems])
+          setSelectedIds(new Set(newItems.map(i => i.id)))
+        } else if (customPrefab.kind === 'polygon') {
+          const newItem = {
+            id: newId(), type: customPrefab.id, shape: 'polygon',
+            points: customPrefab.points.map(pt => ({ gx: ghost.gx + pt.gx, gy: ghost.gy + pt.gy })),
+            fill: customPrefab.fill, stroke: customPrefab.stroke,
+            label: customPrefab.name, rotation: 0,
+            customPrefabId: customPrefab.id,
+          }
+          mutateItems(prev => [...prev, newItem])
+          setSelectedIds(new Set([newItem.id]))
+        }
+        setGhost(null)
+        return
+      }
+
+      const newItem = {
+        id: newId(), type: p.type, shape: 'rect',
+        gx: ghost.gx, gy: ghost.gy, w: p.w, h: p.h,
+        bg: p.bg, border: p.border, label: p.label,
+        rotation: 0,
+      }
+      mutateItems(prev => [...prev, newItem])
+      setSelectedIds(new Set([newItem.id]))
+
+    } else {
+      const berth = payload.berth
+      const walls = items.filter(i => i.type === 'parallel-wall')
+      const snap = wallSnapPos(ghost.gx, ghost.gy, 2, walls)
+      const newItem = {
+        id: newId(), type: 'berth', shape: 'rect',
+        gx: ghost.gx, gy: ghost.gy, w: 2, h: 1,
+        bg: '#2a5f8f', border: '#5a8fbf', label: berth.code,
+        rotation: 0,
+        berthId: berth.id,
+        ...(snap ? { snapWallId: snap.snapWallId, slotIndex: snap.slotIndex } : {}),
+      }
+      mutateItems(prev => [...prev, newItem])
+      setSelectedIds(new Set([newItem.id]))
+    }
+
+    setGhost(null)
+  }
+
+  function handleCanvasDragLeave() {
+    setGhost(null)
+  }
 
   async function handleSave() {
     setSaveStatus('saving')
@@ -79,7 +192,7 @@ export default function MapBuilder() {
         customPrefabs={customPrefabs}
         selectedIds={selectedIds}
         drawMode={drawMode}
-        onPrefabDragStart={() => {}}
+        onPrefabDragStart={handlePrefabDragStart}
         onStartDraw={() => setDrawMode(true)}
         onGroupToPrefab={() => {}}
       />
@@ -131,9 +244,9 @@ export default function MapBuilder() {
           onCanvasClick={() => {}}
           onCanvasPointerMove={() => {}}
           onCanvasPointerUp={() => {}}
-          onCanvasDragOver={() => {}}
-          onCanvasDrop={() => {}}
-          onCanvasDragLeave={() => {}}
+          onCanvasDragOver={handleCanvasDragOver}
+          onCanvasDrop={handleCanvasDrop}
+          onCanvasDragLeave={handleCanvasDragLeave}
           onItemPointerDown={() => {}}
           onRotateHandlePointerDown={() => {}}
           onWallResizePointerDown={() => {}}
@@ -143,7 +256,7 @@ export default function MapBuilder() {
       <MapBuilderBerthPanel
         berths={berths}
         placedBerthIds={placedBerthIds}
-        onBerthDragStart={() => {}}
+        onBerthDragStart={handleBerthDragStart}
       />
     </div>
   )
