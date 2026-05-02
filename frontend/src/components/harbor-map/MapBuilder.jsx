@@ -4,7 +4,7 @@ import useBerths from '../../hooks/useBerths.js'
 import MapBuilderCanvas from './MapBuilderCanvas.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
-import { newId, snapToGrid, wallSnapPos, GRID } from './mapBuilderUtils.js'
+import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS } from './mapBuilderUtils.js'
 
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
@@ -20,12 +20,18 @@ export default function MapBuilder() {
   const [saveStatus,    setSaveStatus]    = useState(null)
   const historyRef = useRef([])
   const dragPayloadRef = useRef(null)
+  const moveRef = useRef(null)
+  // { itemId, startGx, startGy, startClientX, startClientY, moved, snapshot }
 
   useEffect(() => {
     if (!config) return
     if (config.custom_elements) setItems(config.custom_elements)
     if (config.custom_prefabs)  setCustomPrefabs(config.custom_prefabs)
   }, [config])
+
+  function closePolygon() {
+    // Implemented in Task 13
+  }
 
   const pushHistory = useCallback((prevItems) => {
     historyRef.current = [...historyRef.current.slice(-19), prevItems]
@@ -37,6 +43,86 @@ export default function MapBuilder() {
       return updater(prev)
     })
   }, [pushHistory])
+
+  function handleItemPointerDown(e, item) {
+    if (drawMode) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+
+    if (e.shiftKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+        return next
+      })
+    } else {
+      setSelectedIds(new Set([item.id]))
+    }
+
+    moveRef.current = {
+      itemId: item.id,
+      startGx: item.gx,
+      startGy: item.gy,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      moved: false,
+      snapshot: items,
+    }
+  }
+
+  function handleCanvasPointerMove(e) {
+    if (drawMode && e.buttons === 0) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const gx = Math.round((e.clientX - rect.left) / GRID)
+      const gy = Math.round((e.clientY - rect.top) / GRID)
+      setHoverG({ gx: Math.max(0, Math.min(COLS - 1, gx)), gy: Math.max(0, Math.min(ROWS - 1, gy)) })
+      return
+    }
+
+    if (!moveRef.current || e.buttons === 0) return
+    const { itemId, startGx, startGy, startClientX, startClientY } = moveRef.current
+    const dgx = Math.round((e.clientX - startClientX) / GRID)
+    const dgy = Math.round((e.clientY - startClientY) / GRID)
+    if (dgx === 0 && dgy === 0) return
+
+    moveRef.current.moved = true
+    setItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item
+      return {
+        ...item,
+        gx: Math.max(0, Math.min(COLS - item.w, startGx + dgx)),
+        gy: Math.max(0, Math.min(ROWS - item.h, startGy + dgy)),
+      }
+    }))
+  }
+
+  function handleCanvasPointerUp() {
+    if (moveRef.current?.moved && moveRef.current.snapshot) {
+      historyRef.current = [...historyRef.current.slice(-19), moveRef.current.snapshot]
+    }
+    moveRef.current = null
+  }
+
+  function handleCanvasClick(e) {
+    if (drawMode) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const gx = Math.round((e.clientX - rect.left) / GRID)
+      const gy = Math.round((e.clientY - rect.top) / GRID)
+      const snappedGx = Math.max(0, Math.min(COLS - 1, gx))
+      const snappedGy = Math.max(0, Math.min(ROWS - 1, gy))
+
+      if (drawPoints.length >= 3) {
+        const f = drawPoints[0]
+        if (Math.abs(snappedGx - f.gx) <= 1 && Math.abs(snappedGy - f.gy) <= 1) {
+          closePolygon()
+          return
+        }
+      }
+      setDrawPoints(prev => [...prev, { gx: snappedGx, gy: snappedGy }])
+      return
+    }
+    setSelectedIds(new Set())
+  }
 
   function handlePrefabDragStart(e, prefab) {
     dragPayloadRef.current = { kind: 'prefab', prefab }
@@ -241,13 +327,13 @@ export default function MapBuilder() {
           drawMode={drawMode}
           drawPoints={drawPoints}
           hoverG={hoverG}
-          onCanvasClick={() => {}}
-          onCanvasPointerMove={() => {}}
-          onCanvasPointerUp={() => {}}
+          onCanvasClick={handleCanvasClick}
+          onCanvasPointerMove={handleCanvasPointerMove}
+          onCanvasPointerUp={handleCanvasPointerUp}
           onCanvasDragOver={handleCanvasDragOver}
           onCanvasDrop={handleCanvasDrop}
           onCanvasDragLeave={handleCanvasDragLeave}
-          onItemPointerDown={() => {}}
+          onItemPointerDown={handleItemPointerDown}
           onRotateHandlePointerDown={() => {}}
           onWallResizePointerDown={() => {}}
         />
