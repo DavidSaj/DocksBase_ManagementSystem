@@ -102,3 +102,15 @@ class ActivatePortalViewTest(TestCase):
     def test_missing_fields_returns_400(self):
         resp = self.client.post('/api/v1/mobile/activate/', {}, format='json')
         self.assertEqual(resp.status_code, 400)
+
+    def test_already_active_user_returns_400(self):
+        uid, token = self._make_token()
+        # First activation
+        self.client.post('/api/v1/mobile/activate/', {
+            'uid': uid, 'token': token, 'password': 'NewPass123!',
+        }, format='json')
+        # Second attempt with same token
+        resp = self.client.post('/api/v1/mobile/activate/', {
+            'uid': uid, 'token': token, 'password': 'AnotherPass123!',
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
