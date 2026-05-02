@@ -131,11 +131,11 @@ class AccountPayment(models.Model):
     ]
 
     marina           = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='account_payments')
-    member           = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='account_payments')
+    member           = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='account_payments')
     amount           = models.DecimalField(max_digits=10, decimal_places=2)
     credit_remaining = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     method           = models.CharField(max_length=20, choices=METHOD_CHOICES)
-    recorded_by      = models.ForeignKey('staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True)
+    recorded_by      = models.ForeignKey('staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_account_payments')
     notes            = models.CharField(max_length=500, blank=True)
     created_at       = models.DateTimeField(auto_now_add=True)
 
@@ -150,6 +150,9 @@ class PaymentAllocation(models.Model):
     payment          = models.ForeignKey(AccountPayment, on_delete=models.CASCADE, related_name='allocations')
     invoice          = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name='allocations')
     allocated_amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
 
     def __str__(self):
         return f'Alloc {self.pk}: €{self.allocated_amount} → {self.invoice}'
