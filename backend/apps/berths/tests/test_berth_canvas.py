@@ -1,6 +1,9 @@
+from decimal import Decimal
+
 from django.test import TestCase
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
+from apps.billing.models import ChargeableItem
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -9,6 +12,13 @@ def make_user_with_marina(email='canvas@test.com'):
     marina = Marina.objects.create(name=f'Test Marina {email}')
     user = User.objects.create_user(email=email, password='testpass', marina=marina)
     return user, marina
+
+
+def make_pricing_tier(marina):
+    return ChargeableItem.objects.create(
+        marina=marina, name='Berth Night', category='berth',
+        pricing_model='per_night', unit_price=Decimal('50.00'),
+    )
 
 
 def auth_client(user):
@@ -21,6 +31,7 @@ def auth_client(user):
 class PierCanvasFieldsTest(TestCase):
     def setUp(self):
         self.user, self.marina = make_user_with_marina()
+        self.tier = make_pricing_tier(self.marina)
 
     def test_pier_canvas_fields_default_to_null_and_zero(self):
         pier = Pier.objects.create(marina=self.marina, code='A')
@@ -35,11 +46,12 @@ class PierCanvasFieldsTest(TestCase):
             marina=self.marina,
             pier=None,
             code='X1',
+            pricing_tier=self.tier,
         )
         self.assertIsNone(berth.pier)
 
     def test_berth_local_coords_default_null(self):
-        berth = Berth.objects.create(marina=self.marina, pier=None, code='X2')
+        berth = Berth.objects.create(marina=self.marina, pier=None, code='X2', pricing_tier=self.tier)
         self.assertIsNone(berth.local_x)
         self.assertIsNone(berth.local_y)
         self.assertIsNone(berth.position_on_parent)
@@ -49,6 +61,7 @@ class PierSerializerCanvasTest(TestCase):
     def setUp(self):
         self.user, self.marina = make_user_with_marina('serial@test.com')
         self.client = auth_client(self.user)
+        self.tier = make_pricing_tier(self.marina)
 
     def test_pier_api_returns_canvas_fields(self):
         resp = self.client.post('/api/v1/piers/', {
@@ -81,6 +94,7 @@ class PierSerializerCanvasTest(TestCase):
         resp = self.client.post('/api/v1/berths/', {
             'code': 'B99',
             'pier': None,
+            'pricing_tier': self.tier.id,
         }, format='json')
         self.assertEqual(resp.status_code, 201)
         self.assertIsNone(resp.json()['pier'])
@@ -88,7 +102,7 @@ class PierSerializerCanvasTest(TestCase):
     def test_berth_local_coords_patchable(self):
         pier = Pier.objects.create(marina=self.marina, code='P3',
                                    canvas_x='10', canvas_y='5')
-        berth = Berth.objects.create(marina=self.marina, pier=None, code='B1')
+        berth = Berth.objects.create(marina=self.marina, pier=None, code='B1', pricing_tier=self.tier)
         resp = self.client.patch(
             f'/api/v1/berths/{berth.id}/',
             {
@@ -105,7 +119,7 @@ class PierSerializerCanvasTest(TestCase):
         self.assertEqual(float(berth.local_x), -3.0)
 
     def test_berth_is_placed_false_when_no_pier(self):
-        berth = Berth.objects.create(marina=self.marina, pier=None, code='B2')
+        berth = Berth.objects.create(marina=self.marina, pier=None, code='B2', pricing_tier=self.tier)
         resp = self.client.get(f'/api/v1/berths/{berth.id}/')
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.json()['is_placed'])
@@ -116,6 +130,7 @@ class PierSerializerCanvasTest(TestCase):
         berth = Berth.objects.create(
             marina=self.marina, pier=pier, code='B3',
             local_x='1.00', local_y='0.00',
+            pricing_tier=self.tier,
         )
         resp = self.client.get(f'/api/v1/berths/{berth.id}/')
         self.assertEqual(resp.status_code, 200)
