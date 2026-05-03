@@ -4,7 +4,7 @@ from .models import Pier, Berth, MarinaMapConfig
 from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer
 
 
-class PierListView(generics.ListCreateAPIView):
+class PierListCreateView(generics.ListCreateAPIView):
     serializer_class = PierSerializer
 
     def get_queryset(self):
@@ -21,7 +21,7 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Pier.objects.filter(marina=self.request.user.marina)
 
 
-class BerthListView(generics.ListCreateAPIView):
+class BerthListCreateView(generics.ListCreateAPIView):
     serializer_class = BerthSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['status', 'pier']

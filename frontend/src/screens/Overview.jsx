@@ -1,4 +1,4 @@
-import { useBerths } from '../hooks/useBerths.js';
+import useBerths from '../hooks/useBerths.js';
 import useBookings from '../hooks/useBookings.js';
 import useOverview from '../hooks/useOverview.js';
 import useWeather from '../hooks/useWeather.js';

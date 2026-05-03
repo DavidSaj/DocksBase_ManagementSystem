@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('berths', '0002_pier_type_ghost_slots'),
+        ('berths', '0008_seed_base_prefabs'),
     ]
 
     operations = [
