@@ -78,16 +78,24 @@ class OccupancyReportView(APIView):
         maintenance = berths.filter(status='maintenance').count()
 
         today = date.today()
-        arrivals = (
-            Booking.objects
-            .filter(marina=marina, check_in=today, status__in=['confirmed', 'pending', 'checked_in'])
-            .select_related('vessel', 'berth')
+        arrivals = Booking.objects.filter(
+            marina=marina, check_in=today,
+            status__in=['confirmed', 'pending'],
+        ).select_related('vessel', 'berth')
+
+        departures = Booking.objects.filter(
+            marina=marina, check_out=today,
+            status__in=['confirmed', 'checked_in', 'overstay'],
+        ).select_related('vessel', 'berth')
+
+        month_start = today.replace(day=1)
+        month_bookings = Booking.objects.filter(
+            marina=marina,
+            check_in__gte=month_start,
+            status__in=['confirmed', 'checked_in', 'checked_out', 'overstay'],
         )
-        departures = (
-            Booking.objects
-            .filter(marina=marina, check_out=today, status__in=['confirmed', 'checked_in', 'checked_out'])
-            .select_related('vessel', 'berth')
-        )
+        stays = [(b.check_out - b.check_in).days for b in month_bookings]
+        avg_stay = round(sum(stays) / len(stays), 1) if stays else None
 
         return Response({
             'total_berths': total,
@@ -96,8 +104,19 @@ class OccupancyReportView(APIView):
             'reserved': reserved,
             'maintenance': maintenance,
             'occupancy_pct': round(occupied / total * 100, 1) if total else 0,
-            'arrivals_today':   [_booking_to_dict(b) for b in arrivals],
-            'departures_today': [_booking_to_dict(b) for b in departures],
+            'arrivals_today': [
+                {'vessel': b.vessel.name if b.vessel else b.guest_name,
+                 'berth': b.berth.code if b.berth else '—',
+                 'status': b.status}
+                for b in arrivals
+            ],
+            'departures_today': [
+                {'vessel': b.vessel.name if b.vessel else b.guest_name,
+                 'berth': b.berth.code if b.berth else '—',
+                 'status': b.status}
+                for b in departures
+            ],
+            'avg_stay_nights': avg_stay,
         })
 
 

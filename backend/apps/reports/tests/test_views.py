@@ -101,3 +101,65 @@ class RevenueReportViewTest(TestCase):
         data = resp.json()
         cats = data['current_month_by_category']
         self.assertGreaterEqual(cats['service'], 40.0)
+
+
+class OccupancyReportViewTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('occ@test.com')
+        self.client = auth_client(self.user)
+
+        pricing_tier = ChargeableItem.objects.create(
+            marina=self.marina, name='Berth Night', category='berth',
+            pricing_model='per_night', unit_price=Decimal('50.00'),
+        )
+        pier = Pier.objects.create(
+            marina=self.marina, code='A',
+            polygon_points=[[0,0],[10,0],[10,5],[0,5]],
+        )
+        self.berth = Berth.objects.create(
+            marina=self.marina, pier=pier,
+            code='A1', status='occupied', pricing_tier=pricing_tier,
+        )
+        self.vessel = Vessel.objects.create(
+            marina=self.marina, name='Test Boat',
+        )
+
+        today = date.today()
+        month_start = today.replace(day=1)
+
+        # Departure today — check_in this month so it also counts toward avg stay
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=month_start,
+            check_out=today,
+            status='checked_in',
+        )
+        # Completed booking this month: exactly 3 nights
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=month_start,
+            check_out=month_start + timedelta(days=3),
+            status='checked_out',
+        )
+
+    def test_departures_today_present(self):
+        resp = self.client.get('/api/v1/reports/occupancy/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('departures_today', data)
+        self.assertEqual(len(data['departures_today']), 1)
+        self.assertEqual(data['departures_today'][0]['vessel'], 'Test Boat')
+        self.assertEqual(data['departures_today'][0]['berth'], 'A1')
+
+    def test_avg_stay_nights_is_numeric(self):
+        resp = self.client.get('/api/v1/reports/occupancy/')
+        data = resp.json()
+        self.assertIn('avg_stay_nights', data)
+        self.assertIsNotNone(data['avg_stay_nights'])
+        self.assertIsInstance(data['avg_stay_nights'], float)
+
+    def test_avg_stay_none_when_no_bookings(self):
+        Booking.objects.filter(marina=self.marina).delete()
+        resp = self.client.get('/api/v1/reports/occupancy/')
+        data = resp.json()
+        self.assertIsNone(data['avg_stay_nights'])
