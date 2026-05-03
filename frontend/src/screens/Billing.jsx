@@ -70,6 +70,7 @@ export default function Billing() {
   const [payMethod, setPayMethod]   = useState('bank_transfer');
   const [payNotes, setPayNotes]     = useState('');
   const [payLoading, setPayLoading] = useState(false);
+  const [payModalInv, setPayModalInv] = useState(null);
 
   // Batch billing state
   const defaultPeriod = (() => {
@@ -342,6 +343,31 @@ export default function Billing() {
     }
   }
 
+  function openPayModal(inv) {
+    setPayModalInv(inv);
+    setPayAmount(Number(inv.total).toFixed(2));
+    setPayMethod('cash');
+    setPayNotes('');
+  }
+
+  async function recordInvoicePayment() {
+    if (!payModalInv?.member || !payAmount) return;
+    setPayLoading(true);
+    try {
+      await api.post(`/billing/accounts/${payModalInv.member}/payments/`, {
+        amount: payAmount, method: payMethod, notes: payNotes,
+      });
+      setPayModalInv(null);
+      setPayAmount('');
+      setPayNotes('');
+      refetch();
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Payment failed.');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
   async function sendInvite(memberId, email) {
     try {
       await api.post(`/billing/accounts/${memberId}/generate-invite/`);
@@ -392,7 +418,16 @@ export default function Billing() {
                     <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{inv.issued}</td>
                     <td style={{ fontSize: 12, fontWeight: inv.status==='overdue'?600:400, color: inv.status==='overdue'?'var(--red)':'rgba(0,0,0,0.45)' }}>{inv.due}</td>
                     <td><StatusBadge s={inv.status} /></td>
-                    <td><button className="btn btn-ghost btn-sm">{inv.status==='paid'?'View':'Chase'}</button></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {inv.status !== 'paid' && inv.member && (
+                          <button className="btn btn-primary btn-sm" onClick={() => openPayModal(inv)}>
+                            Record Payment
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm">{inv.status === 'paid' ? 'View' : 'Chase'}</button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1046,6 +1081,74 @@ export default function Billing() {
             ) : (
               <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Could not load account data.</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {payModalInv && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setPayModalInv(null)}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Record Payment</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>
+              {payModalInv.invoice_number} · {payModalInv.member_name ?? 'Unknown'} · Invoice total €{Number(payModalInv.total).toFixed(2)}
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>AMOUNT RECEIVED (€)</div>
+              <input
+                type="number" step="0.01" min="0.01" autoFocus
+                value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 6 }}>PAYMENT METHOD</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[['cash', 'Cash'], ['external_card', 'Card'], ['bank_transfer', 'Bank Transfer']].map(([v, l]) => (
+                  <button
+                    key={v}
+                    onClick={() => setPayMethod(v)}
+                    style={{
+                      padding: '10px 4px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: payMethod === v ? '2px solid var(--navy)' : '1px solid rgba(0,0,0,0.15)',
+                      background: payMethod === v ? 'var(--navy)' : '#fff',
+                      color: payMethod === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                    }}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>NOTES (optional)</div>
+              <input
+                placeholder="e.g. Cash received, ref: 0042"
+                value={payNotes}
+                onChange={e => setPayNotes(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPayModalInv(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 2, justifyContent: 'center', fontSize: 13 }}
+                disabled={!payAmount || parseFloat(payAmount) <= 0 || payLoading}
+                onClick={recordInvoicePayment}
+              >
+                {payLoading
+                  ? 'Recording…'
+                  : `Record ${payMethod === 'cash' ? 'Cash' : payMethod === 'external_card' ? 'Card' : 'Bank Transfer'} — €${Number(payAmount || 0).toFixed(2)}`}
+              </button>
+            </div>
           </div>
         </div>
       )}
