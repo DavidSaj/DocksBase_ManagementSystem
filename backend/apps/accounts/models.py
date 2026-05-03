@@ -2,6 +2,7 @@ import uuid as _uuid
 from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.utils.text import slugify
 
 
 def _default_onboarding():
@@ -52,6 +53,18 @@ class Marina(models.Model):
     fuel_berths = models.JSONField(default=list)
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name)
+            slug = base
+            n = 1
+            while Marina.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f'{base}-{n}'
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
