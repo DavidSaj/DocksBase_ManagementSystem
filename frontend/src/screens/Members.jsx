@@ -307,7 +307,7 @@ export default function Members({ setScreen }) {
                       <button
                         className="btn btn-ghost btn-sm"
                         style={{ flex: 1, justifyContent: 'center' }}
-                        onClick={() => { localStorage.setItem('billing_open_member', String(sel.id)); setScreen('billing'); }}
+                        onClick={() => { localStorage.setItem('billing_open_member', String(sel.id)); setScreen?.('billing'); }}
                       >
                         View Full Ledger →
                       </button>
