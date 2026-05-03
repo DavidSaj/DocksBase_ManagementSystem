@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import BulkGenerateModal from './BulkGenerateModal';
+import useServiceCatalog from '../../hooks/useServiceCatalog.js';
 
 const STATUS_OPTIONS = ['available', 'occupied', 'reserved', 'maintenance'];
 
 export default function DocksBerthsTab({ piers, berths, onCreatePier, onUpdatePier, onDeletePier, onBulkGenerate, onUpdateBerth, onDeleteBerth }) {
+  const { items: pricingTiers } = useServiceCatalog('berth');
   const [selectedPierId, setSelectedPierId] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [newPierCode, setNewPierCode] = useState('');
@@ -31,7 +33,7 @@ export default function DocksBerthsTab({ piers, berths, onCreatePier, onUpdatePi
       length_m: berth.length_m || '',
       max_beam_m: berth.max_beam_m || '',
       max_draft_m: berth.max_draft_m || '',
-      price_per_night: berth.price_per_night || '',
+      pricing_tier: berth.pricing_tier || '',
       status: berth.status,
     });
   };
@@ -140,7 +142,7 @@ export default function DocksBerthsTab({ piers, berths, onCreatePier, onUpdatePi
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#f3f4f6', position: 'sticky', top: 0 }}>
-                    {['Code', 'Length (m)', 'Beam (m)', 'Draft (m)', 'Price/night', 'Status', 'Placed', ''].map(h => (
+                    {['Code', 'Length (m)', 'Beam (m)', 'Draft (m)', 'Pricing Tier', 'Status', 'Placed', ''].map(h => (
                       <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                         {h}
                       </th>
@@ -157,13 +159,30 @@ export default function DocksBerthsTab({ piers, berths, onCreatePier, onUpdatePi
                             ? <input value={editValues.code} onChange={e => setEditValues(p => ({ ...p, code: e.target.value }))} style={inputStyle} />
                             : <span style={{ fontWeight: 600 }}>{berth.code}</span>}
                         </td>
-                        {['length_m', 'max_beam_m', 'max_draft_m', 'price_per_night'].map(field => (
+                        {['length_m', 'max_beam_m', 'max_draft_m'].map(field => (
                           <td key={field} style={{ padding: '6px 10px' }}>
                             {isEditing
                               ? <input type="number" step="0.1" value={editValues[field]} onChange={e => setEditValues(p => ({ ...p, [field]: e.target.value }))} style={inputStyle} />
                               : (berth[field] || '—')}
                           </td>
                         ))}
+                        <td style={{ padding: '6px 10px' }}>
+                          {isEditing ? (
+                            <select
+                              value={editValues.pricing_tier}
+                              onChange={e => setEditValues(p => ({ ...p, pricing_tier: e.target.value }))}
+                              style={inputStyle}
+                              required
+                            >
+                              <option value="" disabled>Select pricing tier…</option>
+                              {pricingTiers.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            pricingTiers.find(t => t.id === berth.pricing_tier)?.name ?? berth.pricing_tier ?? '—'
+                          )}
+                        </td>
                         <td style={{ padding: '6px 10px' }}>
                           {isEditing
                             ? (
