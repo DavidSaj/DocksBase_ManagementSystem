@@ -26,7 +26,6 @@ export const NAV = [
   ]},
   { group: 'Management & Data', items: [
     { id: 'infrastructure',  icon: 'layers',     label: 'Harbor Infrastructure' },
-    { id: 'sales',           icon: 'tag',        label: 'Service Catalog' },
     { id: 'staff',           icon: 'user-check', label: 'Staff' },
     { id: 'reports',         icon: 'chart',      label: 'Reports' },
   ]},
