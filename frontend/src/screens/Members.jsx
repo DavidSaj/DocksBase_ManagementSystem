@@ -181,6 +181,26 @@ export default function Members({ setScreen }) {
     return () => { cancelled = true; };
   }, [selId]);
 
+  async function recordPayment() {
+    if (!payAmount || !sel?.id) return;
+    setPayLoading(true);
+    setPayError(null);
+    try {
+      await api.post(`/billing/accounts/${sel.id}/payments/`, {
+        amount: payAmount,
+        method: payMethod,
+        notes: payNotes,
+      });
+      setShowPayModal(false);
+      const r = await api.get(`/billing/accounts/${sel.id}/`);
+      setFinancialSnap(r.data);
+    } catch (ex) {
+      setPayError(ex?.response?.data?.detail ?? 'Payment failed. Please try again.');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
   const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
   const { segments, loading: segsLoading } = useSegments();
@@ -440,6 +460,74 @@ export default function Members({ setScreen }) {
           onClose={() => setShowAdd(false)}
           onCreate={async (payload) => { await createMember(payload); setShowAdd(false); }}
         />
+      )}
+
+      {showPayModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setShowPayModal(false)}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Record Payment</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>{sel?.name}</div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>AMOUNT (€)</div>
+              <input
+                type="number" step="0.01" min="0.01" autoFocus
+                value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 6 }}>PAYMENT METHOD</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[['cash','Cash'],['external_card','Card'],['bank_transfer','Bank Transfer']].map(([v,l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setPayMethod(v)}
+                    style={{
+                      padding: '10px 4px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: payMethod === v ? '2px solid var(--navy)' : '1px solid rgba(0,0,0,0.15)',
+                      background: payMethod === v ? 'var(--navy)' : '#fff',
+                      color: payMethod === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                    }}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>NOTES (optional)</div>
+              <input
+                placeholder="e.g. Cash received at desk"
+                value={payNotes}
+                onChange={e => setPayNotes(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {payError && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>{payError}</div>}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-ghost"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => setShowPayModal(false)}
+                disabled={payLoading}
+              >Cancel</button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={recordPayment}
+                disabled={!payAmount || payLoading}
+              >{payLoading ? 'Recording…' : 'Record Payment'}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
