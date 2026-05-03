@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useMembers from '../hooks/useMembers.js';
 import useSegments from '../hooks/useSegments.js';
 import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import { sendMagicLink } from '../api.js';
+import api, { sendMagicLink } from '../api.js';
 
 function NewMemberModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
@@ -138,13 +138,21 @@ function UploadDocModal({ members, onClose, onUpload }) {
   );
 }
 
-export default function Members() {
+export default function Members({ setScreen }) {
   const [tab, setTab] = useState('members');
   const [sel, setSel] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showUploadDoc, setShowUploadDoc] = useState(false);
   const [linkSent, setLinkSent]       = useState(false);
   const [linkSending, setLinkSending] = useState(false);
+  const [financialSnap, setFinancialSnap] = useState(null);
+  const [snapLoading, setSnapLoading]     = useState(false);
+  const [showPayModal, setShowPayModal]   = useState(false);
+  const [payAmount, setPayAmount]         = useState('');
+  const [payMethod, setPayMethod]         = useState('cash');
+  const [payNotes, setPayNotes]           = useState('');
+  const [payLoading, setPayLoading]       = useState(false);
+  const [payError, setPayError]           = useState(null);
 
   async function handleSendPortalLink() {
     if (!sel?.id) return;
@@ -159,6 +167,16 @@ export default function Members() {
       setLinkSending(false);
     }
   }
+
+  useEffect(() => {
+    if (!sel?.id) { setFinancialSnap(null); return; }
+    setSnapLoading(true);
+    setFinancialSnap(null);
+    api.get(`/billing/accounts/${sel.id}/`)
+      .then(r => setFinancialSnap(r.data))
+      .catch(() => setFinancialSnap(null))
+      .finally(() => setSnapLoading(false));
+  }, [sel?.id]);
 
   const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
@@ -209,6 +227,68 @@ export default function Members() {
                 <button className="btn btn-ghost btn-sm" onClick={() => setSel(null)} style={{ padding: '3px 7px' }}><Ic n="x" s={12} /></button>
               </div>
               <div className="detail-sub">{sel.vessel} · {sel.type}</div>
+
+              {/* Financial Snapshot */}
+              {snapLoading && (
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>Loading balance…</div>
+              )}
+              {financialSnap && (() => {
+                const outstanding = Number(financialSnap.summary.total_outstanding);
+                const anyOverdue  = financialSnap.open_invoices.some(
+                  inv => inv.due_date && new Date(inv.due_date) < new Date()
+                );
+                const balColor = outstanding === 0 ? 'var(--green)' : anyOverdue ? 'var(--red)' : 'var(--navy)';
+                const sortedInv = [...financialSnap.open_invoices].sort((a, b) =>
+                  (a.due_date ?? '9999') < (b.due_date ?? '9999') ? -1 : 1
+                );
+                return (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', margin: '8px 0 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Outstanding Balance</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: balColor, marginBottom: 8 }}>
+                      €{outstanding.toFixed(2)}
+                      {outstanding === 0 && <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 8 }}>✓ Settled</span>}
+                    </div>
+                    {sortedInv.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        {sortedInv.slice(0, 3).map(inv => {
+                          const isOverdue = inv.due_date && new Date(inv.due_date) < new Date();
+                          const remaining = Number(inv.total) - Number(inv.amount_paid_so_far);
+                          return (
+                            <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 0', borderBottom: 'var(--border)' }}>
+                              <span style={{ color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.55)' }}>
+                                {inv.invoice_number}
+                                {isOverdue && <span className="badge badge-red" style={{ marginLeft: 5, fontSize: 9 }}>OVERDUE</span>}
+                              </span>
+                              <span style={{ fontWeight: 600 }}>€{remaining.toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
+                        {sortedInv.length > 3 && (
+                          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>…and {sortedInv.length - 3} more</div>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        disabled={sortedInv.length === 0}
+                        onClick={() => { setPayAmount(''); setPayMethod('cash'); setPayNotes(''); setPayError(null); setShowPayModal(true); }}
+                      >
+                        Record Payment
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={() => { localStorage.setItem('billing_open_member', String(sel.id)); setScreen('billing'); }}
+                      >
+                        View Full Ledger →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {[['Email',sel.email],['Phone',sel.phone],['Insurance',sel.insurance],['Documents',sel.docs],['Member Since',sel.joined]].map(([k,v]) => (
                 <div key={k} className="detail-row">
                   <div className="detail-key">{k}</div>
