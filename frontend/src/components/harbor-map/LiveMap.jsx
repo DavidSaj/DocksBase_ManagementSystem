@@ -1,11 +1,13 @@
 // frontend/src/components/harbor-map/LiveMap.jsx
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import usePiers from '../../hooks/usePiers.js'
 import useBerths from '../../hooks/useBerths.js'
 import useMapConfig from '../../hooks/useMapConfig.js'
 import CanvasCore from './CanvasCore.jsx'
 import BerthDetailPanel from './BerthDetailPanel.jsx'
 import { computeAbsPosition, sortItemsForRender } from './mapBuilderUtils.js'
+
+const WS_BASE = (import.meta.env.VITE_WS_URL || 'ws://localhost:8000')
 
 const STATUS_COLORS = {
   available:   { fill: 'rgba(26,140,46,0.2)',  stroke: '#1a8c2e' },
@@ -57,17 +59,61 @@ function buildLiveShapes(piers, berths, envItems) {
   return sortItemsForRender([...envShapes, ...pierShapes, ...berthShapes])
 }
 
-const POLL_INTERVAL_MS = 30_000  // refresh berth statuses every 30 seconds
+const POLL_INTERVAL_MS = 30_000  // fallback poll when WebSocket is not connected
 
 export default function LiveMap({ onBerthsChange } = {}) {
   const { piers, loading: piersLoading } = usePiers()
-  const { berths, loading: berthsLoading, refetch: refetchBerths } = useBerths()
+  const { berths: initialBerths, loading: berthsLoading, refetch: refetchBerths } = useBerths()
   const { config, loading: cfgLoading } = useMapConfig()
   const [selectedBerth, setSelectedBerth] = useState(null)
 
-  // Poll for status changes
+  // Local berth state — starts from API, updated in real-time via WebSocket
+  const [berths, setBerths] = useState([])
+  useEffect(() => { setBerths(initialBerths) }, [initialBerths])
+
+  // WebSocket — connect on mount, fall back to 30s polling if unavailable
+  const wsRef = useRef(null)
+  const wsConnected = useRef(false)
+
   useEffect(() => {
-    const timer = setInterval(refetchBerths, POLL_INTERVAL_MS)
+    const token = localStorage.getItem('access_token')
+    if (!token) return
+
+    function connect() {
+      const ws = new WebSocket(`${WS_BASE}/ws/berths/?token=${token}`)
+      wsRef.current = ws
+
+      ws.onopen = () => { wsConnected.current = true }
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data)
+          if (msg.type !== 'berth_update') return
+          setBerths(prev => prev.map(b =>
+            b.id === msg.berth_id
+              ? { ...b, status: msg.status, pier: msg.pier, local_x: msg.local_x, local_y: msg.local_y }
+              : b
+          ))
+        } catch { /* ignore malformed messages */ }
+      }
+
+      ws.onclose = () => {
+        wsConnected.current = false
+        wsRef.current = null
+      }
+
+      ws.onerror = () => { ws.close() }
+    }
+
+    connect()
+    return () => { wsRef.current?.close() }
+  }, [])
+
+  // Fallback polling — only runs if WebSocket is not connected
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!wsConnected.current) refetchBerths()
+    }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [refetchBerths])
 
