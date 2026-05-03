@@ -1,0 +1,103 @@
+import calendar
+from datetime import date, timedelta
+from decimal import Decimal
+from django.test import TestCase
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
+from apps.accounts.models import Marina, User
+from apps.berths.models import Pier, Berth
+from apps.reservations.models import Booking
+from apps.billing.models import Invoice, InvoiceLineItem, ChargeableItem
+from apps.vessels.models import Vessel
+
+
+def make_user_with_marina(email='owner@test.com'):
+    marina = Marina.objects.create(name=f'Test Marina {email}')
+    user = User.objects.create_user(email=email, password='testpass', marina=marina)
+    return user, marina
+
+
+def auth_client(user):
+    client = APIClient()
+    refresh = RefreshToken.for_user(user)
+    client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    return client
+
+
+class RevenueReportViewTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('rev@test.com')
+        self.client = auth_client(self.user)
+
+        self.ci_berth = ChargeableItem.objects.create(
+            marina=self.marina, name='Berth Fee', category='berth',
+            pricing_model='per_night', unit_price=Decimal('100.00'),
+        )
+        self.ci_utility = ChargeableItem.objects.create(
+            marina=self.marina, name='Electric', category='utility',
+            pricing_model='per_kwh', unit_price=Decimal('0.30'),
+        )
+
+        today = date.today()
+        inv = Invoice.objects.create(
+            marina=self.marina,
+            invoice_number='INV-001',
+            status='paid',
+            total=Decimal('350.00'),
+        )
+        InvoiceLineItem.objects.create(
+            invoice=inv, description='Berth A1',
+            quantity=Decimal('3'), unit_price=Decimal('100.00'),
+            total_price=Decimal('300.00'), chargeable_item=self.ci_berth,
+        )
+        InvoiceLineItem.objects.create(
+            invoice=inv, description='Electric',
+            quantity=Decimal('100'), unit_price=Decimal('0.30'),
+            total_price=Decimal('50.00'), chargeable_item=self.ci_utility,
+        )
+
+        overdue_inv = Invoice.objects.create(
+            marina=self.marina,
+            invoice_number='INV-002',
+            status='open',
+            due_date=today - timedelta(days=5),
+            total=Decimal('200.00'),
+        )
+
+    def test_monthly_breakdown_present(self):
+        resp = self.client.get('/api/v1/reports/revenue/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('monthly_breakdown', data)
+        self.assertEqual(len(data['monthly_breakdown']), 7)
+        entry = data['monthly_breakdown'][-1]
+        for key in ('month', 'berth', 'utility', 'service', 'retail'):
+            self.assertIn(key, entry)
+
+    def test_current_month_category_totals(self):
+        resp = self.client.get('/api/v1/reports/revenue/')
+        data = resp.json()
+        self.assertIn('current_month_by_category', data)
+        cats = data['current_month_by_category']
+        self.assertAlmostEqual(cats['berth'], 300.0, places=1)
+        self.assertAlmostEqual(cats['utility'], 50.0, places=1)
+
+    def test_invoices_overdue_count(self):
+        resp = self.client.get('/api/v1/reports/revenue/')
+        data = resp.json()
+        self.assertEqual(data['invoices_overdue'], 1)
+
+    def test_null_chargeable_item_counted_as_service(self):
+        inv = Invoice.objects.create(
+            marina=self.marina, invoice_number='INV-003',
+            status='paid', total=Decimal('40.00'),
+        )
+        InvoiceLineItem.objects.create(
+            invoice=inv, description='Misc',
+            quantity=Decimal('1'), unit_price=Decimal('40.00'),
+            total_price=Decimal('40.00'), chargeable_item=None,
+        )
+        resp = self.client.get('/api/v1/reports/revenue/')
+        data = resp.json()
+        cats = data['current_month_by_category']
+        self.assertGreaterEqual(cats['service'], 40.0)
