@@ -27,51 +27,6 @@ def _months_back(today, n):
     return year, month
 
 
-def _monthly_revenue(marina, num_months=7):
-    """
-    Return a list of dicts for the last num_months months with revenue
-    broken down by ChargeableItem category.
-    """
-    today = date.today()
-    result = []
-    for i in range(num_months - 1, -1, -1):
-        year, month = _months_back(today, i)
-        start, end = _month_range(year, month)
-
-        items = (
-            InvoiceLineItem.objects
-            .filter(
-                invoice__marina=marina,
-                invoice__created_at__date__gte=start,
-                invoice__created_at__date__lte=end,
-            )
-            .select_related('chargeable_item')
-        )
-
-        berths = utils = fuel = other = Decimal('0')
-        for item in items:
-            ci = item.chargeable_item
-            if ci is None:
-                other += item.total_price
-            elif ci.category == ChargeableItem.Category.BERTH:
-                berths += item.total_price
-            elif ci.category == ChargeableItem.Category.UTILITY:
-                utils += item.total_price
-            elif ci.fuel_dock_type:
-                fuel += item.total_price
-            else:
-                other += item.total_price
-
-        result.append({
-            'month': date(year, month, 1).strftime('%b'),
-            'berths': round(float(berths)),
-            'fuel':   round(float(fuel)),
-            'utils':  round(float(utils)),
-            'other':  round(float(other)),
-        })
-    return result
-
-
 _CATEGORIES = [
     ChargeableItem.Category.BERTH,
     ChargeableItem.Category.UTILITY,
@@ -183,8 +138,6 @@ class RevenueReportView(APIView):
             'invoices_paid': paid,
             'invoices_unpaid': open_count,
             'invoices_overdue': overdue,
-            'avg_stay': round(float(avg), 1),
-            'monthly': _monthly_revenue(marina, 7),
             'monthly_breakdown': monthly_breakdown,
             'current_month_by_category': current_month_by_category,
         })
