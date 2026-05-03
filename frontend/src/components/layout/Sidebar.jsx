@@ -6,35 +6,35 @@ import useSidebarCounts from '../../hooks/useSidebarCounts.js';
 
 // Items with a `flag` key are hidden unless marina.features[flag] is true.
 export const NAV = [
-  { group: 'Operations', items: [
-    { id: 'overview',     icon: 'grid',       label: 'Overview' },
-    { id: 'map',          icon: 'map',        label: 'Marina Map' },
-    { id: 'reservations', icon: 'calendar',   label: 'Reservations' },
-    { id: 'operations',   icon: 'zap',        label: 'Operations' },
-    { id: 'vessels',      icon: 'ship',       label: 'Vessels' },
-    { id: 'documents',    icon: 'clipboard',  label: 'Documents & eSign' },
+  { group: 'Daily Operations', items: [
+    { id: 'overview',        icon: 'grid',       label: 'Overview' },
+    { id: 'map',             icon: 'map',        label: 'Live Map' },
+    { id: 'reservations',    icon: 'calendar',   label: 'Reservations' },
+    { id: 'billing',         icon: 'dollar',     label: 'Billing & POS', alert: true },
+    { id: 'operations',      icon: 'zap',        label: 'Operations' },
   ]},
-  { group: 'Yard & Crew', items: [
-    { id: 'boatyard',     icon: 'crane',      label: 'Boatyard' },
-    { id: 'maintenance',  icon: 'wrench',     label: 'Maintenance' },
-    { id: 'staff',        icon: 'user-check', label: 'Staff' },
+  { group: 'Directory', items: [
+    { id: 'members',         icon: 'users',      label: 'Members' },
+    { id: 'vessels',         icon: 'ship',       label: 'Vessels' },
+    { id: 'documents',       icon: 'clipboard',  label: 'Documents & eSign' },
   ]},
-  { group: 'Finance', items: [
-    { id: 'billing',      icon: 'dollar',     label: 'Billing', alert: true },
-    { id: 'reports',      icon: 'chart',      label: 'Reports' },
+  { group: 'Yard & Services', items: [
+    { id: 'boatyard',        icon: 'crane',      label: 'Boatyard' },
+    { id: 'maintenance',     icon: 'wrench',     label: 'Maintenance' },
+    { id: 'restaurant',      icon: 'utensils',   label: 'Restaurant',    flag: 'restaurant' },
+    { id: 'events',          icon: 'star',       label: 'Events',        flag: 'events' },
   ]},
-  { group: 'People', items: [
-    { id: 'members',      icon: 'users',      label: 'Members' },
+  { group: 'Management & Data', items: [
+    { id: 'infrastructure',  icon: 'layers',     label: 'Harbor Infrastructure' },
+    { id: 'sales',           icon: 'tag',        label: 'Service Catalog' },
+    { id: 'staff',           icon: 'user-check', label: 'Staff' },
+    { id: 'reports',         icon: 'chart',      label: 'Reports' },
   ]},
-  { group: 'Hospitality', items: [
-    { id: 'restaurant',   icon: 'utensils',   label: 'Restaurant', flag: 'restaurant' },
-    { id: 'events',       icon: 'star',       label: 'Events',     flag: 'events' },
-  ]},
-  { group: 'Sales', items: [
-    { id: 'sales',        icon: 'tag',        label: 'Boat Sales' },
+  { group: 'Master Data', items: [
+    { id: 'service-catalog', icon: 'tag',        label: 'Service Catalog' },
   ]},
   { group: 'System', items: [
-    { id: 'settings',     icon: 'settings',   label: 'Settings' },
+    { id: 'settings',        icon: 'settings',   label: 'Settings' },
   ]},
 ];
 

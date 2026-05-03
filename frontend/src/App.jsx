@@ -46,8 +46,10 @@ import Restaurant   from './screens/Restaurant.jsx';
 import Events       from './screens/Events.jsx';
 import Settings     from './screens/Settings.jsx';
 import Documents    from './screens/Documents.jsx';
-import Sales        from './screens/Sales.jsx';
-import Operations   from './screens/Operations.jsx';
+import Sales           from './screens/Sales.jsx';
+import Operations      from './screens/Operations.jsx';
+import Infrastructure      from './screens/Infrastructure.jsx';
+import ServiceCatalogScreen from './screens/ServiceCatalogScreen.jsx';
 import Field        from './screens/Field.jsx';
 import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
@@ -69,6 +71,8 @@ const SCREEN_MAP = {
   staff: Staff, billing: Billing, reports: Reports, members: Members,
   restaurant: Restaurant, events: Events, settings: Settings,
   documents: Documents, sales: Sales, operations: Operations,
+  infrastructure: Infrastructure,
+  'service-catalog': ServiceCatalogScreen,
 };
 
 function ComingSoon() {
