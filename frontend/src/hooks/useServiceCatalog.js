@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 
-export default function useServiceCatalog(category) {
+export default function useServiceCatalog(category, options = {}) {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -9,7 +9,9 @@ export default function useServiceCatalog(category) {
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
-      const params = category ? { category } : {};
+      const params = {};
+      if (category) params.category = category;
+      if (options.isActive) params.is_active = true;
       const { data } = await api.get('/billing/service-catalog/', { params });
       setItems(data.results ?? data);
     } catch (e) {
@@ -17,7 +19,7 @@ export default function useServiceCatalog(category) {
     } finally {
       setLoading(false);
     }
-  }, [category]);
+  }, [category, options.isActive]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 

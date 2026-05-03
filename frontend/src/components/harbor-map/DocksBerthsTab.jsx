@@ -5,7 +5,7 @@ import useServiceCatalog from '../../hooks/useServiceCatalog.js';
 const STATUS_OPTIONS = ['available', 'occupied', 'reserved', 'maintenance'];
 
 export default function DocksBerthsTab({ piers, berths, onCreatePier, onUpdatePier, onDeletePier, onBulkGenerate, onUpdateBerth, onDeleteBerth }) {
-  const { items: pricingTiers } = useServiceCatalog('berth');
+  const { items: pricingTiers } = useServiceCatalog('berth', { isActive: true });
   const [selectedPierId, setSelectedPierId] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [newPierCode, setNewPierCode] = useState('');
