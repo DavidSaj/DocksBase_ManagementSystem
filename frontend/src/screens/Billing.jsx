@@ -108,9 +108,9 @@ export default function Billing() {
   useEffect(() => {
     const pendingId = localStorage.getItem('billing_open_member');
     if (!pendingId) return;
-    localStorage.removeItem('billing_open_member');
     setTab('boater-accounts');
     openDrawer(Number(pendingId));
+    localStorage.removeItem('billing_open_member');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function runBatch() {
