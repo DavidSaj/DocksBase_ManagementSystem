@@ -6,35 +6,28 @@ import useInvoices from '../hooks/useInvoices.js';
 import useMembers from '../hooks/useMembers.js';
 import useAssets from '../hooks/useAssets.js';
 import useDefects from '../hooks/useDefects.js';
-
-const MONTHLY_REV = [
-  { month: 'Oct', berths: 4200,  fuel: 1800, utils: 620,  other: 340  },
-  { month: 'Nov', berths: 2800,  fuel: 1200, utils: 410,  other: 200  },
-  { month: 'Dec', berths: 1800,  fuel: 900,  utils: 280,  other: 120  },
-  { month: 'Jan', berths: 1400,  fuel: 700,  utils: 210,  other: 90   },
-  { month: 'Feb', berths: 2200,  fuel: 950,  utils: 320,  other: 140  },
-  { month: 'Mar', berths: 3600,  fuel: 1600, utils: 510,  other: 260  },
-  { month: 'Apr', berths: 5800,  fuel: 2100, utils: 780,  other: 420  },
-];
-
-const BERTH_UTIL = [
-  { berth: 'A1', vessel: 'Ocean Star',  days: 28, util: 93, rev: '€2,240' },
-  { berth: 'A2', vessel: 'Seabird III', days: 24, util: 80, rev: '€1,920' },
-  { berth: 'A5', vessel: 'Lady K',      days: 18, util: 60, rev: '€1,440' },
-  { berth: 'A8', vessel: 'Windseeker',  days: 14, util: 47, rev: '€1,120' },
-  { berth: 'B1', vessel: 'Blue Horizon',days: 26, util: 87, rev: '€3,120' },
-  { berth: 'B2', vessel: 'Saltwater',   days: 12, util: 40, rev: '€960'   },
-  { berth: 'B5', vessel: 'Nautilus V',  days: 30, util: 100,rev: '€8,200' },
-  { berth: 'B8', vessel: 'Avalon',      days: 30, util: 100,rev: '€5,500' },
-];
+import useReports from '../hooks/useReports.js';
 
 function Bar({ val, max, color = 'var(--navy)' }) {
-  const pct = Math.min(100, Math.round((val / max) * 100));
+  const pct = Math.min(100, Math.round((val / (max || 1)) * 100));
   return (
     <div className="chart-track">
       <div className="chart-fill" style={{ width: pct + '%', background: color }} />
     </div>
   );
+}
+
+function fmtEur(n) {
+  return `€${Number(n).toLocaleString()}`;
+}
+
+function monthRangeLabel(monthly) {
+  if (!monthly || monthly.length === 0) return '';
+  return `${monthly[0].month} — ${monthly[monthly.length - 1].month}`;
+}
+
+function currentMonthLabel() {
+  return new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
 }
 
 export default function Reports() {
@@ -46,14 +39,12 @@ export default function Reports() {
   const { members, loading: mLoading } = useMembers();
   const { assets } = useAssets();
   const { defects } = useDefects();
+  const { revenue: revReport, occupancy: occReport, utilisation: utilReport, loading: rLoading } = useReports();
 
-  const invoices = rawInv.map(inv => ({
-    ...inv,
-    status: inv.status ?? 'unpaid',
-  }));
+  const invoices = rawInv.map(inv => ({ ...inv, status: inv.status ?? 'unpaid' }));
 
-  const totalRevApr = MONTHLY_REV[6].berths + MONTHLY_REV[6].fuel + MONTHLY_REV[6].utils + MONTHLY_REV[6].other;
-  const maxMonthRev = Math.max(...MONTHLY_REV.map(m => m.berths + m.fuel + m.utils + m.other));
+  const monthlyData = revReport?.monthly_breakdown ?? [];
+  const maxMonthRev = Math.max(...monthlyData.map(m => (m.berth||0)+(m.utility||0)+(m.service||0)+(m.retail||0)), 1);
 
   const docCompliant  = members.filter(m => (m.docs_status ?? m.docs) === 'complete' && (m.insurance_status ?? m.insurance) !== 'EXPIRED' && (m.insurance_status ?? m.insurance) !== 'expired').length;
   const insExpired    = members.filter(m => (m.insurance_status ?? m.insurance) === 'EXPIRED' || (m.insurance_status ?? m.insurance) === 'expired').length;
@@ -61,6 +52,10 @@ export default function Reports() {
   const openDefects   = defects.filter(d => d.status !== 'resolved').length;
 
   const occPct = counts.total > 0 ? Math.round((counts.occupied / counts.total) * 100) : 0;
+
+  const arrivalsList   = occReport?.arrivals_today   ?? [];
+  const departuresList = occReport?.departures_today ?? [];
+  const utilBerths     = utilReport?.berths ?? [];
 
   return (
     <div>
@@ -77,7 +72,7 @@ export default function Reports() {
               { label: 'Total Berths',      val: bLoading ? '…' : counts.total,     sub: 'Across all piers' },
               { label: 'Occupied',          val: bLoading ? '…' : counts.occupied,   sub: `${occPct}% occupancy` },
               { label: 'Available',         val: bLoading ? '…' : counts.available,  sub: 'Ready to assign' },
-              { label: 'Avg Stay (nights)', val: '3.8',                              sub: 'Transient berths Apr' },
+              { label: 'Avg Stay (nights)', val: rLoading ? '…' : (occReport?.avg_stay_nights ?? '—'), sub: `${new Date().toLocaleString('default', { month: 'long' })} bookings` },
             ].map(k => (
               <div key={k.label} className="kpi-card">
                 <div className="kpi-label">{k.label}</div>
@@ -89,7 +84,7 @@ export default function Reports() {
 
           <div className="grid-2" style={{ alignItems: 'start' }}>
             <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Occupancy by Pier — April 2026</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Occupancy by Pier</div>
               {bLoading ? (
                 <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '12px 0' }}>Loading…</div>
               ) : (
@@ -114,23 +109,35 @@ export default function Reports() {
 
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Arrivals & Departures Today</div>
-              {[
-                { time: '08:30', event: 'Arrival', vessel: 'Ocean Star', berth: 'A1', status: 'checked-in', color: 'var(--green)' },
-                { time: '10:00', event: 'Arrival', vessel: 'Nordic Blue', berth: 'A6', status: 'expected', color: 'var(--blue)' },
-                { time: '11:30', event: 'Departure', vessel: 'Windseeker', berth: 'A8', status: 'expected', color: 'var(--orange)' },
-                { time: '14:00', event: 'Arrival', vessel: 'Puffin', berth: 'B4', status: 'expected', color: 'var(--blue)' },
-                { time: '16:00', event: 'Departure', vessel: 'Lady K', berth: 'A5', status: 'expected', color: 'var(--orange)' },
-              ].map((e, i) => (
-                <div key={i} className="act-item">
-                  <div className="act-dot" style={{ background: e.color }} />
-                  <div style={{ flex: 1 }}>
-                    <div className="act-text">{e.event} — <b>{e.vessel}</b> ({e.berth})</div>
-                    <div className="act-time">{e.time} · {e.status}</div>
-                  </div>
-                  {e.status === 'expected' && <button className="btn btn-ghost btn-sm">Check In</button>}
-                  {e.status === 'checked-in' && <span className="badge badge-green">Done</span>}
-                </div>
-              ))}
+              {rLoading ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '12px 0' }}>Loading…</div>
+              ) : arrivalsList.length === 0 && departuresList.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>No arrivals or departures today.</div>
+              ) : (
+                <>
+                  {arrivalsList.map((e, i) => (
+                    <div key={`arr-${i}`} className="act-item">
+                      <div className="act-dot" style={{ background: 'var(--green)' }} />
+                      <div style={{ flex: 1 }}>
+                        <div className="act-text">Arrival — <b>{e.vessel}</b> ({e.berth})</div>
+                        <div className="act-time">{e.status}</div>
+                      </div>
+                      {e.status === 'confirmed' && <button className="btn btn-ghost btn-sm">Check In</button>}
+                      {e.status === 'checked_in' && <span className="badge badge-green">Checked In</span>}
+                    </div>
+                  ))}
+                  {departuresList.map((e, i) => (
+                    <div key={`dep-${i}`} className="act-item">
+                      <div className="act-dot" style={{ background: 'var(--orange)' }} />
+                      <div style={{ flex: 1 }}>
+                        <div className="act-text">Departure — <b>{e.vessel}</b> ({e.berth})</div>
+                        <div className="act-time">{e.status}</div>
+                      </div>
+                      {e.status === 'checked_out' && <span className="badge badge-gray">Departed</span>}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -139,11 +146,23 @@ export default function Reports() {
       {tab === 'revenue' && (
         <div>
           <div className="kpi-row" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-            {[
-              { label: 'Revenue — April', val: `€${totalRevApr.toLocaleString()}`, sub: '+22% vs Mar 2026' },
-              { label: 'Berth Fees',      val: `€${MONTHLY_REV[6].berths.toLocaleString()}`, sub: `${Math.round(MONTHLY_REV[6].berths/totalRevApr*100)}% of total` },
-              { label: 'Fuel Sales',      val: `€${MONTHLY_REV[6].fuel.toLocaleString()}`,   sub: `${Math.round(MONTHLY_REV[6].fuel/totalRevApr*100)}% of total` },
-              { label: 'Outstanding',     val: invLoading ? '…' : `€${rawInv.filter(i=>i.status!=='paid').reduce((s,i)=>s+Number(i.amount||0),0).toLocaleString('de-DE',{minimumFractionDigits:2})}`, sub: `${invoices.filter(i=>i.status!=='paid').length} invoices unpaid` },
+            {rLoading ? (
+              Array(4).fill(null).map((_, i) => (
+                <div key={i} className="kpi-card"><div className="kpi-val" style={{ color: 'rgba(0,0,0,0.3)' }}>…</div></div>
+              ))
+            ) : [
+              { label: `Revenue — ${new Date().toLocaleString('default', { month: 'long' })}`,
+                val: revReport ? `€${Number(revReport.revenue_this_month).toLocaleString('de-DE', {minimumFractionDigits:2})}` : '…',
+                sub: 'Current month total' },
+              { label: 'Berth Fees',
+                val: revReport ? `€${Number(revReport.current_month_by_category?.berth ?? 0).toLocaleString()}` : '…',
+                sub: revReport ? `${Math.round((revReport.current_month_by_category?.berth ?? 0) / (revReport.revenue_this_month || 1) * 100)}% of total` : '' },
+              { label: 'Utilities & Services',
+                val: revReport ? `€${Number((revReport.current_month_by_category?.utility ?? 0) + (revReport.current_month_by_category?.service ?? 0)).toLocaleString()}` : '…',
+                sub: 'Utility + service lines' },
+              { label: 'Outstanding',
+                val: revReport ? `€${Number(revReport.outstanding).toLocaleString('de-DE', {minimumFractionDigits:2})}` : '…',
+                sub: revReport ? `${revReport.invoices_unpaid} unpaid, ${revReport.invoices_overdue} overdue` : '' },
             ].map(k => (
               <div key={k.label} className="kpi-card">
                 <div className="kpi-label">{k.label}</div>
@@ -155,45 +174,63 @@ export default function Reports() {
 
           <div className="grid-2" style={{ alignItems: 'start' }}>
             <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Monthly Revenue — Oct 2025 to Apr 2026</div>
-              <div className="chart-wrap">
-                {MONTHLY_REV.map(m => {
-                  const total = m.berths + m.fuel + m.utils + m.other;
-                  return (
-                    <div key={m.month} className="chart-row">
-                      <div className="chart-lbl">{m.month}</div>
-                      <Bar val={total} max={maxMonthRev} color={m.month === 'Apr' ? 'var(--teal)' : 'var(--navy)'} />
-                      <div className="chart-val">€{(total/1000).toFixed(1)}k</div>
-                    </div>
-                  );
-                })}
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Monthly Revenue — Last 7 Months</div>
+              {rLoading ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '12px 0' }}>Loading…</div>
+              ) : monthlyData.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic', padding: '12px 0' }}>No revenue data yet.</div>
+              ) : (
+                <div className="chart-wrap">
+                  {monthlyData.map((m, i) => {
+                    const total = (m.berth||0)+(m.utility||0)+(m.service||0)+(m.retail||0);
+                    const isCurrentMonth = i === monthlyData.length - 1;
+                    const label = new Date(m.month + '-01').toLocaleString('default', { month: 'short' });
+                    return (
+                      <div key={m.month} className="chart-row">
+                        <div className="chart-lbl">{label}</div>
+                        <Bar val={total} max={maxMonthRev} color={isCurrentMonth ? 'var(--teal)' : 'var(--navy)'} />
+                        <div className="chart-val">€{(total/1000).toFixed(1)}k</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Revenue by Department — April</div>
-              <div className="chart-wrap">
-                {[
-                  { label: 'Berth Fees', val: MONTHLY_REV[6].berths, color: 'var(--navy)' },
-                  { label: 'Fuel Dock',  val: MONTHLY_REV[6].fuel,   color: 'var(--teal)' },
-                  { label: 'Utilities',  val: MONTHLY_REV[6].utils,  color: '#0075de' },
-                  { label: 'Other',      val: MONTHLY_REV[6].other,  color: 'var(--gold)' },
-                ].map(d => (
-                  <div key={d.label} className="chart-row">
-                    <div className="chart-lbl">{d.label}</div>
-                    <Bar val={d.val} max={MONTHLY_REV[6].berths} color={d.color} />
-                    <div className="chart-val">€{d.val.toLocaleString()}</div>
-                  </div>
-                ))}
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                Revenue by Department — {new Date().toLocaleString('default', { month: 'long' })}
               </div>
+              {rLoading ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '6px 0' }}>Loading…</div>
+              ) : (() => {
+                const cats = revReport?.current_month_by_category ?? {};
+                const deptMax = Math.max(cats.berth||0, cats.utility||0, cats.service||0, cats.retail||0, 1);
+                return (
+                  <div className="chart-wrap">
+                    {[
+                      { label: 'Berth Fees', val: cats.berth   || 0, color: 'var(--navy)' },
+                      { label: 'Utilities',  val: cats.utility  || 0, color: '#0075de' },
+                      { label: 'Services',   val: cats.service  || 0, color: 'var(--teal)' },
+                      { label: 'Retail',     val: cats.retail   || 0, color: 'var(--gold)' },
+                    ].map(d => (
+                      <div key={d.label} className="chart-row">
+                        <div className="chart-lbl">{d.label}</div>
+                        <Bar val={d.val} max={deptMax} color={d.color} />
+                        <div className="chart-val">€{Number(d.val).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               <div style={{ marginTop: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Invoice Status</div>
                 {invLoading ? (
                   <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '6px 0' }}>Loading…</div>
                 ) : [
-                  ['Paid',    invoices.filter(i=>i.status==='paid').length,   'badge-green'],
-                  ['Unpaid',  invoices.filter(i=>i.status==='unpaid').length,  'badge-orange'],
-                  ['Overdue', invoices.filter(i=>i.status==='overdue').length, 'badge-red'],
+                  ['Paid',    invoices.filter(i=>i.status==='paid').length,  'badge-green'],
+                  ['Unpaid',  invoices.filter(i=>i.status==='open').length,  'badge-orange'],
+                  ['Overdue', revReport?.invoices_overdue ?? 0,              'badge-red'],
                 ].map(([l,n,b]) => (
                   <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
                     <span style={{ color: 'rgba(0,0,0,0.55)' }}>{l}</span>
@@ -209,27 +246,31 @@ export default function Reports() {
       {tab === 'berths' && (
         <div>
           <div className="sec-hdr">
-            <div className="sec-hdr-title">Berth Utilisation — April 2026</div>
+            <div className="sec-hdr-title">Berth Utilisation — {currentMonthLabel()}</div>
             <button className="btn btn-ghost btn-sm"><Ic n="file" s={11}/>Export CSV</button>
           </div>
           <div className="card" style={{ overflow: 'hidden' }}>
             <table className="tbl">
-              <thead><tr><th>Berth</th><th>Current Vessel</th><th>Days Occupied</th><th>Utilisation</th><th>Revenue Apr</th></tr></thead>
+              <thead><tr><th>Berth</th><th>Pier</th><th>Current Vessel</th><th>Days Occupied</th><th>Utilisation</th></tr></thead>
               <tbody>
-                {BERTH_UTIL.map(b => (
+                {rLoading ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : utilBerths.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No berths found.</td></tr>
+                ) : utilBerths.map(b => (
                   <tr key={b.berth}>
                     <td style={{ fontWeight: 700, color: 'var(--navy)' }}>{b.berth}</td>
-                    <td className="tbl-name">{b.vessel}</td>
-                    <td style={{ fontSize: 12 }}>{b.days} / 30 days</td>
+                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{b.pier}</td>
+                    <td className="tbl-name">{b.vessel ?? <span style={{ color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>Vacant</span>}</td>
+                    <td style={{ fontSize: 12 }}>{b.days_occupied} days</td>
                     <td style={{ width: 180 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 99, height: 6 }}>
-                          <div style={{ width: b.util + '%', background: b.util >= 80 ? 'var(--green)' : b.util >= 50 ? 'var(--teal)' : 'var(--orange)', borderRadius: 99, height: 6 }} />
+                          <div style={{ width: b.util_pct + '%', background: b.util_pct >= 80 ? 'var(--green)' : b.util_pct >= 50 ? 'var(--teal)' : 'var(--orange)', borderRadius: 99, height: 6 }} />
                         </div>
-                        <span style={{ fontSize: 12, fontWeight: 600, width: 36 }}>{b.util}%</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, width: 36 }}>{b.util_pct}%</span>
                       </div>
                     </td>
-                    <td style={{ fontWeight: 600 }}>{b.rev}</td>
                   </tr>
                 ))}
               </tbody>
