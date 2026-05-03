@@ -1,3 +1,4 @@
+import json
 from django.test import TestCase, RequestFactory
 from django.http import JsonResponse
 from apps.accounts.models import Marina
@@ -28,9 +29,19 @@ class TenantMiddlewareTest(TestCase):
         request = self.factory.get('/api/v1/public/marina/', HTTP_X_MARINA_SLUG='nonexistent')
         response = self.middleware(request)
         self.assertEqual(response.status_code, 404)
-        self.assertIn('error', response.json())
+        self.assertIn('error', json.loads(response.content))
 
     def test_empty_slug_header_sets_tenant_none(self):
         request = self.factory.get('/api/v1/public/marina/', HTTP_X_MARINA_SLUG='')
         self.middleware(request)
         self.assertIsNone(request.tenant)
+
+    def test_whitespace_only_slug_header_sets_tenant_none(self):
+        request = self.factory.get('/api/v1/public/marina/', HTTP_X_MARINA_SLUG='   ')
+        self.middleware(request)
+        self.assertIsNone(request.tenant)
+
+    def test_adversarial_slug_returns_404(self):
+        request = self.factory.get('/api/v1/public/marina/', HTTP_X_MARINA_SLUG='../../etc/passwd')
+        response = self.middleware(request)
+        self.assertEqual(response.status_code, 404)
