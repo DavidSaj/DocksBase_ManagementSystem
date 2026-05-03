@@ -17,15 +17,6 @@ function Bar({ val, max, color = 'var(--navy)' }) {
   );
 }
 
-function fmtEur(n) {
-  return `€${Number(n).toLocaleString()}`;
-}
-
-function monthRangeLabel(monthly) {
-  if (!monthly || monthly.length === 0) return '';
-  return `${monthly[0].month} — ${monthly[monthly.length - 1].month}`;
-}
-
 function currentMonthLabel() {
   return new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
 }
@@ -133,7 +124,12 @@ export default function Reports() {
                         <div className="act-text">Departure — <b>{e.vessel}</b> ({e.berth})</div>
                         <div className="act-time">{e.status}</div>
                       </div>
-                      {e.status === 'checked_out' && <span className="badge badge-gray">Departed</span>}
+                      {e.event === 'Departure' && (e.status === 'confirmed' || e.status === 'checked_in' || e.status === 'overstay') && (
+                        <span className="badge badge-orange">Due Out</span>
+                      )}
+                      {e.event === 'Departure' && e.status === 'checked_out' && (
+                        <span className="badge badge-gray">Departed</span>
+                      )}
                     </div>
                   ))}
                 </>
