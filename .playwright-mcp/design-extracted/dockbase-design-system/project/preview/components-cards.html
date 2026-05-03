@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: var(--color-bg-alt); padding: 20px; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.card { background: #fff; border: var(--border-whisper); border-radius: 12px; padding: 20px; width: 200px; box-shadow: var(--shadow-card); }
+.card-title { font-size: 14px; font-weight: 700; line-height: 1.27; letter-spacing: -0.25px; color: rgba(0,0,0,0.95); margin-bottom: 6px; }
+.card-body  { font-size: 13px; font-weight: 400; line-height: 1.5; color: #615d59; }
+.badge { display: inline-flex; font-size: 11px; font-weight: 600; letter-spacing: 0.125px; padding: 2px 7px; border-radius: 9999px; background: #f2f9ff; color: #097fe8; margin-bottom: 10px; }
+.metric { font-size: 32px; font-weight: 700; letter-spacing: -1px; color: rgba(0,0,0,0.95); line-height: 1; margin-bottom: 4px; }
+.metric-sub { font-size: 13px; color: #615d59; }
+.divider { height: 1px; background: rgba(0,0,0,0.08); margin: 12px 0; }
+.dark-card { background: #31302e; border-color: rgba(255,255,255,0.08); }
+.dark-card .card-title { color: #fff; }
+.dark-card .card-body { color: #a39e98; }
+</style>
+</head><body>
+<div class="row">
+  <div class="card">
+    <div class="badge">Available</div>
+    <div class="card-title">Berth 14A — Pier 3</div>
+    <div class="card-body">12m · Power · Water · Deep draft access</div>
+    <div class="divider"></div>
+    <div style="font-size:12px; color:#a39e98">Last used: 2 days ago</div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="background: #f0efed; height: 80px; border-radius: 12px 12px 0 0; display:flex; align-items:center; justify-content:center;">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0075de" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="21"/><line x1="5" y1="12" x2="19" y2="12"/><path d="M5 12 Q3 17 7 20"/><path d="M19 12 Q21 17 17 20"/><path d="M7 20 Q12 23 17 20"/></svg>
+    </div>
+    <div style="padding: 16px;">
+      <div class="card-title">Fuel Station Alpha</div>
+      <div class="card-body">Diesel · Petrol · Pump-out · Open 06:00–22:00</div>
+    </div>
+  </div>
+
+  <div class="card" style="border-radius:16px; padding:24px;">
+    <div class="metric">47</div>
+    <div class="metric-sub">Berths occupied today</div>
+    <div class="divider"></div>
+    <div class="metric" style="font-size:22px; color:#2a9d99">12</div>
+    <div class="metric-sub">Arrivals expected</div>
+  </div>
+
+  <div class="card dark-card">
+    <div class="card-title">Tide Alert</div>
+    <div class="card-body">Low tide at 14:22. Minimum draft 1.8m. Check large vessel access at Pier 1.</div>
+    <div style="margin-top:12px; font-size:11px; font-weight:600; color:#62aef0; letter-spacing:0.125px;">VIEW SCHEDULE →</div>
+  </div>
+</div>
+</body></html>

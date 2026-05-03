@@ -60,30 +60,6 @@ abs = parent.canvas_xy + rotate(berth.local_xy, parent.rotation)
 
 This means moving a pontoon moves all 40 attached berths with zero API calls per berth.
 
-### Center-Origin Math (mandatory — do not skip)
-
-`canvas_x/canvas_y` on a Pier must represent its **center point**, not its top-left corner. `local_x/local_y` on a Berth must be measured relative to that **center point**.
-
-If the origin is the top-left corner, rotating a pontoon swings it across the entire canvas like a baseball bat, dragging all child berths with it in a large unintended arc.
-
-**Correct rotation formula (applied by the controller, not CanvasCore):**
-```js
-// θ = pier.rotation in radians
-const rotated_x = local_x * Math.cos(θ) - local_y * Math.sin(θ)
-const rotated_y = local_x * Math.sin(θ) + local_y * Math.cos(θ)
-const abs_x = pier.canvas_x + rotated_x
-const abs_y = pier.canvas_y + rotated_y
-```
-
-**In SVG rendering:** use `transform="rotate(θ, canvas_x, canvas_y)"` on the pier `<g>` element. This rotates around the pier's center point and child elements inherit the transform automatically, avoiding per-berth manual math at render time.
-
-**At save time:** when a prefab is dropped onto the canvas, store `canvas_x/y` as the shape's center:
-```js
-canvas_x = drop_x + (w / 2)
-canvas_y = drop_y + (h / 2)
-```
-Never store the top-left corner as the position anchor.
-
 ### Frontend: Shape contract CanvasCore expects
 
 ```js

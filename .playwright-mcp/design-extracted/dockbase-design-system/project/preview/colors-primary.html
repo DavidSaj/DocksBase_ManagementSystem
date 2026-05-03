@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: #fff; padding: 20px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.swatch { display: flex; flex-direction: column; gap: 6px; }
+.chip { width: 80px; height: 56px; border-radius: 8px; border: var(--border-whisper); }
+.label { font-size: 11px; font-weight: 600; color: var(--color-gray-500); }
+.val   { font-size: 10px; color: var(--color-gray-300); font-family: monospace; }
+.divider { width: 1px; background: rgba(0,0,0,0.08); margin: 0 4px; }
+</style>
+</head><body>
+<div class="row">
+  <div class="swatch">
+    <div class="chip" style="background:rgba(0,0,0,0.95);"></div>
+    <div class="label">Near-Black</div>
+    <div class="val">rgba(0,0,0,.95)</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#ffffff; border: 1px solid #e0dedd;"></div>
+    <div class="label">White</div>
+    <div class="val">#ffffff</div>
+  </div>
+  <div class="divider"></div>
+  <div class="swatch">
+    <div class="chip" style="background:#0075de;"></div>
+    <div class="label">DockBase Blue</div>
+    <div class="val">#0075de</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#005bab;"></div>
+    <div class="label">Blue Hover</div>
+    <div class="val">#005bab</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#097fe8;"></div>
+    <div class="label">Focus Blue</div>
+    <div class="val">#097fe8</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#f2f9ff; border: var(--border-whisper);"></div>
+    <div class="label">Badge BG</div>
+    <div class="val">#f2f9ff</div>
+  </div>
+  <div class="divider"></div>
+  <div class="swatch">
+    <div class="chip" style="background:#213183;"></div>
+    <div class="label">Deep Navy</div>
+    <div class="val">#213183</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#62aef0;"></div>
+    <div class="label">Link Light</div>
+    <div class="val">#62aef0</div>
+  </div>
+</div>
+</body></html>

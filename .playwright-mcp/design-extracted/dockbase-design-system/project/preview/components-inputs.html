@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: #fff; padding: 20px 24px; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 20px; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 180px; }
+.label { font-size: 13px; font-weight: 600; color: rgba(0,0,0,0.95); }
+.sub { font-size: 11px; color: #a39e98; }
+input, select, textarea {
+  font-family: var(--font-primary); font-size: 15px; font-weight: 400;
+  background: #fff; color: rgba(0,0,0,0.9);
+  border: 1px solid #dddddd; border-radius: 4px;
+  padding: 7px 10px; width: 100%; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input::placeholder, textarea::placeholder { color: #a39e98; }
+input:focus, select:focus, textarea:focus {
+  border-color: #097fe8;
+  box-shadow: 0 0 0 3px rgba(9,127,232,0.12);
+}
+input.error { border-color: #cc2222; }
+input.success { border-color: #1aae39; }
+textarea { resize: vertical; min-height: 72px; }
+.hint { font-size: 11px; color: #a39e98; }
+.hint.err { color: #cc2222; }
+.divlabel { font-size: 10px; font-weight: 600; color: var(--color-gray-300); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+</style>
+</head><body>
+  <div class="divlabel">Text Inputs</div>
+  <div class="row">
+    <div class="field">
+      <div class="label">Vessel name</div>
+      <input type="text" placeholder="e.g. Ocean Star" />
+      <div class="hint">Default state</div>
+    </div>
+    <div class="field">
+      <div class="label">Berth number</div>
+      <input type="text" value="14A" style="border-color:#097fe8; box-shadow:0 0 0 3px rgba(9,127,232,0.12)" />
+      <div class="hint">Focus state</div>
+    </div>
+    <div class="field">
+      <div class="label">IMO Number</div>
+      <input type="text" value="IMO-XXXXX" class="error" />
+      <div class="hint err">Invalid format</div>
+    </div>
+    <div class="field">
+      <div class="label">Captain name</div>
+      <input type="text" value="J. Hartmann" class="success" />
+      <div class="hint" style="color:#1aae39">Verified</div>
+    </div>
+  </div>
+
+  <div class="divlabel">Select & Textarea</div>
+  <div class="row">
+    <div class="field" style="min-width:200px">
+      <div class="label">Service type</div>
+      <select>
+        <option>Fueling</option>
+        <option>Pump-out</option>
+        <option>Maintenance</option>
+        <option>Provisioning</option>
+      </select>
+    </div>
+    <div class="field" style="min-width:260px">
+      <div class="label">Notes</div>
+      <textarea placeholder="Add instructions or special requests…"></textarea>
+    </div>
+  </div>
+</body></html>

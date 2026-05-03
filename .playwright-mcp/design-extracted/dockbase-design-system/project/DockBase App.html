@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>DocksBase — Harwich Marina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Cormorant+Garamond:wght@600;700&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body,#root{height:100%;}
+body{font-family:'IBM Plex Sans',-apple-system,system-ui,sans-serif;background:#f4f3f0;color:rgba(0,0,0,0.88);-webkit-font-smoothing:antialiased;font-size:13px;}
+:root{
+  --navy:#0c1f3d; --navy2:#162d52; --navy3:#1e3d6e;
+  --gold:#b8965a; --gold2:#d4b07a;
+  --teal:#1a6b6e; --teal2:#2a9d99;
+  --cream:#f5f0e6; --bg:#f4f3f0; --bg2:#eceae6;
+  --white:#ffffff;
+  --border:1px solid rgba(0,0,0,0.08);
+  --border2:1px solid rgba(0,0,0,0.13);
+  --shadow:0 1px 4px rgba(0,0,0,0.04),0 4px 16px rgba(0,0,0,0.05);
+  --shadow2:0 2px 8px rgba(0,0,0,0.07),0 8px 32px rgba(0,0,0,0.07);
+  --red:#c0392b; --orange:#dd5b00; --green:#1a8c2e; --blue:#0075de;
+  --sidebar-w:220px;
+  --topbar-h:52px;
+  --font:'IBM Plex Sans',-apple-system,system-ui,sans-serif;
+  --font-serif:'Cormorant Garamond',Georgia,serif;
+}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12);border-radius:3px;}
+.app{display:flex;height:100vh;overflow:hidden;}
+
+/* SIDEBAR */
+.sb{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--navy);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;}
+.sb-logo{display:flex;align-items:center;gap:9px;padding:18px 16px 12px;border-bottom:1px solid rgba(255,255,255,0.07);}
+.sb-logo-icon{color:#62aef0;flex-shrink:0;}
+.sb-logo-text{font-family:'Jost',-apple-system,system-ui,sans-serif;font-size:15px;font-weight:700;color:#fff;letter-spacing:0px;text-transform:uppercase;}
+.sb-marina{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.07);}
+.sb-marina-name{font-size:11px;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:0.3px;}
+.sb-marina-sub{font-size:10px;color:rgba(255,255,255,0.25);margin-top:1px;}
+.sb-section{padding:16px 8px 4px;}
+.sb-section-label{font-size:9.5px;font-weight:600;color:rgba(255,255,255,0.28);letter-spacing:1.2px;text-transform:uppercase;padding:0 8px;margin-bottom:4px;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:400;color:rgba(255,255,255,0.6);transition:background 0.1s,color 0.1s;position:relative;user-select:none;}
+.sb-item:hover{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.9);}
+.sb-item.active{background:rgba(255,255,255,0.1);color:#fff;font-weight:500;}
+.sb-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2.5px;background:var(--gold);border-radius:0 2px 2px 0;}
+.sb-badge{margin-left:auto;font-size:10px;font-weight:600;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.55);padding:1px 6px;border-radius:9999px;}
+.sb-badge.alert{background:rgba(221,91,0,0.25);color:#f59f6a;}
+.sb-bottom{margin-top:auto;padding:10px 8px;border-top:1px solid rgba(255,255,255,0.07);}
+.sb-user{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;}
+.sb-user:hover{background:rgba(255,255,255,0.06);}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--navy3);border:1.5px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
+.sb-user-info{display:flex;flex-direction:column;}
+.sb-user-name{font-size:12px;font-weight:500;color:rgba(255,255,255,0.8);}
+.sb-user-role{font-size:10px;color:rgba(255,255,255,0.32);}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.topbar{height:var(--topbar-h);background:var(--white);border-bottom:var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;flex-shrink:0;}
+.topbar-title{font-size:14px;font-weight:600;color:rgba(0,0,0,0.88);letter-spacing:-0.1px;}
+.topbar-breadcrumb{font-size:12px;color:rgba(0,0,0,0.35);margin-right:auto;}
+.topbar-breadcrumb b{color:rgba(0,0,0,0.65);font-weight:500;}
+.topbar-actions{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.topbar-date{font-size:11px;color:rgba(0,0,0,0.35);font-weight:400;}
+.topbar-icon-btn{width:30px;height:30px;border-radius:6px;border:var(--border);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(0,0,0,0.45);transition:background 0.1s,color 0.1s;position:relative;}
+.topbar-icon-btn:hover{background:var(--bg);color:rgba(0,0,0,0.75);}
+.notif-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;background:var(--orange);border-radius:50%;border:1.5px solid #fff;}
+.content{flex:1;overflow-y:auto;padding:24px;}
+
+/* BUTTONS */
+.btn{font-family:var(--font);font-size:12px;font-weight:500;padding:6px 14px;border-radius:4px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background 0.12s,transform 0.1s;white-space:nowrap;}
+.btn:active{transform:scale(0.96);}
+.btn-primary{background:var(--navy);color:#fff;}
+.btn-primary:hover{background:var(--navy2);}
+.btn-gold{background:var(--gold);color:var(--navy);font-weight:600;}
+.btn-gold:hover{background:var(--gold2);}
+.btn-ghost{background:transparent;color:rgba(0,0,0,0.6);border:var(--border2);}
+.btn-ghost:hover{background:var(--bg);color:rgba(0,0,0,0.85);}
+.btn-danger{background:transparent;color:var(--red);border:1px solid rgba(192,57,43,0.25);}
+.btn-danger:hover{background:rgba(192,57,43,0.06);}
+.btn-sm{font-size:11px;padding:4px 10px;}
+
+/* CARDS */
+.card{background:var(--white);border:var(--border);border-radius:10px;box-shadow:var(--shadow);}
+.card-header{padding:16px 18px;border-bottom:var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-header-title{font-size:13px;font-weight:600;color:rgba(0,0,0,0.85);letter-spacing:-0.1px;}
+.card-body{padding:16px 18px;}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;font-size:10.5px;font-weight:500;padding:2px 7px;border-radius:9999px;letter-spacing:0.1px;}
+.badge-green{background:#e6f5e9;color:#1a7a2c;}
+.badge-blue{background:#e8f2ff;color:#0060b8;}
+.badge-orange{background:#fff0e6;color:#c04a00;}
+.badge-red{background:#fde8e8;color:#a01c1c;}
+.badge-gray{background:#f0efed;color:#5a5550;}
+.badge-gold{background:#faf3e6;color:#8a6830;}
+.badge-teal{background:#e6f4f4;color:#1a6060;}
+.badge-navy{background:#e6ebf5;color:#1a3a70;}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{text-align:left;font-size:10.5px;font-weight:600;color:rgba(0,0,0,0.38);letter-spacing:0.5px;text-transform:uppercase;padding:0 14px 8px;border-bottom:var(--border);}
+.tbl td{padding:10px 14px;font-size:12.5px;border-bottom:var(--border);vertical-align:middle;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:#fafaf9;}
+.tbl-name{font-weight:600;color:rgba(0,0,0,0.85);}
+.tbl-sub{font-size:11px;color:rgba(0,0,0,0.35);margin-top:1px;}
+
+/* STAT GRID */
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
+.stat-card{padding:16px 18px;}
+.stat-label{font-size:10px;font-weight:600;color:rgba(0,0,0,0.35);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
+.stat-val{font-size:26px;font-weight:600;color:rgba(0,0,0,0.88);line-height:1;letter-spacing:-0.5px;margin-bottom:3px;}
+.stat-sub{font-size:11px;color:rgba(0,0,0,0.38);}
+.stat-trend{font-size:10px;font-weight:600;margin-top:5px;display:inline-flex;align-items:center;gap:3px;padding:1px 5px;border-radius:9999px;}
+.up{background:#e6f5e9;color:#1a7a2c;}
+.dn{background:#fde8e8;color:#a01c1c;}
+
+/* GRID LAYOUT */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.grid-a{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;}
+.grid-b{display:grid;grid-template-columns:1fr 320px;gap:16px;}
+
+/* SECTION HEADER */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-hdr-title{font-size:13px;font-weight:600;color:rgba(0,0,0,0.8);}
+.sec-hdr-actions{display:flex;gap:8px;align-items:center;}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:var(--border);margin-bottom:18px;}
+.tab{font-size:12px;font-weight:400;color:rgba(0,0,0,0.45);padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.1s,border-color 0.1s;white-space:nowrap;}
+.tab:hover{color:rgba(0,0,0,0.75);}
+.tab.active{color:var(--navy);font-weight:600;border-bottom-color:var(--navy);}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+.filter-chip{font-size:11px;font-weight:500;color:rgba(0,0,0,0.5);padding:4px 11px;border-radius:9999px;border:var(--border2);background:var(--white);cursor:pointer;transition:all 0.1s;}
+.filter-chip:hover{background:var(--bg);color:rgba(0,0,0,0.8);}
+.filter-chip.active{background:var(--navy);color:#fff;border-color:transparent;font-weight:600;}
+
+/* SEARCH */
+.search{display:flex;align-items:center;gap:7px;background:var(--bg);border:var(--border2);border-radius:6px;padding:6px 10px;}
+.search input{background:transparent;border:none;outline:none;font-family:var(--font);font-size:12px;color:rgba(0,0,0,0.8);width:180px;}
+.search input::placeholder{color:rgba(0,0,0,0.3);}
+.search svg{opacity:0.35;flex-shrink:0;}
+
+/* DETAIL PANEL */
+.detail{background:var(--white);border:var(--border);border-radius:10px;padding:20px;}
+.detail-title{font-size:15px;font-weight:600;letter-spacing:-0.2px;margin-bottom:4px;}
+.detail-sub{font-size:11px;color:rgba(0,0,0,0.38);margin-bottom:16px;}
+.detail-row{padding:9px 0;border-bottom:var(--border);display:flex;flex-direction:column;gap:2px;}
+.detail-row:last-child{border-bottom:none;}
+.detail-key{font-size:10px;font-weight:600;color:rgba(0,0,0,0.35);text-transform:uppercase;letter-spacing:0.5px;}
+.detail-val{font-size:13px;color:rgba(0,0,0,0.85);font-weight:500;}
+.detail-actions{display:flex;flex-direction:column;gap:7px;margin-top:16px;}
+
+/* ACTIVITY */
+.act-item{display:flex;gap:10px;padding:10px 0;border-bottom:var(--border);}
+.act-item:last-child{border-bottom:none;}
+.act-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.act-text{font-size:12px;color:rgba(0,0,0,0.75);line-height:1.5;}
+.act-time{font-size:10px;color:rgba(0,0,0,0.3);margin-top:2px;}
+
+/* SLIP MAP */
+.map-wrap{background:#e8f0f7;border-radius:10px;border:var(--border);overflow:auto;padding:20px;}
+.map-water{background:linear-gradient(160deg,#b8d4e8 0%,#c8dff0 50%,#b0cce0 100%);border-radius:8px;padding:16px;position:relative;min-width:700px;}
+.pier{margin-bottom:20px;}
+.pier-label{font-size:10px;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-left:2px;}
+.pier-track{display:flex;gap:6px;align-items:stretch;}
+.pier-dock{width:12px;background:rgba(255,255,255,0.25);border-radius:4px;flex-shrink:0;}
+.pier-slips{display:flex;gap:5px;flex-wrap:wrap;}
+.slip{border-radius:5px;cursor:pointer;padding:7px 8px;transition:transform 0.1s,box-shadow 0.1s;border:1.5px solid transparent;min-width:72px;position:relative;}
+.slip:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.15);}
+.slip.selected{border-color:var(--gold);box-shadow:0 0 0 2px rgba(184,150,90,0.3);}
+.slip-id{font-size:10px;font-weight:700;color:rgba(0,0,0,0.6);letter-spacing:0.3px;}
+.slip-vessel{font-size:10px;font-weight:600;color:rgba(0,0,0,0.8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70px;}
+.slip-len{font-size:9px;color:rgba(0,0,0,0.4);margin-top:1px;}
+.slip.occupied{background:#dbeeff;border-color:rgba(0,117,222,0.2);}
+.slip.available{background:#e4f5e9;border-color:rgba(26,174,57,0.2);}
+.slip.reserved{background:#fff5e0;border-color:rgba(221,91,0,0.2);}
+.slip.maintenance{background:#ffe8e8;border-color:rgba(192,57,43,0.2);}
+.map-legend{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(0,0,0,0.55);font-weight:500;}
+.legend-dot{width:10px;height:10px;border-radius:2px;}
+
+/* CALENDAR */
+.cal-grid{display:grid;grid-template-columns:80px repeat(7,1fr);gap:1px;background:var(--border);border-radius:8px;overflow:hidden;}
+.cal-cell{background:var(--white);padding:6px 8px;font-size:11px;}
+.cal-header{background:var(--bg);font-weight:600;color:rgba(0,0,0,0.5);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:8px 8px;}
+.cal-time{background:var(--bg);color:rgba(0,0,0,0.38);font-size:10px;display:flex;align-items:center;}
+.cal-event{border-radius:4px;padding:4px 6px;font-size:10px;font-weight:600;cursor:pointer;margin-bottom:2px;}
+.cal-event.haul{background:#dbeeff;color:#0050a0;}
+.cal-event.splash{background:#e4f5e9;color:#1a6020;}
+.cal-event.maint{background:#fff5e0;color:#b04000;}
+
+/* STORAGE GRID */
+.storage-grid{display:grid;gap:4px;}
+.storage-row{display:flex;gap:4px;align-items:center;}
+.storage-lane{font-size:9px;font-weight:700;color:rgba(0,0,0,0.4);width:28px;flex-shrink:0;letter-spacing:0.5px;}
+.storage-slot{border-radius:4px;border:1.5px solid transparent;cursor:pointer;transition:transform 0.1s;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.storage-slot:hover{transform:scale(1.05);}
+.storage-slot.occupied{background:#dbeeff;border-color:rgba(0,117,222,0.25);}
+.storage-slot.available{background:#f0f0ee;border-color:rgba(0,0,0,0.08);}
+.storage-slot.blocked{background:#fff5e0;border-color:rgba(221,91,0,0.2);}
+.slot-id{font-size:9px;font-weight:700;color:rgba(0,0,0,0.5);}
+.slot-boat{font-size:8px;color:rgba(0,0,0,0.55);font-weight:500;max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* UTILITY METER */
+.meter-bar-wrap{background:var(--bg);border-radius:99px;height:6px;margin-top:6px;}
+.meter-bar{border-radius:99px;height:6px;}
+
+/* TIMELINE */
+.timeline{display:flex;flex-direction:column;gap:0;}
+.tl-item{display:flex;gap:12px;padding-bottom:16px;position:relative;}
+.tl-item::before{content:'';position:absolute;left:15px;top:24px;bottom:0;width:1px;background:var(--bg2);}
+.tl-item:last-child::before{display:none;}
+.tl-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:1;}
+.tl-body{flex:1;padding-top:4px;}
+.tl-title{font-size:12px;font-weight:600;color:rgba(0,0,0,0.8);}
+.tl-sub{font-size:11px;color:rgba(0,0,0,0.4);margin-top:2px;}
+
+/* TASK */
+.task-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:var(--border);}
+.task-item:last-child{border-bottom:none;}
+.task-check{width:16px;height:16px;border-radius:4px;border:var(--border2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:1px;transition:background 0.1s;}
+.task-check.done{background:var(--navy);border-color:var(--navy);}
+.task-text{font-size:12.5px;color:rgba(0,0,0,0.8);line-height:1.4;}
+.task-text.done{color:rgba(0,0,0,0.3);text-decoration:line-through;}
+.task-meta{font-size:10px;color:rgba(0,0,0,0.3);margin-top:2px;}
+.task-assign{margin-left:auto;font-size:10px;font-weight:500;color:rgba(0,0,0,0.45);white-space:nowrap;}
+
+/* INPUT */
+input,select,textarea{font-family:var(--font);font-size:12px;background:var(--white);border:var(--border2);border-radius:4px;padding:6px 10px;color:rgba(0,0,0,0.85);outline:none;transition:border-color 0.15s,box-shadow 0.15s;}
+input:focus,select:focus,textarea:focus{border-color:#0075de;box-shadow:0 0 0 3px rgba(0,117,222,0.1);}
+input::placeholder{color:rgba(0,0,0,0.28);}
+
+/* EMPTY */
+.empty{text-align:center;padding:40px;color:rgba(0,0,0,0.3);}
+.empty svg{opacity:0.2;margin-bottom:10px;}
+.empty-title{font-size:13px;font-weight:600;color:rgba(0,0,0,0.4);}
+
+/* INLINE SVG ICON helper */
+svg.icon{display:inline-block;vertical-align:middle;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="harbor-map.jsx"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef} = React;
+
+// ── SVG Icons ─────────────────────────────────────────────────────────────────
+const icons = {
+  anchor:`<circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/><line x1="5" y1="12" x2="19" y2="12"/><path d="M5 12 Q3 18 7 20"/><path d="M19 12 Q21 18 17 20"/><path d="M7 20 Q12 23 17 20"/>`,
+  grid:`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>`,
+  map:`<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>`,
+  calendar:`<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>`,
+  ship:`<path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.03.73 3.93 1.62 6.38"/><path d="M2 21c0-3 1.85-5.36 5-6.5"/><path d="M12 10V2"/>`,
+  dollar:`<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>`,
+  users:`<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+  wrench:`<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>`,
+  crane:`<path d="M3 21V8l9-5 9 5v13"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>`,
+  bell:`<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>`,
+  search:`<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
+  plus:`<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>`,
+  chevron:`<polyline points="9 18 15 12 9 6"/>`,
+  x:`<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>`,
+  check:`<polyline points="20 6 9 12 4 9"/>`,
+  alert:`<triangle><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></triangle><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
+  bolt:`<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>`,
+  droplet:`<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>`,
+  file:`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>`,
+  settings:`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`,
+  gauge:`<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10"/><path d="M22 12a10 10 0 0 0-5.08-8.72"/><path d="M12 12l3.5-3.5"/>`,
+};
+
+function Ic({n,s=14,c='currentColor'}){
+  return <svg className="icon" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{__html:icons[n]||''}}/>;
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const PIERS = [
+  { id:'A', slips:[
+    {id:'A1',len:'12m',status:'occupied',vessel:'Ocean Star',owner:'C. Hammond',type:'Motor Yacht',draft:'1.8m'},
+    {id:'A2',len:'10m',status:'occupied',vessel:'Seabird III',owner:'T. Marchetti',type:'Catamaran',draft:'1.2m'},
+    {id:'A3',len:'15m',status:'available',vessel:null},
+    {id:'A4',len:'8m',status:'maintenance',vessel:null},
+    {id:'A5',len:'12m',status:'occupied',vessel:'Lady K',owner:'A. Schwartz',type:'Motor Yacht',draft:'2.1m'},
+    {id:'A6',len:'20m',status:'reserved',vessel:'Nordic Blue',owner:'K. Eriksson',type:'Sailboat',draft:'2.4m'},
+    {id:'A7',len:'10m',status:'available',vessel:null},
+    {id:'A8',len:'14m',status:'occupied',vessel:'Windseeker',owner:'R. Fontaine',type:'Sailboat',draft:'1.5m'},
+  ]},
+  { id:'B', slips:[
+    {id:'B1',len:'18m',status:'occupied',vessel:'Blue Horizon',owner:'M. Osei',type:'Motor Yacht',draft:'2.4m'},
+    {id:'B2',len:'10m',status:'occupied',vessel:'Saltwater',owner:'J. Hartmann',type:'Sailboat',draft:'1.4m'},
+    {id:'B3',len:'12m',status:'available',vessel:null},
+    {id:'B4',len:'10m',status:'reserved',vessel:'Puffin',owner:'S. Yamamoto',type:'Sailboat',draft:'1.3m'},
+    {id:'B5',len:'25m',status:'occupied',vessel:'Nautilus V',owner:'B. Rousseau',type:'Superyacht',draft:'3.0m'},
+    {id:'B6',len:'12m',status:'available',vessel:null},
+    {id:'B7',len:'10m',status:'maintenance',vessel:null},
+    {id:'B8',len:'14m',status:'occupied',vessel:'Avalon',owner:'P. Singh',type:'Motor Yacht',draft:'1.9m'},
+  ]},
+  { id:'C', slips:[
+    {id:'C1',len:'8m',status:'available',vessel:null},
+    {id:'C2',len:'8m',status:'occupied',vessel:'Pebble',owner:'G. Costa',type:'Dinghy',draft:'0.6m'},
+    {id:'C3',len:'10m',status:'occupied',vessel:'Storm Chaser',owner:'W. James',type:'Sailboat',draft:'1.6m'},
+    {id:'C4',len:'8m',status:'available',vessel:null},
+    {id:'C5',len:'10m',status:'reserved',vessel:'Tempest',owner:'L. Müller',type:'Sailboat',draft:'1.7m'},
+    {id:'C6',len:'12m',status:'occupied',vessel:'Horizon',owner:'F. Nakamura',type:'Motor Yacht',draft:'1.8m'},
+  ]},
+];
+
+const BOOKINGS = [
+  {id:'BK-1041',vessel:'Ocean Star',owner:'C. Hammond',berth:'A1',checkin:'22 Apr',checkout:'26 Apr',nights:4,type:'Transient',status:'active',paid:true,amount:'€480'},
+  {id:'BK-1042',vessel:'Windseeker',owner:'R. Fontaine',berth:'A8',checkin:'23 Apr',checkout:'25 Apr',nights:2,type:'Transient',status:'active',paid:true,amount:'€220'},
+  {id:'BK-1043',vessel:'Seabird III',owner:'T. Marchetti',berth:'A2',checkin:'21 Apr',checkout:'27 Apr',nights:6,type:'Transient',status:'active',paid:false,amount:'€660'},
+  {id:'BK-1044',vessel:'Lady K',owner:'A. Schwartz',berth:'A5',checkin:'23 Apr',checkout:'24 Apr',nights:1,type:'Transient',status:'pending',paid:false,amount:'€150'},
+  {id:'BK-1045',vessel:'Saltwater',owner:'J. Hartmann',berth:'B2',checkin:'20 Apr',checkout:'23 Apr',nights:3,type:'Transient',status:'overdue',paid:false,amount:'€330'},
+  {id:'BK-1046',vessel:'Blue Horizon',owner:'M. Osei',berth:'B1',checkin:'24 Apr',checkout:'28 Apr',nights:4,type:'Transient',status:'confirmed',paid:true,amount:'€640'},
+  {id:'BK-1047',vessel:'Puffin',owner:'S. Yamamoto',berth:'B4',checkin:'23 Apr',checkout:'25 Apr',nights:2,type:'Transient',status:'pending',paid:false,amount:'€200'},
+  {id:'BK-S01',vessel:'Nautilus V',owner:'B. Rousseau',berth:'B5',checkin:'1 May',checkout:'31 Oct',nights:183,type:'Seasonal',status:'confirmed',paid:true,amount:'€8,200'},
+  {id:'BK-S02',vessel:'Avalon',owner:'P. Singh',berth:'B8',checkin:'1 Apr',checkout:'30 Sep',nights:183,type:'Seasonal',status:'confirmed',paid:true,amount:'€5,500'},
+];
+
+const HAUL_SCHEDULE = [
+  {id:'HS-01',vessel:'Winter Gale',owner:'P. Andersen',type:'Haul-out',date:'Mon 28 Apr',time:'08:00',crane:'Travelift A',crew:'Yard Team 1',status:'scheduled'},
+  {id:'HS-02',vessel:'Sea Sprite',owner:'M. Walsh',type:'Splash',date:'Mon 28 Apr',time:'10:30',crane:'Travelift A',crew:'Yard Team 1',status:'scheduled'},
+  {id:'HS-03',vessel:'Arctic Fox',owner:'T. Berg',type:'Haul-out',date:'Tue 29 Apr',time:'09:00',crane:'Travelift B',crew:'Yard Team 2',status:'scheduled'},
+  {id:'HS-04',vessel:'Morning Tide',owner:'H. Clarke',type:'Splash',date:'Tue 29 Apr',time:'14:00',crane:'Travelift A',crew:'Yard Team 1',status:'scheduled'},
+  {id:'HS-05',vessel:'Blue Dancer',owner:'C. Petit',type:'Haul-out',date:'Wed 30 Apr',time:'08:00',crane:'Travelift B',crew:'Yard Team 2',status:'confirmed'},
+];
+
+const DRY_STORAGE = [
+  ['Arctic Fox','Winter Gale',null,'Comet','Sirocco','Blue Dancer'],
+  [null,'Sea Sprite','Morning Tide',null,'White Cap',null],
+  ['Dune','null',null,'Grey Seal',null,'Iron Mast'],
+  [null,null,'Typhoon','Compass',null,null],
+];
+
+const INVOICES = [
+  {id:'INV-2041',vessel:'Ocean Star',owner:'C. Hammond',amount:'€480',type:'Berth Fee',issued:'22 Apr',due:'26 Apr',status:'paid'},
+  {id:'INV-2042',vessel:'Seabird III',owner:'T. Marchetti',amount:'€660',type:'Berth Fee',issued:'21 Apr',due:'27 Apr',status:'unpaid'},
+  {id:'INV-2043',vessel:'Saltwater',owner:'J. Hartmann',amount:'€330',type:'Berth Fee',issued:'20 Apr',due:'23 Apr',status:'overdue'},
+  {id:'INV-2044',vessel:'Nautilus V',owner:'B. Rousseau',amount:'€8,200',type:'Seasonal',issued:'1 Apr',due:'1 May',status:'paid'},
+  {id:'INV-2045',vessel:'Ocean Star',owner:'C. Hammond',amount:'€62',type:'Electricity',issued:'22 Apr',due:'26 Apr',status:'paid'},
+  {id:'INV-2046',vessel:'Lady K',owner:'A. Schwartz',amount:'€150',type:'Berth Fee',issued:'23 Apr',due:'24 Apr',status:'pending'},
+  {id:'INV-2047',vessel:'Blue Horizon',owner:'M. Osei',amount:'€640',type:'Berth Fee',issued:'24 Apr',due:'28 Apr',status:'paid'},
+  {id:'INV-2048',vessel:'Windseeker',owner:'R. Fontaine',amount:'€220',type:'Berth Fee',issued:'23 Apr',due:'25 Apr',status:'paid'},
+];
+
+const UTILITY_METERS = [
+  {berth:'A1',vessel:'Ocean Star',elec_start:4821,elec_cur:4939,water_start:120,water_cur:145},
+  {berth:'A2',vessel:'Seabird III',elec_start:2100,elec_cur:2188,water_start:88,water_cur:101},
+  {berth:'A5',vessel:'Lady K',elec_start:6500,elec_cur:6543,water_start:210,water_cur:218},
+  {berth:'A8',vessel:'Windseeker',elec_start:330,elec_cur:354,water_start:40,water_cur:45},
+  {berth:'B1',vessel:'Blue Horizon',elec_start:9100,elec_cur:9340,water_start:480,water_cur:512},
+  {berth:'B2',vessel:'Saltwater',elec_start:720,elec_cur:748,water_start:30,water_cur:35},
+  {berth:'B5',vessel:'Nautilus V',elec_start:11200,elec_cur:11680,water_start:820,water_cur:890},
+];
+
+const MEMBERS = [
+  {id:'M-001',name:'C. Hammond',vessel:'Ocean Star',type:'Transient',email:'c.hammond@email.com',phone:'+44 7700 900001',insurance:'Dec 2025',docs:'complete',joined:'Jan 2024'},
+  {id:'M-002',name:'T. Marchetti',vessel:'Seabird III',type:'Transient',email:'t.marchetti@email.com',phone:'+39 347 0001234',insurance:'Oct 2025',docs:'complete',joined:'Mar 2024'},
+  {id:'M-003',name:'B. Rousseau',vessel:'Nautilus V',type:'Seasonal',email:'b.rousseau@email.com',phone:'+33 6 12 34 56 78',insurance:'Jun 2026',docs:'complete',joined:'May 2022'},
+  {id:'M-004',name:'J. Hartmann',vessel:'Saltwater',type:'Transient',email:'j.hartmann@email.com',phone:'+31 6 98765432',insurance:'EXPIRED',docs:'missing',joined:'Aug 2023'},
+  {id:'M-005',name:'P. Singh',vessel:'Avalon',type:'Seasonal',email:'p.singh@email.com',phone:'+44 7700 900005',insurance:'Jan 2026',docs:'complete',joined:'Feb 2021'},
+  {id:'M-006',name:'M. Osei',vessel:'Blue Horizon',type:'Transient',email:'m.osei@email.com',phone:'+233 20 0001234',insurance:'Jun 2026',docs:'complete',joined:'Sep 2023'},
+  {id:'M-007',name:'A. Schwartz',vessel:'Lady K',type:'Transient',email:'a.schwartz@email.com',phone:'+49 151 00112233',insurance:'Mar 2025',docs:'pending',joined:'Nov 2024'},
+];
+
+const TASKS = [
+  {id:1,text:'Empty trash bins on Pier A and Pier B',assign:'Dock Team A',priority:'low',done:false,dock:'Pier A/B'},
+  {id:2,text:'Assist inbound vessel Ocean Star at Slip A1 — 08:30',assign:'Dock Team A',priority:'high',done:true,dock:'A1'},
+  {id:3,text:'Clean bathhouse facilities — Block C',assign:'Dock Team B',priority:'medium',done:false,dock:'Block C'},
+  {id:4,text:'Inspect Pier B cleats for damage after last night storm report',assign:'Dock Team B',priority:'high',done:false,dock:'Pier B'},
+  {id:5,text:'Confirm fuel dock pump calibration before 10:00',assign:'Fuel Team',priority:'high',done:false,dock:'Fuel Dock'},
+  {id:6,text:'Check berth A4 — maintenance flag, electrical issue pending inspection',assign:'Electrician',priority:'medium',done:false,dock:'A4'},
+  {id:7,text:'Prepare Travelift A for haul-out schedule at 08:00 tomorrow',assign:'Yard Team 1',priority:'high',done:false,dock:'Boatyard'},
+  {id:8,text:'Send overdue payment reminder to J. Hartmann (BK-1045)',assign:'Office',priority:'medium',done:false,dock:'Office'},
+];
+
+const INCIDENTS = [
+  {id:'INC-21',date:'22 Apr 09:14',vessel:'Seabird III',berth:'A2',desc:'Minor contact with finger pier on arrival. Gelcoat scuff on starboard bow. Photographed. Owner notified.',severity:'low',reporter:'M. Hargreaves'},
+  {id:'INC-20',date:'21 Apr 17:30',vessel:'—',berth:'Pier B',desc:'Cleat B7-3 reported loose. Dock crew flagged for maintenance. Berth B7 taken out of service.',severity:'medium',reporter:'Dock Team B'},
+  {id:'INC-19',date:'19 Apr 11:00',vessel:'Saltwater',berth:'B2',desc:'Vessel found listing 5° to port on morning inspection. Bilge pump activated. Owner contacted.',severity:'high',reporter:'M. Hargreaves'},
+];
+
+const ACTIVITY_FEED = [
+  {color:'#0075de',text:'Ocean Star (A1) checked in. Capt. C. Hammond. Est. 4 nights.',time:'08:42 today'},
+  {color:'#1a8c2e',text:'INV-2044 paid — Nautilus V seasonal berth €8,200.',time:'08:15 today'},
+  {color:'#dd5b00',text:'Berth A4 flagged for maintenance — electrical fault.',time:'07:58 today'},
+  {color:'#b01c1c',text:'Payment overdue: BK-1045 Saltwater. 3 days past due.',time:'07:00 today'},
+  {color:'#2a9d99',text:'Travelift A service completed. Ready for haul-out schedule.',time:'Yesterday 17:30'},
+  {color:'#615d59',text:'Puffin (B4) booking confirmed. Arriving 23 Apr.',time:'Yesterday 16:10'},
+];
+
+// ── COMPONENTS ────────────────────────────────────────────────────────────────
+function StatusBadge({s}){
+  const map={occupied:'badge-blue',available:'badge-green',reserved:'badge-gold',maintenance:'badge-red',active:'badge-green',confirmed:'badge-blue',pending:'badge-gold',overdue:'badge-red',paid:'badge-green',unpaid:'badge-orange',scheduled:'badge-teal',complete:'badge-green','in-progress':'badge-blue',missing:'badge-red',Transient:'badge-navy',Seasonal:'badge-gold'};
+  return <span className={`badge ${map[s]||'badge-gray'}`}>{s}</span>;
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────────────────────────
+function Overview({setScreen}){
+  const occ=PIERS.flatMap(p=>p.slips).filter(s=>s.status==='occupied').length;
+  const tot=PIERS.flatMap(p=>p.slips).length;
+  const avail=PIERS.flatMap(p=>p.slips).filter(s=>s.status==='available').length;
+  return(
+    <div>
+      <div className="stat-row">
+        {[
+          {label:'Berths Occupied',val:`${occ}/${tot}`,sub:'2 in maintenance',trend:'+3',up:true},
+          {label:'Arrivals Today',val:'5',sub:'Next: 11:00',trend:'On time',up:true},
+          {label:'Available Slips',val:avail,sub:'Across 3 piers',trend:'−2 vs yesterday',up:false},
+          {label:'Pending Payments',val:'3',sub:'€1,190 outstanding',trend:'Overdue: 1',up:false},
+          {label:'Open Tasks',val:'6',sub:'2 high priority',trend:'2 unassigned',up:false},
+        ].map(s=>(
+          <div key={s.label} className="card stat-card">
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-val">{s.val}</div>
+            <div className="stat-sub">{s.sub}</div>
+            <div className={`stat-trend ${s.up?'up':'dn'}`}>{s.trend}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid-a" style={{alignItems:'start'}}>
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-title">Activity Log</div>
+            <button className="btn btn-ghost btn-sm">View all</button>
+          </div>
+          <div className="card-body">
+            {ACTIVITY_FEED.map((a,i)=>(
+              <div key={i} className="act-item">
+                <div className="act-dot" style={{background:a.color}}/>
+                <div><div className="act-text">{a.text}</div><div className="act-time">{a.time}</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">Today's Weather</div>
+              <span className="badge badge-green" style={{fontSize:10}}>Live</span>
+            </div>
+            <div className="card-body">
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {[['14°C','Temperature'],['12kn SW','Wind'],['0.6m','Swell'],['8km','Visibility']].map(([v,l])=>(
+                  <div key={l} style={{background:'var(--bg)',borderRadius:6,padding:'10px 12px'}}>
+                    <div style={{fontSize:18,fontWeight:600,letterSpacing:'-0.5px'}}>{v}</div>
+                    <div style={{fontSize:10,color:'rgba(0,0,0,0.38)',marginTop:2}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:12,fontSize:11,color:'rgba(0,0,0,0.35)',display:'flex',justifyContent:'space-between'}}>
+                <span>Low tide 14:22 · 1.2m</span><span>High tide 20:48 · 3.8m</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">Urgent</div>
+              <span className="badge badge-red">3</span>
+            </div>
+            <div className="card-body" style={{padding:'8px 18px'}}>
+              {[
+                {color:'var(--red)',text:'Saltwater — insurance EXPIRED. Do not extend stay.'},
+                {color:'var(--orange)',text:'BK-1045 overdue payment — €330 due 3 days ago.'},
+                {color:'var(--orange)',text:'Pier B cleat inspection required — safety flag.'},
+              ].map((a,i)=>(
+                <div key={i} className="act-item">
+                  <div className="act-dot" style={{background:a.color}}/>
+                  <div className="act-text" style={{fontSize:11}}>{a.text}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><div className="card-header-title">Pending Bookings</div></div>
+            <div style={{padding:'4px 8px 8px'}}>
+              {BOOKINGS.filter(b=>b.status==='pending').map(b=>(
+                <div key={b.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',borderBottom:'var(--border)'}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600}}>{b.vessel}</div>
+                    <div style={{fontSize:10,color:'rgba(0,0,0,0.35)'}}>{b.checkin} · Slip {b.berth}</div>
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button className="btn btn-primary btn-sm">Confirm</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MARINA MAP ────────────────────────────────────────────────────────────────
+function MarinaMap(){
+  const [sel,setSel]=useState(null);
+  const allSlips=PIERS.flatMap(p=>p.slips);
+  const counts={
+    occupied:allSlips.filter(s=>s.status==='occupied').length,
+    available:allSlips.filter(s=>s.status==='available').length,
+    reserved:allSlips.filter(s=>s.status==='reserved').length,
+    maintenance:allSlips.filter(s=>s.status==='maintenance').length
+  };
+
+  return(
+    <div>
+      {/* Status bar */}
+      <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+        {[['Occupied',counts.occupied,'badge-blue'],['Available',counts.available,'badge-green'],['Reserved',counts.reserved,'badge-gold'],['Maintenance',counts.maintenance,'badge-red']].map(([l,c,b])=>(
+          <div key={l} style={{display:'flex',alignItems:'center',gap:6,background:'var(--white)',border:'var(--border)',borderRadius:8,padding:'8px 14px'}}>
+            <span className={`badge ${b}`}>{c}</span>
+            <span style={{fontSize:12,fontWeight:500,color:'rgba(0,0,0,0.6)'}}>{l}</span>
+          </div>
+        ))}
+        <button className="btn btn-primary" style={{marginLeft:'auto'}}><Ic n="plus" s={12}/>New Booking</button>
+      </div>
+
+      {/* Map + detail panel */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 300px',gap:16,alignItems:'start'}}>
+        {/* Harbor Map */}
+        <div>
+          <HarborMap
+            piers={PIERS}
+            selectedSlip={sel}
+            onSelectSlip={setSel}
+          />
+          {/* Legend */}
+          <div style={{display:'flex',gap:16,marginTop:10,flexWrap:'wrap'}}>
+            {[['Occupied','#c6dcf5','#3a7fc8'],['Available','#c2ecce','#38a860'],['Reserved','#f6e7b0','#c89020'],['Maintenance','#f5cccc','#c04040']].map(([l,bg,stroke])=>(
+              <div key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'rgba(0,0,0,0.5)',fontWeight:500}}>
+                <div style={{width:12,height:12,borderRadius:2,background:bg,border:`1.5px solid ${stroke}`}}/>
+                {l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Detail panel */}
+        {sel ? (
+          <div className="detail">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+              <div className="detail-title">Slip {sel.id}</div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setSel(null)} style={{padding:'3px 7px'}}><Ic n="x" s={12}/></button>
+            </div>
+            <div className="detail-sub">{sel.len} · {sel.status}</div>
+            <StatusBadge s={sel.status}/>
+            <div style={{marginTop:14}}>
+              {sel.vessel && <>
+                {[['Vessel',sel.vessel],['Owner',sel.owner||'—'],['Type',sel.type||'—'],['Draft',sel.draft||'—']].map(([k,v])=>(
+                  <div key={k} className="detail-row"><div className="detail-key">{k}</div><div className="detail-val">{v}</div></div>
+                ))}
+              </>}
+              {!sel.vessel && <div style={{fontSize:12,color:'rgba(0,0,0,0.35)',padding:'12px 0'}}>Slip is {sel.status}.</div>}
+            </div>
+            <div className="detail-actions">
+              {sel.status==='available' && <button className="btn btn-primary" style={{justifyContent:'center'}}>Book this Slip</button>}
+              {sel.status==='occupied' && <><button className="btn btn-primary" style={{justifyContent:'center'}}>View Booking</button><button className="btn btn-ghost" style={{justifyContent:'center'}}>Check Out</button></>}
+              {sel.status==='reserved' && <button className="btn btn-primary" style={{justifyContent:'center'}}>View Reservation</button>}
+              {sel.status==='maintenance' && <button className="btn btn-ghost" style={{justifyContent:'center'}}>Clear Flag</button>}
+            </div>
+          </div>
+        ) : (
+          <div className="card" style={{padding:24}}>
+            <div style={{fontSize:12,color:'rgba(0,0,0,0.35)',textAlign:'center',padding:'20px 0',lineHeight:1.6}}>
+              Click any slip on the map to view details, make a booking, or check a vessel out.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── RESERVATIONS ──────────────────────────────────────────────────────────────
+function Reservations(){
+  const [tab,setTab]=useState('all');
+  const [sel,setSel]=useState(null);
+  const filtered=tab==='all'?BOOKINGS:tab==='transient'?BOOKINGS.filter(b=>b.type==='Transient'):tab==='seasonal'?BOOKINGS.filter(b=>b.type==='Seasonal'):BOOKINGS.filter(b=>b.status===tab);
+  return(
+    <div>
+      <div style={{display:'flex',gap:8,marginBottom:16,alignItems:'center'}}>
+        <div className="search"><Ic n="search" s={13}/><input placeholder="Search vessel, owner, booking…"/></div>
+        <button className="btn btn-primary"><Ic n="plus" s={12}/>New Booking</button>
+      </div>
+      <div className="tabs">
+        {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending','Pending'],['overdue','Overdue']].map(([v,l])=>(
+          <div key={v} className={`tab${tab===v?' active':''}`} onClick={()=>setTab(v)}>{l}</div>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:sel?'1fr 300px':'1fr',gap:16,alignItems:'start'}}>
+        <div className="card" style={{overflow:'hidden'}}>
+          <table className="tbl">
+            <thead><tr><th>Booking</th><th>Vessel / Owner</th><th>Slip</th><th>Dates</th><th>Type</th><th>Status</th><th>Amount</th></tr></thead>
+            <tbody>
+              {filtered.map(b=>(
+                <tr key={b.id} style={{cursor:'pointer',background:sel?.id===b.id?'#f5f8ff':''}} onClick={()=>setSel(b)}>
+                  <td><div className="tbl-name">{b.id}</div></td>
+                  <td><div className="tbl-name">{b.vessel}</div><div className="tbl-sub">{b.owner}</div></td>
+                  <td style={{fontWeight:600,color:'var(--navy)'}}>{b.berth}</td>
+                  <td><div style={{fontSize:12}}>{b.checkin} → {b.checkout}</div><div className="tbl-sub">{b.nights} nights</div></td>
+                  <td><StatusBadge s={b.type}/></td>
+                  <td><StatusBadge s={b.status}/></td>
+                  <td><div style={{fontWeight:600}}>{b.amount}</div><div className="tbl-sub">{b.paid?'Paid':'Unpaid'}</div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {sel&&(
+          <div className="detail">
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <div className="detail-title">{sel.id}</div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setSel(null)} style={{padding:'3px 7px'}}><Ic n="x" s={12}/></button>
+            </div>
+            <StatusBadge s={sel.status}/>
+            <div style={{marginTop:14}}>
+              {[['Vessel',sel.vessel],['Owner',sel.owner],['Slip',sel.berth],['Check-in',sel.checkin],['Check-out',sel.checkout],['Duration',`${sel.nights} nights`],['Type',sel.type],['Amount',sel.amount],['Payment',sel.paid?'Paid':'Outstanding']].map(([k,v])=>(
+                <div key={k} className="detail-row"><div className="detail-key">{k}</div><div className="detail-val" style={{color:k==='Payment'&&!sel.paid?'var(--orange)':k==='Payment'?'var(--green)':undefined}}>{v}</div></div>
+              ))}
+            </div>
+            <div className="detail-actions">
+              {!sel.paid&&<button className="btn btn-primary" style={{justifyContent:'center'}}>Mark as Paid</button>}
+              <button className="btn btn-ghost" style={{justifyContent:'center'}}>Edit Booking</button>
+              <button className="btn btn-danger" style={{justifyContent:'center'}}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── BOATYARD ─────────────────────────────────────────────────────────────────
+function Boatyard(){
+  const [tab,setTab]=useState('schedule');
+  const LANES=['Lane 1','Lane 2','Lane 3','Lane 4'];
+  const COLS=['A','B','C','D','E','F'];
+  return(
+    <div>
+      <div className="tabs">
+        {[['schedule','Haul-out Schedule'],['storage','Dry Storage Map'],['contractors','Contractors']].map(([v,l])=>(
+          <div key={v} className={`tab${tab===v?' active':''}`} onClick={()=>setTab(v)}>{l}</div>
+        ))}
+      </div>
+      {tab==='schedule'&&(
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Upcoming Haul-outs & Splashes</div>
+            <button className="btn btn-primary"><Ic n="plus" s={12}/>Schedule Lift</button>
+          </div>
+          <div className="card" style={{overflow:'hidden'}}>
+            <table className="tbl">
+              <thead><tr><th>ID</th><th>Vessel</th><th>Type</th><th>Date / Time</th><th>Equipment</th><th>Crew</th><th>Status</th></tr></thead>
+              <tbody>
+                {HAUL_SCHEDULE.map(h=>(
+                  <tr key={h.id}>
+                    <td className="tbl-name">{h.id}</td>
+                    <td><div className="tbl-name">{h.vessel}</div><div className="tbl-sub">{h.owner}</div></td>
+                    <td><span className={`badge ${h.type==='Haul-out'?'badge-blue':'badge-green'}`}>{h.type}</span></td>
+                    <td><div style={{fontSize:12,fontWeight:500}}>{h.date}</div><div className="tbl-sub">{h.time}</div></td>
+                    <td style={{fontSize:12}}>{h.crane}</td>
+                    <td style={{fontSize:12}}>{h.crew}</td>
+                    <td><StatusBadge s={h.status}/></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {tab==='storage'&&(
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Dry Storage — Land Yard</div>
+            <div style={{display:'flex',gap:10,alignItems:'center'}}>
+              {[['Occupied','#dbeeff'],['Available','#f0f0ee'],['Blocked','#fff5e0']].map(([l,c])=>(
+                <div key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'rgba(0,0,0,0.5)'}}><div style={{width:10,height:10,borderRadius:2,background:c,border:'1px solid rgba(0,0,0,0.1)'}}/>{l}</div>
+              ))}
+            </div>
+          </div>
+          <div className="card" style={{padding:20}}>
+            <div className="storage-grid">
+              {DRY_STORAGE.map((row,ri)=>(
+                <div key={ri} className="storage-row">
+                  <div className="storage-lane">{LANES[ri]}</div>
+                  {COLS.map((col,ci)=>{
+                    const boat=row[ci];
+                    const occupied=boat&&boat!=='null';
+                    const blocked=!occupied&&ri>0&&DRY_STORAGE[ri-1][ci]&&DRY_STORAGE[ri-1][ci]!=='null';
+                    const st=occupied?'occupied':blocked?'blocked':'available';
+                    return(
+                      <div key={ci} className={`storage-slot ${st}`} style={{width:80,height:52,padding:'4px'}}>
+                        <div className="slot-id">{col}{ri+1}</div>
+                        {occupied&&<div className="slot-boat">{boat}</div>}
+                        {blocked&&<div className="slot-boat" style={{color:'rgba(0,0,0,0.3)'}}>blocked</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:16,fontSize:11,color:'rgba(0,0,0,0.38)'}}>
+              Blocked cells indicate the vessel above occupies the overhead space and cannot be accessed without moving the top vessel first.
+            </div>
+          </div>
+        </div>
+      )}
+      {tab==='contractors'&&(
+        <div className="card" style={{overflow:'hidden'}}>
+          <div className="card-header"><div className="card-header-title">Contractors On-Site</div><button className="btn btn-primary btn-sm"><Ic n="plus" s={11}/>Add</button></div>
+          <table className="tbl">
+            <thead><tr><th>Contractor</th><th>Trade</th><th>Working On</th><th>Access Period</th><th>Vessel Owner</th></tr></thead>
+            <tbody>
+              {[
+                {name:'R. Hughes Marine',trade:'Mechanics',vessel:'Winter Gale',period:'28–30 Apr',owner:'P. Andersen'},
+                {name:'Canvas Works Ltd',trade:'Canvas / Upholstery',vessel:'Arctic Fox',period:'29 Apr',owner:'T. Berg'},
+                {name:'Brightwork Co.',trade:'Detailing',vessel:'Nautilus V',period:'24–25 Apr',owner:'B. Rousseau'},
+                {name:'ElectraMarine',trade:'Electrical',vessel:'Berth A4',period:'28 Apr',owner:'—'},
+              ].map((c,i)=>(
+                <tr key={i}>
+                  <td className="tbl-name">{c.name}</td>
+                  <td><span className="badge badge-teal">{c.trade}</span></td>
+                  <td style={{fontWeight:500}}>{c.vessel}</td>
+                  <td style={{fontSize:12}}>{c.period}</td>
+                  <td style={{fontSize:12,color:'rgba(0,0,0,0.5)'}}>{c.owner}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── BILLING ───────────────────────────────────────────────────────────────────
+function Billing(){
+  const [tab,setTab]=useState('invoices');
+  return(
+    <div>
+      <div className="tabs">
+        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS']].map(([v,l])=>(
+          <div key={v} className={`tab${tab===v?' active':''}`} onClick={()=>setTab(v)}>{l}</div>
+        ))}
+      </div>
+      {tab==='invoices'&&(
+        <div>
+          <div className="sec-hdr">
+            <div style={{display:'flex',gap:8}}>
+              {[['Paid',INVOICES.filter(i=>i.status==='paid').length,'badge-green'],['Unpaid',INVOICES.filter(i=>i.status==='unpaid').length,'badge-orange'],['Overdue',INVOICES.filter(i=>i.status==='overdue').length,'badge-red']].map(([l,c,b])=>(
+                <div key={l} style={{display:'flex',alignItems:'center',gap:5,background:'var(--white)',border:'var(--border)',borderRadius:7,padding:'6px 12px'}}>
+                  <span className={`badge ${b}`}>{c}</span>
+                  <span style={{fontSize:11,color:'rgba(0,0,0,0.5)'}}>{l}</span>
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary"><Ic n="plus" s={12}/>New Invoice</button>
+          </div>
+          <div className="card" style={{overflow:'hidden'}}>
+            <table className="tbl">
+              <thead><tr><th>Invoice</th><th>Vessel / Owner</th><th>Type</th><th>Amount</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {INVOICES.map(inv=>(
+                  <tr key={inv.id}>
+                    <td className="tbl-name">{inv.id}</td>
+                    <td><div className="tbl-name">{inv.vessel}</div><div className="tbl-sub">{inv.owner}</div></td>
+                    <td><span className="badge badge-navy">{inv.type}</span></td>
+                    <td style={{fontWeight:600}}>{inv.amount}</td>
+                    <td style={{fontSize:12,color:'rgba(0,0,0,0.45)'}}>{inv.issued}</td>
+                    <td style={{fontSize:12,color:inv.status==='overdue'?'var(--red)':'rgba(0,0,0,0.45)',fontWeight:inv.status==='overdue'?600:400}}>{inv.due}</td>
+                    <td><StatusBadge s={inv.status}/></td>
+                    <td><button className="btn btn-ghost btn-sm">{inv.status==='paid'?'View':'Chase'}</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {tab==='utilities'&&(
+        <div>
+          <div className="sec-hdr"><div className="sec-hdr-title">Utility Meters by Berth</div><button className="btn btn-primary btn-sm">Enter Readings</button></div>
+          <div className="card" style={{overflow:'hidden'}}>
+            <table className="tbl">
+              <thead><tr><th>Berth</th><th>Vessel</th><th>Electricity (kWh)</th><th>Usage</th><th>Water (L)</th><th>Usage</th><th>Est. Charge</th></tr></thead>
+              <tbody>
+                {UTILITY_METERS.map(m=>{
+                  const elec=m.elec_cur-m.elec_start;
+                  const water=m.water_cur-m.water_start;
+                  const charge=`€${((elec*0.28)+(water*0.004)).toFixed(2)}`;
+                  return(
+                    <tr key={m.berth}>
+                      <td style={{fontWeight:600,color:'var(--navy)'}}>{m.berth}</td>
+                      <td className="tbl-name">{m.vessel}</td>
+                      <td>
+                        <div style={{fontSize:12}}>{m.elec_start} → {m.elec_cur}</div>
+                        <div className="meter-bar-wrap"><div className="meter-bar" style={{width:`${Math.min(100,(elec/200)*100)}%`,background:'#0075de'}}/></div>
+                      </td>
+                      <td style={{fontWeight:600}}>{elec} kWh</td>
+                      <td>
+                        <div style={{fontSize:12}}>{m.water_start} → {m.water_cur}</div>
+                        <div className="meter-bar-wrap"><div className="meter-bar" style={{width:`${Math.min(100,(water/100)*100)}%`,background:'var(--teal2)'}}/></div>
+                      </td>
+                      <td style={{fontWeight:600}}>{water} L</td>
+                      <td style={{fontWeight:700,color:'var(--navy)'}}>{charge}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {tab==='pos'&&(
+        <div className="grid-2" style={{alignItems:'start'}}>
+          <div className="card">
+            <div className="card-header"><div className="card-header-title">Fuel Dock — Quick Sale</div></div>
+            <div className="card-body">
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+                {[['Diesel','€1.42/L','#0075de'],['Petrol','€1.55/L','#dd5b00'],['Pump-out','€12 flat','#2a9d99'],['Ice (5kg)','€4.50','#615d59'],['Shore Power Token','€3.00','#213183'],['Merchandise','Price varies','#b8965a']].map(([item,price,c])=>(
+                  <div key={item} style={{background:'var(--bg)',borderRadius:8,padding:'14px',cursor:'pointer',border:'var(--border)',transition:'box-shadow 0.1s'}} onMouseOver={e=>e.currentTarget.style.boxShadow='var(--shadow2)'} onMouseOut={e=>e.currentTarget.style.boxShadow=''}>
+                    <div style={{fontSize:13,fontWeight:600,color:'rgba(0,0,0,0.8)'}}>{item}</div>
+                    <div style={{fontSize:12,color:c,fontWeight:600,marginTop:4}}>{price}</div>
+                  </div>
+                ))}
+              </div>
+              <button className="btn btn-gold" style={{width:'100%',justifyContent:'center',fontSize:13,padding:'10px'}}>Process Sale</button>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-header"><div className="card-header-title">Recent Fuel Sales</div></div>
+            <div className="card-body" style={{padding:0}}>
+              {[
+                {vessel:'Ocean Star',item:'Diesel',qty:'120L',amount:'€170.40',time:'09:15 today'},
+                {vessel:'Blue Horizon',item:'Petrol',qty:'80L',amount:'€124.00',time:'08:50 today'},
+                {vessel:'Nautilus V',item:'Diesel',qty:'340L',amount:'€482.80',time:'Yesterday 17:20'},
+                {vessel:'Lady K',item:'Pump-out',qty:'1×',amount:'€12.00',time:'Yesterday 14:00'},
+              ].map((s,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 18px',borderBottom:'var(--border)'}}>
+                  <div><div style={{fontSize:12,fontWeight:600}}>{s.vessel}</div><div style={{fontSize:10,color:'rgba(0,0,0,0.35)'}}>{s.item} · {s.qty} · {s.time}</div></div>
+                  <div style={{fontWeight:700,fontSize:13}}>{s.amount}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MEMBERS ───────────────────────────────────────────────────────────────────
+function Members(){
+  const [tab,setTab]=useState('members');
+  const [sel,setSel]=useState(null);
+  return(
+    <div>
+      <div className="tabs">
+        {[['members','Members & Owners'],['docs','Document Vault'],['comms','Communications']].map(([v,l])=>(
+          <div key={v} className={`tab${tab===v?' active':''}`} onClick={()=>setTab(v)}>{l}</div>
+        ))}
+      </div>
+      {tab==='members'&&(
+        <div style={{display:'grid',gridTemplateColumns:sel?'1fr 280px':'1fr',gap:16,alignItems:'start'}}>
+          <div>
+            <div style={{display:'flex',gap:8,marginBottom:14}}>
+              <div className="search"><Ic n="search" s={13}/><input placeholder="Search owner or vessel…"/></div>
+              <button className="btn btn-primary"><Ic n="plus" s={12}/>Add Member</button>
+            </div>
+            <div className="card" style={{overflow:'hidden'}}>
+              <table className="tbl">
+                <thead><tr><th>Owner</th><th>Vessel</th><th>Type</th><th>Insurance</th><th>Documents</th><th>Member Since</th></tr></thead>
+                <tbody>
+                  {MEMBERS.map(m=>(
+                    <tr key={m.id} style={{cursor:'pointer',background:sel?.id===m.id?'#f5f8ff':''}} onClick={()=>setSel(m)}>
+                      <td><div className="tbl-name">{m.name}</div><div className="tbl-sub">{m.email}</div></td>
+                      <td style={{fontWeight:500}}>{m.vessel}</td>
+                      <td><StatusBadge s={m.type}/></td>
+                      <td><span style={{fontSize:11,fontWeight:600,color:m.insurance==='EXPIRED'?'var(--red)':'var(--green)'}}>{m.insurance==='EXPIRED'?'⚠ Expired':'✓ '+m.insurance}</span></td>
+                      <td><StatusBadge s={m.docs}/></td>
+                      <td style={{fontSize:12,color:'rgba(0,0,0,0.38)'}}>{m.joined}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {sel&&(
+            <div className="detail">
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                <div className="detail-title">{sel.name}</div>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setSel(null)} style={{padding:'3px 7px'}}><Ic n="x" s={12}/></button>
+              </div>
+              <div className="detail-sub">{sel.vessel} · {sel.type}</div>
+              {[['Email',sel.email],['Phone',sel.phone],['Insurance',sel.insurance],['Documents',sel.docs],['Member Since',sel.joined]].map(([k,v])=>(
+                <div key={k} className="detail-row"><div className="detail-key">{k}</div><div className="detail-val" style={{color:k==='Insurance'&&v==='EXPIRED'?'var(--red)':undefined}}>{v}</div></div>
+              ))}
+              <div className="detail-actions">
+                <button className="btn btn-primary" style={{justifyContent:'center'}}>Send Message</button>
+                <button className="btn btn-ghost" style={{justifyContent:'center'}}>View Documents</button>
+                <button className="btn btn-ghost" style={{justifyContent:'center'}}>Edit Profile</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {tab==='docs'&&(
+        <div className="card" style={{overflow:'hidden'}}>
+          <div className="card-header"><div className="card-header-title">Document Vault</div></div>
+          <table className="tbl">
+            <thead><tr><th>Owner</th><th>Vessel</th><th>Registration</th><th>Insurance</th><th>Slip Lease</th><th>Actions</th></tr></thead>
+            <tbody>
+              {MEMBERS.map(m=>(
+                <tr key={m.id}>
+                  <td className="tbl-name">{m.name}</td>
+                  <td>{m.vessel}</td>
+                  <td>{m.docs==='complete'?<span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ On file</span>:<span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Missing</span>}</td>
+                  <td>{m.insurance==='EXPIRED'?<span style={{color:'var(--red)',fontSize:11,fontWeight:600}}>✗ Expired</span>:m.docs==='missing'?<span style={{color:'var(--orange)',fontSize:11,fontWeight:600}}>⚠ Pending</span>:<span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Valid</span>}</td>
+                  <td>{m.type==='Seasonal'?<span style={{color:'var(--green)',fontSize:11,fontWeight:600}}>✓ Signed</span>:<span style={{color:'rgba(0,0,0,0.3)',fontSize:11}}>—</span>}</td>
+                  <td><button className="btn btn-ghost btn-sm">Request Upload</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {tab==='comms'&&(
+        <div className="card" style={{padding:24,maxWidth:600}}>
+          <div className="card-header-title" style={{marginBottom:16}}>Send Blast Message</div>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <label style={{fontSize:11,fontWeight:600,color:'rgba(0,0,0,0.4)',textTransform:'uppercase',letterSpacing:'0.5px'}}>Recipients</label>
+              <select><option>All berth holders (22)</option><option>Seasonal only (4)</option><option>Transient only (18)</option><option>Custom selection</option></select>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <label style={{fontSize:11,fontWeight:600,color:'rgba(0,0,0,0.4)',textTransform:'uppercase',letterSpacing:'0.5px'}}>Channel</label>
+              <select><option>Email</option><option>SMS</option><option>Email + SMS</option></select>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <label style={{fontSize:11,fontWeight:600,color:'rgba(0,0,0,0.4)',textTransform:'uppercase',letterSpacing:'0.5px'}}>Subject</label>
+              <input type="text" placeholder="e.g. Storm Warning — Secure Your Lines"/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <label style={{fontSize:11,fontWeight:600,color:'rgba(0,0,0,0.4)',textTransform:'uppercase',letterSpacing:'0.5px'}}>Message</label>
+              <textarea rows={5} placeholder="Type your message to all berth holders…" style={{resize:'vertical'}}/>
+            </div>
+            <button className="btn btn-primary" style={{justifyContent:'center',padding:'9px'}}>Send Message</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MAINTENANCE ───────────────────────────────────────────────────────────────
+function Maintenance(){
+  const [tab,setTab]=useState('tasks');
+  const [tasks,setTasks]=useState(TASKS);
+  const toggle=(id)=>setTasks(ts=>ts.map(t=>t.id===id?{...t,done:!t.done}:t));
+  const pColors={high:'var(--red)',medium:'var(--orange)',low:'rgba(0,0,0,0.25)'};
+  return(
+    <div>
+      <div className="tabs">
+        {[['tasks','Staff Tasks'],['incidents','Incidents'],['facility','Facility Log']].map(([v,l])=>(
+          <div key={v} className={`tab${tab===v?' active':''}`} onClick={()=>setTab(v)}>{l}</div>
+        ))}
+      </div>
+      {tab==='tasks'&&(
+        <div className="grid-2" style={{alignItems:'start'}}>
+          <div>
+            <div className="sec-hdr">
+              <div className="sec-hdr-title">Today's Tasks</div>
+              <button className="btn btn-primary btn-sm"><Ic n="plus" s={11}/>Add Task</button>
+            </div>
+            <div className="card" style={{padding:'4px 0'}}>
+              {tasks.map(t=>(
+                <div key={t.id} className="task-item" style={{padding:'10px 18px'}}>
+                  <div className={`task-check${t.done?' done':''}`} onClick={()=>toggle(t.id)}>
+                    {t.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div className={`task-text${t.done?' done':''}`}>{t.text}</div>
+                    <div className="task-meta">{t.dock}</div>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+                    <div style={{width:6,height:6,borderRadius:'50%',background:pColors[t.priority]}}/>
+                    <div className="task-assign">{t.assign}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div className="card" style={{padding:18}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Task Summary</div>
+              {[['Total tasks',tasks.length,'rgba(0,0,0,0.7)'],['Completed',tasks.filter(t=>t.done).length,'var(--green)'],['Open',tasks.filter(t=>!t.done).length,'var(--orange)'],['High priority',tasks.filter(t=>t.priority==='high'&&!t.done).length,'var(--red)']].map(([l,v,c])=>(
+                <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'var(--border)',fontSize:12}}>
+                  <span style={{color:'rgba(0,0,0,0.5)'}}>{l}</span>
+                  <span style={{fontWeight:700,color:c}}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="card" style={{padding:18}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>By Assignment</div>
+              {['Dock Team A','Dock Team B','Fuel Team','Yard Team 1','Electrician','Office'].map(team=>{
+                const count=tasks.filter(t=>t.assign===team&&!t.done).length;
+                return count>0?(
+                  <div key={team} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'var(--border)'}}>
+                    <span style={{color:'rgba(0,0,0,0.6)'}}>{team}</span>
+                    <span style={{fontWeight:700}}>{count} open</span>
+                  </div>
+                ):null;
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+      {tab==='incidents'&&(
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Incident Reports</div>
+            <button className="btn btn-primary btn-sm"><Ic n="plus" s={11}/>Log Incident</button>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            {INCIDENTS.map(inc=>(
+              <div key={inc.id} className="card" style={{padding:18}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,letterSpacing:'-0.1px'}}>{inc.id}</div>
+                    <div style={{fontSize:11,color:'rgba(0,0,0,0.38)',marginTop:2}}>{inc.date} · Reported by {inc.reporter}</div>
+                  </div>
+                  <span className={`badge ${inc.severity==='high'?'badge-red':inc.severity==='medium'?'badge-orange':'badge-gray'}`}>{inc.severity}</span>
+                </div>
+                <div style={{fontSize:12,marginBottom:10}}><b>Vessel:</b> {inc.vessel} &nbsp;·&nbsp; <b>Location:</b> {inc.berth}</div>
+                <div style={{fontSize:12,color:'rgba(0,0,0,0.65)',lineHeight:1.6,background:'var(--bg)',borderRadius:6,padding:'10px 12px'}}>{inc.desc}</div>
+                <div style={{display:'flex',gap:8,marginTop:12}}>
+                  <button className="btn btn-ghost btn-sm">Add Note</button>
+                  <button className="btn btn-ghost btn-sm">Attach Photo</button>
+                  <button className="btn btn-primary btn-sm" style={{marginLeft:'auto'}}>Mark Resolved</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {tab==='facility'&&(
+        <div className="card" style={{overflow:'hidden'}}>
+          <div className="card-header"><div className="card-header-title">Facility Maintenance Log</div><button className="btn btn-primary btn-sm">Log Entry</button></div>
+          <table className="tbl">
+            <thead><tr><th>Item</th><th>Type</th><th>Last Service</th><th>Next Due</th><th>Status</th><th>Notes</th></tr></thead>
+            <tbody>
+              {[
+                {item:'Travelift A (50T)',type:'Crane',last:'15 Mar 2026',next:'15 Jun 2026',status:'ok',notes:'Annual inspection passed'},
+                {item:'Travelift B (25T)',type:'Crane',last:'2 Feb 2026',next:'2 May 2026',status:'due-soon',notes:'Oil change due'},
+                {item:'Fuel Pump 1 (Diesel)',type:'Fuel System',last:'1 Apr 2026',next:'1 Jul 2026',status:'ok',notes:'Calibrated'},
+                {item:'Fuel Pump 2 (Petrol)',type:'Fuel System',last:'1 Apr 2026',next:'1 Jul 2026',status:'ok',notes:'Calibrated'},
+                {item:'Bathhouse Block C',type:'Plumbing',last:'10 Apr 2026',next:'10 May 2026',status:'ok',notes:'Routine clean'},
+                {item:'Shore Power Panel B',type:'Electrical',last:'—',next:'OVERDUE',status:'overdue',notes:'Berth A4 fault — inspection booked'},
+                {item:'Dock Cleats — Pier B',type:'Hardware',last:'22 Apr 2026',next:'22 May 2026',status:'flagged',notes:'Cleat B7-3 loose — crew notified'},
+              ].map((f,i)=>(
+                <tr key={i}>
+                  <td className="tbl-name">{f.item}</td>
+                  <td><span className="badge badge-navy">{f.type}</span></td>
+                  <td style={{fontSize:12,color:'rgba(0,0,0,0.45)'}}>{f.last}</td>
+                  <td style={{fontSize:12,fontWeight:f.status==='overdue'?700:500,color:f.status==='overdue'?'var(--red)':f.status==='due-soon'?'var(--orange)':'rgba(0,0,0,0.6)'}}>{f.next}</td>
+                  <td><span className={`badge ${f.status==='ok'?'badge-green':f.status==='overdue'?'badge-red':f.status==='flagged'?'badge-orange':'badge-gold'}`}>{f.status}</span></td>
+                  <td style={{fontSize:11,color:'rgba(0,0,0,0.45)'}}>{f.notes}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── APP SHELL ─────────────────────────────────────────────────────────────────
+const NAV = [
+  {group:'Operations',items:[
+    {id:'overview',icon:'grid',label:'Overview'},
+    {id:'map',icon:'map',label:'Marina Map'},
+    {id:'reservations',icon:'calendar',label:'Reservations',count:3,alert:false},
+    {id:'boatyard',icon:'crane',label:'Boatyard'},
+  ]},
+  {group:'Finance',items:[
+    {id:'billing',icon:'dollar',label:'Billing',count:2,alert:true},
+  ]},
+  {group:'People',items:[
+    {id:'members',icon:'users',label:'Members'},
+  ]},
+  {group:'Crew',items:[
+    {id:'maintenance',icon:'wrench',label:'Maintenance',count:6,alert:false},
+  ]},
+  {group:'System',items:[
+    {id:'settings',icon:'settings',label:'Settings'},
+  ]},
+];
+
+const SCREEN_MAP = {overview:Overview,map:MarinaMap,reservations:Reservations,boatyard:Boatyard,billing:Billing,members:Members,maintenance:Maintenance};
+const TITLE_MAP = {overview:'Overview',map:'Marina Map',reservations:'Reservations',boatyard:'Boatyard',billing:'Billing',members:'Members & Owners',maintenance:'Maintenance',settings:'Settings'};
+
+function App(){
+  const [screen,setScreenRaw]=useState(()=>localStorage.getItem('db_app_screen')||'overview');
+  function setScreen(s){setScreenRaw(s);localStorage.setItem('db_app_screen',s);}
+  const Screen=SCREEN_MAP[screen]||(()=><div className="empty"><div className="empty-title">Coming soon</div></div>);
+  return(
+    <div className="app">
+      <aside className="sb">
+        <div className="sb-logo">
+          <svg className="sb-logo-icon" width="24" height="24" viewBox="0 0 100 100" fill="none">
+            {/* Gear ring */}
+            <path d="M 42.2,10.8 L 46.9,10.1 L 47.7,4.1 L 52.3,4.1 L 53.1,10.1 A 40 40 0 0 1 57.8,10.8 A 40 40 0 0 1 57.8,10.8 L 62.4,12.0 L 65.4,6.7 L 69.7,8.5 L 68.2,14.4 A 40 40 0 0 1 72.2,16.7 A 40 40 0 0 1 72.2,16.7 L 76.0,19.6 L 80.8,15.9 L 84.1,19.2 L 80.4,24.0 A 40 40 0 0 1 83.3,27.8 A 40 40 0 0 1 83.3,27.8 L 85.6,31.8 L 91.5,30.3 L 93.3,34.6 L 88.0,37.6 A 40 40 0 0 1 89.2,42.2 A 40 40 0 0 1 89.2,42.2 L 89.9,46.9 L 95.9,47.7 L 95.9,52.3 L 89.9,53.1 A 40 40 0 0 1 89.2,57.8 A 40 40 0 0 1 89.2,57.8 L 88.0,62.4 L 93.3,65.4 L 91.5,69.7 L 85.6,68.2 A 40 40 0 0 1 83.3,72.2 A 40 40 0 0 1 83.3,72.2 L 80.4,76.0 L 84.1,80.8 L 80.8,84.1 L 76.0,80.4 A 40 40 0 0 1 72.2,83.3 A 40 40 0 0 1 72.2,83.3 L 68.2,85.6 L 69.7,91.5 L 65.4,93.3 L 62.4,88.0 A 40 40 0 0 1 57.8,89.2 A 40 40 0 0 1 57.8,89.2 L 53.1,89.9 L 52.3,95.9 L 47.7,95.9 L 46.9,89.9 A 40 40 0 0 1 42.2,89.2 A 40 40 0 0 1 42.2,89.2 L 37.6,88.0 L 34.6,93.3 L 30.3,91.5 L 31.8,85.6 A 40 40 0 0 1 27.8,83.3 A 40 40 0 0 1 27.8,83.3 L 24.0,80.4 L 19.2,84.1 L 15.9,80.8 L 19.6,76.0 A 40 40 0 0 1 16.7,72.2 A 40 40 0 0 1 16.7,72.2 L 14.4,68.2 L 8.5,69.7 L 6.7,65.4 L 12.0,62.4 A 40 40 0 0 1 10.8,57.8 A 40 40 0 0 1 10.8,57.8 L 10.1,53.1 L 4.1,52.3 L 4.1,47.7 L 10.1,46.9 A 40 40 0 0 1 10.8,42.2 A 40 40 0 0 1 10.8,42.2 L 12.0,37.6 L 6.7,34.6 L 8.5,30.3 L 14.4,31.8 A 40 40 0 0 1 16.7,27.8 A 40 40 0 0 1 16.7,27.8 L 19.6,24.0 L 15.9,19.2 L 19.2,15.9 L 24.0,19.6 A 40 40 0 0 1 27.8,16.7 A 40 40 0 0 1 27.8,16.7 L 31.8,14.4 L 30.3,8.5 L 34.6,6.7 L 37.6,12.0 A 40 40 0 0 1 42.2,10.8 Z" stroke="rgba(255,255,255,0.92)" strokeWidth="3" fill="none" strokeLinejoin="round"/>
+            {/* Inner ring */}
+            <circle cx="50" cy="50" r="36" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" fill="none"/>
+            {/* North — gold filled */}
+            <path d="M 50.0,22.0 L 54.5,50.0 L 50.0,46.0 L 45.5,50.0 Z" fill="#b8965a" stroke="#b8965a" strokeWidth="1" strokeLinejoin="round"/>
+            {/* South */}
+            <path d="M 50.0,78.0 L 45.5,50.0 L 50.0,54.0 L 54.5,50.0 Z" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinejoin="round"/>
+            {/* East */}
+            <path d="M 69.0,50.0 L 50.0,53.5 L 53.0,50.0 L 50.0,46.5 Z" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinejoin="round"/>
+            {/* West */}
+            <path d="M 31.0,50.0 L 50.0,46.5 L 47.0,50.0 L 50.0,53.5 Z" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinejoin="round"/>
+            {/* Center dot */}
+            <circle cx="50" cy="50" r="3.5" fill="#b8965a"/>
+          </svg>
+          <div style={{width:'1px',height:'30px',background:'rgba(255,255,255,0.18)',flexShrink:0,margin:'0 2px'}}></div>
+          <div style={{display:'flex',flexDirection:'column',lineHeight:1,gap:'3px'}}>
+            <span style={{fontFamily:"'Jost',sans-serif",fontWeight:600,fontSize:'11px',letterSpacing:'3px',textTransform:'uppercase',color:'#fff'}}>DOCKS</span>
+            <span style={{fontFamily:"'Jost',sans-serif",fontWeight:300,fontSize:'11px',letterSpacing:'3px',color:'#c9a84c'}}>Base</span>
+          </div>
+        </div>
+        <div className="sb-marina">
+          <div className="sb-marina-name">Harwich Marina</div>
+          <div className="sb-marina-sub">Harwich, Essex · 22 active berths</div>
+        </div>
+        {NAV.map(group=>(
+          <div key={group.group} className="sb-section">
+            <div className="sb-section-label">{group.group}</div>
+            {group.items.map(item=>(
+              <div key={item.id} className={`sb-item${screen===item.id?' active':''}`} onClick={()=>setScreen(item.id)}>
+                <Ic n={item.icon} s={14}/>
+                {item.label}
+                {item.count&&<span className={`sb-badge${item.alert?' alert':''}`}>{item.count}</span>}
+              </div>
+            ))}
+          </div>
+        ))}
+        <div className="sb-bottom">
+          <div className="sb-user">
+            <div className="avatar">MH</div>
+            <div className="sb-user-info">
+              <div className="sb-user-name">M. Hargreaves</div>
+              <div className="sb-user-role">Harbor Master</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="main">
+        <div className="topbar">
+          <div className="topbar-breadcrumb">
+            <span>Harwich Marina</span> <span style={{opacity:.4}}> / </span> <b>{TITLE_MAP[screen]||screen}</b>
+          </div>
+          <div className="topbar-actions">
+            <div className="topbar-date">Wed 23 Apr 2026 · 10:14</div>
+            <div style={{display:'flex',gap:4,alignItems:'center'}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:'var(--green)'}}/>
+              <span style={{fontSize:10,color:'rgba(0,0,0,0.38)',fontWeight:500}}>All systems normal</span>
+            </div>
+            <div className="topbar-icon-btn">
+              <Ic n="search" s={14}/>
+            </div>
+            <div className="topbar-icon-btn" style={{position:'relative'}}>
+              <Ic n="bell" s={14}/>
+              <div className="notif-dot"/>
+            </div>
+            <div className="avatar" style={{width:28,height:28,background:'var(--navy)',border:'1.5px solid rgba(0,0,0,0.1)',color:'rgba(0,0,0,0.6)',cursor:'pointer'}}>MH</div>
+          </div>
+        </div>
+        <div className="content">
+          <Screen setScreen={setScreen}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

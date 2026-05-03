@@ -1,0 +1,299 @@
+/* ============================================================
+   DockBase Design System — Color & Type Tokens
+   Inspired by Notion's warm-neutral design language
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Jost:wght@300;400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/*
+  FONT SUBSTITUTION NOTE
+  ──────────────────────
+  Display serif:  Cormorant Garamond (Google Fonts)
+                  Matches the high-contrast, tall-letterform serif seen on Safe Harbor Marinas inspo.
+                  Original spec called for NotionInter (modified Inter) — but the oceany editorial
+                  direction calls for a more classical display serif here.
+
+  Body / UI sans: Jost (Google Fonts)
+                  Geometric, evenly-stroked sans with wide-tracking uppercase. Matches the
+                  "MECHANICAL SYSTEMS" style section headings from the inspo screenshot.
+                  Replaces Inter as the primary sans-serif.
+*/
+
+/* ============================================================
+   1. COLOR TOKENS
+   ============================================================ */
+
+:root {
+
+  /* --- Primary --- */
+  --color-text-primary:        rgba(0,0,0,0.95);       /* Near-black body/heading text */
+  --color-bg-page:             #ffffff;                 /* Page background */
+  --color-bg-alt:              #f6f5f4;                 /* Warm white — alternate sections */
+  --color-accent:              #0075de;                 /* DockBase Blue — primary CTA & links */
+  --color-accent-hover:        #005bab;                 /* Blue hover/pressed */
+  --color-accent-active:       #004a8f;                 /* Blue active */
+
+  /* --- Brand Secondary --- */
+  --color-navy:                #213183;                 /* Deep navy — dark feature sections */
+  --color-navy-dark:           #162260;
+
+  /* --- Warm Neutral Scale --- */
+  --color-warm-white:          #f6f5f4;                 /* Alt background */
+  --color-warm-dark:           #31302e;                 /* Dark surface text / dark bg */
+  --color-gray-500:            #615d59;                 /* Secondary text, descriptions */
+  --color-gray-300:            #a39e98;                 /* Muted text, placeholder, disabled */
+  --color-gray-100:            #e8e6e3;                 /* Subtle dividers */
+  --color-gray-50:             #f0efed;                 /* Hover on warm white */
+
+  /* --- Semantic / Status --- */
+  --color-teal:                #2a9d99;                 /* Success / positive */
+  --color-green:               #1aae39;                 /* Confirmation / complete */
+  --color-orange:              #dd5b00;                 /* Warning / attention */
+  --color-pink:                #ff64c8;                 /* Decorative accent */
+  --color-purple:              #391c57;                 /* Premium / deep accents */
+  --color-brown:               #523410;                 /* Earthy warm accent */
+
+  /* --- Interactive / Link --- */
+  --color-link:                #0075de;
+  --color-link-dark-bg:        #62aef0;                 /* Light link on dark backgrounds */
+  --color-focus:               #097fe8;                 /* Focus ring color */
+
+  /* --- Badge --- */
+  --color-badge-bg:            #f2f9ff;                 /* Tinted blue badge background */
+  --color-badge-text:          #097fe8;                 /* Badge text */
+
+  /* --- Borders --- */
+  --border-whisper:            1px solid rgba(0,0,0,0.1);
+  --border-medium:             1px solid rgba(0,0,0,0.18);
+  --border-input:              1px solid #dddddd;
+  --border-focus:              2px solid var(--color-focus);
+
+  /* --- Shadows --- */
+  --shadow-card:
+    rgba(0,0,0,0.04)   0px 4px 18px,
+    rgba(0,0,0,0.027)  0px 2.025px 7.847px,
+    rgba(0,0,0,0.02)   0px 0.8px 2.925px,
+    rgba(0,0,0,0.01)   0px 0.175px 1.041px;
+
+  --shadow-deep:
+    rgba(0,0,0,0.01)   0px 1px 3px,
+    rgba(0,0,0,0.02)   0px 3px 7px,
+    rgba(0,0,0,0.02)   0px 7px 15px,
+    rgba(0,0,0,0.04)   0px 14px 28px,
+    rgba(0,0,0,0.05)   0px 23px 52px;
+
+  --shadow-card-hover:
+    rgba(0,0,0,0.06)   0px 6px 24px,
+    rgba(0,0,0,0.04)   0px 3px 10px,
+    rgba(0,0,0,0.03)   0px 1px 4px,
+    rgba(0,0,0,0.015)  0px 0.25px 1.5px;
+
+  /* ============================================================
+     2. TYPOGRAPHY TOKENS
+     ============================================================ */
+
+  /* --- Font Stack --- */
+  --font-serif:   'Cormorant Garamond', 'Georgia', 'Times New Roman', serif;
+  --font-primary: 'Jost', -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-app:     'IBM Plex Sans', -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  /* Usage:
+     --font-serif   → landing page display headlines, marketing materials
+     --font-primary → landing page body, nav, buttons (Jost)
+     --font-app     → management app UI — IBM Plex Sans, designed for data interfaces
+  */
+
+  /* --- Display / Heading Scale --- */
+  --type-display-hero-size:    4rem;          /* 64px */
+  --type-display-hero-weight:  700;
+  --type-display-hero-lh:      1.00;
+  --type-display-hero-ls:      -1.5px;
+
+  --type-display-2-size:       3.375rem;      /* 54px */
+  --type-display-2-weight:     700;
+  --type-display-2-lh:         1.04;
+  --type-display-2-ls:         -0.75px;
+
+  --type-h1-size:              3rem;          /* 48px */
+  --type-h1-weight:            700;
+  --type-h1-lh:                1.00;
+  --type-h1-ls:                -0.5px;
+
+  --type-h2-size:              2.5rem;        /* 40px */
+  --type-h2-weight:            700;
+  --type-h2-lh:                1.50;
+  --type-h2-ls:                normal;
+
+  --type-h3-size:              1.625rem;      /* 26px */
+  --type-h3-weight:            600;
+  --type-h3-lh:                1.23;
+  --type-h3-ls:                0.5px;         /* Jost tracks wider at small sizes */
+
+  --type-h4-size:              1.375rem;      /* 22px */
+  --type-h4-weight:            700;
+  --type-h4-lh:                1.27;
+  --type-h4-ls:                -0.25px;
+
+  /* --- Body Scale --- */
+  --type-body-lg-size:         1.25rem;       /* 20px */
+  --type-body-lg-weight:       600;
+  --type-body-lg-lh:           1.40;
+  --type-body-lg-ls:           -0.125px;
+
+  --type-body-size:            1rem;          /* 16px */
+  --type-body-weight:          400;
+  --type-body-lh:              1.50;
+  --type-body-ls:              normal;
+
+  --type-body-med-size:        1rem;
+  --type-body-med-weight:      500;
+  --type-body-med-lh:          1.50;
+
+  --type-body-semi-size:       1rem;
+  --type-body-semi-weight:     600;
+  --type-body-semi-lh:         1.50;
+
+  --type-body-bold-size:       1rem;
+  --type-body-bold-weight:     700;
+  --type-body-bold-lh:         1.50;
+
+  /* --- UI / Navigation --- */
+  --type-nav-size:             0.9375rem;     /* 15px */
+  --type-nav-weight:           600;
+  --type-nav-lh:               1.33;
+
+  /* --- Caption --- */
+  --type-caption-size:         0.875rem;      /* 14px */
+  --type-caption-weight:       500;
+  --type-caption-lh:           1.43;
+
+  --type-caption-light-weight: 400;
+
+  /* --- Badge / Micro --- */
+  --type-badge-size:           0.75rem;       /* 12px */
+  --type-badge-weight:         600;
+  --type-badge-lh:             1.33;
+  --type-badge-ls:             0.125px;       /* Only positive tracking in system */
+
+  --type-micro-weight:         400;
+
+  /* ============================================================
+     3. SPACING TOKENS
+     ============================================================ */
+
+  --space-1:    2px;
+  --space-2:    4px;
+  --space-3:    6px;
+  --space-4:    8px;
+  --space-5:    12px;
+  --space-6:    16px;
+  --space-7:    24px;
+  --space-8:    32px;
+  --space-9:    48px;
+  --space-10:   64px;
+  --space-11:   80px;
+  --space-12:   120px;
+
+  /* ============================================================
+     4. BORDER RADIUS TOKENS
+     ============================================================ */
+
+  --radius-micro:    4px;     /* buttons, inputs */
+  --radius-subtle:   5px;     /* links, list items */
+  --radius-standard: 8px;     /* small cards */
+  --radius-card:     12px;    /* standard cards */
+  --radius-large:    16px;    /* hero cards, featured content */
+  --radius-pill:     9999px;  /* badges, pills */
+  --radius-circle:   100%;    /* avatars, indicators */
+
+  /* ============================================================
+     5. SEMANTIC / COMPONENT SHORTCUTS
+     ============================================================ */
+
+  /* Text roles */
+  --text-primary:    var(--color-text-primary);
+  --text-secondary:  var(--color-gray-500);
+  --text-muted:      var(--color-gray-300);
+  --text-inverse:    #ffffff;
+  --text-link:       var(--color-link);
+
+  /* Backgrounds */
+  --bg-page:         var(--color-bg-page);
+  --bg-alt:          var(--color-bg-alt);
+  --bg-dark:         var(--color-warm-dark);
+  --bg-card:         #ffffff;
+
+  /* Interactive */
+  --btn-primary-bg:       var(--color-accent);
+  --btn-primary-bg-hover: var(--color-accent-hover);
+  --btn-primary-text:     #ffffff;
+  --btn-secondary-bg:     rgba(0,0,0,0.05);
+  --btn-secondary-text:   var(--color-text-primary);
+}
+
+/* ============================================================
+   6. SEMANTIC ELEMENT DEFAULTS
+   ============================================================ */
+
+body {
+  font-family:  var(--font-primary);
+  font-size:    var(--type-body-size);
+  font-weight:  var(--type-body-weight);
+  line-height:  var(--type-body-lh);
+  color:        var(--text-primary);
+  background:   var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1 {
+  font-size:      var(--type-h1-size);
+  font-weight:    var(--type-h1-weight);
+  line-height:    var(--type-h1-lh);
+  letter-spacing: var(--type-h1-ls);
+  font-feature-settings: "lnum", "locl";
+}
+
+h2 {
+  font-size:      var(--type-h2-size);
+  font-weight:    var(--type-h2-weight);
+  line-height:    var(--type-h2-lh);
+  letter-spacing: var(--type-h2-ls);
+  font-feature-settings: "lnum", "locl";
+}
+
+h3 {
+  font-size:      var(--type-h3-size);
+  font-weight:    var(--type-h3-weight);
+  line-height:    var(--type-h3-lh);
+  letter-spacing: var(--type-h3-ls);
+}
+
+h4 {
+  font-size:      var(--type-h4-size);
+  font-weight:    var(--type-h4-weight);
+  line-height:    var(--type-h4-lh);
+  letter-spacing: var(--type-h4-ls);
+}
+
+p {
+  font-size:   var(--type-body-size);
+  font-weight: var(--type-body-weight);
+  line-height: var(--type-body-lh);
+  color:       var(--text-primary);
+}
+
+a {
+  color:           var(--text-link);
+  text-decoration: none;
+}
+
+a:hover {
+  color:           var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+a:focus-visible {
+  outline:        var(--border-focus);
+  outline-offset: 2px;
+  border-radius:  var(--radius-micro);
+}

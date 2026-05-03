@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Jost:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f0e6; padding: 32px; min-height: 100vh; }
+
+/* ── Layout ── */
+.page { display: flex; flex-direction: column; gap: 28px; max-width: 860px; }
+.system-block { background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 12px; overflow: hidden; }
+.system-header { padding: 18px 24px 14px; border-bottom: 1px solid rgba(0,0,0,0.07); }
+.system-label { font-size: 9px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase; color: #b8965a; margin-bottom: 4px; }
+.system-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-weight: 600; color: #0c1f3d; letter-spacing: -0.2px; }
+.system-desc { font-size: 11px; color: rgba(0,0,0,0.38); margin-top: 3px; line-height: 1.5; }
+.system-body { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+.group { display: flex; flex-direction: column; gap: 10px; }
+.group-label { font-size: 9px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(0,0,0,0.28); }
+.btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.sep { height: 1px; background: rgba(0,0,0,0.06); }
+
+/* ══════════════════════════════════════════
+   BRAND / MARKETING BUTTONS
+   Font: Cormorant Garamond + Jost
+   Context: Landing page, hero, CTA sections
+   ══════════════════════════════════════════ */
+
+/* Base brand btn */
+.bbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; border: none; border-radius: 0;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, letter-spacing 0.2s ease, transform 0.1s;
+  white-space: nowrap; text-decoration: none;
+}
+.bbtn:active { transform: scale(0.97); }
+
+/* Gold filled — primary CTA */
+.bbtn-gold {
+  background: #b8965a; color: #0c1f3d;
+  font-family: 'Jost', sans-serif; font-size: 11px; font-weight: 500;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 14px 28px;
+}
+.bbtn-gold:hover { background: #d4b07a; letter-spacing: 3.5px; }
+
+/* Navy filled */
+.bbtn-navy {
+  background: #0c1f3d; color: #fff;
+  font-family: 'Jost', sans-serif; font-size: 11px; font-weight: 500;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 14px 28px;
+}
+.bbtn-navy:hover { background: #162d52; letter-spacing: 3.5px; }
+
+/* Serif CTA — Cormorant */
+.bbtn-serif {
+  background: transparent; color: #0c1f3d;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 18px; font-weight: 600; font-style: italic;
+  letter-spacing: 0.3px; text-transform: none;
+  padding: 10px 0; border-bottom: 1.5px solid #b8965a;
+}
+.bbtn-serif:hover { color: #b8965a; }
+
+/* Outlined gold */
+.bbtn-outline {
+  background: transparent; color: #0c1f3d;
+  font-family: 'Jost', sans-serif; font-size: 11px; font-weight: 500;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 13px 27px; border: 1px solid #0c1f3d;
+}
+.bbtn-outline:hover { background: #0c1f3d; color: #fff; }
+
+/* Ghost */
+.bbtn-ghost {
+  background: transparent; color: rgba(255,255,255,0.72);
+  font-family: 'Jost', sans-serif; font-size: 11px; font-weight: 400;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  padding: 13px 27px; border: 1px solid rgba(255,255,255,0.28);
+}
+.bbtn-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
+
+/* Sizes */
+.bbtn-sm { font-size: 9.5px !important; padding: 10px 20px !important; letter-spacing: 2.5px !important; }
+.bbtn-lg { font-size: 12px !important; padding: 16px 36px !important; }
+
+/* States */
+.bbtn-focus { outline: 2px solid #097fe8; outline-offset: 3px; }
+.bbtn-disabled { opacity: 0.32; pointer-events: none; cursor: not-allowed; }
+
+/* Dark surface row */
+.dark-surface {
+  background: #0c1f3d; border-radius: 8px; padding: 20px;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════
+   APP / MANAGEMENT BUTTONS
+   Font: IBM Plex Sans
+   Context: Backend dashboard, forms, tables
+   ══════════════════════════════════════════ */
+
+.abtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; border: none; border-radius: 3px;
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500;
+  letter-spacing: 0.1px; white-space: nowrap;
+  padding: 7px 14px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.1s;
+}
+.abtn:active { transform: scale(0.96); }
+
+.abtn-primary {
+  background: #0c1f3d; color: #fff;
+}
+.abtn-primary:hover { background: #162d52; }
+
+.abtn-gold {
+  background: #b8965a; color: #0c1f3d; font-weight: 600;
+}
+.abtn-gold:hover { background: #d4b07a; }
+
+.abtn-secondary {
+  background: rgba(0,0,0,0.05); color: rgba(0,0,0,0.75);
+}
+.abtn-secondary:hover { background: rgba(0,0,0,0.09); }
+
+.abtn-ghost {
+  background: transparent; color: rgba(0,0,0,0.6);
+  border: 1px solid rgba(0,0,0,0.14);
+}
+.abtn-ghost:hover { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.3); }
+
+.abtn-danger {
+  background: transparent; color: #a01c1c;
+  border: 1px solid rgba(160,28,28,0.22);
+}
+.abtn-danger:hover { background: rgba(160,28,28,0.05); border-color: rgba(160,28,28,0.5); }
+
+.abtn-teal {
+  background: #e6f4f4; color: #1a6060; font-weight: 500;
+}
+.abtn-teal:hover { background: #d0ebeb; }
+
+/* Sizes */
+.abtn-sm { font-size: 11px; padding: 4px 10px; }
+.abtn-md { font-size: 12px; padding: 7px 14px; }
+.abtn-lg { font-size: 13px; padding: 10px 20px; }
+
+/* Icon-only */
+.abtn-icon {
+  padding: 7px; border-radius: 4px;
+  background: transparent; border: 1px solid rgba(0,0,0,0.12);
+}
+.abtn-icon:hover { background: rgba(0,0,0,0.04); }
+
+/* Focus + disabled */
+.abtn-focus { outline: 2px solid #097fe8; outline-offset: 2px; }
+.abtn-disabled { opacity: 0.38; pointer-events: none; }
+
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- BRAND / MARKETING ─────────────────────────────────────── -->
+  <div class="system-block">
+    <div class="system-header">
+      <div class="system-label">Brand System</div>
+      <div class="system-title">Marketing Buttons</div>
+      <div class="system-desc">Cormorant Garamond × Jost — Landing page, hero sections, public-facing CTAs. Architectural proportions, zero border-radius, generous tracking.</div>
+    </div>
+    <div class="system-body">
+
+      <div class="group">
+        <div class="group-label">Primary Actions</div>
+        <div class="btn-row">
+          <button class="bbtn bbtn-gold">Get Started Free</button>
+          <button class="bbtn bbtn-navy">Book a Demo</button>
+          <button class="bbtn bbtn-serif">Learn more →</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group">
+        <div class="group-label">Outlined &amp; Secondary</div>
+        <div class="btn-row">
+          <button class="bbtn bbtn-outline">View Features</button>
+          <button class="bbtn bbtn-outline" style="border-color:#b8965a;color:#b8965a;" onmouseover="this.style.background='#b8965a';this.style.color='#0c1f3d'" onmouseout="this.style.background='transparent';this.style.color='#b8965a'">Contact Sales</button>
+          <button class="bbtn bbtn-serif" style="font-size:16px;font-style:normal;letter-spacing:-0.2px;font-weight:700;border-bottom:1px solid rgba(0,0,0,0.2)">Schedule a walkthrough</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group">
+        <div class="group-label">On Dark Backgrounds</div>
+        <div class="dark-surface">
+          <button class="bbtn bbtn-gold">Start managing free</button>
+          <button class="bbtn bbtn-ghost">See it in action</button>
+          <button class="bbtn bbtn-serif" style="color:rgba(255,255,255,0.85);border-bottom-color:rgba(184,150,90,0.7)">Watch the overview →</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group">
+        <div class="group-label">Sizes</div>
+        <div class="btn-row" style="align-items:flex-end">
+          <button class="bbtn bbtn-gold bbtn-sm">Small</button>
+          <button class="bbtn bbtn-gold">Default</button>
+          <button class="bbtn bbtn-gold bbtn-lg">Large</button>
+          <button class="bbtn bbtn-navy bbtn-focus">Focused</button>
+          <button class="bbtn bbtn-navy bbtn-disabled">Disabled</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- APP / MANAGEMENT ──────────────────────────────────────── -->
+  <div class="system-block">
+    <div class="system-header">
+      <div class="system-label">App System</div>
+      <div class="system-title">Management Interface Buttons</div>
+      <div class="system-desc">IBM Plex Sans — Backend dashboard, data tables, forms, modals. Compact, precise, legible at small sizes. 3px border-radius, sentence case.</div>
+    </div>
+    <div class="system-body">
+
+      <div class="group">
+        <div class="group-label">Primary</div>
+        <div class="btn-row">
+          <button class="abtn abtn-primary">New Booking</button>
+          <button class="abtn abtn-gold">Confirm &amp; Pay</button>
+          <button class="abtn abtn-teal">Mark as Fueled</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group">
+        <div class="group-label">Secondary &amp; Tertiary</div>
+        <div class="btn-row">
+          <button class="abtn abtn-secondary">Export CSV</button>
+          <button class="abtn abtn-ghost">Edit</button>
+          <button class="abtn abtn-ghost">View Details</button>
+          <button class="abtn abtn-danger">Cancel Booking</button>
+          <button class="abtn abtn-ghost" style="padding:7px;">
+            <!-- Plus icon -->
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group">
+        <div class="group-label">With Icons</div>
+        <div class="btn-row">
+          <button class="abtn abtn-primary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Vessel
+          </button>
+          <button class="abtn abtn-ghost">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+          </button>
+          <button class="abtn abtn-secondary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+          </button>
+          <button class="abtn abtn-danger">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group">
+        <div class="group-label">Sizes &amp; States</div>
+        <div class="btn-row" style="align-items:center">
+          <button class="abtn abtn-primary abtn-sm">Small</button>
+          <button class="abtn abtn-primary abtn-md">Default</button>
+          <button class="abtn abtn-primary abtn-lg">Large</button>
+          <button class="abtn abtn-primary abtn-focus">Focused</button>
+          <button class="abtn abtn-primary abtn-disabled">Disabled</button>
+          <button class="abtn abtn-ghost" style="padding:7px; border-radius:4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body></html>

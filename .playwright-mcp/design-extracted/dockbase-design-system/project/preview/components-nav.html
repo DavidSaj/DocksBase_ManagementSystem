@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Jost', sans-serif; background: #f5f0e6; }
+
+/* ── NAV VARIANTS ─────────────────────────────────────── */
+
+/* Shared base */
+.nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px; height: 68px; width: 100%;
+}
+.nav-logo { display: flex; align-items: center; gap: 11px; text-decoration: none; cursor: pointer; }
+.nav-logo svg { flex-shrink: 0; }
+.nav-logo-text { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; letter-spacing: 0.2px; }
+.nav-links { display: flex; gap: 2px; align-items: center; }
+.nav-link { font-family: 'Jost', sans-serif; font-size: 10.5px; font-weight: 500; letter-spacing: 2.2px; text-transform: uppercase; padding: 8px 14px; text-decoration: none; border-radius: 2px; transition: color 0.15s, background 0.15s; }
+.nav-right { display: flex; align-items: center; gap: 12px; }
+
+/* Divider between sections */
+.nav-divider { width: 1px; height: 16px; background: currentColor; opacity: 0.12; margin: 0 4px; }
+
+/* Buttons */
+.btn-nav { font-family: 'Jost', sans-serif; font-size: 10.5px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; padding: 9px 20px; border-radius: 0; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+
+/* ── VARIANT 1: Light (cream bg) ──────────────────────── */
+.v1 { background: #fff; border-bottom: 1px solid rgba(0,0,0,0.07); }
+.v1 .nav-logo-text { font-size: 19px; color: #0c1f3d; }
+.v1 .nav-logo svg { color: #b8965a; }
+.v1 .nav-link { color: rgba(0,0,0,0.5); }
+.v1 .nav-link:hover { color: #0c1f3d; background: rgba(0,0,0,0.04); }
+.v1 .nav-link.active { color: #0c1f3d; font-weight: 600; }
+.v1 .btn-ghost { background: transparent; color: rgba(0,0,0,0.5); border: 1px solid rgba(0,0,0,0.18); }
+.v1 .btn-ghost:hover { border-color: rgba(0,0,0,0.45); color: rgba(0,0,0,0.85); }
+.v1 .btn-cta { background: #0c1f3d; color: #fff; border: none; }
+.v1 .btn-cta:hover { background: #162d52; }
+
+/* ── VARIANT 2: Dark navy (hero/scroll state) ─────────── */
+.v2 { background: rgba(12,31,61,0.96); backdrop-filter: blur(12px); }
+.v2 .nav-logo-text { font-size: 19px; color: #fff; }
+.v2 .nav-logo svg { color: #b8965a; }
+.v2 .nav-link { color: rgba(255,255,255,0.55); }
+.v2 .nav-link:hover { color: #fff; background: rgba(255,255,255,0.07); }
+.v2 .nav-link.active { color: #fff; }
+.v2 .nav-divider { background: rgba(255,255,255,0.15); }
+.v2 .btn-ghost { background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.2); }
+.v2 .btn-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+.v2 .btn-cta { background: #b8965a; color: #0c1f3d; border: none; font-weight: 600; }
+.v2 .btn-cta:hover { background: #d4b07a; }
+
+/* ── VARIANT 3: Transparent over hero image ───────────── */
+.v3-wrap { position: relative; height: 80px; overflow: hidden; }
+.v3-img { position: absolute; inset: 0; background-image: url('https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?w=1200&q=80&auto=format&fit=crop'); background-size: cover; background-position: center 40%; filter: brightness(0.6); }
+.v3 { position: relative; z-index: 2; height: 100%; }
+.v3 .nav-logo-text { font-size: 19px; color: #fff; }
+.v3 .nav-logo svg { color: #b8965a; }
+.v3 .nav-link { color: rgba(255,255,255,0.65); }
+.v3 .nav-link:hover { color: #fff; }
+.v3 .btn-ghost { background: transparent; color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.3); }
+.v3 .btn-ghost:hover { border-color: rgba(255,255,255,0.7); color: #fff; }
+.v3 .btn-cta { background: #b8965a; color: #0c1f3d; border: none; font-weight: 600; }
+
+/* ── Labels ───────────────────────────────────────────── */
+.variant-label {
+  font-family: 'Jost', sans-serif; font-size: 9px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(0,0,0,0.3); padding: 10px 48px 6px;
+  background: #f5f0e6;
+}
+
+/* Anchor icon inline SVG */
+</style>
+</head>
+<body>
+
+<!-- Label -->
+<div class="variant-label">Light — default scroll state</div>
+
+<!-- VARIANT 1: Light -->
+<nav class="nav v1">
+  <a class="nav-logo" href="#">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+      <path d="M5 12 Q3 18 7 20"/><path d="M19 12 Q21 18 17 20"/>
+      <path d="M7 20 Q12 23 17 20"/>
+    </svg>
+    <span class="nav-logo-text">DockBase</span>
+  </a>
+  <div class="nav-links">
+    <a href="#" class="nav-link active">Features</a>
+    <a href="#" class="nav-link">Product</a>
+    <a href="#" class="nav-link">Pricing</a>
+    <div class="nav-divider" style="background:#0c1f3d;"></div>
+    <a href="#" class="nav-link">About</a>
+  </div>
+  <div class="nav-right">
+    <button class="btn-nav btn-ghost">Sign in</button>
+    <button class="btn-nav btn-cta">Get started free</button>
+  </div>
+</nav>
+
+<!-- Label -->
+<div class="variant-label">Dark — fixed/scrolled state</div>
+
+<!-- VARIANT 2: Dark navy -->
+<nav class="nav v2">
+  <a class="nav-logo" href="#">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b8965a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+      <path d="M5 12 Q3 18 7 20"/><path d="M19 12 Q21 18 17 20"/>
+      <path d="M7 20 Q12 23 17 20"/>
+    </svg>
+    <span class="nav-logo-text">DockBase</span>
+  </a>
+  <div class="nav-links">
+    <a href="#" class="nav-link active">Features</a>
+    <a href="#" class="nav-link">Product</a>
+    <a href="#" class="nav-link">Pricing</a>
+    <div class="nav-divider"></div>
+    <a href="#" class="nav-link">About</a>
+  </div>
+  <div class="nav-right">
+    <button class="btn-nav btn-ghost">Sign in</button>
+    <button class="btn-nav btn-cta">Get started free</button>
+  </div>
+</nav>
+
+<!-- Label -->
+<div class="variant-label">Transparent — over hero image</div>
+
+<!-- VARIANT 3: Transparent over image -->
+<div class="v3-wrap">
+  <div class="v3-img"></div>
+  <nav class="nav v3">
+    <a class="nav-logo" href="#">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b8965a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <path d="M5 12 Q3 18 7 20"/><path d="M19 12 Q21 18 17 20"/>
+        <path d="M7 20 Q12 23 17 20"/>
+      </svg>
+      <span class="nav-logo-text">DockBase</span>
+    </a>
+    <div class="nav-links">
+      <a href="#" class="nav-link active">Features</a>
+      <a href="#" class="nav-link">Product</a>
+      <a href="#" class="nav-link">Pricing</a>
+      <div class="nav-divider" style="background:rgba(255,255,255,0.3);width:1px;height:14px;margin:0 4px;"></div>
+      <a href="#" class="nav-link">About</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn-nav btn-ghost">Sign in</button>
+      <button class="btn-nav btn-cta">Get started free</button>
+    </div>
+  </nav>
+</div>
+
+</body></html>
