@@ -2,7 +2,7 @@ import calendar
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db.models import Avg, Sum
+from django.db.models import Avg, Prefetch, Sum
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
@@ -160,16 +160,19 @@ class UtilisationReportView(APIView):
         days_in_month = calendar.monthrange(today.year, today.month)[1]
         month_end = date(today.year, today.month, days_in_month)
 
-        berths = Berth.objects.filter(marina=marina).select_related('pier', 'vessel')
+        overlapping_bookings = Booking.objects.filter(
+            status__in=['confirmed', 'checked_in', 'checked_out', 'overstay'],
+            check_in__lte=month_end,
+            check_out__gt=month_start,
+        )
+
+        berths = Berth.objects.filter(marina=marina).select_related('pier', 'vessel').prefetch_related(
+            Prefetch('bookings', queryset=overlapping_bookings, to_attr='month_bookings')
+        )
         data = []
         for b in berths:
-            overlapping = b.bookings.filter(
-                status__in=['confirmed', 'checked_in', 'checked_out', 'overstay'],
-                check_in__lte=month_end,
-                check_out__gt=month_start,
-            )
             days_occupied = 0
-            for bk in overlapping:
+            for bk in b.month_bookings:
                 clamped_in = max(bk.check_in, month_start)
                 clamped_out = min(bk.check_out, month_end + timedelta(days=1))
                 nights = (clamped_out - clamped_in).days

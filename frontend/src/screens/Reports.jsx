@@ -30,7 +30,7 @@ export default function Reports() {
   const { members, loading: mLoading } = useMembers();
   const { assets } = useAssets();
   const { defects } = useDefects();
-  const { revenue: revReport, occupancy: occReport, utilisation: utilReport, loading: rLoading } = useReports();
+  const { revenue: revReport, occupancy: occReport, utilisation: utilReport, loading: rLoading, error: repError } = useReports();
 
   const invoices = rawInv.map(inv => ({ ...inv, status: inv.status ?? 'unpaid' }));
 
@@ -45,11 +45,16 @@ export default function Reports() {
   const occPct = counts.total > 0 ? Math.round((counts.occupied / counts.total) * 100) : 0;
 
   const arrivalsList   = occReport?.arrivals_today   ?? [];
-  const departuresList = occReport?.departures_today ?? [];
+  const departuresList = (occReport?.departures_today ?? []).map(e => ({ ...e, event: 'Departure' }));
   const utilBerths     = utilReport?.berths ?? [];
 
   return (
     <div>
+      {repError && (
+        <div style={{ padding: '10px 16px', marginBottom: 12, background: 'var(--red-light, #fff0f0)', border: '1px solid var(--red)', borderRadius: 6, fontSize: 12, color: 'var(--red)' }}>
+          Failed to load reports: {repError}
+        </div>
+      )}
       <div className="tabs">
         {[['occupancy','Occupancy'],['revenue','Revenue'],['berths','Berth Utilisation'],['compliance','Compliance']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => setTab(v)}>{l}</div>
