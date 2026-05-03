@@ -42,7 +42,7 @@ export function rotateAndSnap(gx, gy, w, h, deg) {
 // Sort items so environment is drawn first, selection handles always last.
 const LAYER = (type) => {
   if (['water', 'shore'].includes(type))                      return 0
-  if (['quay', 'parallel-wall', 'pier-v', 'pier-h'].includes(type)) return 1
+  if (['quay', 'parallel-wall', 'pier-v', 'pier-h', 'pier'].includes(type)) return 1
   if (['tri-ul','tri-ur','tri-bl','tri-br','tri-up','tri-rt'].includes(type)) return 1
   if (type === 'berth')                                       return 2
   if (['slip','slip-t','fuel-dock','gangway','ramp'].includes(type)) return 2
@@ -89,4 +89,81 @@ export function wallSnapPos(ghostGx, ghostGy, ghostW, walls) {
 // Generate a unique id for new items
 export function newId() {
   return Math.random().toString(36).slice(2, 10)
+}
+
+/**
+ * Compute a berth's absolute canvas position (center, in grid units)
+ * from its parent pier and local offset. Uses center-origin rotation math.
+ * IMPORTANT: pier.canvas_x/y must be the pier's center, not its top-left.
+ */
+export function computeAbsPosition(pier, berth) {
+  const θ = (pier.rotation * Math.PI) / 180
+  const cos = Math.cos(θ)
+  const sin = Math.sin(θ)
+  const rx = berth.local_x * cos - berth.local_y * sin
+  const ry = berth.local_x * sin + berth.local_y * cos
+  return {
+    absX: pier.canvas_x + rx,
+    absY: pier.canvas_y + ry,
+  }
+}
+
+// Snap radius in grid units — how close the mouse must be to a pier edge to trigger snap
+const SNAP_RADIUS = 2
+
+/**
+ * Determine if a dragged berth should snap to a pier edge.
+ * Returns snap data or null.
+ * @param {number} mouseGx - Current drag position x in grid units
+ * @param {number} mouseGy - Current drag position y in grid units
+ * @param {Array}  piers   - Array of pier objects with canvas_x/y/w/h/rotation
+ * @param {number} berthW  - Berth width in grid units
+ * @param {number} berthH  - Berth height in grid units
+ * @returns {{ pierId, local_x, local_y, absX, absY, position_on_parent } | null}
+ */
+export function snapBerthToPier(mouseGx, mouseGy, piers, berthW, berthH) {
+  // NOTE: Only valid for axis-aligned piers (rotation === 0).
+  // Rotated-pier snap requires transforming mouse coords into the pier's local frame first.
+  for (const pier of piers) {
+    const { canvas_x: cx, canvas_y: cy, canvas_w: pw, canvas_h: ph } = pier
+    const halfW = pw / 2
+    const halfH = ph / 2
+
+    const leftEdgeX  = cx - halfW
+    const rightEdgeX = cx + halfW
+
+    const withinHeight = mouseGy >= cy - halfH - SNAP_RADIUS && mouseGy <= cy + halfH + SNAP_RADIUS
+
+    if (withinHeight) {
+      if (Math.abs(mouseGx - leftEdgeX) <= SNAP_RADIUS) {
+        const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
+        const local_x = leftEdgeX - berthW / 2 - cx
+        const local_y = clampedY - cy
+        const slot_index = Math.floor((clampedY - (cy - halfH)) / berthH)
+        return {
+          pierId: pier.id,
+          local_x,
+          local_y,
+          absX: leftEdgeX - berthW / 2,
+          absY: clampedY,
+          position_on_parent: { side: 'port', slot_index },
+        }
+      }
+      if (Math.abs(mouseGx - rightEdgeX) <= SNAP_RADIUS) {
+        const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
+        const local_x = rightEdgeX + berthW / 2 - cx
+        const local_y = clampedY - cy
+        const slot_index = Math.floor((clampedY - (cy - halfH)) / berthH)
+        return {
+          pierId: pier.id,
+          local_x,
+          local_y,
+          absX: rightEdgeX + berthW / 2,
+          absY: clampedY,
+          position_on_parent: { side: 'starboard', slot_index },
+        }
+      }
+    }
+  }
+  return null
 }

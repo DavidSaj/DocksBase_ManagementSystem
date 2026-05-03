@@ -6,7 +6,7 @@ from .base import *
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.lvh.me']
 
 DATABASES = {
     'default': {
@@ -15,10 +15,15 @@ DATABASES = {
     }
 }
 
+# Allow both localhost:517x origins and any *.lvh.me origins for local subdomain dev
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^http://[a-z0-9\-]+\.lvh\.me(:\d+)?$',
 ]
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

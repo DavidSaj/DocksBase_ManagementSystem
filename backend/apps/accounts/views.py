@@ -3,6 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.core.cache import cache
+from django.db.models import Sum
 from django.db import transaction, IntegrityError
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
@@ -215,9 +216,15 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
+        update_fields = []
         if 'is_active' in request.data and instance.role != 'owner':
             instance.is_active = bool(request.data['is_active'])
-            instance.save(update_fields=['is_active'])
+            update_fields.append('is_active')
+        if 'module_permissions' in request.data and isinstance(request.data['module_permissions'], dict):
+            instance.module_permissions = request.data['module_permissions']
+            update_fields.append('module_permissions')
+        if update_fields:
+            instance.save(update_fields=update_fields)
         return Response(UserSerializer(instance).data)
 
 
@@ -226,6 +233,85 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class MarinaOverviewView(APIView):
+    permission_classes = [IsMarinaStaff]
+
+    def get(self, request):
+        marina = request.user.marina
+        today = datetime.date.today()
+
+        # Arrivals today
+        arrivals_today = marina.bookings.filter(
+            check_in=today,
+            status__in=['confirmed', 'checked_in', 'pending'],
+        ).count()
+
+        # Pending payments (open invoices)
+        open_invoices = marina.invoices.filter(status='open')
+        pending_payments_count = open_invoices.count()
+        pending_payments_amount = float(
+            open_invoices.aggregate(t=Sum('total'))['t'] or 0
+        )
+        overdue_count = open_invoices.filter(due_date__lt=today).count()
+
+        # Open tasks
+        open_tasks_qs = marina.tasks.filter(done=False)
+        open_tasks_count = open_tasks_qs.count()
+        high_priority_count = open_tasks_qs.filter(priority='high').count()
+        unassigned_count = open_tasks_qs.filter(assigned_to='').count()
+
+        # Urgent alerts
+        urgent = []
+        for inv in open_invoices.filter(due_date__lt=today).select_related('member').order_by('due_date')[:5]:
+            name = inv.member.name if inv.member else 'Unknown'
+            days = (today - inv.due_date).days
+            urgent.append({
+                'severity': 'red',
+                'text': f'{name} — {inv.invoice_number} overdue {days}d. €{inv.total}',
+            })
+        for inc in marina.incidents.filter(resolved=False, severity='critical').order_by('-occurred_at')[:3]:
+            urgent.append({'severity': 'red', 'text': f'INC-{inc.pk} (critical): {inc.description[:80]}'})
+        for inc in marina.incidents.filter(resolved=False, severity='high').order_by('-occurred_at')[:3]:
+            urgent.append({'severity': 'orange', 'text': f'INC-{inc.pk}: {inc.description[:80]}'})
+
+        # Recent activity — merge bookings, invoices, tasks, incidents sorted by time
+        activity = []
+        for b in marina.bookings.select_related('vessel', 'berth').order_by('-created_at')[:6]:
+            vessel = b.vessel.name if b.vessel else (b.guest_name or 'Unknown')
+            berth = b.berth.code if b.berth else '?'
+            if b.status == 'checked_in':
+                text, color = f'{vessel} checked in to {berth}', '#38a860'
+            elif b.status == 'checked_out':
+                text, color = f'{vessel} departed {berth}', '#b8965a'
+            elif b.status in ('confirmed', 'awaiting_payment', 'pending_payment'):
+                text, color = f'Booking BK-{b.pk} confirmed — {vessel}', '#38a860'
+            else:
+                text, color = f'New booking BK-{b.pk} — {vessel}', '#3a7fc8'
+            activity.append({'text': text, 'color': color, 'ts': b.created_at.isoformat()})
+        for inv in marina.invoices.order_by('-created_at')[:4]:
+            if inv.status == 'paid' and inv.paid_at:
+                activity.append({'text': f'Invoice {inv.invoice_number} marked paid', 'color': '#3a7fc8', 'ts': inv.paid_at.isoformat()})
+            elif inv.status in ('open', 'draft'):
+                activity.append({'text': f'Invoice {inv.invoice_number} created', 'color': '#3a7fc8', 'ts': inv.created_at.isoformat()})
+        for t in marina.tasks.order_by('-created_at')[:3]:
+            activity.append({'text': f'Task: {t.text[:60]}', 'color': '#e08020', 'ts': t.created_at.isoformat()})
+        for i in marina.incidents.order_by('-created_at')[:2]:
+            activity.append({'text': f'Incident: {i.description[:60]}', 'color': '#c04040', 'ts': i.created_at.isoformat()})
+        activity.sort(key=lambda x: x['ts'], reverse=True)
+
+        return Response({
+            'arrivals_today': arrivals_today,
+            'pending_payments_count': pending_payments_count,
+            'pending_payments_amount': pending_payments_amount,
+            'overdue_count': overdue_count,
+            'open_tasks_count': open_tasks_count,
+            'high_priority_count': high_priority_count,
+            'unassigned_count': unassigned_count,
+            'urgent_alerts': urgent[:6],
+            'recent_activity': activity[:8],
+        })
 
 
 class SendMagicLinkView(APIView):

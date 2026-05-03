@@ -1,11 +1,34 @@
 from rest_framework import generics, permissions
 from rest_framework.exceptions import NotFound
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
 from apps.reservations.models import Booking
 from apps.vessels.models import Vessel
 from .models import AbsenceReport, CraneRequest
 from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer, PortalVesselSerializer
+
+
+class MarinaPublicView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'error': 'X-Marina-Slug header is required.'}, status=400)
+        marina = request.tenant
+        return Response({
+            'id': marina.id,
+            'name': marina.name,
+            'slug': marina.slug,
+            'timezone': marina.timezone,
+            'currency': marina.currency,
+            'contact_email': marina.contact_email,
+            'phone': marina.phone,
+            'booking_mode': marina.booking_mode,
+        })
 
 
 class IsBoater(permissions.BasePermission):

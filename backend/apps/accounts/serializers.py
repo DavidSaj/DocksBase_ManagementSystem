@@ -28,8 +28,7 @@ class MarinaSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # FIX 3: removed is_platform_admin from fields; role and is_active are now read-only
-        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'is_platform_admin', 'platform_role', 'created_at']
+        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'is_platform_admin', 'platform_role', 'module_permissions', 'created_at']
         read_only_fields = ['id', 'role', 'is_platform_admin', 'platform_role', 'is_active', 'created_at']
 
 

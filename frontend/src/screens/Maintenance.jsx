@@ -19,11 +19,11 @@ const ASSET_STATUS_BADGE = {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="modal-title">{title}</div>
-          <button className="modal-close" onClick={onClose}>×</button>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <div className="modal-hdr">
+          <span className="modal-title">{title}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button>
         </div>
         {children}
       </div>

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocksBase Logo — Compass Gear Mark</title>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #ECEAE6;
+    font-family: 'Jost', sans-serif;
+    min-height: 100vh;
+    padding: 56px 48px 80px;
+  }
+  .page-label {
+    text-align:center; font-size:11px; font-weight:500;
+    letter-spacing:3.5px; text-transform:uppercase; color:#999;
+    margin-bottom:52px;
+  }
+  .row { display:flex; gap:20px; max-width:1160px; margin:0 auto 20px; align-items:stretch; }
+  .row-label { max-width:1160px; margin:0 auto 8px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#aaa; font-weight:500; }
+
+  .tile {
+    border-radius:14px; display:flex; align-items:center;
+    justify-content:center; flex-direction:column;
+    gap:18px; padding:44px 40px; flex:1; position:relative; overflow:hidden;
+  }
+  .tile.dark  { background:#1e2d6b; }
+  .tile.deep  { background:#111828; }
+  .tile.light { background:#ffffff; }
+  .tile.warm  { background:#f6f5f4; border:1px solid #e0ddd9; }
+  .tile.tall  { padding:56px 40px; }
+  .tile.wide  { flex:2.2; }
+
+  .wm {
+    font-family:'Jost',sans-serif; text-transform:uppercase;
+    letter-spacing:5.5px; font-size:13px; font-weight:500;
+  }
+  .wm.gold  { color:#c9a84c; }
+  .wm.navy  { color:#1e2d6b; }
+  .wm.white { color:#ffffff; }
+
+  .lockup-h { display:flex; align-items:center; gap:20px; }
+  .lockup-name { display:flex; flex-direction:column; line-height:1; gap:3px; }
+  .lockup-name .top { font-family:'Jost',sans-serif; font-weight:600; font-size:26px; letter-spacing:4px; text-transform:uppercase; }
+  .lockup-name .bot { font-family:'Jost',sans-serif; font-weight:300; font-size:26px; letter-spacing:4px; text-transform:uppercase; }
+  .on-dark .top { color:#fff; }
+  .on-dark .bot { color:#c9a84c; }
+  .on-light .top { color:#1e2d6b; }
+  .on-light .bot { color:#6b7db3; }
+
+  .div-v { width:1px; height:40px; opacity:0.3; }
+  .div-v.gold { background:#c9a84c; }
+  .div-v.navy { background:#1e2d6b; }
+
+  #tweaks-panel {
+    display:none; position:fixed; bottom:24px; right:24px;
+    background:#fff; border-radius:12px; padding:20px 20px 16px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.15); width:230px; z-index:100;
+  }
+  #tweaks-panel h2 { font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#999; margin-bottom:16px; }
+  .tr { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .tr label { font-size:10px; font-weight:600; color:#555; letter-spacing:.5px; text-transform:uppercase; }
+  .tr input[type=range] { width:100%; accent-color:#1e2d6b; }
+  .tr select { width:100%; border:1px solid #ddd; border-radius:6px; padding:5px 8px; font-family:'Jost',sans-serif; font-size:12px; }
+</style>
+</head>
+<body>
+
+<p class="page-label">DocksBase — Logo System · Compass Gear Mark</p>
+
+<!-- SVGs will be injected by JS -->
+<p class="row-label">Stacked mark</p>
+<div class="row" id="row-stacked">
+  <div class="tile dark tall" id="tile-dark-stacked">
+    <div class="icon-slot" data-size="108" data-gold="#c9a84c" data-stroke="#c9a84c" data-bg="dark"></div>
+    <span class="wm gold">DocksBase</span>
+  </div>
+  <div class="tile light tall" id="tile-light-stacked">
+    <div class="icon-slot" data-size="108" data-gold="#1e2d6b" data-stroke="#1e2d6b" data-bg="light"></div>
+    <span class="wm navy">DocksBase</span>
+  </div>
+  <div class="tile deep tall" id="tile-deep-stacked">
+    <div class="icon-slot" data-size="108" data-gold="#c9a84c" data-stroke="#ffffff" data-bg="deep"></div>
+    <span class="wm white">DocksBase</span>
+  </div>
+</div>
+
+<p class="row-label" style="margin-top:12px;">Horizontal lockup</p>
+<div class="row" id="row-h">
+  <div class="tile dark wide" style="flex-direction:row;">
+    <div class="lockup-h">
+      <div class="icon-slot" data-size="72" data-gold="#c9a84c" data-stroke="#c9a84c"></div>
+      <div class="div-v gold"></div>
+      <div class="lockup-name on-dark">
+        <span class="top">Docks</span>
+        <span class="bot">Base</span>
+      </div>
+    </div>
+  </div>
+  <div class="tile warm wide" style="flex-direction:row;">
+    <div class="lockup-h">
+      <div class="icon-slot" data-size="72" data-gold="#1e2d6b" data-stroke="#1e2d6b"></div>
+      <div class="div-v navy"></div>
+      <div class="lockup-name on-light">
+        <span class="top">Docks</span>
+        <span class="bot">Base</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="row-label" style="margin-top:12px;">Icon mark · Badges & small scale</p>
+<div class="row" id="row-badges">
+  <!-- circle navy badge -->
+  <div class="tile light">
+    <div style="background:#1e2d6b;border-radius:50%;width:86px;height:86px;display:flex;align-items:center;justify-content:center;">
+      <div class="icon-slot" data-size="64" data-gold="#c9a84c" data-stroke="#c9a84c"></div>
+    </div>
+    <span class="wm navy" style="font-size:11px;">DocksBase</span>
+  </div>
+  <!-- rounded square gold -->
+  <div class="tile light">
+    <div style="background:#c9a84c;border-radius:20px;width:86px;height:86px;display:flex;align-items:center;justify-content:center;">
+      <div class="icon-slot" data-size="64" data-gold="#1e2d6b" data-stroke="#1e2d6b"></div>
+    </div>
+    <span class="wm navy" style="font-size:11px;">DocksBase</span>
+  </div>
+  <!-- outline ring on dark -->
+  <div class="tile dark">
+    <div style="border:1.5px solid rgba(201,168,76,0.4);border-radius:50%;width:86px;height:86px;display:flex;align-items:center;justify-content:center;">
+      <div class="icon-slot" data-size="64" data-gold="#c9a84c" data-stroke="#c9a84c"></div>
+    </div>
+    <span class="wm gold" style="font-size:11px;">DocksBase</span>
+  </div>
+  <!-- favicon scale -->
+  <div class="tile light">
+    <div style="display:flex;align-items:flex-end;gap:14px;">
+      <div style="text-align:center;">
+        <div style="background:#1e2d6b;border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">
+          <div class="icon-slot" data-size="26" data-gold="#c9a84c" data-stroke="#c9a84c" data-teeth="12" data-thin="true"></div>
+        </div>
+        <div style="font-size:9px;color:#aaa;margin-top:6px;letter-spacing:1px;">32px</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="background:#1e2d6b;border-radius:4px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;">
+          <div class="icon-slot" data-size="13" data-gold="#c9a84c" data-stroke="#c9a84c" data-teeth="10" data-thin="true" data-nodiag="true"></div>
+        </div>
+        <div style="font-size:9px;color:#aaa;margin-top:6px;letter-spacing:1px;">16px</div>
+      </div>
+    </div>
+    <span class="wm navy" style="font-size:11px;">Favicon scale</span>
+  </div>
+</div>
+
+<div id="tweaks-panel">
+  <h2>Tweaks</h2>
+  <div class="tr">
+    <label>Gold / accent</label>
+    <select id="tw-gold">
+      <option value="#c9a84c">Classic Gold</option>
+      <option value="#d4b067">Warm Amber</option>
+      <option value="#e8c86a">Bright Gold</option>
+      <option value="#a8c4d4">Sea Glass</option>
+      <option value="#ffffff">White</option>
+    </select>
+  </div>
+  <div class="tr">
+    <label>Navy</label>
+    <select id="tw-navy">
+      <option value="#1e2d6b">Brand Navy</option>
+      <option value="#111828">Deep Night</option>
+      <option value="#1a3a5c">Ocean</option>
+      <option value="#213183">Classic Navy</option>
+    </select>
+  </div>
+  <div class="tr">
+    <label>Stroke weight</label>
+    <input type="range" id="tw-stroke" min="0.8" max="2.8" step="0.1" value="1.6">
+  </div>
+  <div class="tr">
+    <label>Gear teeth</label>
+    <input type="range" id="tw-teeth" min="12" max="24" step="2" value="18">
+  </div>
+</div>
+
+<script>
+// ─── Gear + Compass SVG generator ───────────────────────────────────────────
+
+function pt(cx, cy, r, angleDeg) {
+  const a = (angleDeg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+
+function gearPath(cx, cy, teeth, rTip, rRoot, toothHalfDeg) {
+  const step = 360 / teeth;
+  const parts = [];
+  for (let i = 0; i < teeth; i++) {
+    const tc = i * step;
+    const halfGap = (step - toothHalfDeg * 2) / 2;
+    const [x0,y0] = pt(cx, cy, rRoot, tc - toothHalfDeg - halfGap);
+    const [x1,y1] = pt(cx, cy, rRoot, tc - toothHalfDeg);
+    const [x2,y2] = pt(cx, cy, rTip,  tc - toothHalfDeg * 0.65);
+    const [x3,y3] = pt(cx, cy, rTip,  tc + toothHalfDeg * 0.65);
+    const [x4,y4] = pt(cx, cy, rRoot, tc + toothHalfDeg);
+    const [x5,y5] = pt(cx, cy, rRoot, tc + toothHalfDeg + halfGap);
+
+    const arc = `A ${rRoot} ${rRoot} 0 0 1`;
+    if (i === 0) parts.push(`M ${x0.toFixed(2)},${y0.toFixed(2)}`);
+    else         parts.push(`${arc} ${x0.toFixed(2)},${y0.toFixed(2)}`);
+
+    parts.push(`L ${x1.toFixed(2)},${y1.toFixed(2)}`);
+    parts.push(`L ${x2.toFixed(2)},${y2.toFixed(2)}`);
+    parts.push(`L ${x3.toFixed(2)},${y3.toFixed(2)}`);
+    parts.push(`L ${x4.toFixed(2)},${y4.toFixed(2)}`);
+    parts.push(`${arc} ${x5.toFixed(2)},${y5.toFixed(2)}`);
+  }
+  parts.push('Z');
+  return parts.join(' ');
+}
+
+function buildCompassGear(opts) {
+  const {
+    size      = 108,
+    gold      = '#c9a84c',
+    stroke    = '#c9a84c',
+    teeth     = 18,
+    sw        = 1.6,           // base stroke width
+    nodiag    = false,
+    thin      = false
+  } = opts;
+
+  const vb = 100;
+  const cx = 50, cy = 50;
+  const scale = size / vb;
+
+  // Radii — proportional
+  const rTip   = 46;
+  const rRoot  = 40;
+  const rInner = 36;   // inner ring of gear
+  const rRose  = 28;   // compass rose outer tip (N/S)
+  const rRoseM = 19;   // E/W tips
+  const rRoseDiag = 20; // NE/SW/NW/SE tips
+  const rCenter = 3.5;
+
+  const toothHalf = thin ? 3.5 : 4.5;
+  const strokeW   = sw;
+  const strokeThin = sw * 0.55;
+
+  const gear = gearPath(cx, cy, teeth, rTip, rRoot, toothHalf);
+
+  // Compass rose — N/S diamonds (long)
+  function diamond(angleDeg, outer, inner, halfW) {
+    const [tx,ty]  = pt(cx,cy, outer, angleDeg);
+    const [lx,ly]  = pt(cx,cy, halfW, angleDeg + 90);
+    const [rx,ry]  = pt(cx,cy, halfW, angleDeg - 90);
+    const [bx,by]  = pt(cx,cy, inner, angleDeg + 180);
+    return `M ${tx.toFixed(2)},${ty.toFixed(2)} L ${lx.toFixed(2)},${ly.toFixed(2)} L ${bx.toFixed(2)},${by.toFixed(2)} L ${rx.toFixed(2)},${ry.toFixed(2)} Z`;
+  }
+
+  // 4 main cardinals — N/S long, E/W shorter
+  const dNorth = diamond(0,   rRose,  -4, 4.5);
+  const dSouth = diamond(180, rRose,  -4, 4.5);
+  const dEast  = diamond(90,  rRoseM, -3, 3.5);
+  const dWest  = diamond(270, rRoseM, -3, 3.5);
+
+  // diagonal tick marks (NE/NW/SE/SW)
+  function diagTick(angleDeg) {
+    const [x1,y1] = pt(cx,cy, rRoseDiag, angleDeg);
+    const [x2,y2] = pt(cx,cy, rCenter + 8, angleDeg);
+    return `M ${x1.toFixed(2)},${y1.toFixed(2)} L ${x2.toFixed(2)},${y2.toFixed(2)}`;
+  }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('viewBox', `0 0 ${vb} ${vb}`);
+  svg.setAttribute('fill', 'none');
+
+  const add = (tag, attrs) => {
+    const el = document.createElementNS(svgNS, tag);
+    for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
+    svg.appendChild(el);
+    return el;
+  };
+
+  // Gear ring (stroke only)
+  add('path', { d: gear, stroke: stroke, 'stroke-width': strokeW, fill: 'none', 'stroke-linejoin': 'round' });
+
+  // Inner circle of gear
+  add('circle', { cx, cy, r: rInner, stroke: stroke, 'stroke-width': strokeThin, fill: 'none', opacity: '0.45' });
+
+  // Compass N/S (filled with accent color)
+  add('path', { d: dNorth, stroke, 'stroke-width': strokeThin, fill: gold, 'stroke-linejoin': 'round' });
+  add('path', { d: dSouth, stroke, 'stroke-width': strokeThin, fill: 'none', 'stroke-linejoin': 'round', opacity: '0.7' });
+
+  // Compass E/W (stroke only, slightly lighter)
+  add('path', { d: dEast, stroke, 'stroke-width': strokeThin, fill: 'none', 'stroke-linejoin': 'round', opacity: '0.8' });
+  add('path', { d: dWest, stroke, 'stroke-width': strokeThin, fill: 'none', 'stroke-linejoin': 'round', opacity: '0.8' });
+
+  // Diagonal ticks
+  if (!nodiag) {
+    [45, 135, 225, 315].forEach(a => {
+      add('path', { d: diagTick(a), stroke, 'stroke-width': strokeThin * 0.9, 'stroke-linecap': 'round', opacity: '0.5' });
+    });
+  }
+
+  // Center dot
+  add('circle', { cx, cy, r: rCenter, stroke, 'stroke-width': strokeW, fill: gold });
+
+  return svg;
+}
+
+// ─── Inject all icon slots ───────────────────────────────────────────────────
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "gold": "#c9a84c",
+  "navy": "#1e2d6b",
+  "stroke": 1.6,
+  "teeth": 18
+}/*EDITMODE-END*/;
+
+function renderAll(overrides = {}) {
+  const cfg = { ...TWEAK_DEFAULTS, ...overrides };
+
+  document.querySelectorAll('.icon-slot').forEach(slot => {
+    slot.innerHTML = '';
+
+    const size    = parseInt(slot.dataset.size)  || 108;
+    const teeth   = parseInt(slot.dataset.teeth) || cfg.teeth;
+    const thin    = slot.dataset.thin === 'true';
+    const nodiag  = slot.dataset.nodiag === 'true';
+    const bgStyle = slot.dataset.bg; // 'dark' | 'light' | 'deep'
+
+    // choose stroke + gold based on bg
+    let strokeColor, goldColor;
+    if (bgStyle === 'light') {
+      strokeColor = cfg.navy;
+      goldColor   = cfg.navy;
+    } else {
+      strokeColor = bgStyle === 'deep' ? '#ffffff' : cfg.gold;
+      goldColor   = cfg.gold;
+    }
+
+    // override via data attrs if set explicitly
+    if (slot.dataset.stroke) strokeColor = slot.dataset.stroke === '#c9a84c' ? cfg.gold : slot.dataset.stroke === '#1e2d6b' ? cfg.navy : slot.dataset.stroke;
+    if (slot.dataset.gold)   goldColor   = slot.dataset.gold   === '#c9a84c' ? cfg.gold : slot.dataset.gold   === '#1e2d6b' ? cfg.navy : slot.dataset.gold;
+
+    const svg = buildCompassGear({
+      size, gold: goldColor, stroke: strokeColor,
+      teeth, sw: cfg.stroke, thin, nodiag
+    });
+
+    slot.appendChild(svg);
+  });
+
+  // update wm colors
+  document.querySelectorAll('.wm.gold').forEach(el => el.style.color = cfg.gold);
+  document.querySelectorAll('.wm.navy').forEach(el => el.style.color = cfg.navy);
+  document.querySelectorAll('.tile.dark').forEach(el => el.style.background = cfg.navy);
+  document.querySelectorAll('.on-dark .bot').forEach(el => el.style.color = cfg.gold);
+  document.querySelectorAll('.on-light .top').forEach(el => el.style.color = cfg.navy);
+  document.querySelectorAll('[style*="background:#1e2d6b"]').forEach(el => el.style.background = cfg.navy);
+  document.querySelectorAll('[style*="background:#c9a84c"]').forEach(el => el.style.background = cfg.gold);
+  document.querySelectorAll('.div-v.navy').forEach(el => el.style.background = cfg.navy);
+  document.querySelectorAll('.div-v.gold').forEach(el => el.style.background = cfg.gold);
+}
+
+renderAll();
+
+// ─── Tweaks protocol ────────────────────────────────────────────────────────
+
+window.addEventListener('message', e => {
+  if (e.data?.type === '__activate_edit_mode')   document.getElementById('tweaks-panel').style.display = 'block';
+  if (e.data?.type === '__deactivate_edit_mode') document.getElementById('tweaks-panel').style.display = 'none';
+});
+window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+
+document.getElementById('tw-gold').addEventListener('change', e => {
+  TWEAK_DEFAULTS.gold = e.target.value;
+  renderAll();
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { gold: e.target.value } }, '*');
+});
+document.getElementById('tw-navy').addEventListener('change', e => {
+  TWEAK_DEFAULTS.navy = e.target.value;
+  renderAll();
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { navy: e.target.value } }, '*');
+});
+document.getElementById('tw-stroke').addEventListener('input', e => {
+  TWEAK_DEFAULTS.stroke = parseFloat(e.target.value);
+  renderAll();
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { stroke: TWEAK_DEFAULTS.stroke } }, '*');
+});
+document.getElementById('tw-teeth').addEventListener('input', e => {
+  TWEAK_DEFAULTS.teeth = parseInt(e.target.value);
+  renderAll();
+  window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { teeth: TWEAK_DEFAULTS.teeth } }, '*');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: #fff; padding: 20px; }
+.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.swatch { display: flex; flex-direction: column; gap: 6px; }
+.chip { width: 80px; border-radius: 8px; border: var(--border-whisper); }
+.label { font-size: 11px; font-weight: 600; color: var(--color-gray-500); }
+.val   { font-size: 10px; color: var(--color-gray-300); font-family: monospace; }
+.note  { font-size: 10px; color: var(--color-gray-300); font-style: italic; margin-top: 2px; }
+</style>
+</head><body>
+<div class="row">
+  <div class="swatch">
+    <div class="chip" style="background:#31302e; height:72px;"></div>
+    <div class="label">Warm Dark</div>
+    <div class="val">#31302e</div>
+    <div class="note">Dark surfaces</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#615d59; height:64px;"></div>
+    <div class="label">Gray 500</div>
+    <div class="val">#615d59</div>
+    <div class="note">Secondary text</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#a39e98; height:56px;"></div>
+    <div class="label">Gray 300</div>
+    <div class="val">#a39e98</div>
+    <div class="note">Muted / placeholder</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#e8e6e3; height:48px;"></div>
+    <div class="label">Gray 100</div>
+    <div class="val">#e8e6e3</div>
+    <div class="note">Dividers</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#f0efed; height:40px;"></div>
+    <div class="label">Gray 50</div>
+    <div class="val">#f0efed</div>
+    <div class="note">Hover surface</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#f6f5f4; height:36px;"></div>
+    <div class="label">Warm White</div>
+    <div class="val">#f6f5f4</div>
+    <div class="note">Alt sections</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#ffffff; height:32px; border: 1px solid #ddd;"></div>
+    <div class="label">White</div>
+    <div class="val">#ffffff</div>
+    <div class="note">Page / cards</div>
+  </div>
+</div>
+</body></html>

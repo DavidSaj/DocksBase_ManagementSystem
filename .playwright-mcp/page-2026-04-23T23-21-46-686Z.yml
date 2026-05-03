@@ -1,0 +1,155 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e15]:
+        - generic [ref=e16]: DOCKS
+        - generic [ref=e17]: Base
+    - generic [ref=e18]:
+      - generic [ref=e19]: Harwich Marina
+      - generic [ref=e20]: Harwich, Essex · 22 active berths
+    - generic [ref=e21]:
+      - generic [ref=e22]: Operations
+      - generic [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: Overview
+      - generic [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - text: Marina Map
+      - generic [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+        - text: Reservations
+        - generic [ref=e35]: "3"
+      - generic [ref=e36] [cursor=pointer]:
+        - img [ref=e37]
+        - text: Boatyard
+    - generic [ref=e40]:
+      - generic [ref=e41]: Finance
+      - generic [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - text: Billing
+        - generic [ref=e45]: "2"
+    - generic [ref=e46]:
+      - generic [ref=e47]: People
+      - generic [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+        - text: Members
+    - generic [ref=e54]:
+      - generic [ref=e55]: Crew
+      - generic [ref=e56] [cursor=pointer]:
+        - img [ref=e57]
+        - text: Maintenance
+        - generic [ref=e59]: "6"
+    - generic [ref=e60]:
+      - generic [ref=e61]: System
+      - generic [ref=e62] [cursor=pointer]:
+        - img [ref=e63]
+        - text: Settings
+    - generic [ref=e67] [cursor=pointer]:
+      - generic [ref=e68]: MH
+      - generic [ref=e69]:
+        - generic [ref=e70]: M. Hargreaves
+        - generic [ref=e71]: Harbor Master
+  - generic [ref=e72]:
+    - generic [ref=e73]:
+      - generic [ref=e74]: Harwich Marina / Overview
+      - generic [ref=e75]:
+        - generic [ref=e76]: Fri 24 Apr 2026 · 01:21
+        - generic [ref=e79]: All systems normal
+        - img [ref=e81] [cursor=pointer]
+        - img [ref=e85] [cursor=pointer]
+        - generic [ref=e89] [cursor=pointer]: MH
+    - generic [ref=e91]:
+      - generic [ref=e92]:
+        - generic [ref=e93]:
+          - generic [ref=e94]: Berths Occupied
+          - generic [ref=e95]: 11/22
+          - generic [ref=e96]: 2 in maintenance
+          - generic [ref=e97]: "+3"
+        - generic [ref=e98]:
+          - generic [ref=e99]: Arrivals Today
+          - generic [ref=e100]: "5"
+          - generic [ref=e101]: "Next: 11:00"
+          - generic [ref=e102]: On time
+        - generic [ref=e103]:
+          - generic [ref=e104]: Available Slips
+          - generic [ref=e105]: "6"
+          - generic [ref=e106]: Across 3 piers
+          - generic [ref=e107]: −2 vs yesterday
+        - generic [ref=e108]:
+          - generic [ref=e109]: Pending Payments
+          - generic [ref=e110]: "3"
+          - generic [ref=e111]: €1,190 outstanding
+          - generic [ref=e112]: "Overdue: 1"
+        - generic [ref=e113]:
+          - generic [ref=e114]: Open Tasks
+          - generic [ref=e115]: "6"
+          - generic [ref=e116]: 2 high priority
+          - generic [ref=e117]: 2 unassigned
+      - generic [ref=e118]:
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - generic [ref=e121]: Activity Log
+            - button "View all" [ref=e122] [cursor=pointer]
+          - generic [ref=e123]:
+            - generic [ref=e126]:
+              - generic [ref=e127]: Ocean Star (A1) checked in. Capt. C. Hammond. Est. 4 nights.
+              - generic [ref=e128]: 08:42 today
+            - generic [ref=e131]:
+              - generic [ref=e132]: INV-2044 paid — Nautilus V seasonal berth €8,200.
+              - generic [ref=e133]: 08:15 today
+            - generic [ref=e136]:
+              - generic [ref=e137]: Berth A4 flagged for maintenance — electrical fault.
+              - generic [ref=e138]: 07:58 today
+            - generic [ref=e141]:
+              - generic [ref=e142]: "Payment overdue: BK-1045 Saltwater. 3 days past due."
+              - generic [ref=e143]: 07:00 today
+            - generic [ref=e146]:
+              - generic [ref=e147]: Travelift A service completed. Ready for haul-out schedule.
+              - generic [ref=e148]: Yesterday 17:30
+            - generic [ref=e151]:
+              - generic [ref=e152]: Puffin (B4) booking confirmed. Arriving 23 Apr.
+              - generic [ref=e153]: Yesterday 16:10
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - generic [ref=e156]:
+              - generic [ref=e157]: Today's Weather
+              - generic [ref=e158]: Live
+            - generic [ref=e159]:
+              - generic [ref=e160]:
+                - generic [ref=e161]:
+                  - generic [ref=e162]: 14°C
+                  - generic [ref=e163]: Temperature
+                - generic [ref=e164]:
+                  - generic [ref=e165]: 12kn SW
+                  - generic [ref=e166]: Wind
+                - generic [ref=e167]:
+                  - generic [ref=e168]: 0.6m
+                  - generic [ref=e169]: Swell
+                - generic [ref=e170]:
+                  - generic [ref=e171]: 8km
+                  - generic [ref=e172]: Visibility
+              - generic [ref=e173]:
+                - generic [ref=e174]: Low tide 14:22 · 1.2m
+                - generic [ref=e175]: High tide 20:48 · 3.8m
+          - generic [ref=e176]:
+            - generic [ref=e177]:
+              - generic [ref=e178]: Urgent
+              - generic [ref=e179]: "3"
+            - generic [ref=e180]:
+              - generic [ref=e183]: Saltwater — insurance EXPIRED. Do not extend stay.
+              - generic [ref=e186]: BK-1045 overdue payment — €330 due 3 days ago.
+              - generic [ref=e189]: Pier B cleat inspection required — safety flag.
+          - generic [ref=e190]:
+            - generic [ref=e192]: Pending Bookings
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - generic [ref=e195]:
+                  - generic [ref=e196]: Lady K
+                  - generic [ref=e197]: 23 Apr · Slip A5
+                - button "Confirm" [ref=e198] [cursor=pointer]
+              - generic [ref=e199]:
+                - generic [ref=e200]:
+                  - generic [ref=e201]: Puffin
+                  - generic [ref=e202]: 23 Apr · Slip B4
+                - button "Confirm" [ref=e203] [cursor=pointer]

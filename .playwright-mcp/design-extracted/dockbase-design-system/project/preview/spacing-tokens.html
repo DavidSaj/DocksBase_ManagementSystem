@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: #fff; padding: 20px; }
+.section { margin-bottom: 20px; }
+.section-label { font-size: 10px; font-weight: 600; color: var(--color-gray-300); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.tokens { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }
+.token { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bar { background: #0075de; border-radius: 2px; width: 28px; opacity: 0.85; }
+.lbl { font-size: 9px; color: var(--color-gray-300); font-weight: 500; text-align: center; }
+.radius-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.rchip { background: #f6f5f4; border: var(--border-whisper); width: 52px; height: 36px; }
+</style>
+</head><body>
+  <div class="section">
+    <div class="section-label">Spacing Scale</div>
+    <div class="tokens">
+      <div class="token"><div class="bar" style="height:2px"></div><div class="lbl">2</div></div>
+      <div class="token"><div class="bar" style="height:4px"></div><div class="lbl">4</div></div>
+      <div class="token"><div class="bar" style="height:6px"></div><div class="lbl">6</div></div>
+      <div class="token"><div class="bar" style="height:8px"></div><div class="lbl">8</div></div>
+      <div class="token"><div class="bar" style="height:12px"></div><div class="lbl">12</div></div>
+      <div class="token"><div class="bar" style="height:16px"></div><div class="lbl">16</div></div>
+      <div class="token"><div class="bar" style="height:24px"></div><div class="lbl">24</div></div>
+      <div class="token"><div class="bar" style="height:32px"></div><div class="lbl">32</div></div>
+      <div class="token"><div class="bar" style="height:48px"></div><div class="lbl">48</div></div>
+      <div class="token"><div class="bar" style="height:64px"></div><div class="lbl">64</div></div>
+      <div class="token"><div class="bar" style="height:80px"></div><div class="lbl">80</div></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-label">Border Radius Scale</div>
+    <div class="radius-row">
+      <div class="token"><div class="rchip" style="border-radius:4px"></div><div class="lbl">4px<br>Micro</div></div>
+      <div class="token"><div class="rchip" style="border-radius:5px"></div><div class="lbl">5px<br>Subtle</div></div>
+      <div class="token"><div class="rchip" style="border-radius:8px"></div><div class="lbl">8px<br>Standard</div></div>
+      <div class="token"><div class="rchip" style="border-radius:12px"></div><div class="lbl">12px<br>Card</div></div>
+      <div class="token"><div class="rchip" style="border-radius:16px"></div><div class="lbl">16px<br>Large</div></div>
+      <div class="token"><div class="rchip" style="border-radius:9999px"></div><div class="lbl">9999px<br>Pill</div></div>
+    </div>
+  </div>
+</body></html>

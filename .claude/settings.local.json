@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(npx eslint *)",
+      "Skill(update-config)"
+    ]
+  }
+}

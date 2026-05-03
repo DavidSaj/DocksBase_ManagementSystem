@@ -1,237 +1,119 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+// frontend/src/components/harbor-map/MapBuilder.jsx
+import { useState, useEffect, useRef } from 'react'
 import useMapConfig from '../../hooks/useMapConfig.js'
-import { useBerths } from '../../hooks/useBerths.js'
-import MapBuilderCanvas from './MapBuilderCanvas.jsx'
+import useBerths from '../../hooks/useBerths.js'
+import usePiers from '../../hooks/usePiers.js'
+import CanvasCore from './CanvasCore.jsx'
 import MapBuilderPalette from './MapBuilderPalette.jsx'
 import MapBuilderBerthPanel from './MapBuilderBerthPanel.jsx'
-import { newId, snapToGrid, wallSnapPos, GRID, COLS, ROWS, rotateAndSnap, snapRotation, groupOrigin } from './mapBuilderUtils.js'
+import {
+  newId, snapToGrid, GRID,
+  sortItemsForRender, computeAbsPosition, snapBerthToPier,
+} from './mapBuilderUtils.js'
+import api from '../../api.js'
 
-// Created once at module load — avoids allocating a new Image on every drag start
+// Docking prefab types that create Pier DB records when dropped
+const DOCKING_TYPES = new Set([
+  'parallel-wall', 'pier-v', 'pier-h', 'slip', 'slip-t', 'fuel-dock', 'gangway', 'ramp',
+])
+
 const TRANSPARENT_IMG = (() => {
   const img = new Image()
   img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
   return img
 })()
 
+// Build shapes[] for CanvasCore from piers (DB), berths (DB), and env items (MarinaMapConfig)
+function buildShapes(piers, berths, envItems, dragOverride) {
+  const pierById = Object.fromEntries(piers.map(p => [p.id, p]))
+
+  // Pier shapes — center coords from DB (with live drag override applied)
+  const pierShapes = piers
+    .filter(p => p.canvas_x != null && p.canvas_y != null)
+    .map(p => {
+      const ov = dragOverride?.pierId === p.id ? dragOverride : null
+      return {
+        id:       `pier-${p.id}`,
+        _pierId:  p.id,
+        type:     'pier',
+        absX:     ov ? ov.absX : parseFloat(p.canvas_x),
+        absY:     ov ? ov.absY : parseFloat(p.canvas_y),
+        w:        p.canvas_w,
+        h:        p.canvas_h,
+        rotation: p.rotation,
+        fill:     '#c8b97a',
+        stroke:   '#a8994a',
+        label:    p.code,
+      }
+    })
+
+  // Berth shapes — position computed from parent pier
+  const berthShapes = berths
+    .filter(b => b.pier && b.local_x != null && pierById[b.pier])
+    .map(b => {
+      const pier = pierById[b.pier]
+      const { absX, absY } = computeAbsPosition(
+        { canvas_x: parseFloat(pier.canvas_x), canvas_y: parseFloat(pier.canvas_y), rotation: pier.rotation },
+        { local_x: parseFloat(b.local_x), local_y: parseFloat(b.local_y) }
+      )
+      return {
+        id:       `berth-${b.id}`,
+        _berthId: b.id,
+        type:     'berth',
+        absX,
+        absY,
+        w:        2,
+        h:        1,
+        rotation: 0,
+        fill:     'rgba(26,107,110,0.25)',
+        stroke:   '#1a6b6e',
+        label:    b.code,
+      }
+    })
+
+  // Env shapes (non-DB items from MarinaMapConfig) — gx/gy are top-left, convert to center
+  const envShapes = envItems.map(item => ({
+    ...item,
+    absX: item.gx + item.w / 2,
+    absY: item.gy + item.h / 2,
+    fill:   item.bg,
+    stroke: item.border,
+  }))
+
+  return sortItemsForRender([...envShapes, ...pierShapes, ...berthShapes])
+}
+
 export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
-  const { berths, loading: berthsLoading } = useBerths()
+  const { berths, loading: berthsLoading, refetch: refetchBerths } = useBerths()
+  const { piers, loading: piersLoading, createPier, updatePierCanvas } = usePiers()
 
-  const [items,         setItems]         = useState([])
+  const [envItems,      setEnvItems]      = useState([])
   const [customPrefabs, setCustomPrefabs] = useState([])
   const [selectedIds,   setSelectedIds]   = useState(new Set())
   const [ghost,         setGhost]         = useState(null)
-  const [drawMode,      setDrawMode]      = useState(false)
-  const [drawPoints,    setDrawPoints]    = useState([])
-  const [hoverG,        setHoverG]        = useState(null)
+  const [snapZones,     setSnapZones]     = useState([])
   const [saveStatus,    setSaveStatus]    = useState(null)
-  const historyRef = useRef([])
-  const [canUndo, setCanUndo] = useState(false)
-  const dragPayloadRef = useRef(null)
-  const moveRef = useRef(null)
-  // { itemId, startGx, startGy, startClientX, startClientY, moved, snapshot }
-  const rotateRef = useRef(null)
-  // { itemId, itemSnapshot, centerX, centerY }
-  const wallResizeRef = useRef(null)
-  // { wallId, side: 'left'|'right', startClientX, startW, startGx, snapshot }
+  const [canUndo,       setCanUndo]       = useState(false)
+  const [dragOverride,  setDragOverride]  = useState(null)  // { pierId, absX, absY } | null
+
+  const historyRef      = useRef([])
+  const dragPayloadRef  = useRef(null)
+  const moveRef         = useRef(null)
 
   useEffect(() => {
     if (!config) return
-    if (config.custom_elements) setItems(config.custom_elements)
-    if (config.custom_prefabs)  setCustomPrefabs(config.custom_prefabs)
+    if (config.env_items)      setEnvItems(config.env_items)
+    if (config.custom_prefabs) setCustomPrefabs(config.custom_prefabs)
+    // Legacy: migrate old custom_elements to env_items if present
+    if (config.custom_elements && !config.env_items) {
+      setEnvItems(config.custom_elements)
+    }
   }, [config])
 
-  function closePolygon() {
-    if (drawPoints.length < 3) return
-    const name = window.prompt('Prefab name:', 'Custom Shape')
-    if (!name) { setDrawMode(false); setDrawPoints([]); return }
+  const shapes = buildShapes(piers, berths, envItems, dragOverride)
 
-    const fill = window.prompt('Fill colour (hex):', '#3a5f8f') || '#3a5f8f'
-    const stroke = '#2a4f7f'
-
-    // Normalise points relative to bounding-box origin so the prefab snaps cleanly when re-placed
-    const origin = groupOrigin(drawPoints)
-    const relPoints = drawPoints.map(p => ({ gx: p.gx - origin.gx, gy: p.gy - origin.gy }))
-
-    const newPrefab = { id: newId(), name, kind: 'polygon', points: relPoints, fill, stroke }
-    setCustomPrefabs(prev => [...prev, newPrefab])
-    setDrawMode(false)
-    setDrawPoints([])
-  }
-
-  const pushHistory = useCallback((prevItems) => {
-    historyRef.current = [...historyRef.current.slice(-19), prevItems]
-  }, [])
-
-  const mutateItems = useCallback((updater) => {
-    setItems(prev => {
-      pushHistory(prev)
-      return updater(prev)
-    })
-    setCanUndo(true)
-  }, [pushHistory])
-
-  function handleItemPointerDown(e, item) {
-    if (drawMode) return
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-
-    if (e.shiftKey) {
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        next.has(item.id) ? next.delete(item.id) : next.add(item.id)
-        return next
-      })
-    } else {
-      setSelectedIds(new Set([item.id]))
-    }
-
-    moveRef.current = {
-      itemId: item.id,
-      startGx: item.gx,
-      startGy: item.gy,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      moved: false,
-      snapshot: items,
-    }
-  }
-
-  function handleRotateHandlePointerDown(e, item) {
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const centerX = (item.gx + item.w / 2) * GRID
-    const centerY = (item.gy + item.h / 2) * GRID
-    rotateRef.current = {
-      itemId: item.id,
-      itemSnapshot: { gx: item.gx, gy: item.gy, w: item.w, h: item.h },
-      centerX,
-      centerY,
-      snapshot: items,
-    }
-  }
-
-  function handleWallResizePointerDown(e, wall, side) {
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    wallResizeRef.current = {
-      wallId: wall.id,
-      side,
-      startClientX: e.clientX,
-      startW: wall.w,
-      startGx: wall.gx,
-      snapshot: items,
-    }
-  }
-
-  function handleCanvasPointerMove(e) {
-    if (wallResizeRef.current) {
-      const { wallId, side, startClientX, startW, startGx } = wallResizeRef.current
-      const dg = Math.round((e.clientX - startClientX) / GRID)
-      if (side === 'right') {
-        const newW = Math.max(1, startW + dg)
-        setItems(prev => prev.map(i =>
-          i.id === wallId ? { ...i, w: newW } : i
-        ))
-      } else {
-        // left handle: wall shrinks/grows from left, gx shifts
-        const newW = Math.max(1, startW - dg)
-        const newGx = Math.max(0, startGx + (startW - newW))
-        setItems(prev => prev.map(i =>
-          i.id === wallId ? { ...i, w: newW, gx: newGx } : i
-        ))
-      }
-      return
-    }
-
-    if (rotateRef.current) {
-      const svgRect = document.querySelector('.mb-canvas')?.getBoundingClientRect()
-      if (!svgRect) return
-      const { centerX, centerY, itemId, itemSnapshot } = rotateRef.current
-      const mx = e.clientX - svgRect.left - centerX
-      const my = e.clientY - svgRect.top  - centerY
-      // atan2 with +90° offset so "up" = 0°
-      const rawDeg = (Math.atan2(my, mx) * 180) / Math.PI + 90
-      const snapped = snapRotation(rawDeg)
-      // During drag: only update rotation for live visual (gx/gy/w/h stay original)
-      setItems(prev => prev.map(i =>
-        i.id === itemId ? { ...i, rotation: snapped } : i
-      ))
-      return
-    }
-
-    if (drawMode && e.buttons === 0) {
-      const rect = e.currentTarget.getBoundingClientRect()
-      setHoverG(snapToGrid(e.clientX, e.clientY, rect))
-      return
-    }
-
-    if (!moveRef.current || e.buttons === 0) return
-    const { itemId, startGx, startGy, startClientX, startClientY } = moveRef.current
-    const dgx = Math.round((e.clientX - startClientX) / GRID)
-    const dgy = Math.round((e.clientY - startClientY) / GRID)
-    if (dgx === 0 && dgy === 0) return
-
-    moveRef.current.moved = true
-    setItems(prev => prev.map(item => {
-      if (item.id !== itemId) return item
-      return {
-        ...item,
-        gx: Math.max(0, Math.min(COLS - item.w, startGx + dgx)),
-        gy: Math.max(0, Math.min(ROWS - item.h, startGy + dgy)),
-      }
-    }))
-  }
-
-  function handleCanvasPointerUp() {
-    if (wallResizeRef.current) {
-      historyRef.current = [...historyRef.current.slice(-19), wallResizeRef.current.snapshot]
-      wallResizeRef.current = null
-      return
-    }
-
-    if (rotateRef.current) {
-      // On commit: snap bounding box from original dims + current rotation, then clear rotation
-      const { itemId, itemSnapshot, snapshot } = rotateRef.current
-      setItems(prev => {
-        const item = prev.find(i => i.id === itemId)
-        if (!item) return prev
-        const snapped = item.rotation
-        const { gx, gy, w, h } = rotateAndSnap(
-          itemSnapshot.gx, itemSnapshot.gy,
-          itemSnapshot.w, itemSnapshot.h,
-          snapped
-        )
-        return prev.map(i => i.id === itemId ? { ...i, gx, gy, w, h, rotation: 0 } : i)
-      })
-      historyRef.current = [...historyRef.current.slice(-19), snapshot]
-      rotateRef.current = null
-      return
-    }
-
-    if (moveRef.current?.moved && moveRef.current.snapshot) {
-      historyRef.current = [...historyRef.current.slice(-19), moveRef.current.snapshot]
-    }
-    moveRef.current = null
-  }
-
-  function handleCanvasClick(e) {
-    if (drawMode) {
-      const rect = e.currentTarget.getBoundingClientRect()
-      const { gx: snappedGx, gy: snappedGy } = snapToGrid(e.clientX, e.clientY, rect)
-
-      if (drawPoints.length >= 3) {
-        const f = drawPoints[0]
-        if (Math.abs(snappedGx - f.gx) <= 1 && Math.abs(snappedGy - f.gy) <= 1) {
-          closePolygon()
-          return
-        }
-      }
-      setDrawPoints(prev => [...prev, { gx: snappedGx, gy: snappedGy }])
-      return
-    }
-    setSelectedIds(new Set())
-  }
+  // ── Drag start ──────────────────────────────────────────────────────────────
 
   function handlePrefabDragStart(e, prefab) {
     dragPayloadRef.current = { kind: 'prefab', prefab }
@@ -245,23 +127,7 @@ export default function MapBuilder() {
     e.dataTransfer.setDragImage(TRANSPARENT_IMG, 0, 0)
   }
 
-  function handleGroupToPrefab() {
-    if (selectedIds.size < 2) return
-    const selected = items.filter(i => selectedIds.has(i.id))
-    const name = window.prompt('Prefab name:', 'My Prefab')
-    if (!name) return
-
-    const origin = groupOrigin(selected)
-    // Store each element's position relative to origin (not absolute gx/gy)
-    const elements = selected.map(i => ({ ...i, gx: i.gx - origin.gx, gy: i.gy - origin.gy }))
-
-    const newPrefab = { id: newId(), name, kind: 'group', elements }
-    setCustomPrefabs(prev => [...prev, newPrefab])
-
-    // Remove grouped items from canvas and push undo snapshot
-    mutateItems(prev => prev.filter(i => !selectedIds.has(i.id)))
-    setSelectedIds(new Set())
-  }
+  // ── Canvas drag over ─────────────────────────────────────────────────────────
 
   function handleCanvasDragOver(e) {
     e.preventDefault()
@@ -274,125 +140,182 @@ export default function MapBuilder() {
 
     const w = payload.kind === 'prefab' ? payload.prefab.w : 2
     const h = payload.kind === 'prefab' ? payload.prefab.h : 1
-    const bg     = payload.kind === 'prefab' ? payload.prefab.bg     : '#2a5f8f'
-    const border = payload.kind === 'prefab' ? payload.prefab.border : '#5a8fbf'
-
-    let pos = { gx, gy }
-    let snapBorder = border
 
     if (payload.kind === 'berth') {
-      const walls = items.filter(i => i.type === 'parallel-wall')
-      const snap = wallSnapPos(gx, gy, w, walls)
+      const placedPiers = piers.filter(p => p.canvas_x != null)
+        .map(p => ({
+          id: p.id,
+          canvas_x: parseFloat(p.canvas_x),
+          canvas_y: parseFloat(p.canvas_y),
+          canvas_w: p.canvas_w,
+          canvas_h: p.canvas_h,
+          rotation: p.rotation,
+        }))
+      const snap = snapBerthToPier(gx, gy, placedPiers, w, h)
       if (snap) {
-        pos = { gx: snap.gx, gy: snap.gy }
-        snapBorder = '#38a860'
+        setGhost({ absX: snap.absX, absY: snap.absY, w, h, fill: 'rgba(42,157,153,0.35)', stroke: '#2a9d99' })
+        setSnapZones([{ absX: snap.absX, absY: snap.absY, w, h }])
+        return
       }
+      setSnapZones([])
     }
 
-    setGhost({ gx: pos.gx, gy: pos.gy, w, h, bg, border: snapBorder })
+    const fill   = payload.kind === 'prefab' ? (payload.prefab.bg ?? '#888') : 'rgba(26,107,110,0.35)'
+    const stroke = payload.kind === 'prefab' ? (payload.prefab.border ?? '#aaa') : '#1a6b6e'
+    setGhost({ absX: gx + w / 2, absY: gy + h / 2, w, h, fill, stroke })
   }
 
-  function handleCanvasDrop(e) {
+  // ── Canvas drop ──────────────────────────────────────────────────────────────
+
+  async function handleCanvasDrop(e) {
     e.preventDefault()
     const payload = dragPayloadRef.current
     dragPayloadRef.current = null
-    if (!payload || !ghost) { setGhost(null); return }
+    if (!payload || !ghost) { setGhost(null); setSnapZones([]); return }
 
-    if (payload.kind === 'prefab') {
-      const p = payload.prefab
-
-      const customPrefab = customPrefabs.find(cp => cp.id === p.type)
-      if (customPrefab) {
-        if (customPrefab.kind === 'group') {
-          const newItems = customPrefab.elements.map(el => ({
-            ...el,
-            id: newId(),
-            gx: ghost.gx + el.gx,
-            gy: ghost.gy + el.gy,
+    try {
+      if (payload.kind === 'berth') {
+        const placedPiers = piers.filter(p => p.canvas_x != null)
+          .map(p => ({
+            id: p.id,
+            canvas_x: parseFloat(p.canvas_x),
+            canvas_y: parseFloat(p.canvas_y),
+            canvas_w: p.canvas_w,
+            canvas_h: p.canvas_h,
+            rotation: p.rotation,
           }))
-          mutateItems(prev => [...prev, ...newItems])
-          setSelectedIds(new Set(newItems.map(i => i.id)))
-        } else if (customPrefab.kind === 'polygon') {
-          const newItem = {
-            id: newId(), type: customPrefab.id, shape: 'polygon',
-            points: customPrefab.points.map(pt => ({ gx: ghost.gx + pt.gx, gy: ghost.gy + pt.gy })),
-            fill: customPrefab.fill, stroke: customPrefab.stroke,
-            label: customPrefab.name, rotation: 0,
-            customPrefabId: customPrefab.id,
-          }
-          mutateItems(prev => [...prev, newItem])
-          setSelectedIds(new Set([newItem.id]))
+        const rect = e.currentTarget.getBoundingClientRect()
+        const { gx, gy } = snapToGrid(e.clientX, e.clientY, rect)
+        const snap = snapBerthToPier(gx, gy, placedPiers, 2, 1)
+        if (snap) {
+          await api.patch(`/berths/${payload.berth.id}/`, {
+            pier: snap.pierId,
+            local_x: snap.local_x.toFixed(2),
+            local_y: snap.local_y.toFixed(2),
+            position_on_parent: snap.position_on_parent,
+          })
+          await refetchBerths()
         }
-        setGhost(null)
         return
       }
 
-      const newItem = {
-        id: newId(), type: p.type, shape: 'rect',
-        gx: ghost.gx, gy: ghost.gy, w: p.w, h: p.h,
-        bg: p.bg, border: p.border, label: p.label,
-        rotation: 0,
-      }
-      mutateItems(prev => [...prev, newItem])
-      setSelectedIds(new Set([newItem.id]))
+      // Prefab drop
+      const p = payload.prefab
+      const rect = e.currentTarget.getBoundingClientRect()
+      const { gx, gy } = snapToGrid(e.clientX, e.clientY, rect)
+      const dropCenterX = gx + p.w / 2
+      const dropCenterY = gy + p.h / 2
 
-    } else {
-      const berth = payload.berth
-      const walls = items.filter(i => i.type === 'parallel-wall')
-      const snap = wallSnapPos(ghost.gx, ghost.gy, 2, walls)
-      const newItem = {
-        id: newId(), type: 'berth', shape: 'rect',
-        gx: ghost.gx, gy: ghost.gy, w: 2, h: 1,
-        bg: '#2a5f8f', border: '#5a8fbf', label: berth.code,
-        rotation: 0,
-        berthId: berth.id,
-        ...(snap ? { snapWallId: snap.snapWallId, slotIndex: snap.slotIndex } : {}),
+      if (DOCKING_TYPES.has(p.type)) {
+        // Creates a Pier DB record
+        await createPier({
+          code:     `${p.type.toUpperCase()}-${newId().slice(0, 4).toUpperCase()}`,
+          pier_type: p.type === 'pier-v' || p.type === 'pier-h' ? 'concrete' : 'pontoon',
+          canvas_x:  dropCenterX.toFixed(2),
+          canvas_y:  dropCenterY.toFixed(2),
+          canvas_w:  p.w,
+          canvas_h:  p.h,
+          rotation:  0,
+        })
+      } else {
+        // Environmental item — goes to MarinaMapConfig
+        const newItem = {
+          id: newId(), type: p.type, shape: 'rect',
+          gx, gy, w: p.w, h: p.h,
+          bg: p.bg, border: p.border, label: p.label ?? '',
+          rotation: 0,
+        }
+        historyRef.current = [...historyRef.current.slice(-19), envItems]
+        setEnvItems(prev => [...prev, newItem])
+        setCanUndo(true)
       }
-      mutateItems(prev => [...prev, newItem])
-      setSelectedIds(new Set([newItem.id]))
+    } catch (err) {
+      console.error('[MapBuilder] drop failed', err)
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus(null), 2500)
+    } finally {
+      setGhost(null)
+      setSnapZones([])
     }
-
-    setGhost(null)
   }
 
-  function handleCanvasDragLeave() {
-    setGhost(null)
+  // ── Pointer events for moving pier shapes ────────────────────────────────────
+
+  function handleItemPointerDown(e, item) {
+    if (!item._pierId) return   // only piers are draggable in builder
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setSelectedIds(new Set([item.id]))
+    moveRef.current = {
+      pierId: item._pierId,
+      startAbsX: item.absX,
+      startAbsY: item.absY,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      moved: false,
+    }
   }
 
-  async function handleSave() {
-    setSaveStatus('saving')
-    const ok = await saveConfig({ ...(config ?? {}), custom_elements: items, custom_prefabs: customPrefabs })
-    setSaveStatus(ok ? 'saved' : 'error')
-    setTimeout(() => setSaveStatus(null), 2500)
+  function handleCanvasPointerMove(e) {
+    if (!moveRef.current || e.buttons === 0) return
+    const { startAbsX, startAbsY, startClientX, startClientY } = moveRef.current
+    const dgx = (e.clientX - startClientX) / GRID
+    const dgy = (e.clientY - startClientY) / GRID
+    if (Math.abs(dgx) < 0.1 && Math.abs(dgy) < 0.1) return
+    moveRef.current.moved = true
+    moveRef.current.liveX = startAbsX + dgx
+    moveRef.current.liveY = startAbsY + dgy
+    setDragOverride({ pierId: moveRef.current.pierId, absX: moveRef.current.liveX, absY: moveRef.current.liveY })
   }
+
+  async function handleCanvasPointerUp() {
+    try {
+      if (moveRef.current?.moved && moveRef.current.pierId) {
+        const { pierId, liveX, liveY } = moveRef.current
+        await updatePierCanvas(pierId, liveX.toFixed(2), liveY.toFixed(2))
+      }
+    } catch (err) {
+      console.error('[MapBuilder] pier move failed', err)
+    } finally {
+      moveRef.current = null
+      setDragOverride(null)
+    }
+  }
+
+  // ── Undo (env items only) ────────────────────────────────────────────────────
 
   function handleUndo() {
     if (!historyRef.current.length) return
-    const prev = historyRef.current.pop()
-    setItems(prev)
+    setEnvItems(historyRef.current.pop())
     setCanUndo(historyRef.current.length > 0)
   }
 
   useEffect(() => {
     function onKey(e) {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
-        mutateItems(prev => prev.filter(i => !selectedIds.has(i.id)))
-        setSelectedIds(new Set())
-      }
       if (e.ctrlKey && e.key === 'z') handleUndo()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedIds, mutateItems])
+  }, [])
 
-  const placedBerthIds = new Set(items.filter(i => i.berthId).map(i => i.berthId))
+  // ── Save env items to MarinaMapConfig ───────────────────────────────────────
+
+  async function handleSave() {
+    setSaveStatus('saving')
+    const ok = await saveConfig({ ...(config ?? {}), env_items: envItems, custom_prefabs: customPrefabs })
+    setSaveStatus(ok ? 'saved' : 'error')
+    setTimeout(() => setSaveStatus(null), 2500)
+  }
 
   const saveLabel = saveStatus === 'saving' ? 'Saving…'
-    : saveStatus === 'saved'  ? '✓ Saved'
-    : saveStatus === 'error'  ? 'Error!'
+    : saveStatus === 'saved' ? '✓ Saved'
+    : saveStatus === 'error' ? 'Error!'
     : 'Save'
 
-  if (cfgLoading || berthsLoading) {
+  // A berth is placed when it has a pier FK and local coordinates
+  const placedBerthIds = new Set(berths.filter(b => b.is_placed).map(b => b.id))
+
+  if (cfgLoading || berthsLoading || piersLoading) {
     return <div style={{ padding: 40, color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Loading…</div>
   }
 
@@ -401,65 +324,47 @@ export default function MapBuilder() {
       <MapBuilderPalette
         customPrefabs={customPrefabs}
         selectedIds={selectedIds}
-        drawMode={drawMode}
+        drawMode={false}
         onPrefabDragStart={handlePrefabDragStart}
-        onStartDraw={() => setDrawMode(true)}
-        onGroupToPrefab={handleGroupToPrefab}
+        onStartDraw={() => {}}
+        onGroupToPrefab={() => {}}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', position: 'relative' }}>
-        {/* Toolbar */}
-        <div style={{ display: 'flex', gap: 8, padding: '8px 12px', background: '#0c1f3d', borderBottom: '1px solid #1e3a5f', alignItems: 'center' }}>
-          {drawMode && (
-            <span style={{ fontSize: 11, color: '#b8965a', marginRight: 8 }}>
-              Drawing — click to add points. Click first point to close.
-            </span>
-          )}
-          {drawMode && drawPoints.length >= 3 && (
-            <button
-              onClick={closePolygon}
-              style={{ fontSize: 11, padding: '3px 10px', background: '#1e3a5f', border: '1px solid #b8965a', borderRadius: 4, color: '#b8965a', cursor: 'pointer' }}>
-              Close Shape
-            </button>
-          )}
-          {drawMode && (
-            <button
-              onClick={() => { setDrawMode(false); setDrawPoints([]) }}
-              style={{ fontSize: 11, padding: '3px 10px', background: 'none', border: '1px solid #3a5a7a', borderRadius: 4, color: '#7a9ab8', cursor: 'pointer' }}>
-              Cancel
-            </button>
-          )}
+        <div style={{
+          display: 'flex', gap: 8, padding: '8px 12px',
+          background: '#0c1f3d', borderBottom: '1px solid #1e3a5f', alignItems: 'center',
+        }}>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <button
               onClick={handleUndo}
               disabled={!canUndo}
-              style={{ fontSize: 11, padding: '4px 12px', background: '#1e3a5f', border: '1px solid #2a5a7a', borderRadius: 4, color: '#c8d8e8', cursor: 'pointer' }}>
+              style={{ fontSize: 11, padding: '4px 12px', background: '#1e3a5f', border: '1px solid #2a5a7a', borderRadius: 4, color: '#c8d8e8', cursor: 'pointer' }}
+            >
               Undo
             </button>
             <button
               onClick={handleSave}
-              style={{ fontSize: 11, padding: '4px 14px', background: '#b8965a', border: 'none', borderRadius: 4, color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+              style={{ fontSize: 11, padding: '4px 14px', background: '#b8965a', border: 'none', borderRadius: 4, color: 'white', cursor: 'pointer', fontWeight: 600 }}
+            >
               {saveLabel}
             </button>
           </div>
         </div>
 
-        <MapBuilderCanvas
-          items={items}
-          ghost={ghost}
+        <CanvasCore
+          shapes={shapes}
+          mode="builder"
+          snapZones={snapZones}
           selectedIds={selectedIds}
-          drawMode={drawMode}
-          drawPoints={drawPoints}
-          hoverG={hoverG}
-          onCanvasClick={handleCanvasClick}
+          ghost={ghost}
+          onItemPointerDown={handleItemPointerDown}
           onCanvasPointerMove={handleCanvasPointerMove}
           onCanvasPointerUp={handleCanvasPointerUp}
+          onCanvasClick={() => setSelectedIds(new Set())}
           onCanvasDragOver={handleCanvasDragOver}
           onCanvasDrop={handleCanvasDrop}
-          onCanvasDragLeave={handleCanvasDragLeave}
-          onItemPointerDown={handleItemPointerDown}
-          onRotateHandlePointerDown={handleRotateHandlePointerDown}
-          onWallResizePointerDown={handleWallResizePointerDown}
+          onCanvasDragLeave={() => { setGhost(null); setSnapZones([]) }}
         />
       </div>
 

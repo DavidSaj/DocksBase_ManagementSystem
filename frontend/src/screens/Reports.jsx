@@ -1,7 +1,7 @@
 import Ic from '../components/ui/Icon.jsx';
 import { useState } from 'react';
-import { useBerths } from '../hooks/useBerths.js';
-import { usePiers } from '../hooks/usePiers.js';
+import useBerths from '../hooks/useBerths.js';
+import usePiers from '../hooks/usePiers.js';
 import useInvoices from '../hooks/useInvoices.js';
 import useMembers from '../hooks/useMembers.js';
 import useAssets from '../hooks/useAssets.js';

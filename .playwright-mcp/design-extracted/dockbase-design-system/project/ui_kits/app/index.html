@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>DockBase — Harbor Management</title>
+<link rel="stylesheet" href="../../colors_and_type.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: var(--font-primary); background: var(--color-bg-alt); color: var(--color-text-primary); -webkit-font-smoothing: antialiased; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 3px; }
+
+  /* Layout */
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px; min-width: 220px; background: #fff;
+    border-right: var(--border-whisper);
+    display: flex; flex-direction: column;
+    padding: 0;
+    overflow-y: auto;
+  }
+  .sidebar-logo {
+    display: flex; align-items: center; gap: 9px;
+    padding: 18px 16px 14px;
+    border-bottom: var(--border-whisper);
+  }
+  .sidebar-logo svg { color: #0075de; flex-shrink: 0; }
+  .sidebar-logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; color: rgba(0,0,0,0.95); }
+  .sidebar-section-label {
+    font-size: 11px; font-weight: 600; color: #a39e98;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 16px 16px 6px;
+  }
+  .sidebar-link {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px; margin: 1px 8px;
+    border-radius: 6px; cursor: pointer;
+    font-size: 14px; font-weight: 500; color: #615d59;
+    transition: background 0.1s, color 0.1s;
+    user-select: none;
+  }
+  .sidebar-link:hover { background: var(--color-bg-alt); color: rgba(0,0,0,0.95); }
+  .sidebar-link.active { background: #f0f6ff; color: #0075de; font-weight: 600; }
+  .sidebar-link svg { opacity: 0.7; flex-shrink: 0; }
+  .sidebar-link.active svg { opacity: 1; }
+  .sidebar-link .badge-count {
+    margin-left: auto; font-size: 11px; font-weight: 600;
+    background: #f2f9ff; color: #097fe8;
+    padding: 1px 6px; border-radius: 9999px; letter-spacing: 0.1px;
+  }
+  .sidebar-bottom {
+    margin-top: auto; padding: 12px; border-top: var(--border-whisper);
+  }
+  .sidebar-user {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px; border-radius: 8px; cursor: pointer;
+  }
+  .sidebar-user:hover { background: var(--color-bg-alt); }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #213183; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .sidebar-user-info { display: flex; flex-direction: column; }
+  .sidebar-user-name { font-size: 13px; font-weight: 600; color: rgba(0,0,0,0.95); }
+  .sidebar-user-role { font-size: 11px; color: #a39e98; }
+
+  /* Main area */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar {
+    background: #fff; border-bottom: var(--border-whisper);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 52px; flex-shrink: 0;
+  }
+  .topbar-title { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .content { flex: 1; overflow-y: auto; padding: 28px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-primary); font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 4px; border: none; cursor: pointer; transition: background 0.12s, transform 0.1s; }
+  .btn:active { transform: scale(0.95); }
+  .btn-primary { background: #0075de; color: #fff; }
+  .btn-primary:hover { background: #005bab; }
+  .btn-secondary { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.85); }
+  .btn-secondary:hover { background: rgba(0,0,0,0.09); }
+  .btn-ghost { background: transparent; color: #615d59; border: var(--border-whisper); }
+  .btn-ghost:hover { background: var(--color-bg-alt); }
+
+  /* Cards */
+  .card { background: #fff; border: var(--border-whisper); border-radius: 12px; box-shadow: var(--shadow-card); }
+  .card-sm { border-radius: 8px; }
+
+  /* Stat card */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { padding: 20px; }
+  .stat-label { font-size: 12px; font-weight: 600; color: #a39e98; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .stat-value { font-size: 32px; font-weight: 700; letter-spacing: -1px; line-height: 1; margin-bottom: 4px; }
+  .stat-sub { font-size: 12px; color: #615d59; }
+  .stat-trend { font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 9999px; margin-top: 6px; }
+  .trend-up { background: #e8f7ec; color: #1a8c2e; }
+  .trend-down { background: #fff0f0; color: #b01c1c; }
+
+  /* Section header */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .section-title { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+
+  /* Badge */
+  .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; letter-spacing: 0.125px; padding: 2px 8px; border-radius: 9999px; }
+  .badge-available { background: #e8f7ec; color: #1a8c2e; }
+  .badge-confirmed { background: #f2f9ff; color: #097fe8; }
+  .badge-pending { background: #fff4ec; color: #c04a00; }
+  .badge-overdue { background: #fff0f0; color: #b01c1c; }
+  .badge-inactive { background: #f0efed; color: #615d59; }
+  .badge-maintenance { background: #fff4ec; color: #c04a00; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: #a39e98; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 16px 10px; border-bottom: var(--border-whisper); }
+  td { padding: 12px 16px; font-size: 13px; border-bottom: var(--border-whisper); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+  .td-name { font-weight: 600; color: rgba(0,0,0,0.9); }
+  .td-sub { font-size: 11px; color: #a39e98; margin-top: 1px; }
+
+  /* Activity feed */
+  .activity-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: var(--border-whisper); }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .activity-text { font-size: 13px; color: rgba(0,0,0,0.85); line-height: 1.45; }
+  .activity-time { font-size: 11px; color: #a39e98; margin-top: 3px; }
+
+  /* Berth grid */
+  .berth-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .berth-cell {
+    border: var(--border-whisper); border-radius: 8px; padding: 12px 10px;
+    cursor: pointer; transition: box-shadow 0.12s, border-color 0.12s;
+    background: #fff;
+  }
+  .berth-cell:hover { box-shadow: var(--shadow-card); border-color: rgba(0,0,0,0.18); }
+  .berth-id { font-size: 13px; font-weight: 700; color: rgba(0,0,0,0.9); margin-bottom: 4px; }
+  .berth-vessel { font-size: 11px; color: #615d59; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .berth-cell.occupied { border-left: 3px solid #0075de; }
+  .berth-cell.available { border-left: 3px solid #1aae39; }
+  .berth-cell.maintenance { border-left: 3px solid #dd5b00; }
+  .berth-size { font-size: 10px; color: #a39e98; margin-top: 4px; }
+
+  /* Weather widget */
+  .weather-widget { display: flex; gap: 16px; }
+  .weather-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 16px; background: var(--color-bg-alt); border-radius: 8px; flex: 1; }
+  .weather-val { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .weather-label { font-size: 11px; color: #a39e98; font-weight: 500; }
+
+  /* Search */
+  .search-bar { display: flex; align-items: center; gap: 8px; background: var(--color-bg-alt); border: var(--border-whisper); border-radius: 6px; padding: 7px 12px; }
+  .search-bar input { background: transparent; border: none; outline: none; font-family: var(--font-primary); font-size: 13px; color: rgba(0,0,0,0.85); width: 200px; }
+  .search-bar input::placeholder { color: #a39e98; }
+
+  /* Detail panel */
+  .detail-panel { background: #fff; border: var(--border-whisper); border-radius: 12px; box-shadow: var(--shadow-card); padding: 24px; }
+  .detail-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: var(--border-whisper); }
+  .detail-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .detail-key { font-size: 11px; font-weight: 600; color: #a39e98; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .detail-val { font-size: 14px; color: rgba(0,0,0,0.9); font-weight: 500; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; border-bottom: var(--border-whisper); margin-bottom: 20px; }
+  .tab { font-size: 13px; font-weight: 500; color: #615d59; padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.1s, border-color 0.1s; margin-bottom: -1px; }
+  .tab:hover { color: rgba(0,0,0,0.85); }
+  .tab.active { color: #0075de; font-weight: 600; border-bottom-color: #0075de; }
+
+  /* Filter row */
+  .filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .filter-chip { font-size: 12px; font-weight: 500; color: #615d59; padding: 5px 12px; border-radius: 9999px; border: var(--border-whisper); background: #fff; cursor: pointer; transition: background 0.1s, color 0.1s; }
+  .filter-chip:hover { background: var(--color-bg-alt); }
+  .filter-chip.active { background: #f2f9ff; color: #097fe8; border-color: rgba(0,117,222,0.2); font-weight: 600; }
+
+  /* Tide chart placeholder */
+  .tide-chart { height: 60px; border-radius: 8px; background: linear-gradient(135deg, #f2f9ff 0%, #e8f4ff 100%); border: var(--border-whisper); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  .tide-svg { width: 100%; height: 100%; }
+
+  /* Notification dot */
+  .notif-dot { width: 7px; height: 7px; background: #dd5b00; border-radius: 50%; margin-left: 4px; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 48px 24px; color: #a39e98; }
+  .empty-state svg { margin-bottom: 12px; opacity: 0.4; }
+  .empty-title { font-size: 14px; font-weight: 600; color: #615d59; margin-bottom: 4px; }
+  .empty-sub { font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ── Icons (Lucide wrappers) ──────────────────────────────────────────────────
+function Icon({ name, size = 16, style }) {
+  const ref = React.useRef(null);
+  useEffect(() => {
+    if (ref.current && window.lucide) {
+      ref.current.innerHTML = '';
+      const el = document.createElement('i');
+      el.setAttribute('data-lucide', name);
+      el.setAttribute('width', size);
+      el.setAttribute('height', size);
+      ref.current.appendChild(el);
+      window.lucide.createIcons({ icons: window.lucide.icons, elements: [el] });
+    }
+  }, [name, size]);
+  return <span ref={ref} style={{ display:'inline-flex', alignItems:'center', ...style }} />;
+}
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+const BERTHS = [
+  { id:'1A', pier:'Pier 1', length:'12m', status:'occupied', vessel:'Ocean Star' },
+  { id:'1B', pier:'Pier 1', length:'10m', status:'occupied', vessel:'Seabird III' },
+  { id:'1C', pier:'Pier 1', length:'15m', status:'available', vessel:null },
+  { id:'1D', pier:'Pier 1', length:'8m',  status:'maintenance', vessel:null },
+  { id:'1E', pier:'Pier 1', length:'12m', status:'occupied', vessel:'Lady K' },
+  { id:'1F', pier:'Pier 1', length:'20m', status:'available', vessel:null },
+  { id:'2A', pier:'Pier 2', length:'10m', status:'occupied', vessel:'Windseeker' },
+  { id:'2B', pier:'Pier 2', length:'10m', status:'occupied', vessel:'Blue Horizon' },
+  { id:'2C', pier:'Pier 2', length:'14m', status:'available', vessel:null },
+  { id:'2D', pier:'Pier 2', length:'12m', status:'occupied', vessel:'Saltwater' },
+  { id:'2E', pier:'Pier 2', length:'10m', status:'available', vessel:null },
+  { id:'2F', pier:'Pier 2', length:'18m', status:'occupied', vessel:'Nautilus V' },
+  { id:'3A', pier:'Pier 3', length:'8m',  status:'available', vessel:null },
+  { id:'3B', pier:'Pier 3', length:'8m',  status:'occupied', vessel:'Puffin' },
+  { id:'3C', pier:'Pier 3', length:'12m', status:'occupied', vessel:'Storm Chaser' },
+  { id:'3D', pier:'Pier 3', length:'10m', status:'available', vessel:null },
+  { id:'3E', pier:'Pier 3', length:'15m', status:'maintenance', vessel:null },
+  { id:'3F', pier:'Pier 3', length:'12m', status:'occupied', vessel:'Avalon' },
+];
+
+const BOOKINGS = [
+  { id:'BK-1041', vessel:'Ocean Star', owner:'C. Hammond', berth:'1A', dates:'22 Apr – 26 Apr', nights:4, status:'confirmed', paid:true },
+  { id:'BK-1042', vessel:'Windseeker', owner:'R. Fontaine', berth:'2A', dates:'23 Apr – 25 Apr', nights:2, status:'confirmed', paid:true },
+  { id:'BK-1043', vessel:'Seabird III', owner:'T. Marchetti', berth:'1B', dates:'21 Apr – 27 Apr', nights:6, status:'confirmed', paid:false },
+  { id:'BK-1044', vessel:'Lady K', owner:'A. Schwartz', berth:'1E', dates:'23 Apr – 24 Apr', nights:1, status:'pending', paid:false },
+  { id:'BK-1045', vessel:'Saltwater', owner:'J. Hartmann', berth:'2D', dates:'20 Apr – 23 Apr', nights:3, status:'overdue', paid:false },
+  { id:'BK-1046', vessel:'Blue Horizon', owner:'M. Osei', berth:'2B', dates:'24 Apr – 28 Apr', nights:4, status:'confirmed', paid:true },
+  { id:'BK-1047', vessel:'Puffin', owner:'S. Yamamoto', berth:'3B', dates:'23 Apr – 25 Apr', nights:2, status:'pending', paid:false },
+];
+
+const VESSELS = [
+  { name:'Ocean Star', type:'Motor Yacht', length:'12m', draft:'1.8m', owner:'C. Hammond', flag:'🇬🇧', imo:'IMO-9234512', insurance:'Valid until Dec 2025', berth:'1A' },
+  { name:'Windseeker', type:'Sailboat', length:'10m', draft:'1.5m', owner:'R. Fontaine', flag:'🇫🇷', imo:'IMO-8821034', insurance:'Valid until Mar 2026', berth:'2A' },
+  { name:'Seabird III', type:'Catamaran', length:'14m', draft:'1.2m', owner:'T. Marchetti', flag:'🇮🇹', imo:'IMO-7654890', insurance:'Valid until Oct 2025', berth:'1B' },
+  { name:'Lady K', type:'Motor Yacht', length:'15m', draft:'2.1m', owner:'A. Schwartz', flag:'🇩🇪', imo:'IMO-6543210', insurance:'Valid until Jan 2026', berth:'1E' },
+  { name:'Saltwater', type:'Sailboat', length:'9m', draft:'1.4m', owner:'J. Hartmann', flag:'🇳🇱', imo:'IMO-5432109', insurance:'Expired', berth:'2D' },
+  { name:'Blue Horizon', type:'Motor Yacht', length:'18m', draft:'2.4m', owner:'M. Osei', flag:'🇬🇭', imo:'IMO-4321098', insurance:'Valid until Jun 2026', berth:'2B' },
+];
+
+const SERVICES = [
+  { id:'SV-401', vessel:'Seabird III', type:'Fueling', requested:'Today 07:15', assigned:'Dock Team A', status:'in-progress' },
+  { id:'SV-402', vessel:'Ocean Star', type:'Pump-out', requested:'Today 08:30', assigned:'Unassigned', status:'pending' },
+  { id:'SV-403', vessel:'Lady K', type:'Provisioning', requested:'Today 09:00', assigned:'Dock Team B', status:'pending' },
+  { id:'SV-404', vessel:'Windseeker', type:'Maintenance', requested:'Yesterday 16:40', assigned:'Marine Technician', status:'completed' },
+  { id:'SV-405', vessel:'Blue Horizon', type:'Fueling', requested:'Today 10:15', assigned:'Dock Team A', status:'pending' },
+];
+
+const ACTIVITY = [
+  { color:'#0075de', text:'Ocean Star checked in to berth 1A. Capt. C. Hammond. Est. stay 4 nights.', time:'08:42 today' },
+  { color:'#1aae39', text:'Booking BK-1046 confirmed and paid. Blue Horizon arriving 24 Apr.', time:'08:15 today' },
+  { color:'#dd5b00', text:'Berth 3E flagged for maintenance. Electrical fault reported by dock crew.', time:'07:58 today' },
+  { color:'#2a9d99', text:'Service SV-401 started. Seabird III fueling at Station Alpha.', time:'07:20 today' },
+  { color:'#b01c1c', text:'Payment overdue for BK-1045 (Saltwater). Follow-up required.', time:'07:00 today' },
+  { color:'#615d59', text:'Puffin (BK-1047) pending confirmation. Owner contact: S. Yamamoto.', time:'Yesterday 22:14' },
+];
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+function Sidebar({ active, setActive }) {
+  const links = [
+    { id:'dashboard', icon:'layout-dashboard', label:'Dashboard' },
+    { id:'berths',    icon:'anchor',            label:'Berths' },
+    { id:'bookings',  icon:'calendar',          label:'Bookings', count: 3 },
+    { id:'fleet',     icon:'ship',              label:'Fleet' },
+    { id:'services',  icon:'wrench',            label:'Services', count: 4 },
+    { id:'map',       icon:'map',               label:'Port Map' },
+  ];
+  const settings = [
+    { id:'weather',   icon:'cloud-rain',        label:'Weather & Tide' },
+    { id:'settings',  icon:'settings',          label:'Settings' },
+  ];
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0075de" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="5" r="3"/>
+          <line x1="12" y1="8" x2="12" y2="22"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <path d="M5 12 Q3 18 7 20"/>
+          <path d="M19 12 Q21 18 17 20"/>
+          <path d="M7 20 Q12 23 17 20"/>
+        </svg>
+        <span className="sidebar-logo-text">DockBase</span>
+      </div>
+
+      <div className="sidebar-section-label">Operations</div>
+      {links.map(l => (
+        <div key={l.id} className={`sidebar-link${active===l.id?' active':''}`} onClick={()=>setActive(l.id)}>
+          <Icon name={l.icon} size={15}/>
+          {l.label}
+          {l.count && <span className="badge-count">{l.count}</span>}
+        </div>
+      ))}
+
+      <div className="sidebar-section-label">Admin</div>
+      {settings.map(l => (
+        <div key={l.id} className={`sidebar-link${active===l.id?' active':''}`} onClick={()=>setActive(l.id)}>
+          <Icon name={l.icon} size={15}/>
+          {l.label}
+        </div>
+      ))}
+
+      <div className="sidebar-bottom">
+        <div className="sidebar-user">
+          <div className="avatar">MH</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">M. Hargreaves</div>
+            <div className="sidebar-user-role">Harbor Master</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard() {
+  const occupied = BERTHS.filter(b=>b.status==='occupied').length;
+  const total = BERTHS.length;
+  return (
+    <div>
+      <div className="stat-grid">
+        <div className="card stat-card">
+          <div className="stat-label">Berths Occupied</div>
+          <div className="stat-value">{occupied}<span style={{fontSize:18,color:'#a39e98'}}>/{total}</span></div>
+          <div className="stat-sub">2 maintenance</div>
+          <div className="stat-trend trend-up">↑ 3 vs yesterday</div>
+        </div>
+        <div className="card stat-card">
+          <div className="stat-label">Arrivals Today</div>
+          <div className="stat-value" style={{color:'#0075de'}}>5</div>
+          <div className="stat-sub">Next: 11:00 Blue Horizon</div>
+          <div className="stat-trend trend-up">↑ On schedule</div>
+        </div>
+        <div className="card stat-card">
+          <div className="stat-label">Services Pending</div>
+          <div className="stat-value" style={{color:'#dd5b00'}}>4</div>
+          <div className="stat-sub">1 in progress</div>
+          <div className="stat-trend trend-down">↑ 2 unassigned</div>
+        </div>
+        <div className="card stat-card">
+          <div className="stat-label">Revenue Today</div>
+          <div className="stat-value">€ 1,240</div>
+          <div className="stat-sub">3 outstanding invoices</div>
+          <div className="stat-trend trend-up">↑ €340 vs avg</div>
+        </div>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 320px', gap:20}}>
+        {/* Activity */}
+        <div className="card" style={{padding:'20px 24px'}}>
+          <div className="section-header">
+            <div className="section-title">Recent Activity</div>
+            <button className="btn btn-ghost" style={{fontSize:12, padding:'4px 10px'}}>View all</button>
+          </div>
+          {ACTIVITY.map((a,i) => (
+            <div key={i} className="activity-item">
+              <div className="activity-dot" style={{background:a.color}}/>
+              <div>
+                <div className="activity-text">{a.text}</div>
+                <div className="activity-time">{a.time}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Right panel */}
+        <div style={{display:'flex', flexDirection:'column', gap:16}}>
+          {/* Weather */}
+          <div className="card" style={{padding:18}}>
+            <div className="section-header" style={{marginBottom:12}}>
+              <div className="section-title">Conditions</div>
+              <span className="badge badge-confirmed">Live</span>
+            </div>
+            <div className="weather-widget">
+              <div className="weather-item">
+                <div className="weather-val">14°C</div>
+                <div className="weather-label">Temp</div>
+              </div>
+              <div className="weather-item">
+                <div className="weather-val">12kn</div>
+                <div className="weather-label">Wind SW</div>
+              </div>
+              <div className="weather-item">
+                <div className="weather-val">0.6m</div>
+                <div className="weather-label">Swell</div>
+              </div>
+            </div>
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:11, color:'#a39e98', fontWeight:600, marginBottom:6}}>TIDE — 23 APR</div>
+              <div className="tide-chart">
+                <svg className="tide-svg" viewBox="0 0 240 60" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="tideGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0075de" stopOpacity="0.15"/>
+                      <stop offset="100%" stopColor="#0075de" stopOpacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M0 45 Q30 10 60 35 Q90 55 120 20 Q150 5 180 30 Q210 50 240 28 L240 60 L0 60 Z" fill="url(#tideGrad)"/>
+                  <path d="M0 45 Q30 10 60 35 Q90 55 120 20 Q150 5 180 30 Q210 50 240 28" fill="none" stroke="#0075de" strokeWidth="1.5"/>
+                  <circle cx="180" cy="30" r="3" fill="#0075de"/>
+                  <text x="185" y="26" fontSize="8" fill="#0075de" fontWeight="600">Now</text>
+                </svg>
+              </div>
+              <div style={{display:'flex', justifyContent:'space-between', marginTop:6, fontSize:11, color:'#615d59'}}>
+                <span>Low 14:22 · 1.2m</span>
+                <span>High 20:48 · 3.8m</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Bookings */}
+          <div className="card" style={{padding:18}}>
+            <div className="section-header" style={{marginBottom:12}}>
+              <div className="section-title">Pending Bookings</div>
+              <span className="badge badge-pending">3</span>
+            </div>
+            {BOOKINGS.filter(b=>b.status==='pending').map(b=>(
+              <div key={b.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 0', borderBottom:'var(--border-whisper)'}}>
+                <div>
+                  <div style={{fontSize:13, fontWeight:600}}>{b.vessel}</div>
+                  <div style={{fontSize:11, color:'#a39e98'}}>{b.dates}</div>
+                </div>
+                <button className="btn btn-primary" style={{fontSize:11, padding:'4px 10px'}}>Confirm</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Berths ───────────────────────────────────────────────────────────────────
+function Berths() {
+  const [filter, setFilter] = useState('all');
+  const filtered = filter==='all' ? BERTHS : BERTHS.filter(b=>b.status===filter);
+  const counts = { occupied: BERTHS.filter(b=>b.status==='occupied').length, available: BERTHS.filter(b=>b.status==='available').length, maintenance: BERTHS.filter(b=>b.status==='maintenance').length };
+
+  return (
+    <div>
+      <div className="filter-row">
+        {[['all','All',BERTHS.length],['occupied','Occupied',counts.occupied],['available','Available',counts.available],['maintenance','Maintenance',counts.maintenance]].map(([v,l,c])=>(
+          <div key={v} className={`filter-chip${filter===v?' active':''}`} onClick={()=>setFilter(v)}>{l} <span style={{opacity:.6}}>{c}</span></div>
+        ))}
+        <div style={{marginLeft:'auto'}}>
+          <button className="btn btn-primary" style={{gap:6}}><Icon name="plus" size={13}/>Add Berth</button>
+        </div>
+      </div>
+      <div className="berth-grid">
+        {filtered.map(b => (
+          <div key={b.id} className={`berth-cell ${b.status}`}>
+            <div className="berth-id">Berth {b.id}</div>
+            <div className="berth-vessel">{b.vessel || '—'}</div>
+            <div className="berth-size">{b.pier} · {b.length}</div>
+            <div style={{marginTop:6}}>
+              <span className={`badge badge-${b.status==='occupied'?'confirmed':b.status==='available'?'available':'maintenance'}`} style={{fontSize:10, padding:'1px 6px'}}>
+                {b.status}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Bookings ─────────────────────────────────────────────────────────────────
+function Bookings() {
+  const [selected, setSelected] = useState(null);
+  const [tab, setTab] = useState('all');
+  const filtered = tab==='all' ? BOOKINGS : BOOKINGS.filter(b=>b.status===tab);
+
+  return (
+    <div style={{display:'grid', gridTemplateColumns: selected ? '1fr 300px' : '1fr', gap:20, alignItems:'start'}}>
+      <div>
+        <div style={{display:'flex', gap:10, marginBottom:16, alignItems:'center'}}>
+          <div className="search-bar">
+            <Icon name="search" size={13} style={{color:'#a39e98'}}/>
+            <input placeholder="Search vessel or owner…"/>
+          </div>
+          <button className="btn btn-primary"><Icon name="plus" size={13}/>New Booking</button>
+        </div>
+        <div className="tabs">
+          {[['all','All'],['confirmed','Confirmed'],['pending','Pending'],['overdue','Overdue']].map(([v,l])=>(
+            <div key={v} className={`tab${tab===v?' active':''}`} onClick={()=>setTab(v)}>{l}</div>
+          ))}
+        </div>
+        <div className="card" style={{overflow:'hidden'}}>
+          <table>
+            <thead>
+              <tr>
+                <th>Booking</th><th>Vessel / Owner</th><th>Berth</th><th>Dates</th><th>Status</th><th>Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(b=>(
+                <tr key={b.id} style={{cursor:'pointer', background: selected?.id===b.id ? '#fafcff':''}} onClick={()=>setSelected(b)}>
+                  <td><div className="td-name">{b.id}</div></td>
+                  <td><div className="td-name">{b.vessel}</div><div className="td-sub">{b.owner}</div></td>
+                  <td style={{fontWeight:600, color:'#0075de'}}>{b.berth}</td>
+                  <td style={{color:'#615d59', fontSize:12}}>{b.dates} · <b style={{color:'rgba(0,0,0,.8)'}}>{b.nights}n</b></td>
+                  <td><span className={`badge badge-${b.status}`}>{b.status}</span></td>
+                  <td>
+                    {b.paid
+                      ? <span style={{fontSize:12, color:'#1a8c2e', fontWeight:600}}>✓ Paid</span>
+                      : <span style={{fontSize:12, color:'#dd5b00', fontWeight:600}}>Unpaid</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selected && (
+        <div className="detail-panel">
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16}}>
+            <div>
+              <div style={{fontSize:16, fontWeight:700, letterSpacing:'-0.2px'}}>{selected.id}</div>
+              <span className={`badge badge-${selected.status}`} style={{marginTop:6}}>{selected.status}</span>
+            </div>
+            <button className="btn btn-ghost" style={{padding:'4px 8px'}} onClick={()=>setSelected(null)}>✕</button>
+          </div>
+          <div className="detail-section">
+            <div className="detail-key">Vessel</div>
+            <div className="detail-val">{selected.vessel}</div>
+            <div style={{marginTop:8}} className="detail-key">Owner</div>
+            <div className="detail-val">{selected.owner}</div>
+          </div>
+          <div className="detail-section">
+            <div className="detail-key">Berth</div>
+            <div className="detail-val" style={{color:'#0075de'}}>{selected.berth}</div>
+            <div style={{marginTop:8}} className="detail-key">Dates</div>
+            <div className="detail-val">{selected.dates}</div>
+            <div style={{marginTop:8}} className="detail-key">Nights</div>
+            <div className="detail-val">{selected.nights}</div>
+          </div>
+          <div className="detail-section">
+            <div className="detail-key">Payment</div>
+            <div className="detail-val" style={{color: selected.paid ? '#1a8c2e':'#dd5b00'}}>{selected.paid ? 'Paid' : 'Outstanding'}</div>
+          </div>
+          <div style={{display:'flex', flexDirection:'column', gap:8}}>
+            {!selected.paid && <button className="btn btn-primary" style={{width:'100%', justifyContent:'center'}}>Mark as Paid</button>}
+            <button className="btn btn-secondary" style={{width:'100%', justifyContent:'center'}}>Edit Booking</button>
+            <button className="btn btn-ghost" style={{width:'100%', justifyContent:'center', color:'#b01c1c'}}>Cancel Booking</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Fleet ─────────────────────────────────────────────────────────────────────
+function Fleet() {
+  const [selected, setSelected] = useState(null);
+  return (
+    <div style={{display:'grid', gridTemplateColumns: selected ? '1fr 300px':'1fr', gap:20, alignItems:'start'}}>
+      <div>
+        <div style={{display:'flex', gap:10, marginBottom:16, alignItems:'center'}}>
+          <div className="search-bar">
+            <Icon name="search" size={13} style={{color:'#a39e98'}}/>
+            <input placeholder="Search vessel or owner…"/>
+          </div>
+          <button className="btn btn-primary"><Icon name="plus" size={13}/>Register Vessel</button>
+        </div>
+        <div className="card" style={{overflow:'hidden'}}>
+          <table>
+            <thead>
+              <tr><th>Vessel</th><th>Type</th><th>Owner</th><th>Length</th><th>Berth</th><th>Insurance</th></tr>
+            </thead>
+            <tbody>
+              {VESSELS.map(v=>(
+                <tr key={v.name} style={{cursor:'pointer', background:selected?.name===v.name?'#fafcff':''}} onClick={()=>setSelected(v)}>
+                  <td><div className="td-name">{v.name}</div><div className="td-sub">{v.imo}</div></td>
+                  <td><span className="badge badge-confirmed" style={{fontSize:10}}>{v.type}</span></td>
+                  <td style={{color:'#615d59', fontSize:13}}>{v.flag} {v.owner}</td>
+                  <td style={{fontWeight:600}}>{v.length}</td>
+                  <td style={{fontWeight:600, color:'#0075de'}}>{v.berth}</td>
+                  <td><span style={{fontSize:11, fontWeight:600, color: v.insurance.startsWith('Expired') ? '#b01c1c':'#1a8c2e'}}>{v.insurance.startsWith('Expired') ? '⚠ Expired':'✓ Valid'}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {selected && (
+        <div className="detail-panel">
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16}}>
+            <div style={{fontSize:16, fontWeight:700, letterSpacing:'-0.2px'}}>{selected.name}</div>
+            <button className="btn btn-ghost" style={{padding:'4px 8px'}} onClick={()=>setSelected(null)}>✕</button>
+          </div>
+          {[['Type',selected.type],['Length',selected.length],['Draft',selected.draft],['Owner',`${selected.flag} ${selected.owner}`],['IMO',selected.imo],['Current Berth',selected.berth],['Insurance',selected.insurance]].map(([k,v])=>(
+            <div key={k} className="detail-section" style={{padding:'10px 0', margin:0}}>
+              <div className="detail-key">{k}</div>
+              <div className="detail-val" style={{color: k==='Insurance' && v.startsWith('Expired') ? '#b01c1c' : k==='Current Berth' ? '#0075de' : undefined}}>{v}</div>
+            </div>
+          ))}
+          <div style={{display:'flex', flexDirection:'column', gap:8, marginTop:16}}>
+            <button className="btn btn-secondary" style={{width:'100%', justifyContent:'center'}}>Edit Vessel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Services ──────────────────────────────────────────────────────────────────
+function Services() {
+  return (
+    <div>
+      <div style={{display:'flex', gap:10, marginBottom:16, alignItems:'center'}}>
+        <button className="btn btn-primary"><Icon name="plus" size={13}/>New Service Request</button>
+      </div>
+      <div className="card" style={{overflow:'hidden'}}>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Vessel</th><th>Service</th><th>Requested</th><th>Assigned To</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {SERVICES.map(s=>(
+              <tr key={s.id}>
+                <td><div className="td-name">{s.id}</div></td>
+                <td style={{fontWeight:600}}>{s.vessel}</td>
+                <td><span className="badge badge-confirmed" style={{fontSize:10}}>{s.type}</span></td>
+                <td style={{color:'#615d59', fontSize:12}}>{s.requested}</td>
+                <td style={{fontSize:13, color: s.assigned==='Unassigned'?'#dd5b00':'rgba(0,0,0,0.85)', fontWeight: s.assigned==='Unassigned'?600:400}}>{s.assigned}</td>
+                <td>
+                  <span className={`badge ${s.status==='completed'?'badge-available':s.status==='in-progress'?'badge-confirmed':'badge-pending'}`}>{s.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Port Map placeholder ─────────────────────────────────────────────────────
+function PortMap() {
+  return (
+    <div className="card" style={{overflow:'hidden', height:'60vh', display:'flex', flexDirection:'column'}}>
+      <div style={{padding:'16px 20px', borderBottom:'var(--border-whisper)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <div style={{fontWeight:700, fontSize:15}}>Interactive Port Map</div>
+        <span className="badge badge-confirmed">Live</span>
+      </div>
+      <div style={{flex:1, background:'#f0f6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12}}>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0075de" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.4}}>
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.5"/>
+        </svg>
+        <div style={{fontWeight:600, color:'#615d59', fontSize:14}}>Port Map</div>
+        <div style={{color:'#a39e98', fontSize:13}}>Interactive berth map with live occupancy overlay — coming soon</div>
+        <div style={{display:'flex', gap:16, marginTop:8}}>
+          {BERTHS.slice(0,6).map(b=>(
+            <div key={b.id} style={{display:'flex', flexDirection:'column', alignItems:'center', gap:4}}>
+              <div style={{width:36, height:48, borderRadius:4, background: b.status==='occupied'?'#dbeeff':b.status==='available'?'#e8f7ec':'#fff4ec', border:`2px solid ${b.status==='occupied'?'#0075de':b.status==='available'?'#1aae39':'#dd5b00'}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color: b.status==='occupied'?'#0060b8':b.status==='available'?'#1a8c2e':'#c04a00'}}>{b.id}</div>
+              <div style={{fontSize:9, color:'#a39e98'}}>{b.pier}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Weather ───────────────────────────────────────────────────────────────────
+function Weather() {
+  return (
+    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20}}>
+      <div className="card" style={{padding:24}}>
+        <div style={{fontWeight:700, fontSize:15, marginBottom:16}}>Current Conditions</div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+          {[['Temperature','14°C','cloud'],['Wind','12kn SW','wind'],['Visibility','8km','eye'],['Pressure','1014 hPa','gauge']].map(([l,v,ic])=>(
+            <div key={l} style={{background:'var(--color-bg-alt)', borderRadius:8, padding:'14px', display:'flex', flexDirection:'column', gap:6}}>
+              <Icon name={ic} size={16} style={{color:'#0075de', opacity:.8}}/>
+              <div style={{fontSize:22, fontWeight:700, letterSpacing:'-0.5px'}}>{v}</div>
+              <div style={{fontSize:11, color:'#a39e98', fontWeight:600}}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card" style={{padding:24}}>
+        <div style={{fontWeight:700, fontSize:15, marginBottom:16}}>Tide Forecast — 23 Apr</div>
+        {[['Low tide','06:14','1.1m','#615d59'],['High tide','12:48','4.0m','#0075de'],['Low tide','14:22','1.2m','#615d59'],['High tide','20:48','3.8m','#0075de']].map(([type,time,height,color])=>(
+          <div key={time} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'var(--border-whisper)'}}>
+            <div style={{fontSize:13, fontWeight:600, color}}>{type}</div>
+            <div style={{fontSize:13, color:'#615d59'}}>{time}</div>
+            <div style={{fontSize:13, fontWeight:700}}>{height}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Screens map ───────────────────────────────────────────────────────────────
+const SCREENS = {
+  dashboard: { title:'Dashboard', component: Dashboard },
+  berths:    { title:'Berths',    component: Berths },
+  bookings:  { title:'Bookings',  component: Bookings },
+  fleet:     { title:'Fleet',     component: Fleet },
+  services:  { title:'Services',  component: Services },
+  map:       { title:'Port Map',  component: PortMap },
+  weather:   { title:'Weather & Tide', component: Weather },
+  settings:  { title:'Settings',  component: () => <div className="empty-state"><div className="empty-title">Settings</div><div className="empty-sub">Marina configuration, user management, integrations.</div></div> },
+};
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [active, setActiveRaw] = useState(() => localStorage.getItem('dockbase_screen') || 'dashboard');
+
+  function setActive(s) {
+    setActiveRaw(s);
+    localStorage.setItem('dockbase_screen', s);
+  }
+
+  const screen = SCREENS[active] || SCREENS.dashboard;
+  const Screen = screen.component;
+
+  return (
+    <div className="app">
+      <Sidebar active={active} setActive={setActive}/>
+      <div className="main">
+        <div className="topbar">
+          <div className="topbar-title">{screen.title}</div>
+          <div className="topbar-actions">
+            <div style={{fontSize:12, color:'#a39e98'}}>
+              <span style={{fontWeight:600, color:'#615d59'}}>Harwich Marina</span> &nbsp;·&nbsp; Wed 23 Apr 2026
+            </div>
+            <div style={{position:'relative', cursor:'pointer'}}>
+              <Icon name="bell" size={17} style={{color:'#615d59'}}/>
+              <div className="notif-dot" style={{position:'absolute', top:-1, right:-1, width:6, height:6}}></div>
+            </div>
+          </div>
+        </div>
+        <div className="content" data-screen-label={screen.title}>
+          <Screen/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

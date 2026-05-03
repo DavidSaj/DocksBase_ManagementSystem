@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import useInvoices from '../hooks/useInvoices.js';
 import useFuelEntries from '../hooks/useFuelEntries.js';
 import usePOSCatalog from '../hooks/usePOSCatalog.js';
+import useBoaterAccounts from '../hooks/useBoaterAccounts.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
@@ -56,6 +57,21 @@ export default function Billing() {
 
   const { items: posCatalog, loading: posLoading } = usePOSCatalog();
 
+  const {
+    accounts, loading: acctLoading, fetchAccounts,
+    selectedId, drawerData, drawerLoading,
+    openDrawer, refreshDrawer, closeDrawer,
+  } = useBoaterAccounts();
+
+  const [acctSearch, setAcctSearch]   = useState('');
+  const [acctShowAll, setAcctShowAll] = useState(false);
+
+  const [payAmount, setPayAmount]   = useState('');
+  const [payMethod, setPayMethod]   = useState('bank_transfer');
+  const [payNotes, setPayNotes]     = useState('');
+  const [payLoading, setPayLoading] = useState(false);
+  const [payModalInv, setPayModalInv] = useState(null);
+
   // Batch billing state
   const defaultPeriod = (() => {
     const d = new Date();
@@ -82,6 +98,10 @@ export default function Billing() {
   useEffect(() => {
     if (tab === 'accounts') fetchZReport(zDate);
   }, [tab, zDate, fetchZReport]);
+
+  useEffect(() => {
+    if (tab === 'boater-accounts') fetchAccounts({ search: acctSearch, showAll: acctShowAll });
+  }, [tab, acctSearch, acctShowAll, fetchAccounts]);
 
   async function runBatch() {
     setBatchLoading(true);
@@ -307,10 +327,61 @@ export default function Billing() {
 
   const count = (s) => invoices.filter(i => i.status === s).length;
 
+  async function recordPayment() {
+    if (!selectedId || !payAmount) return;
+    setPayLoading(true);
+    try {
+      await api.post(`/billing/accounts/${selectedId}/payments/`, {
+        amount: payAmount, method: payMethod, notes: payNotes,
+      });
+      setPayAmount(''); setPayNotes('');
+      await refreshDrawer(selectedId);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Payment failed.');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  function openPayModal(inv) {
+    setPayModalInv(inv);
+    setPayAmount(Number(inv.total).toFixed(2));
+    setPayMethod('cash');
+    setPayNotes('');
+  }
+
+  async function recordInvoicePayment() {
+    if (!payModalInv?.member || !payAmount) return;
+    setPayLoading(true);
+    try {
+      await api.post(`/billing/accounts/${payModalInv.member}/payments/`, {
+        amount: payAmount, method: payMethod, notes: payNotes,
+      });
+      setPayModalInv(null);
+      setPayAmount('');
+      setPayNotes('');
+      refetch();
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Payment failed.');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function sendInvite(memberId, email) {
+    try {
+      await api.post(`/billing/accounts/${memberId}/generate-invite/`);
+      alert(`Invite sent to ${email}`);
+      await refreshDrawer(memberId);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Failed to send invite.');
+    }
+  }
+
   return (
     <div>
       <div className="tabs">
-        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
+        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts'],['boater-accounts','Boater Accounts']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -347,7 +418,16 @@ export default function Billing() {
                     <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{inv.issued}</td>
                     <td style={{ fontSize: 12, fontWeight: inv.status==='overdue'?600:400, color: inv.status==='overdue'?'var(--red)':'rgba(0,0,0,0.45)' }}>{inv.due}</td>
                     <td><StatusBadge s={inv.status} /></td>
-                    <td><button className="btn btn-ghost btn-sm">{inv.status==='paid'?'View':'Chase'}</button></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {inv.status !== 'paid' && inv.member && (
+                          <button className="btn btn-primary btn-sm" onClick={() => openPayModal(inv)}>
+                            Record Payment
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm">{inv.status === 'paid' ? 'View' : 'Chase'}</button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -779,6 +859,296 @@ export default function Billing() {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {tab === 'boater-accounts' && !selectedId && (
+        <div>
+          <div className="sec-hdr">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                placeholder="Search member name…"
+                value={acctSearch}
+                onChange={e => setAcctSearch(e.target.value)}
+                style={{ border: 'var(--border)', borderRadius: 5, padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', width: 220 }}
+              />
+              <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                <input type="checkbox" checked={acctShowAll} onChange={e => setAcctShowAll(e.target.checked)} />
+                Show settled
+              </label>
+            </div>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Type</th><th>Berth</th>
+                  <th>Outstanding</th><th>Credit</th>
+                  <th>Open Inv.</th><th>Oldest Due</th><th>Portal</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {acctLoading ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : accounts.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No outstanding balances.</td></tr>
+                ) : accounts.map(a => {
+                  const isOverdue = a.oldest_due_date && new Date(a.oldest_due_date) < new Date();
+                  return (
+                    <tr key={a.member_id}>
+                      <td className="tbl-name">{a.name}</td>
+                      <td><span className="badge badge-navy">{a.member_type}</span></td>
+                      <td style={{ fontSize: 12 }}>{a.berth_code ?? '—'}</td>
+                      <td style={{ fontWeight: 700, color: isOverdue ? 'var(--red)' : 'inherit' }}>
+                        €{Number(a.total_outstanding).toFixed(2)}
+                      </td>
+                      <td style={{ fontSize: 12, color: Number(a.credit_on_account) > 0 ? 'var(--green)' : 'rgba(0,0,0,0.35)' }}>
+                        {Number(a.credit_on_account) > 0 ? `€${Number(a.credit_on_account).toFixed(2)}` : '—'}
+                      </td>
+                      <td style={{ fontSize: 12 }}>{a.open_invoice_count}</td>
+                      <td style={{ fontSize: 12, color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.45)' }}>
+                        {a.oldest_due_date ?? '—'}
+                      </td>
+                      <td>
+                        {a.portal_active
+                          ? <span className="badge badge-green">Active</span>
+                          : <span className="badge badge-gray">No portal</span>}
+                      </td>
+                      <td>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openDrawer(a.member_id)}>
+                          View Account →
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'boater-accounts' && selectedId && (
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+          {/* Dimmed list behind drawer */}
+          <div style={{ flex: 1, opacity: 0.4, pointerEvents: 'none', overflow: 'hidden', maxHeight: 400 }}>
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <table className="tbl">
+                <thead><tr><th>Name</th><th>Outstanding</th><th>Portal</th></tr></thead>
+                <tbody>
+                  {accounts.map(a => (
+                    <tr key={a.member_id}>
+                      <td className="tbl-name">{a.name}</td>
+                      <td>€{Number(a.total_outstanding).toFixed(2)}</td>
+                      <td>{a.portal_active ? '✓' : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Drawer */}
+          <div className="card" style={{ width: 480, flexShrink: 0, padding: 24 }}>
+            {drawerLoading && !drawerData ? (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '20px 0', textAlign: 'center' }}>Loading…</div>
+            ) : drawerData ? (
+              <>
+                {/* Header */}
+                <div style={{ marginBottom: 18 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={closeDrawer}>
+                    ← Back
+                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>{drawerData.member.name}</div>
+                      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                        <span className="badge badge-navy" style={{ marginRight: 6 }}>{drawerData.member.member_type}</span>
+                        {drawerData.member.berth_code ?? 'No berth'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--navy)' }}>
+                        €{Number(drawerData.summary.total_outstanding).toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>outstanding</div>
+                      {Number(drawerData.summary.credit_on_account) > 0 && (
+                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginTop: 4 }}>
+                          Credit: €{Number(drawerData.summary.credit_on_account).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}
+                    onClick={() => sendInvite(drawerData.member.id, drawerData.member.email)}
+                  >
+                    {drawerData.member.portal_active ? 'Re-send Portal Invite' : 'Generate Portal Invite'}
+                  </button>
+                </div>
+
+                {/* Record Payment form */}
+                <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Record Payment</div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder="Amount"
+                      value={payAmount}
+                      onChange={e => setPayAmount(e.target.value)}
+                      style={{ flex: 1, border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}
+                    />
+                    <select
+                      value={payMethod}
+                      onChange={e => setPayMethod(e.target.value)}
+                      style={{ border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}
+                    >
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="cash">Cash</option>
+                      <option value="external_card">Card</option>
+                    </select>
+                  </div>
+                  <input
+                    placeholder="Notes (optional)"
+                    value={payNotes}
+                    onChange={e => setPayNotes(e.target.value)}
+                    style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}
+                  />
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    disabled={!payAmount || payLoading}
+                    onClick={recordPayment}
+                  >
+                    {payLoading ? 'Recording…' : 'Record Payment'}
+                  </button>
+                </div>
+
+                {/* Invoice groups */}
+                {(['berth', 'fuel', 'restaurant', 'other']).map(cat => {
+                  const catLabels = { berth: 'Berth Fees', fuel: 'Fuel Dock', restaurant: 'Restaurant', other: 'Other' };
+                  const catSources = { berth: ['berth','booking'], fuel: ['fuel_dock'], restaurant: ['restaurant_order'], other: [] };
+                  const invoices = drawerData.open_invoices.filter(inv =>
+                    cat === 'other'
+                      ? !['berth','booking','fuel_dock','restaurant_order'].includes(inv.source_type)
+                      : catSources[cat].includes(inv.source_type)
+                  );
+                  if (invoices.length === 0) return null;
+                  const catTotal = invoices.reduce((s, inv) => s + Number(inv.total) - Number(inv.amount_paid_so_far), 0);
+                  return (
+                    <div key={cat} style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                        <span>{catLabels[cat]}</span>
+                        <span>€{catTotal.toFixed(2)}</span>
+                      </div>
+                      {invoices.map(inv => {
+                        const isOverdue = inv.due_date && new Date(inv.due_date) < new Date();
+                        const partiallyPaid = Number(inv.amount_paid_so_far) > 0;
+                        return (
+                          <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{inv.invoice_number}</div>
+                              <div style={{ fontSize: 11, color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.4)' }}>
+                                {inv.due_date ? `Due ${inv.due_date}` : 'No due date'}
+                                {isOverdue && <span className="badge badge-red" style={{ marginLeft: 6, fontSize: 9 }}>OVERDUE</span>}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 700 }}>
+                                €{(Number(inv.total) - Number(inv.amount_paid_so_far)).toFixed(2)}
+                              </div>
+                              {partiallyPaid && (
+                                <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>
+                                  €{Number(inv.amount_paid_so_far).toFixed(2)} of €{Number(inv.total).toFixed(2)} paid
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {drawerData.open_invoices.length === 0 && (
+                  <div style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', fontSize: 12, padding: '20px 0' }}>
+                    No outstanding charges.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Could not load account data.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {payModalInv && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setPayModalInv(null)}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Record Payment</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>
+              {payModalInv.invoice_number} · {payModalInv.member_name ?? 'Unknown'} · Invoice total €{Number(payModalInv.total).toFixed(2)}
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>AMOUNT RECEIVED (€)</div>
+              <input
+                type="number" step="0.01" min="0.01" autoFocus
+                value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 6 }}>PAYMENT METHOD</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[['cash', 'Cash'], ['external_card', 'Card'], ['bank_transfer', 'Bank Transfer']].map(([v, l]) => (
+                  <button
+                    key={v}
+                    onClick={() => setPayMethod(v)}
+                    style={{
+                      padding: '10px 4px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: payMethod === v ? '2px solid var(--navy)' : '1px solid rgba(0,0,0,0.15)',
+                      background: payMethod === v ? 'var(--navy)' : '#fff',
+                      color: payMethod === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                    }}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>NOTES (optional)</div>
+              <input
+                placeholder="e.g. Cash received, ref: 0042"
+                value={payNotes}
+                onChange={e => setPayNotes(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPayModalInv(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 2, justifyContent: 'center', fontSize: 13 }}
+                disabled={!payAmount || parseFloat(payAmount) <= 0 || payLoading}
+                onClick={recordInvoicePayment}
+              >
+                {payLoading
+                  ? 'Recording…'
+                  : `Record ${payMethod === 'cash' ? 'Cash' : payMethod === 'external_card' ? 'Card' : 'Bank Transfer'} — €${Number(payAmount || 0).toFixed(2)}`}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,0 +1,78 @@
+<h2>Marina Website — Visual Style Direction</h2>
+<p class="subtitle">Both use the same DocksBase color palette (navy / gold / teal). The difference is personality and layout density.</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0c1f3d; padding:0; overflow:hidden; height:280px; position:relative;">
+      <!-- Hero -->
+      <div style="position:absolute;inset:0;background:linear-gradient(160deg,#0c1f3d 60%,#1a6b6e 100%);"></div>
+      <div style="position:relative;padding:28px 24px 0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:32px;">
+          <div style="width:28px;height:28px;background:#b8965a;border-radius:4px;"></div>
+          <span style="color:#fff;font-family:Jost,sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;text-transform:uppercase;">Marina Adriatica</span>
+        </div>
+        <div style="color:#f5f0e6;font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;line-height:1.2;margin-bottom:10px;">Your berth awaits<br/>on the Adriatic.</div>
+        <div style="color:rgba(245,240,230,0.6);font-size:11px;margin-bottom:16px;">Full-service marina · 240 berths · Open year-round</div>
+        <div style="display:flex;gap:8px;">
+          <div style="background:#b8965a;color:#fff;font-size:10px;font-weight:600;padding:7px 14px;border-radius:4px;letter-spacing:0.5px;">CHECK AVAILABILITY</div>
+          <div style="border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.8);font-size:10px;padding:7px 14px;border-radius:4px;">OUR SERVICES</div>
+        </div>
+      </div>
+      <!-- floating card -->
+      <div style="position:absolute;bottom:16px;right:16px;background:rgba(255,255,255,0.08);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px 14px;width:140px;">
+        <div style="color:rgba(255,255,255,0.5);font-size:9px;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;">Available now</div>
+        <div style="color:#b8965a;font-size:18px;font-weight:700;">47 berths</div>
+        <div style="color:rgba(255,255,255,0.4);font-size:9px;">across 4 piers</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Dark & Premium</h3>
+      <p>Navy hero, Cormorant serif headlines, gold CTAs. Feels like a luxury sailing destination. Photography-forward once real images are added. Similar to high-end marina sites.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f4f3f0; padding:0; overflow:hidden; height:280px; position:relative;">
+      <!-- light nav -->
+      <div style="background:#fff;border-bottom:1px solid rgba(0,0,0,0.08);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:20px;height:20px;background:#0c1f3d;border-radius:3px;"></div>
+          <span style="color:#0c1f3d;font-family:Jost,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;">MARINA ADRIATICA</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="font-size:9px;color:#0c1f3d;opacity:0.6;">Services</span>
+          <span style="font-size:9px;color:#0c1f3d;opacity:0.6;">Berths</span>
+          <span style="font-size:9px;color:#0c1f3d;opacity:0.6;">Book</span>
+        </div>
+      </div>
+      <!-- search strip -->
+      <div style="background:#0c1f3d;padding:14px 20px;">
+        <div style="color:#f5f0e6;font-size:13px;font-weight:600;margin-bottom:10px;">Find your berth</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px;">
+          <div style="background:rgba(255,255,255,0.1);border-radius:4px;padding:7px 10px;font-size:9px;color:rgba(255,255,255,0.5);">Arrival date</div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:4px;padding:7px 10px;font-size:9px;color:rgba(255,255,255,0.5);">Vessel length</div>
+          <div style="background:#b8965a;border-radius:4px;padding:7px 10px;font-size:9px;color:#fff;font-weight:600;text-align:center;">Search</div>
+        </div>
+      </div>
+      <!-- berth cards -->
+      <div style="padding:12px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        {['Pier A · Slip 12','Pier B · Slip 03','Pier C · Slip 07'].map((b,i) => `
+        <div style="background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:6px;padding:8px;">
+          <div style="font-size:8px;color:#1a6b6e;font-weight:600;margin-bottom:3px;">AVAILABLE</div>
+          <div style="font-size:10px;font-weight:600;color:#0c1f3d;">${b}</div>
+          <div style="font-size:8px;color:rgba(0,0,0,0.4);">Up to 12m · €45/night</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Light & Functional</h3>
+      <p>White/cream base, prominent search bar above the fold, results immediately visible. Feels like a tool built for sailors who want to find and book fast. Closer to the management app's tone.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Click to select, then tell me in the terminal.</p>

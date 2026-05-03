@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: #fff; padding: 20px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.swatch { display: flex; flex-direction: column; gap: 6px; }
+.chip { width: 80px; height: 52px; border-radius: 8px; }
+.label { font-size: 11px; font-weight: 600; color: var(--color-gray-500); }
+.val   { font-size: 10px; color: var(--color-gray-300); font-family: monospace; }
+.role  { font-size: 10px; color: var(--color-gray-300); font-style: italic; }
+</style>
+</head><body>
+<div class="row">
+  <div class="swatch">
+    <div class="chip" style="background:#2a9d99;"></div>
+    <div class="label">Teal</div>
+    <div class="val">#2a9d99</div>
+    <div class="role">Success</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#1aae39;"></div>
+    <div class="label">Green</div>
+    <div class="val">#1aae39</div>
+    <div class="role">Confirmed</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#dd5b00;"></div>
+    <div class="label">Orange</div>
+    <div class="val">#dd5b00</div>
+    <div class="role">Warning</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#e8c400;"></div>
+    <div class="label">Amber</div>
+    <div class="val">#e8c400</div>
+    <div class="role">Caution</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#cc2222;"></div>
+    <div class="label">Red</div>
+    <div class="val">#cc2222</div>
+    <div class="role">Error / Alert</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#391c57;"></div>
+    <div class="label">Purple</div>
+    <div class="val">#391c57</div>
+    <div class="role">Premium</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#ff64c8;"></div>
+    <div class="label">Pink</div>
+    <div class="val">#ff64c8</div>
+    <div class="role">Decorative</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background:#523410;"></div>
+    <div class="label">Brown</div>
+    <div class="val">#523410</div>
+    <div class="role">Earthy accent</div>
+  </div>
+</div>
+</body></html>

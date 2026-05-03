@@ -2,6 +2,7 @@ import os
 import secrets as _secrets
 from pathlib import Path
 from datetime import timedelta
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -21,6 +22,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -49,6 +51,7 @@ LOCAL_APPS = [
     'apps.fuel_dock',
     'apps.portal',
     'apps.admin_portal',
+    'apps.mobile',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -57,6 +60,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'csp.middleware.CSPMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'apps.accounts.middleware.TenantMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -108,6 +112,7 @@ DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '')
 DROPBOX_SIGN_WEBHOOK_SECRET = os.environ.get('DROPBOX_SIGN_WEBHOOK_SECRET', '')
 
 DEFAULT_FROM_EMAIL = 'DocksBase <noreply@docksbase.com>'
+PORTAL_BASE_URL = os.environ.get('PORTAL_BASE_URL', 'https://portal.docksbase.com')
 
 PLAN_PRICES = {
     'starter': 149,
@@ -134,6 +139,14 @@ if _supabase_endpoint:
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+ASGI_APPLICATION = 'config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -158,6 +171,10 @@ REST_FRAMEWORK = {
         'user': '200/min',
     },
 }
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'X-Marina-Slug',
+]
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),

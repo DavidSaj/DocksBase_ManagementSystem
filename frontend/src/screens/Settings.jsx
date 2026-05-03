@@ -206,6 +206,21 @@ export default function Settings() {
     }
   }
 
+  const [permForm, setPermForm] = useState(null); // { user, perms: {...} } | null
+
+  async function savePermissions() {
+    if (!permForm) return;
+    try {
+      const { data } = await api.patch(`/marina/users/${permForm.user.id}/`, {
+        module_permissions: permForm.perms,
+      });
+      setUsers(prev => prev.map(u => u.id === permForm.user.id ? data : u));
+      setPermForm(null);
+    } catch {
+      alert('Could not save permissions.');
+    }
+  }
+
   // ── Feature flags ──────────────────────────────────────────────────────
 
   const [flags, setFlags] = useState({});
@@ -538,6 +553,7 @@ export default function Settings() {
 
       {/* ── USERS & ROLES ───────────────────────────────────────────── */}
       {tab === 'users' && (
+        <>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="sec-hdr">
             <div className="sec-hdr-title">Staff Accounts</div>
@@ -568,9 +584,19 @@ export default function Settings() {
                     <td><span className="badge badge-navy">{ROLE_LABELS[u.role] ?? u.role}</span></td>
                     <td><span className={`badge ${u.is_active ? 'badge-green' : 'badge-gray'}`}>{u.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>
-                      {u.is_active && u.role !== 'owner' && (
-                        <button className="btn btn-danger btn-sm" onClick={() => deactivateUser(u.id)}>Deactivate</button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {u.role === 'staff' && u.is_active && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => setPermForm({
+                            user: u,
+                            perms: u.module_permissions ?? {},
+                          })}>
+                            Permissions
+                          </button>
+                        )}
+                        {u.is_active && u.role !== 'owner' && (
+                          <button className="btn btn-danger btn-sm" onClick={() => deactivateUser(u.id)}>Deactivate</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -579,40 +605,69 @@ export default function Settings() {
           </div>
 
           <div className="card">
-            <div className="card-header"><div className="card-header-title">Role Permissions</div></div>
-            <div className="card-body">
-              <div style={{ overflowX: 'auto' }}>
-                <table className="tbl" style={{ minWidth: 540 }}>
-                  <thead>
-                    <tr><th>Module</th><th>Owner</th><th>Manager</th><th>Staff</th></tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      ['Marina Map',   true,  true,  true ],
-                      ['Reservations', true,  true,  true ],
-                      ['Boatyard',     true,  true,  false],
-                      ['Billing',      true,  true,  false],
-                      ['Members',      true,  true,  true ],
-                      ['Maintenance',  true,  true,  true ],
-                      ['Settings',     true,  false, false],
-                    ].map(([module, ...perms]) => (
-                      <tr key={module}>
-                        <td style={{ fontWeight: 600 }}>{module}</td>
-                        {perms.map((p, i) => (
-                          <td key={i} style={{ textAlign: 'center' }}>
-                            {p
-                              ? <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 14 }}>✓</span>
-                              : <span style={{ color: 'rgba(0,0,0,0.18)', fontSize: 12 }}>—</span>}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="card-header"><div className="card-header-title">Staff Module Access</div></div>
+            <div className="card-body" style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.6 }}>
+              Owners and Managers always have full access to every module. For Staff accounts, click <strong>Permissions</strong> on any staff user above to control which modules they can see. Modules not explicitly blocked default to accessible.
+              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {['overview','map','reservations','vessels','documents','boatyard','maintenance','staff','billing','reports','members','restaurant','events','sales'].map(m => (
+                  <span key={m} className="badge badge-navy" style={{ textTransform: 'none' }}>{m}</span>
+                ))}
               </div>
             </div>
           </div>
         </div>
+
+        {permForm && (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={e => e.target === e.currentTarget && setPermForm(null)}
+          >
+            <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 480, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Module Permissions</div>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>
+                {permForm.user.first_name} {permForm.user.last_name} · Staff
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 16 }}>
+                Toggle off to hide a module from this staff member's sidebar. All modules are on by default.
+              </div>
+              {[
+                ['overview',     'Overview'],
+                ['map',          'Marina Map'],
+                ['reservations', 'Reservations'],
+                ['vessels',      'Vessels'],
+                ['documents',    'Documents & eSign'],
+                ['boatyard',     'Boatyard'],
+                ['maintenance',  'Maintenance'],
+                ['staff',        'Staff Schedule'],
+                ['billing',      'Billing'],
+                ['reports',      'Reports'],
+                ['members',      'Members'],
+                ['restaurant',   'Restaurant'],
+                ['events',       'Events'],
+                ['sales',        'Sales'],
+              ].map(([id, label]) => {
+                const allowed = permForm.perms[id] !== false;
+                return (
+                  <div key={id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                    <span style={{ fontSize: 13, fontWeight: allowed ? 500 : 400, color: allowed ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.35)' }}>{label}</span>
+                    <Toggle
+                      on={allowed}
+                      onChange={val => setPermForm(f => ({
+                        ...f,
+                        perms: { ...f.perms, [id]: val },
+                      }))}
+                    />
+                  </div>
+                );
+              })}
+              <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPermForm(null)}>Cancel</button>
+                <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={savePermissions}>Save Permissions</button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* ── NOTIFICATIONS (Coming Soon) ──────────────────────────────── */}

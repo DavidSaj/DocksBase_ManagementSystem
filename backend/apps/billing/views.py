@@ -181,7 +181,7 @@ class ChargeableItemListCreateView(generics.ListCreateAPIView):
         serializer.save(marina=self.request.user.marina)
 
 
-class ChargeableItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ChargeableItemDetailView(generics.RetrieveUpdateAPIView):
     serializer_class   = ChargeableItemSerializer
     permission_classes = [IsAuthenticated]
 

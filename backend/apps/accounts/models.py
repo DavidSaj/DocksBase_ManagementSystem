@@ -1,7 +1,8 @@
 import uuid as _uuid
 from decimal import Decimal
-from django.db import models
+from django.db import models, IntegrityError as _IntegrityError, transaction as _transaction
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.utils.text import slugify
 
 
 def _default_onboarding():
@@ -52,6 +53,24 @@ class Marina(models.Model):
     fuel_berths = models.JSONField(default=list)
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name)[:96] or _uuid.uuid4().hex[:8]
+            slug = base
+            n = 1
+            while True:
+                try:
+                    with _transaction.atomic():
+                        self.slug = slug
+                        super().save(*args, **kwargs)
+                    return
+                except _IntegrityError:
+                    slug = f'{base}-{n}'
+                    n += 1
+        else:
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -91,6 +110,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     is_platform_admin = models.BooleanField(default=False)
+    module_permissions = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            'Per-module access for staff users. '
+            'Keys are module IDs; value false blocks access. '
+            'Empty dict means all modules allowed (default).'
+        ),
+    )
     platform_role = models.CharField(
         max_length=20,
         choices=[('admin', 'Admin'), ('support', 'Support')],

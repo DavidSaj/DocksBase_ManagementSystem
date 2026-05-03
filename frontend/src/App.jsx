@@ -3,6 +3,8 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
 import { useState, Component } from 'react';
+import { TenantProvider } from './context/TenantContext'
+import PortalApp from './portal/PortalApp'
 
 class ScreenErrorBoundary extends Component {
   constructor(props) {
@@ -44,8 +46,10 @@ import Restaurant   from './screens/Restaurant.jsx';
 import Events       from './screens/Events.jsx';
 import Settings     from './screens/Settings.jsx';
 import Documents    from './screens/Documents.jsx';
-import Sales        from './screens/Sales.jsx';
-import Operations   from './screens/Operations.jsx';
+import Sales           from './screens/Sales.jsx';
+import Operations      from './screens/Operations.jsx';
+import Infrastructure      from './screens/Infrastructure.jsx';
+import ServiceCatalogScreen from './screens/ServiceCatalogScreen.jsx';
 import Field        from './screens/Field.jsx';
 import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
@@ -53,12 +57,22 @@ import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
 import BoaterPortal from './screens/BoaterPortal.jsx';
 
+function getTenantSlug() {
+  const parts = window.location.hostname.split('.')
+  if (parts.length <= 1) return null
+  const sub = parts[0]
+  if (sub === 'app' || sub === 'www') return null
+  return sub
+}
+
 const SCREEN_MAP = {
   overview: Overview, map: MarinaMap, reservations: Reservations,
   vessels: Vessels, boatyard: Boatyard, maintenance: Maintenance,
   staff: Staff, billing: Billing, reports: Reports, members: Members,
   restaurant: Restaurant, events: Events, settings: Settings,
   documents: Documents, sales: Sales, operations: Operations,
+  infrastructure: Infrastructure,
+  'service-catalog': ServiceCatalogScreen,
 };
 
 function ComingSoon() {
@@ -90,6 +104,16 @@ function DesktopApp() {
 }
 
 export default function App() {
+  const tenantSlug = getTenantSlug()
+
+  if (tenantSlug) {
+    return (
+      <TenantProvider>
+        <PortalApp />
+      </TenantProvider>
+    )
+  }
+
   return (
     <AuthProvider>
       <Routes>

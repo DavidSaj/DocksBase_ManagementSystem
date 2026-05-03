@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: var(--color-bg-alt); padding: 24px; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+.level { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.card { background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.lbl { font-size: 10px; font-weight: 600; color: var(--color-gray-500); text-align: center; }
+.sub { font-size: 9px; color: var(--color-gray-300); text-align: center; }
+.txt { font-size: 11px; font-weight: 600; color: var(--color-gray-500); }
+</style>
+</head><body>
+<div class="row">
+  <div class="level">
+    <div class="card" style="width:80px; height:54px; border: var(--border-whisper); box-shadow:none;">
+      <div class="txt">Flat</div>
+    </div>
+    <div class="lbl">Level 0</div>
+    <div class="sub">No shadow<br>border only</div>
+  </div>
+  <div class="level">
+    <div class="card" style="width:90px; height:60px; box-shadow: var(--shadow-card);">
+      <div class="txt">Soft</div>
+    </div>
+    <div class="lbl">Level 2</div>
+    <div class="sub">4-layer<br>max 0.04</div>
+  </div>
+  <div class="level">
+    <div class="card" style="width:100px; height:68px; box-shadow: var(--shadow-deep);">
+      <div class="txt">Deep</div>
+    </div>
+    <div class="lbl">Level 3</div>
+    <div class="sub">5-layer<br>max 0.05</div>
+  </div>
+  <div class="level">
+    <div class="card" style="width:84px; height:56px; border: var(--border-whisper); outline: 2px solid #097fe8; outline-offset: 2px;">
+      <div class="txt">Focus</div>
+    </div>
+    <div class="lbl">Focus</div>
+    <div class="sub">2px solid<br>#097fe8</div>
+  </div>
+</div>
+</body></html>

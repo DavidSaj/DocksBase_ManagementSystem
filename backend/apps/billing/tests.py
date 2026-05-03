@@ -7,6 +7,8 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Marina, User
 from apps.members.models import Member
+from apps.berths.models import Pier, Berth
+from apps.billing.models import ChargeableItem
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -216,15 +218,18 @@ class ServiceLayerTest(TestCase):
         self.assertEqual(inv.total, Decimal('100.00'))
 
 
-from apps.berths.models import Pier, Berth
 from apps.reservations.models import Booking
 
 
 def make_berth(marina, price=Decimal('50.00')):
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
+    tier = ChargeableItem.objects.create(
+        marina=marina, name='Berth Night', category='berth',
+        pricing_model='per_night', unit_price=price,
+    )
     return Berth.objects.create(
         marina=marina, pier=pier, code='A1',
-        price_per_night=price, status='available',
+        pricing_tier=tier, status='available',
     )
 
 

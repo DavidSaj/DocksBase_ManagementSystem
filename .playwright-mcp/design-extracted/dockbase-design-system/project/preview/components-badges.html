@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-primary); background: #fff; padding: 20px 24px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.row:last-child { margin-bottom: 0; }
+.badge { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; line-height: 1.33; letter-spacing: 0.125px; padding: 3px 8px; border-radius: 9999px; }
+.divlabel { font-size: 10px; font-weight: 600; color: var(--color-gray-300); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+</style>
+</head><body>
+  <div class="divlabel">Status</div>
+  <div class="row">
+    <span class="badge" style="background:#f2f9ff; color:#097fe8">Available</span>
+    <span class="badge" style="background:#e8f7ec; color:#1a8c2e">Confirmed</span>
+    <span class="badge" style="background:#fff4ec; color:#c04a00">Pending</span>
+    <span class="badge" style="background:#fff0f0; color:#b01c1c">Overdue</span>
+    <span class="badge" style="background:#f0efed; color:#615d59">Inactive</span>
+    <span class="badge" style="background:#f0ecfa; color:#5a2d8a">Premium</span>
+  </div>
+  <div class="divlabel">Feature Labels</div>
+  <div class="row">
+    <span class="badge" style="background:#f2f9ff; color:#097fe8">New</span>
+    <span class="badge" style="background:#f2f9ff; color:#097fe8">Beta</span>
+    <span class="badge" style="background:#31302e; color:#fff">Pro</span>
+    <span class="badge" style="background:#f6f5f4; color:#615d59">Fuel</span>
+    <span class="badge" style="background:#f6f5f4; color:#615d59">Pump-out</span>
+    <span class="badge" style="background:#f6f5f4; color:#615d59">Maintenance</span>
+  </div>
+  <div class="divlabel">Vessel Types</div>
+  <div class="row">
+    <span class="badge" style="background:#e8f5ff; color:#0060b8">Sailboat</span>
+    <span class="badge" style="background:#e8f5ff; color:#0060b8">Motor Yacht</span>
+    <span class="badge" style="background:#e8f5ff; color:#0060b8">Catamaran</span>
+    <span class="badge" style="background:#e8f5ff; color:#0060b8">Dinghy</span>
+  </div>
+</body></html>
