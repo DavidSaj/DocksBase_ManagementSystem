@@ -221,12 +221,33 @@ class UtilisationReportViewTest(TestCase):
         self.assertEqual(b['days_occupied'], 4)
 
     def test_util_pct_correct(self):
-        import calendar as cal
         today = date.today()
-        days_in_month = cal.monthrange(today.year, today.month)[1]
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
         expected_pct = round(4 / days_in_month * 100, 1)
 
         resp = self.client.get('/api/v1/reports/utilisation/')
         data = resp.json()
         b = next(x for x in data['berths'] if x['berth'] == 'B1')
         self.assertAlmostEqual(b['util_pct'], expected_pct, places=1)
+
+    def test_booking_crossing_month_end_counted_correctly(self):
+        today = date.today()
+        month_start = today.replace(day=1)
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        month_end = date(today.year, today.month, days_in_month)
+
+        # Clear existing bookings first
+        Booking.objects.filter(marina=self.marina).delete()
+
+        # Booking that starts 2 days before month end and ends 3 days into next month
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=month_end - timedelta(days=2),
+            check_out=month_end + timedelta(days=3),
+            status='confirmed',
+        )
+        resp = self.client.get('/api/v1/reports/utilisation/')
+        data = resp.json()
+        b = next(x for x in data['berths'] if x['berth'] == 'B1')
+        # nights in month = 3 (month_end-2, month_end-1, month_end itself)
+        self.assertEqual(b['days_occupied'], 3)

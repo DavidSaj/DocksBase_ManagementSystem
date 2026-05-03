@@ -1,5 +1,5 @@
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Avg, Sum
@@ -164,18 +164,18 @@ class UtilisationReportView(APIView):
         data = []
         for b in berths:
             overlapping = b.bookings.filter(
-                status__in=['confirmed', 'checked_in', 'overstay'],
+                status__in=['confirmed', 'checked_in', 'checked_out', 'overstay'],
                 check_in__lte=month_end,
-                check_out__gte=month_start,
+                check_out__gt=month_start,
             )
             days_occupied = 0
             for bk in overlapping:
                 clamped_in = max(bk.check_in, month_start)
-                clamped_out = min(bk.check_out, month_end)
+                clamped_out = min(bk.check_out, month_end + timedelta(days=1))
                 nights = (clamped_out - clamped_in).days
                 days_occupied += max(1, nights)
 
-            util_pct = round(days_occupied / days_in_month * 100, 1)
+            util_pct = round(min(days_occupied, days_in_month) / days_in_month * 100, 1)
             data.append({
                 'berth': b.code,
                 'pier': b.pier.code if b.pier else '—',
