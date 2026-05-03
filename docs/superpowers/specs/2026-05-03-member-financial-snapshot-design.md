@@ -108,11 +108,16 @@ Three summary cards above the existing table:
 
 Bucket logic (client-side, computed from the `accounts` array):
 ```js
-const today = new Date();
 function ageDays(dateStr) {
-  return Math.floor((today - new Date(dateStr)) / 86_400_000);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);          // normalize to local midnight
+  const due = new Date(dateStr);
+  due.setHours(0, 0, 0, 0);            // normalize to local midnight
+  return Math.floor((today - due) / 86_400_000);
 }
 ```
+Both dates are normalized to local midnight before the diff, avoiding off-by-one errors for users in non-UTC timezones.
+
 Only members with `total_outstanding > 0` and a valid `oldest_due_date` that is past today count toward buckets.
 
 ### 3.3 Table sort
