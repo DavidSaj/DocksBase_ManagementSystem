@@ -182,7 +182,7 @@ export default function Members({ setScreen }) {
   }, [selId]);
 
   async function recordPayment() {
-    if (!payAmount || !sel?.id) return;
+    if (!payAmount || Number(payAmount) <= 0 || !sel?.id) return;
     setPayLoading(true);
     setPayError(null);
     try {
@@ -192,8 +192,12 @@ export default function Members({ setScreen }) {
         notes: payNotes,
       });
       setShowPayModal(false);
-      const r = await api.get(`/billing/accounts/${sel.id}/`);
-      setFinancialSnap(r.data);
+      try {
+        const r = await api.get(`/billing/accounts/${sel.id}/`);
+        setFinancialSnap(r.data);
+      } catch {
+        setFinancialSnap(null);
+      }
     } catch (ex) {
       setPayError(ex?.response?.data?.detail ?? 'Payment failed. Please try again.');
     } finally {
