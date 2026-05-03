@@ -1058,6 +1058,25 @@ export default function Billing() {
                   </button>
                 </div>
 
+                {/* Heavy account actions — placeholder until backend endpoints exist */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+                  {[
+                    'Apply Credit',
+                    'Issue Refund',
+                    'Send Payment Reminder',
+                  ].map(label => (
+                    <button
+                      key={label}
+                      className="btn btn-ghost"
+                      style={{ justifyContent: 'center', opacity: 0.4, cursor: 'not-allowed' }}
+                      disabled
+                      title="Coming soon"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Invoice groups */}
                 {(['berth', 'fuel', 'restaurant', 'other']).map(cat => {
                   const catLabels = { berth: 'Berth Fees', fuel: 'Fuel Dock', restaurant: 'Restaurant', other: 'Other' };
