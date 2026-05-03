@@ -3,7 +3,7 @@ import api from '../api'
 
 const TenantContext = createContext(null)
 
-function getSubdomain() {
+function getTenantSlug() {
   const hostname = window.location.hostname
   const parts = hostname.split('.')
   if (parts.length <= 1) return null
@@ -13,7 +13,7 @@ function getSubdomain() {
 }
 
 export function TenantProvider({ children }) {
-  const tenantSlug = getSubdomain()
+  const tenantSlug = getTenantSlug()
   const [marina, setMarina] = useState(null)
   const [isLoading, setIsLoading] = useState(!!tenantSlug)
 
