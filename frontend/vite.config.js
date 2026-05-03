@@ -38,6 +38,10 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, '../shared'),
     },
   },
+  server: {
+    host: true,
+    allowedHosts: ['.lvh.me', 'localhost'],
+  },
   test: {
     environment: 'jsdom',
     globals: true,
