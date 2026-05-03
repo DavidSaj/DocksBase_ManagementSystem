@@ -168,15 +168,18 @@ export default function Members({ setScreen }) {
     }
   }
 
+  const selId = sel?.id ?? null;
   useEffect(() => {
-    if (!sel?.id) { setFinancialSnap(null); return; }
+    if (!selId) { setFinancialSnap(null); return; }
+    let cancelled = false;
     setSnapLoading(true);
     setFinancialSnap(null);
-    api.get(`/billing/accounts/${sel.id}/`)
-      .then(r => setFinancialSnap(r.data))
-      .catch(() => setFinancialSnap(null))
-      .finally(() => setSnapLoading(false));
-  }, [sel?.id]);
+    api.get(`/billing/accounts/${selId}/`)
+      .then(r => { if (!cancelled) setFinancialSnap(r.data); })
+      .catch(() => { if (!cancelled) setFinancialSnap(null); })
+      .finally(() => { if (!cancelled) setSnapLoading(false); });
+    return () => { cancelled = true; };
+  }, [selId]);
 
   const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
@@ -252,7 +255,7 @@ export default function Members({ setScreen }) {
                       <div style={{ marginBottom: 10 }}>
                         {sortedInv.slice(0, 3).map(inv => {
                           const isOverdue = inv.due_date && new Date(inv.due_date) < new Date();
-                          const remaining = Number(inv.total) - Number(inv.amount_paid_so_far);
+                          const remaining = Number(inv.total ?? 0) - Number(inv.amount_paid_so_far ?? 0);
                           return (
                             <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 0', borderBottom: 'var(--border)' }}>
                               <span style={{ color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.55)' }}>
