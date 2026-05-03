@@ -381,7 +381,7 @@ export default function Billing() {
   return (
     <div>
       <div className="tabs">
-        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts'],['boater-accounts','Boater Accounts']].map(([v,l]) => (
+        {[['invoices','Invoices'],['boater-accounts','Boater Accounts'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
