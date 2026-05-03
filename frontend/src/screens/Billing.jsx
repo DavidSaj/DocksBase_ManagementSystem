@@ -6,6 +6,7 @@ import useBoaterAccounts from '../hooks/useBoaterAccounts.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
+import { ageDays } from '../utils/ageDays.js';
 
 function fmtInv(inv) {
   const rawAmt = inv.total ?? inv.amount;
@@ -865,6 +866,33 @@ export default function Billing() {
 
       {tab === 'boater-accounts' && !selectedId && (
         <div>
+          {/* Aging bucket summary */}
+          {(() => {
+            const today = new Date();
+            const overdue = accounts.filter(a =>
+              Number(a.total_outstanding) > 0 &&
+              a.oldest_due_date &&
+              new Date(a.oldest_due_date) < today
+            );
+            const under30 = overdue.filter(a => ageDays(a.oldest_due_date) < 30).length;
+            const d30to60 = overdue.filter(a => { const d = ageDays(a.oldest_due_date); return d >= 30 && d < 60; }).length;
+            const over60  = overdue.filter(a => ageDays(a.oldest_due_date) >= 60).length;
+            return (
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                {[
+                  ['< 30 Days',  under30, 'badge-orange'],
+                  ['30–60 Days', d30to60, 'badge-red'],
+                  ['60+ Days',   over60,  'badge-red'],
+                ].map(([label, count, cls]) => (
+                  <div key={label} className="card" style={{ padding: '12px 18px', display: 'flex', gap: 10, alignItems: 'center', flex: 1 }}>
+                    <span className={`badge ${cls}`} style={{ fontSize: 15, fontWeight: 700, minWidth: 26, textAlign: 'center' }}>{count}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           <div className="sec-hdr">
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
@@ -893,7 +921,11 @@ export default function Billing() {
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
                 ) : accounts.length === 0 ? (
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No outstanding balances.</td></tr>
-                ) : accounts.map(a => {
+                ) : [...accounts].sort((a, b) => {
+                  if (!a.oldest_due_date) return 1;
+                  if (!b.oldest_due_date) return -1;
+                  return new Date(a.oldest_due_date) - new Date(b.oldest_due_date);
+                }).map(a => {
                   const isOverdue = a.oldest_due_date && new Date(a.oldest_due_date) < new Date();
                   return (
                     <tr key={a.member_id}>
