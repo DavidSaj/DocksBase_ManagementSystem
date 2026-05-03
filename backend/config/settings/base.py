@@ -2,6 +2,7 @@ import os
 import secrets as _secrets
 from pathlib import Path
 from datetime import timedelta
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -58,6 +59,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'csp.middleware.CSPMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'apps.accounts.middleware.TenantMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -160,6 +162,10 @@ REST_FRAMEWORK = {
         'user': '200/min',
     },
 }
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'X-Marina-Slug',
+]
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
