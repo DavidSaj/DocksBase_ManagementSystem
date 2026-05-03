@@ -104,18 +104,8 @@ class OccupancyReportView(APIView):
             'reserved': reserved,
             'maintenance': maintenance,
             'occupancy_pct': round(occupied / total * 100, 1) if total else 0,
-            'arrivals_today': [
-                {'vessel': b.vessel.name if b.vessel else b.guest_name,
-                 'berth': b.berth.code if b.berth else '—',
-                 'status': b.status}
-                for b in arrivals
-            ],
-            'departures_today': [
-                {'vessel': b.vessel.name if b.vessel else b.guest_name,
-                 'berth': b.berth.code if b.berth else '—',
-                 'status': b.status}
-                for b in departures
-            ],
+            'arrivals_today': [_booking_to_dict(b) for b in arrivals],
+            'departures_today': [_booking_to_dict(b) for b in departures],
             'avg_stay_nights': avg_stay,
         })
 
