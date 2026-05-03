@@ -216,9 +216,15 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
+        update_fields = []
         if 'is_active' in request.data and instance.role != 'owner':
             instance.is_active = bool(request.data['is_active'])
-            instance.save(update_fields=['is_active'])
+            update_fields.append('is_active')
+        if 'module_permissions' in request.data and isinstance(request.data['module_permissions'], dict):
+            instance.module_permissions = request.data['module_permissions']
+            update_fields.append('module_permissions')
+        if update_fields:
+            instance.save(update_fields=update_fields)
         return Response(UserSerializer(instance).data)
 
 

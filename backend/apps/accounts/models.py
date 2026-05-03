@@ -110,6 +110,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     is_platform_admin = models.BooleanField(default=False)
+    module_permissions = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            'Per-module access for staff users. '
+            'Keys are module IDs; value false blocks access. '
+            'Empty dict means all modules allowed (default).'
+        ),
+    )
     platform_role = models.CharField(
         max_length=20,
         choices=[('admin', 'Admin'), ('support', 'Support')],

@@ -63,6 +63,15 @@ function getRoleLabel(role) {
   return map[role] || role;
 }
 
+function canAccess(user, moduleId) {
+  if (!user || user.role === 'owner' || user.role === 'manager') return true;
+  if (user.role !== 'staff') return false;
+  if (moduleId === 'settings') return false; // settings always owner/manager only
+  const perms = user.module_permissions ?? {};
+  if (Object.keys(perms).length === 0) return true; // no restrictions set — allow all
+  return perms[moduleId] !== false;
+}
+
 export default function Sidebar({ screen, setScreen }) {
   const { user, signOut } = useAuth();
   const { marina } = useMarina();
@@ -125,7 +134,9 @@ export default function Sidebar({ screen, setScreen }) {
 
       <div className="sb-nav">
         {NAV.map(group => {
-          const visibleItems = group.items.filter(item => !item.flag || features[item.flag]);
+          const visibleItems = group.items.filter(item =>
+            (!item.flag || features[item.flag]) && canAccess(user, item.id)
+          );
           if (visibleItems.length === 0) return null;
           return (
             <div key={group.group} className="sb-section">
