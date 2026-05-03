@@ -4,7 +4,7 @@ import { ageDays } from './ageDays';
 describe('ageDays', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-03T14:32:00'));
+    vi.setSystemTime(new Date('2026-05-03T14:32:00Z'));
   });
   afterEach(() => vi.useRealTimers());
 
