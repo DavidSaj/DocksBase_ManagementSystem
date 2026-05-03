@@ -163,25 +163,28 @@ class UtilisationReportView(APIView):
         berths = Berth.objects.filter(marina=marina).select_related('pier', 'vessel')
         data = []
         for b in berths:
-            days = 0
-            for booking in b.bookings.filter(
+            overlapping = b.bookings.filter(
+                status__in=['confirmed', 'checked_in', 'overstay'],
                 check_in__lte=month_end,
                 check_out__gte=month_start,
-                status__in=['confirmed', 'checked_in', 'checked_out'],
-            ):
-                overlap_start = max(booking.check_in, month_start)
-                overlap_end = min(booking.check_out, today)
-                if overlap_end > overlap_start:
-                    days += (overlap_end - overlap_start).days
+            )
+            days_occupied = 0
+            for bk in overlapping:
+                clamped_in = max(bk.check_in, month_start)
+                clamped_out = min(bk.check_out, month_end)
+                nights = (clamped_out - clamped_in).days
+                days_occupied += max(1, nights)
 
+            util_pct = round(days_occupied / days_in_month * 100, 1)
             data.append({
-                'berth':           b.code,
-                'pier':            b.pier.code if b.pier else '',
-                'status':          b.status,
-                'vessel':          b.vessel.name if b.vessel else None,
-                'days_this_month': days,
-                'util_pct':        round(days / days_in_month * 100, 1) if days_in_month else 0,
+                'berth': b.code,
+                'pier': b.pier.code if b.pier else '—',
+                'status': b.status,
+                'vessel': b.vessel.name if b.vessel else None,
+                'days_occupied': days_occupied,
+                'util_pct': util_pct,
             })
+
         return Response({'berths': data})
 
 

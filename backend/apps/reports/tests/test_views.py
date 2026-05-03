@@ -163,3 +163,70 @@ class OccupancyReportViewTest(TestCase):
         resp = self.client.get('/api/v1/reports/occupancy/')
         data = resp.json()
         self.assertIsNone(data['avg_stay_nights'])
+
+
+class UtilisationReportViewTest(TestCase):
+    def setUp(self):
+        self.user, self.marina = make_user_with_marina('util@test.com')
+        self.client = auth_client(self.user)
+
+        pricing_tier = ChargeableItem.objects.create(
+            marina=self.marina, name='Berth Night', category='berth',
+            pricing_model='per_night', unit_price=Decimal('50.00'),
+        )
+        pier = Pier.objects.create(
+            marina=self.marina, code='B',
+            polygon_points=[[0,0],[10,0],[10,5],[0,5]],
+        )
+        self.berth = Berth.objects.create(
+            marina=self.marina, pier=pier,
+            code='B1', status='occupied', pricing_tier=pricing_tier,
+        )
+        self.vessel = Vessel.objects.create(
+            marina=self.marina, name='Day Tripper',
+        )
+
+        today = date.today()
+        month_start = today.replace(day=1)
+
+        # Booking occupying 3 days this month (confirmed)
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=month_start,
+            check_out=month_start + timedelta(days=3),
+            status='confirmed',
+        )
+        # Same-day booking (day stay) — should count as 1 day
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=month_start + timedelta(days=5),
+            check_out=month_start + timedelta(days=5),
+            status='confirmed',
+        )
+
+    def test_berths_list_has_utilisation_fields(self):
+        resp = self.client.get('/api/v1/reports/utilisation/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('berths', data)
+        b = data['berths'][0]
+        self.assertIn('days_occupied', b)
+        self.assertIn('util_pct', b)
+
+    def test_days_occupied_correct(self):
+        resp = self.client.get('/api/v1/reports/utilisation/')
+        data = resp.json()
+        b = next(x for x in data['berths'] if x['berth'] == 'B1')
+        # 3 nights + 1 (day stay) = 4 days occupied
+        self.assertEqual(b['days_occupied'], 4)
+
+    def test_util_pct_correct(self):
+        import calendar as cal
+        today = date.today()
+        days_in_month = cal.monthrange(today.year, today.month)[1]
+        expected_pct = round(4 / days_in_month * 100, 1)
+
+        resp = self.client.get('/api/v1/reports/utilisation/')
+        data = resp.json()
+        b = next(x for x in data['berths'] if x['berth'] == 'B1')
+        self.assertAlmostEqual(b['util_pct'], expected_pct, places=1)
