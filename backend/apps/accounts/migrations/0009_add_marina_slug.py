@@ -5,9 +5,10 @@ from django.utils.text import slugify
 
 
 def populate_slugs(apps, schema_editor):
+    import uuid
     Marina = apps.get_model('accounts', 'Marina')
     for marina in Marina.objects.all():
-        base = slugify(marina.name)
+        base = slugify(marina.name)[:96] or uuid.uuid4().hex[:8]
         slug = base
         n = 1
         while Marina.objects.filter(slug=slug).exclude(pk=marina.pk).exists():

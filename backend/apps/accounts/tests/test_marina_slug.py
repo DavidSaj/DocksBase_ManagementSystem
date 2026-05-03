@@ -24,3 +24,13 @@ class MarinaSlugTest(TestCase):
         Marina.objects.create(name='Alpha', slug='alpha')
         with self.assertRaises(IntegrityError):
             Marina.objects.create(name='Beta', slug='alpha')
+
+    def test_empty_name_gets_uuid_slug(self):
+        marina = Marina.objects.create(name='')
+        self.assertTrue(len(marina.slug) > 0)
+        self.assertNotEqual(marina.slug, '')
+
+    def test_long_name_slug_fits_max_length(self):
+        long_name = 'A' * 200
+        marina = Marina.objects.create(name=long_name)
+        self.assertLessEqual(len(marina.slug), 100)

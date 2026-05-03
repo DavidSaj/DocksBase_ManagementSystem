@@ -1,6 +1,6 @@
 import uuid as _uuid
 from decimal import Decimal
-from django.db import models
+from django.db import models, IntegrityError as _IntegrityError, transaction as _transaction
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils.text import slugify
 
@@ -57,14 +57,20 @@ class Marina(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(self.name)
+            base = slugify(self.name)[:96] or _uuid.uuid4().hex[:8]
             slug = base
             n = 1
-            while Marina.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f'{base}-{n}'
-                n += 1
-            self.slug = slug
-        super().save(*args, **kwargs)
+            while True:
+                try:
+                    with _transaction.atomic():
+                        self.slug = slug
+                        super().save(*args, **kwargs)
+                    return
+                except _IntegrityError:
+                    slug = f'{base}-{n}'
+                    n += 1
+        else:
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
