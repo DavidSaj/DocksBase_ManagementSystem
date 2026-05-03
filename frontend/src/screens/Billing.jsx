@@ -104,6 +104,15 @@ export default function Billing() {
     if (tab === 'boater-accounts') fetchAccounts({ search: acctSearch, showAll: acctShowAll });
   }, [tab, acctSearch, acctShowAll, fetchAccounts]);
 
+  // Cross-screen jump: Members screen stores a member ID here before navigating to Billing
+  useEffect(() => {
+    const pendingId = localStorage.getItem('billing_open_member');
+    if (!pendingId) return;
+    localStorage.removeItem('billing_open_member');
+    setTab('boater-accounts');
+    openDrawer(Number(pendingId));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function runBatch() {
     setBatchLoading(true);
     setBatchResult(null);
