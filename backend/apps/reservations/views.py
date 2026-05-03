@@ -46,7 +46,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
         check_out = serializer.validated_data['check_out']
         berth     = serializer.validated_data.get('berth')
         nights    = (check_out - check_in).days or 1
-        price     = berth.price_per_night if berth else None
+        price     = berth.pricing_tier.unit_price if berth else None
         amount    = (price * nights) if price is not None else None
         serializer.save(marina=self.request.user.marina, nights=nights, amount=amount)
         # Auto-generate a draft invoice from the price book (best-effort — never blocks the booking)
@@ -202,7 +202,7 @@ class BookingEngineRequestView(APIView):
                     raise ValueError('Berth has no price set — cannot create invoice.')
                 billing_service.add_line_item(
                     inv,
-                    description=f'Berth {booking.berth.code} — {nights_label} @ {booking.berth.price_per_night}/night',
+                    description=f'Berth {booking.berth.code} — {nights_label} @ {booking.berth.pricing_tier.unit_price}/night',
                     quantity=1,
                     unit_price=booking.amount,
                 )
@@ -272,8 +272,8 @@ class AssignBerthView(APIView):
             )
 
         nights = booking.nights or 1
-        price = berth.price_per_night
-        amount = (price * nights) if price is not None else 0
+        price = berth.pricing_tier.unit_price
+        amount = price * nights
         due_date = datetime.date.today() + datetime.timedelta(days=request.user.marina.payment_terms)
         nights_label = f'{nights} night{"s" if nights != 1 else ""}'
 
@@ -293,7 +293,7 @@ class AssignBerthView(APIView):
                 )
                 billing_service.add_line_item(
                     inv,
-                    description=f'Berth {berth.code} — {nights_label} @ {berth.price_per_night}/night',
+                    description=f'Berth {berth.code} — {nights_label} @ {berth.pricing_tier.unit_price}/night',
                     quantity=1,
                     unit_price=amount,
                 )

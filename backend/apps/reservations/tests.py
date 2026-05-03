@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
-from apps.billing.models import Invoice, InvoiceLineItem
+from apps.billing.models import Invoice, InvoiceLineItem, ChargeableItem
 from apps.billing import service as billing_service
 from apps.members.models import Member
 from apps.vessels.models import Vessel
@@ -20,8 +20,12 @@ def make_user(marina):
 
 def make_berth(marina, price=50):
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
+    tier = ChargeableItem.objects.create(
+        marina=marina, name='Berth Night', category='berth',
+        pricing_model='per_night', unit_price=price,
+    )
     return Berth.objects.create(
-        marina=marina, pier=pier, code='A1', price_per_night=price, status='available'
+        marina=marina, pier=pier, code='A1', pricing_tier=tier, status='available'
     )
 
 
@@ -126,10 +130,14 @@ from .booking_engine import compatible_available_berths, run_tetris, create_manu
 
 def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='T', defaults={'label': 'Test Pier'})
+    tier, _ = ChargeableItem.objects.get_or_create(
+        marina=marina, name='Berth Night', category='berth',
+        defaults={'pricing_model': 'per_night', 'unit_price': price},
+    )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code,
         length_m=loa, max_beam_m=beam,
-        price_per_night=price, status='available',
+        pricing_tier=tier, status='available',
     )
 
 

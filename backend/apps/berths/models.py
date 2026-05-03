@@ -65,12 +65,9 @@ class Berth(models.Model):
     max_draft_m    = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     max_beam_m     = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     amenities      = models.JSONField(default=list, blank=True)
-    price_per_night = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     pricing_tier = models.ForeignKey(
         'billing.ChargeableItem',
-        null=True,         # Temporary: allows null during data migration step
-        blank=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         limit_choices_to={'category': 'berth'},
         related_name='berths',
     )

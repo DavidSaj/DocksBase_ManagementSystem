@@ -124,8 +124,8 @@ class BookingRequest(models.Model):
             self.vessel = vessel
 
         nights = (self.end_date - self.start_date).days or 1
-        price  = self.berth.price_per_night
-        amount = (price * nights) if price is not None else None
+        price  = self.berth.pricing_tier.unit_price
+        amount = price * nights
 
         booking = Booking.objects.create(
             marina=self.marina,

@@ -21,7 +21,7 @@ class BerthSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'pier', 'pier_code', 'side', 'position_index',
             'length_m', 'max_draft_m', 'max_beam_m', 'amenities',
-            'price_per_night', 'status', 'vessel', 'vessel_name',
+            'pricing_tier', 'status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
         ]
         read_only_fields = ['id', 'pier_code', 'vessel_name', 'is_placed']

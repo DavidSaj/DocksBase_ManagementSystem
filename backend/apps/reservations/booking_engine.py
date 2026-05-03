@@ -137,8 +137,8 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, guest_name, gue
 
     best_berth = scored[0][1]
     nights = (check_out - check_in).days or 1
-    price = best_berth.price_per_night
-    amount = (Decimal(str(price)) * nights) if price is not None else None
+    price = best_berth.pricing_tier.unit_price
+    amount = Decimal(str(price)) * nights
 
     return Booking.objects.create(
         marina=marina,
