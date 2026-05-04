@@ -1,11 +1,15 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTenant } from './context/TenantContext';
 import Magic from './screens/Magic';
 import BookingDashboard from './screens/BookingDashboard';
+import BookingRequest from './screens/BookingRequest';
+import BookingRequestSent from './screens/BookingRequestSent';
 
 export default function App() {
   const [params] = useSearchParams();
   const { marina, isLoading, tenantSlug, customDomain } = useTenant();
+  const [submitted, setSubmitted] = useState(false);
 
   if (params.get('token')) return <Magic />;
 
@@ -30,6 +34,11 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  if (marina.booking_mode === 'manual_approval') {
+    if (submitted) return <BookingRequestSent marina={marina} />;
+    return <BookingRequest marina={marina} onSubmitted={() => setSubmitted(true)} />;
   }
 
   return (
