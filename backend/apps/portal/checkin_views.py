@@ -2,6 +2,9 @@ import datetime
 import hmac
 import hashlib
 
+import dropbox_sign
+from dropbox_sign import ApiClient, Configuration, apis, models as ds_models
+
 from django.conf import settings
 from django.core import signing
 from django.utils import timezone
@@ -111,3 +114,99 @@ class SelfCheckinView(PortalBookingMixin, APIView):
             booking.save(update_fields=['self_checked_in', 'self_checked_in_at', 'status'])
 
         return Response(PortalBookingSerializer(booking).data)
+
+
+def is_valid_dropbox_sign_request(request_body: bytes, secret: str) -> bool:
+    try:
+        from dropbox_sign import EventCallbackHelper
+        return EventCallbackHelper.is_valid_request(request_body, secret)
+    except Exception:
+        return False
+
+
+def get_sign_url(booking, template_id, client_id, api_key):
+    configuration = Configuration(username=api_key)
+    with ApiClient(configuration) as api_client:
+        sig_api = apis.SignatureRequestApi(api_client)
+        embedded_api = apis.EmbeddedApi(api_client)
+
+        data = ds_models.SignatureRequestCreateEmbeddedWithTemplateRequest(
+            client_id=client_id,
+            template_ids=[template_id],
+            subject='Marina Waiver',
+            signers=[
+                ds_models.SubSignatureRequestTemplateSigner(
+                    role='Boater',
+                    name=booking.guest_name or 'Boater',
+                    email_address=booking.guest_email,
+                )
+            ],
+            metadata={'booking_id': str(booking.id)},
+        )
+        sig_response = sig_api.signature_request_create_embedded_with_template(data)
+        envelope_id = sig_response.signature_request.signature_request_id
+        signature_id = sig_response.signature_request.signatures[0].signature_id
+
+        url_response = embedded_api.embedded_sign_url(signature_id)
+        sign_url = url_response.embedded.sign_url
+
+    return envelope_id, sign_url
+
+
+class WaiverView(PortalBookingMixin, APIView):
+    def post(self, request, pk):
+        booking, err = self.get_booking(request, pk)
+        if err:
+            return err
+
+        if not booking.marina.waiver_template_id:
+            return Response(
+                {'detail': 'No waiver template configured for this marina.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        api_key = settings.DROPBOX_SIGN_API_KEY
+        client_id = settings.DROPBOX_SIGN_CLIENT_ID
+
+        if booking.waiver_envelope_id:
+            envelope_id, sign_url = get_sign_url(
+                booking, booking.marina.waiver_template_id, client_id, api_key
+            )
+        else:
+            envelope_id, sign_url = get_sign_url(
+                booking, booking.marina.waiver_template_id, client_id, api_key
+            )
+            booking.waiver_envelope_id = envelope_id
+            booking.save(update_fields=['waiver_envelope_id'])
+
+        return Response({'sign_url': sign_url})
+
+
+class DropboxSignWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        if not is_valid_dropbox_sign_request(request.body, settings.DROPBOX_SIGN_WEBHOOK_SECRET):
+            return Response({'detail': 'Invalid signature.'}, status=status.HTTP_403_FORBIDDEN)
+
+        payload = request.data
+        event_type = payload.get('event', {}).get('event_type', '')
+
+        if event_type != 'signature_request_all_signed':
+            return Response({'status': 'ignored'})
+
+        booking_id = payload.get('signature_request', {}).get('metadata', {}).get('booking_id')
+        if not booking_id:
+            return Response({'status': 'no booking_id in metadata'})
+
+        try:
+            booking = Booking.objects.get(pk=int(booking_id))
+        except (Booking.DoesNotExist, ValueError):
+            return Response({'status': 'booking not found'})
+
+        booking.waiver_signed = True
+        booking.save(update_fields=['waiver_signed'])
+        evaluate_pre_cleared(booking)
+
+        return Response({'status': 'ok'})

@@ -358,3 +358,105 @@ class SelfCheckinViewTest(TestCase):
         self.booking.save()
         resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/self-checkin/')
         self.assertEqual(resp.status_code, 200)
+
+
+from unittest.mock import patch, MagicMock
+import json
+
+
+class WaiverViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.marina.waiver_template_id = 'tmpl_abc123'
+        self.marina.save()
+        self.booking = make_booking(self.marina)
+        session_token = make_portal_token(
+            booking_id=self.booking.id,
+            marina_slug=self.marina.slug,
+            boater_email=self.booking.guest_email,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+
+    @patch('apps.portal.checkin_views.get_sign_url')
+    def test_waiver_view_returns_sign_url(self, mock_get_sign_url):
+        mock_get_sign_url.return_value = ('env_abc', 'https://sign.hellosign.com/...')
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('sign_url', resp.data)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.waiver_envelope_id, 'env_abc')
+
+    @patch('apps.portal.checkin_views.get_sign_url')
+    def test_waiver_view_idempotent_when_envelope_exists(self, mock_get_sign_url):
+        self.booking.waiver_envelope_id = 'existing_env'
+        self.booking.save()
+        mock_get_sign_url.return_value = ('existing_env', 'https://sign.hellosign.com/existing')
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_waiver_view_400_when_no_template(self):
+        self.marina.waiver_template_id = None
+        self.marina.save()
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 400)
+
+
+class DropboxSignWebhookTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.booking = make_booking(self.marina)
+        self.booking.waiver_envelope_id = 'env_xyz'
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        self.booking.boat_draft = 1.5
+        self.booking.save()
+
+    def _make_payload(self, event_type, booking_id):
+        return json.dumps({
+            'event': {
+                'event_type': event_type,
+                'event_time': '1649948325',
+                'event_hash': 'ignored-in-tests',
+            },
+            'signature_request': {
+                'signature_request_id': 'env_xyz',
+                'metadata': {'booking_id': str(booking_id)},
+            },
+        })
+
+    @patch('apps.portal.checkin_views.is_valid_dropbox_sign_request', return_value=True)
+    def test_webhook_sets_waiver_signed_and_pre_cleared(self, _mock):
+        payload = self._make_payload('signature_request_all_signed', self.booking.id)
+        resp = self.client.post(
+            '/api/v1/portal/checkin/webhooks/dropbox-sign/',
+            data=payload,
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.waiver_signed)
+        self.assertTrue(self.booking.pre_cleared)
+
+    @patch('apps.portal.checkin_views.is_valid_dropbox_sign_request', return_value=False)
+    def test_webhook_rejects_invalid_hmac(self, _mock):
+        payload = self._make_payload('signature_request_all_signed', self.booking.id)
+        resp = self.client.post(
+            '/api/v1/portal/checkin/webhooks/dropbox-sign/',
+            data=payload,
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    @patch('apps.portal.checkin_views.is_valid_dropbox_sign_request', return_value=True)
+    def test_webhook_ignores_other_event_types(self, _mock):
+        payload = self._make_payload('signature_request_viewed', self.booking.id)
+        resp = self.client.post(
+            '/api/v1/portal/checkin/webhooks/dropbox-sign/',
+            data=payload,
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.waiver_signed)
