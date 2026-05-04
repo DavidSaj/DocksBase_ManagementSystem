@@ -3,8 +3,6 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
 import { useState, Component } from 'react';
-import { TenantProvider, detectTenant } from './context/TenantContext'
-import PortalApp from './portal/PortalApp'
 
 class ScreenErrorBoundary extends Component {
   constructor(props) {
@@ -97,14 +95,6 @@ function DesktopApp() {
 }
 
 export default function App() {
-  if (detectTenant()) {
-    return (
-      <TenantProvider>
-        <PortalApp />
-      </TenantProvider>
-    )
-  }
-
   return (
     <AuthProvider>
       <Routes>

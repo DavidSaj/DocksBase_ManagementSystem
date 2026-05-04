@@ -1,22 +1,23 @@
-import { useTenant } from '../context/TenantContext'
+import { useTenant } from './context/TenantContext';
 
-export default function PortalApp() {
-  const { marina, isLoading, tenantSlug } = useTenant()
+export default function App() {
+  const { marina, isLoading, tenantSlug, customDomain } = useTenant();
 
   if (isLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <p>Loading...</p>
+        <p>Loading…</p>
       </div>
-    )
+    );
   }
 
   if (!marina) {
+    const identifier = tenantSlug || customDomain || 'this marina';
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <p>Marina &quot;{tenantSlug}&quot; not found.</p>
+        <p>Marina &quot;{identifier}&quot; not found.</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -24,5 +25,5 @@ export default function PortalApp() {
       <h1>{marina.name}</h1>
       <p>Online booking coming soon.</p>
     </div>
-  )
+  );
 }
