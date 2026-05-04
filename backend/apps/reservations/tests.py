@@ -748,3 +748,20 @@ class BerthCapableForTest(TestCase):
         self.assertIn(self.big_berth.pk, ids)
         self.assertIn(self.small_berth.pk, ids)
 
+    def test_capable_for_cross_marina_booking_returns_400(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_booking = Booking.objects.create(
+            marina=other_marina,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            boat_loa=12.5,
+        )
+        resp = self.client.get(f'/api/v1/berths/?capable_for={other_booking.pk}')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_capable_for_non_integer_returns_400(self):
+        resp = self.client.get('/api/v1/berths/?capable_for=abc')
+        self.assertEqual(resp.status_code, 400)
+
