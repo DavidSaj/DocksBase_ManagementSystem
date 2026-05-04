@@ -153,6 +153,17 @@ def get_sign_url(booking, template_id, client_id, api_key):
     return envelope_id, sign_url
 
 
+def get_existing_sign_url(envelope_id, api_key):
+    configuration = Configuration(username=api_key)
+    with ApiClient(configuration) as api_client:
+        sig_api = apis.SignatureRequestApi(api_client)
+        embedded_api = apis.EmbeddedApi(api_client)
+        sig_response = sig_api.signature_request_get(envelope_id)
+        signature_id = sig_response.signature_request.signatures[0].signature_id
+        url_response = embedded_api.embedded_sign_url(signature_id)
+        return url_response.embedded.sign_url
+
+
 class WaiverView(PortalBookingMixin, APIView):
     def post(self, request, pk):
         booking, err = self.get_booking(request, pk)
@@ -169,9 +180,7 @@ class WaiverView(PortalBookingMixin, APIView):
         client_id = settings.DROPBOX_SIGN_CLIENT_ID
 
         if booking.waiver_envelope_id:
-            envelope_id, sign_url = get_sign_url(
-                booking, booking.marina.waiver_template_id, client_id, api_key
-            )
+            sign_url = get_existing_sign_url(booking.waiver_envelope_id, api_key)
         else:
             envelope_id, sign_url = get_sign_url(
                 booking, booking.marina.waiver_template_id, client_id, api_key

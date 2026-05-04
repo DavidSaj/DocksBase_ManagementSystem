@@ -387,13 +387,15 @@ class WaiverViewTest(TestCase):
         self.booking.refresh_from_db()
         self.assertEqual(self.booking.waiver_envelope_id, 'env_abc')
 
-    @patch('apps.portal.checkin_views.get_sign_url')
-    def test_waiver_view_idempotent_when_envelope_exists(self, mock_get_sign_url):
+    @patch('apps.portal.checkin_views.get_existing_sign_url')
+    def test_waiver_view_idempotent_when_envelope_exists(self, mock_get_existing):
         self.booking.waiver_envelope_id = 'existing_env'
         self.booking.save()
-        mock_get_sign_url.return_value = ('existing_env', 'https://sign.hellosign.com/existing')
+        mock_get_existing.return_value = 'https://sign.hellosign.com/existing'
         resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
         self.assertEqual(resp.status_code, 200)
+        self.assertIn('sign_url', resp.data)
+        self.assertEqual(resp.data['sign_url'], 'https://sign.hellosign.com/existing')
 
     def test_waiver_view_400_when_no_template(self):
         self.marina.waiver_template_id = None
