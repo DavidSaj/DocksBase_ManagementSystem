@@ -153,32 +153,46 @@ describe('computeAbsPosition', () => {
 })
 
 describe('snapBerthToPier', () => {
+  // Vertical pier (canvas_h > canvas_w) → berthW=1, berthH=2
   const pier = { id: 1, canvas_x: 10, canvas_y: 5, canvas_w: 2, canvas_h: 8, rotation: 0 }
 
   it('returns null when mouse is far from any pier', () => {
-    expect(snapBerthToPier(0, 0, [pier], 2, 1)).toBeNull()
+    expect(snapBerthToPier(0, 0, [pier])).toBeNull()
   })
 
   it('snaps to port side (left edge) when mouse is near left edge', () => {
     // Pier left edge absX = canvas_x - canvas_w/2 = 10 - 1 = 9
-    const result = snapBerthToPier(8, 5, [pier], 2, 1)
+    const result = snapBerthToPier(8, 5, [pier])
     expect(result).not.toBeNull()
     expect(result.pierId).toBe(1)
     expect(result.position_on_parent.side).toBe('port')
+    expect(result.berthW).toBe(1)
+    expect(result.berthH).toBe(2)
   })
 
   it('snaps to starboard side (right edge) when mouse is near right edge', () => {
     // Pier right edge absX = canvas_x + canvas_w/2 = 10 + 1 = 11
-    const result = snapBerthToPier(12, 5, [pier], 2, 1)
+    const result = snapBerthToPier(12, 5, [pier])
     expect(result).not.toBeNull()
     expect(result.position_on_parent.side).toBe('starboard')
   })
 
   it('slot_index is 0 for the topmost berth position', () => {
     // pier: canvas_y=5, canvas_h=8 → top of pier = cy - halfH = 1
-    // berthH=1, so top slot center clamps to cy - halfH + 0.5 = 1.5
-    const result = snapBerthToPier(8, 1, [pier], 2, 1)
+    // berthH=2, top slot center clamps to cy - halfH + berthH/2 = 1 + 1 = 2
+    const result = snapBerthToPier(8, 1, [pier])
     expect(result).not.toBeNull()
     expect(result.position_on_parent.slot_index).toBe(0)
+  })
+
+  it('snaps horizontal pier to top or bottom edge', () => {
+    // Horizontal pier (canvas_w > canvas_h) → berthW=2, berthH=1
+    const hPier = { id: 2, canvas_x: 10, canvas_y: 5, canvas_w: 8, canvas_h: 2, rotation: 0 }
+    // Top edge = 5 - 1 = 4, mouse at (10, 3) is SNAP_RADIUS=2 away → within range
+    const result = snapBerthToPier(10, 3, [hPier])
+    expect(result).not.toBeNull()
+    expect(result.position_on_parent.side).toBe('port')
+    expect(result.berthW).toBe(2)
+    expect(result.berthH).toBe(1)
   })
 })

@@ -12,10 +12,18 @@ class PierSerializer(serializers.ModelSerializer):
         ]
 
 
+_ACTIVE_BOOKING_STATUSES = frozenset([
+    'confirmed', 'pending', 'awaiting_payment', 'pending_payment',
+    'checked_in', 'overstay',
+])
+_OCCUPIED_STATUSES = frozenset(['checked_in', 'overstay'])
+
+
 class BerthSerializer(serializers.ModelSerializer):
-    pier_code   = serializers.CharField(source='pier.code', read_only=True, default=None)
-    vessel_name = serializers.CharField(source='vessel.name', read_only=True, default=None)
-    is_placed   = serializers.SerializerMethodField()
+    pier_code        = serializers.CharField(source='pier.code', read_only=True, default=None)
+    vessel_name      = serializers.CharField(source='vessel.name', read_only=True, default=None)
+    is_placed        = serializers.SerializerMethodField()
+    effective_status = serializers.SerializerMethodField()
     pricing_tier = serializers.PrimaryKeyRelatedField(
         queryset=ChargeableItem.objects.filter(category='berth'),
         allow_null=True,
@@ -25,15 +33,26 @@ class BerthSerializer(serializers.ModelSerializer):
     class Meta:
         model = Berth
         fields = [
-            'id', 'code', 'pier', 'pier_code', 'side', 'position_index',
+            'id', 'code', 'berth_type', 'pier', 'pier_code', 'side', 'position_index',
             'length_m', 'max_draft_m', 'max_beam_m', 'amenities',
-            'pricing_tier', 'status', 'vessel', 'vessel_name',
+            'pricing_tier', 'status', 'effective_status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
         ]
-        read_only_fields = ['id', 'pier_code', 'vessel_name', 'is_placed']
+        read_only_fields = ['id', 'pier_code', 'vessel_name', 'is_placed', 'effective_status']
 
     def get_is_placed(self, obj):
         return obj.pier_id is not None and obj.local_x is not None and obj.local_y is not None
+
+    def get_effective_status(self, obj):
+        if obj.status == 'maintenance':
+            return 'maintenance'
+        # obj.bookings.all() uses the prefetch_related cache — no extra query
+        active = [b for b in obj.bookings.all() if b.status in _ACTIVE_BOOKING_STATUSES]
+        if not active:
+            return obj.status
+        if any(b.status in _OCCUPIED_STATUSES for b in active):
+            return 'occupied'
+        return 'reserved'
 
     def validate_pricing_tier(self, value):
         if value and value.category != 'berth':

@@ -30,19 +30,25 @@ export default function BerthDetailPanel({ berth, onClose }) {
 
   if (!berth) return null
 
-  const statusColors = {
-    available:   '#1a8c2e',
-    occupied:    '#0075de',
-    reserved:    '#dd5b00',
-    maintenance: '#c0392b',
+  const STATUS_COLOR = {
+    available:   'var(--green)',
+    occupied:    'var(--blue)',
+    reserved:    'var(--orange)',
+    maintenance: 'var(--red)',
   }
-  const statusColor = statusColors[berth.status] ?? '#888'
+  const STATUS_BADGE = {
+    available:   'badge-green',
+    occupied:    'badge-blue',
+    reserved:    'badge-gold',
+    maintenance: 'badge-red',
+  }
+  const statusColor = STATUS_COLOR[berth.status] ?? '#888'
 
   return (
     <div style={{
       width: 280, flexShrink: 0,
-      background: '#0c1f3d',
-      borderLeft: '1px solid #1e3a5f',
+      background: 'var(--white)',
+      borderLeft: 'var(--border)',
       display: 'flex', flexDirection: 'column',
       overflowY: 'auto',
       fontFamily: 'var(--font)',
@@ -50,70 +56,65 @@ export default function BerthDetailPanel({ berth, onClose }) {
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 14px',
-        borderBottom: '1px solid #1e3a5f',
+        padding: '12px 16px',
+        borderBottom: 'var(--border)',
       }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#f0e8d8' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(0,0,0,0.85)' }}>
             Berth {berth.code}
           </div>
-          <div style={{ fontSize: 11, color: statusColor, marginTop: 2, textTransform: 'capitalize' }}>
-            ● {berth.status}
+          <div style={{ fontSize: 11, color: statusColor, marginTop: 3 }}>
+            <span className={`badge ${STATUS_BADGE[berth.status] ?? 'badge-gray'}`}>{berth.status}</span>
           </div>
         </div>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+          style={{ background: 'none', border: 'none', color: 'rgba(0,0,0,0.35)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 4 }}
         >
           ×
         </button>
       </div>
 
-      {/* Static berth info */}
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid #1e3a5f' }}>
-        <Label>Dimensions</Label>
-        <Row label="Length"    value={berth.length_m    ? `${berth.length_m}m` : '—'} />
-        <Row label="Max Draft" value={berth.max_draft_m ? `${berth.max_draft_m}m` : '—'} />
-        <Row label="Max Beam"  value={berth.max_beam_m  ? `${berth.max_beam_m}m` : '—'} />
+      {/* Dimensions */}
+      <div style={{ padding: '12px 16px', borderBottom: 'var(--border)' }}>
+        <SectionLabel>Dimensions</SectionLabel>
+        <Row label="Length"    value={berth.length_m    ? `${berth.length_m} m` : '—'} />
+        <Row label="Max Draft" value={berth.max_draft_m ? `${berth.max_draft_m} m` : '—'} />
+        <Row label="Max Beam"  value={berth.max_beam_m  ? `${berth.max_beam_m} m` : '—'} />
 
         {berth.price_per_night && (
           <>
-            <Label style={{ marginTop: 10 }}>Pricing</Label>
+            <SectionLabel style={{ marginTop: 12 }}>Pricing</SectionLabel>
             <Row label="Per Night" value={`€${Number(berth.price_per_night).toFixed(2)}`} />
           </>
         )}
 
         {berth.amenities?.length > 0 && (
           <>
-            <Label style={{ marginTop: 10 }}>Amenities</Label>
+            <SectionLabel style={{ marginTop: 12 }}>Amenities</SectionLabel>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
               {berth.amenities.map(a => (
-                <span key={a} style={{
-                  fontSize: 10, padding: '2px 7px', borderRadius: 10,
-                  background: '#1e3a5f', color: '#a8c8d8', border: '1px solid #2a5a7a',
-                }}>
-                  {a}
-                </span>
+                <span key={a} className="badge badge-teal" style={{ fontSize: 10 }}>{a}</span>
               ))}
             </div>
           </>
         )}
       </div>
 
-      {/* Active booking section */}
-      <div style={{ padding: '12px 14px', flex: 1 }}>
+      {/* Booking */}
+      <div style={{ padding: '12px 16px', flex: 1 }}>
         {berth.status === 'available' ? (
           <>
-            <div style={{ fontSize: 12, color: '#5a7a9a', marginBottom: 10 }}>No active booking</div>
-            <ActionButton href={`/bookings/new?berth=${berth.id}`}>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginBottom: 12 }}>No active booking.</div>
+            <button className="btn btn-primary btn-sm" style={{ width: '100%' }}>
               Create Booking
-            </ActionButton>
+            </button>
           </>
         ) : loadingBooking ? (
-          <div style={{ fontSize: 11, color: '#5a7a9a' }}>Loading booking…</div>
+          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Loading booking…</div>
         ) : booking ? (
           <>
-            <Label>Active Booking</Label>
+            <SectionLabel>Active Booking</SectionLabel>
             <Row label="Vessel"    value={booking.vessel_name ?? booking.guest_name ?? '—'} />
             <Row label="Check In"  value={booking.check_in} />
             <Row label="Check Out" value={booking.check_out} />
@@ -121,49 +122,31 @@ export default function BerthDetailPanel({ berth, onClose }) {
             <Row label="Amount"    value={booking.amount ? `€${Number(booking.amount).toFixed(2)}` : '—'} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-              <ActionButton onClick={() => alert('Check-out flow TBD')}>
-                Check Out
-              </ActionButton>
-              <ActionButton secondary href={`/bookings/${booking.id}`}>
-                View Full Booking
-              </ActionButton>
+              <button className="btn btn-primary btn-sm" style={{ width: '100%' }}>Check Out</button>
+              <button className="btn btn-ghost btn-sm" style={{ width: '100%' }}>View Booking</button>
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 11, color: '#5a7a9a' }}>No checked-in booking found.</div>
+          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>No checked-in booking found.</div>
         )}
       </div>
     </div>
   )
 }
 
-function Label({ children, style }) {
+function SectionLabel({ children, style }) {
   return (
-    <div style={{ fontSize: 10, letterSpacing: '0.8px', color: '#b8965a', fontWeight: 700, marginBottom: 4, ...style }}>
-      {children.toUpperCase()}
+    <div style={{ fontSize: 10, letterSpacing: '0.8px', color: 'var(--gold)', fontWeight: 700, marginBottom: 6, ...style }}>
+      {String(children).toUpperCase()}
     </div>
   )
 }
 
 function Row({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-      <span style={{ color: '#7a9ab8' }}>{label}</span>
-      <span style={{ color: '#c8d8e8', fontWeight: 500 }}>{value}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
+      <span style={{ color: 'rgba(0,0,0,0.45)' }}>{label}</span>
+      <span style={{ color: 'rgba(0,0,0,0.75)', fontWeight: 500 }}>{value}</span>
     </div>
   )
-}
-
-function ActionButton({ children, onClick, href, secondary }) {
-  const style = {
-    display: 'block', textAlign: 'center', textDecoration: 'none',
-    padding: '7px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-    cursor: 'pointer',
-    background: secondary ? 'transparent' : '#b8965a',
-    color: secondary ? '#7a9ab8' : 'white',
-    border: secondary ? '1px solid #2a5a7a' : 'none',
-    fontFamily: 'var(--font)',
-  }
-  if (href) return <a href={href} style={style}>{children}</a>
-  return <button onClick={onClick} style={style}>{children}</button>
 }

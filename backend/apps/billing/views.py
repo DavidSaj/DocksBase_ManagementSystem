@@ -7,6 +7,7 @@ from django.conf import settings
 from django.db.models import Sum
 from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status as http_status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -173,6 +174,8 @@ class ChargeableItemListCreateView(generics.ListCreateAPIView):
     serializer_class   = ChargeableItemSerializer
     permission_classes = [IsAuthenticated]
     pagination_class   = None
+    filter_backends    = [DjangoFilterBackend]
+    filterset_fields   = ['category', 'is_active']
 
     def get_queryset(self):
         return ChargeableItem.objects.filter(marina=self.request.user.marina)

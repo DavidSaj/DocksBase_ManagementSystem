@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 
 const TITLE_MAP = {
   overview:     'Overview',
-  map:          'Marina Map',
+  map:          'Harbour',
   reservations: 'Reservations',
   vessels:      'Vessel Registry',
   boatyard:     'Boatyard',

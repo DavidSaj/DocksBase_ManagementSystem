@@ -8,7 +8,7 @@ import useSidebarCounts from '../../hooks/useSidebarCounts.js';
 export const NAV = [
   { group: 'Daily Operations', items: [
     { id: 'overview',        icon: 'grid',       label: 'Overview' },
-    { id: 'map',             icon: 'map',        label: 'Live Map' },
+    { id: 'map',             icon: 'map',        label: 'Harbour' },
     { id: 'reservations',    icon: 'calendar',   label: 'Reservations' },
     { id: 'billing',         icon: 'dollar',     label: 'Billing & POS', alert: true },
     { id: 'operations',      icon: 'zap',        label: 'Operations' },
