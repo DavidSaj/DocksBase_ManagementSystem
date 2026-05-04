@@ -28,7 +28,7 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
 class BerthListCreateView(generics.ListCreateAPIView):
     serializer_class = BerthSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['status', 'pier', 'berth_type']
+    filterset_fields = ['status', 'pier', 'berth_type', 'operational_type']
 
     def get_queryset(self):
         from apps.reservations.models import Booking
