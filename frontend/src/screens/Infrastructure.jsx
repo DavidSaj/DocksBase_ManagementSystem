@@ -275,7 +275,7 @@ function BulkCreateModal({ onClose, onCreated }) {
             {[['standard', 'Standard'], ['operational', 'Operational']].map(([v, l]) => (
               <button
                 key={v} type="button"
-                onClick={() => set('berth_class', v)}
+                onClick={() => setForm(f => ({ ...f, berth_class: v, operational_type: v === 'standard' ? '' : f.operational_type }))}
                 style={{
                   padding: '5px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
                   border: `1.5px solid ${form.berth_class === v ? 'var(--navy)' : 'rgba(0,0,0,0.15)'}`,
