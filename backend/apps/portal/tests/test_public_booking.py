@@ -11,9 +11,10 @@ class PublicBookingCreateTest(TestCase):
         self.marina = Marina.objects.create(name='Test Marina', slug='test-marina', booking_mode='manual_approval')
         self.client = APIClient()
         self.url = '/api/v1/public/bookings/'
+        today = datetime.date.today()
         self.payload = {
-            'check_in': '2026-07-15',
-            'check_out': '2026-07-22',
+            'check_in': str(today + datetime.timedelta(days=30)),
+            'check_out': str(today + datetime.timedelta(days=37)),
             'guest_name': 'J. Sailor',
             'guest_email': 'sailor@example.com',
             'boat_loa': 12.5,
@@ -69,3 +70,8 @@ class PublicBookingCreateTest(TestCase):
     def test_no_slug_header_returns_400_or_404(self):
         resp = self.client.post(self.url, self.payload, format='json')
         self.assertIn(resp.status_code, [400, 404])
+
+    def test_check_in_in_past_returns_400(self):
+        payload = {**self.payload, 'check_in': '2020-01-01', 'check_out': '2020-01-08'}
+        resp = self._post(payload)
+        self.assertEqual(resp.status_code, 400)
