@@ -676,6 +676,7 @@ export default function Reservations() {
         <div className="card" style={{ padding: 20 }}>
           <PendingRequestsTab
             onApproved={() => setPendingCount(c => Math.max(0, c - 1))}
+            onRejected={() => setPendingCount(c => Math.max(0, c - 1))}
           />
         </div>
       )}

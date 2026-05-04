@@ -10,31 +10,40 @@ function timeSince(dateStr) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export default function PendingRequestsTab({ onApproved }) {
+export default function PendingRequestsTab({ onApproved, onRejected }) {
   const [bookings, setBookings] = useState([]);
   const [selected, setSelected] = useState(null);
   const [approving, setApproving] = useState(false);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rejectError, setRejectError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const load = () =>
-    api.get('/bookings/', { params: { status: 'pending_approval' } })
+  const load = () => {
+    setLoading(true);
+    return api.get('/bookings/', { params: { status: 'pending_approval' } })
       .then(r => {
         const items = r.data.results ?? r.data;
         setBookings([...items].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
-      });
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => { load(); }, []);
 
   const handleReject = async () => {
     setBusy(true);
+    setRejectError('');
     try {
       await api.post(`/bookings/${rejectTarget.id}/reject/`, { reason: rejectReason });
       setRejectTarget(null);
       setRejectReason('');
       setSelected(null);
       load();
+      onRejected?.();
+    } catch (e) {
+      setRejectError(e.response?.data?.detail || 'Rejection failed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -42,6 +51,9 @@ export default function PendingRequestsTab({ onApproved }) {
 
   const cell = { padding: '8px 12px', fontSize: 13, borderBottom: '1px solid rgba(0,0,0,0.06)' };
 
+  if (loading) {
+    return <div style={{ padding: 32, color: 'rgba(0,0,0,0.4)', textAlign: 'center' }}>Loading…</div>;
+  }
   if (bookings.length === 0) {
     return <div style={{ padding: 32, color: 'rgba(0,0,0,0.4)', textAlign: 'center' }}>No pending requests.</div>;
   }
@@ -94,6 +106,7 @@ export default function PendingRequestsTab({ onApproved }) {
               >
                 {busy ? 'Sending…' : 'Send Rejection'}
               </button>
+              {rejectError && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 6 }}>{rejectError}</div>}
               <button
                 onClick={() => setRejectTarget(null)}
                 style={{ width: '100%', padding: '6px 0', marginTop: 6, background: 'none', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
