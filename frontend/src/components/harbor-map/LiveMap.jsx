@@ -1,5 +1,5 @@
 // frontend/src/components/harbor-map/LiveMap.jsx
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import usePiers from '../../hooks/usePiers.js'
 import useBerths from '../../hooks/useBerths.js'
 import useMapConfig from '../../hooks/useMapConfig.js'
@@ -17,9 +17,17 @@ const STATUS_COLORS = {
   maintenance: { fill: 'rgba(192,57,43,0.2)',   stroke: '#c0392b' },
 }
 
+const FUELING_COLOR = { fill: 'rgba(240,160,32,0.35)', stroke: '#c87010' }
+
 // Build shapes[] for CanvasCore: env items + piers + berths with status colors
-function buildLiveShapes(piers, berths, envItems) {
+function buildLiveShapes(piers, berths, envItems, fuelEntries) {
   const pierById = Object.fromEntries(piers.map(p => [p.id, p]))
+
+  const serviceFuelByBerthId = Object.fromEntries(
+    (fuelEntries ?? [])
+      .filter(e => e.status === 'service' && e.fuel_berth != null)
+      .map(e => [e.fuel_berth, e])
+  )
 
   const pierShapes = piers
     .filter(p => p.canvas_x != null)
@@ -39,15 +47,21 @@ function buildLiveShapes(piers, berths, envItems) {
         { canvas_x: parseFloat(pier.canvas_x), canvas_y: parseFloat(pier.canvas_y), rotation: pier.rotation },
         { local_x: parseFloat(b.local_x), local_y: parseFloat(b.local_y) }
       )
-      const col = STATUS_COLORS[b.effective_status ?? b.status] ?? STATUS_COLORS.available
+      const fuelEntry = serviceFuelByBerthId[b.id]
+      const col = fuelEntry
+        ? FUELING_COLOR
+        : (STATUS_COLORS[b.effective_status ?? b.status] ?? STATUS_COLORS.available)
       const { berthW, berthH } = berthCanvasDims(b, pier)
+      const label = fuelEntry
+        ? (fuelEntry.vessel_name || fuelEntry.guest_description || b.code)
+        : b.code
       return {
         id: `berth-${b.id}`, type: 'berth',
         absX, absY,
         w: berthW, h: berthH, rotation: 0,
         fill: col.fill, stroke: col.stroke,
-        label: b.code,
-        meta: { berthId: b.id, berthData: b },
+        label,
+        meta: { berthId: b.id, berthData: b, fuelEntry: fuelEntry ?? null },
       }
     })
 
@@ -171,6 +185,17 @@ export default function LiveMap({ onBerthsChange, focusBerth } = {}) {
   const [berths, setBerths] = useState([])
   useEffect(() => { setBerths(initialBerths) }, [initialBerths])
 
+  const [fuelEntries, setFuelEntries] = useState([])
+
+  const fetchFuelEntries = useCallback(async () => {
+    try {
+      const { data } = await api.get('/fuel-dock/queue/', { params: { active: 1 } })
+      setFuelEntries(data.results ?? data)
+    } catch { /* non-fatal */ }
+  }, [])
+
+  useEffect(() => { fetchFuelEntries() }, [fetchFuelEntries])
+
   // WebSocket — connect on mount, fall back to 30s polling if unavailable
   const wsRef = useRef(null)
   const wsConnected = useRef(false)
@@ -213,9 +238,10 @@ export default function LiveMap({ onBerthsChange, focusBerth } = {}) {
   useEffect(() => {
     const timer = setInterval(() => {
       if (!wsConnected.current) refetchBerths()
+      fetchFuelEntries()
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [refetchBerths])
+  }, [refetchBerths, fetchFuelEntries])
 
   // Notify parent whenever berths data changes
   useEffect(() => {
@@ -288,8 +314,8 @@ export default function LiveMap({ onBerthsChange, focusBerth } = {}) {
     [config]
   )
   const shapes = useMemo(
-    () => buildLiveShapes(piers, berths, envItems),
-    [piers, berths, envItems]
+    () => buildLiveShapes(piers, berths, envItems, fuelEntries),
+    [piers, berths, envItems, fuelEntries]
   )
 
   if (piersLoading || berthsLoading || cfgLoading) {
