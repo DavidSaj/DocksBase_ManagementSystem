@@ -64,6 +64,15 @@ class Berth(models.Model):
                                null=True, blank=True)   # null = unplaced on canvas
     code           = models.CharField(max_length=10)
     berth_type     = models.CharField(max_length=50, blank=True, default='')
+    BERTH_CLASS_CHOICES = [
+        ('standard',    'Standard'),
+        ('operational', 'Operational'),
+    ]
+    OPERATIONAL_TYPE_CHOICES = [
+        ('fuel_dock', 'Fuel Dock'),
+    ]
+    berth_class      = models.CharField(max_length=20, choices=BERTH_CLASS_CHOICES, default='standard')
+    operational_type = models.CharField(max_length=30, choices=OPERATIONAL_TYPE_CHOICES, blank=True, default='')
     side           = models.CharField(max_length=10, choices=SIDE_CHOICES, default='port')
     position_index = models.IntegerField(default=0)
     length_m       = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
@@ -75,6 +84,8 @@ class Berth(models.Model):
         on_delete=models.PROTECT,
         limit_choices_to={'category': 'berth'},
         related_name='berths',
+        null=True,
+        blank=True,
     )
     status  = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
     vessel  = models.ForeignKey('vessels.Vessel', on_delete=models.SET_NULL,
