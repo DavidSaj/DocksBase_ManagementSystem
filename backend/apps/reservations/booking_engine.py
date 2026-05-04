@@ -97,7 +97,8 @@ def _score_berths(available_berths, check_in, check_out):
     return scored
 
 
-def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, guest_name, guest_email, guest_phone):
+def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None,
+                           guest_name='', guest_email='', guest_phone=''):
     """Mode A: create a Booking with berth=null, status=pending_approval."""
     if isinstance(check_in, str):
         check_in = date.fromisoformat(check_in)
@@ -119,6 +120,7 @@ def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, gue
         status='pending_approval',
         boat_loa=boat_loa,
         boat_beam=boat_beam,
+        boat_draft=boat_draft,
         guest_name=guest_name,
         guest_email=guest_email,
         guest_phone=guest_phone,

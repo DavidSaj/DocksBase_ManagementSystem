@@ -125,13 +125,14 @@ class AvailableBerthsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        check_in = request.query_params.get('check_in')
+        check_in  = request.query_params.get('check_in')
         check_out = request.query_params.get('check_out')
         if not check_in or not check_out:
             return Response({'detail': 'check_in and check_out are required.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        boat_loa = request.query_params.get('boat_loa') or None
-        boat_beam = request.query_params.get('boat_beam') or None
+        boat_loa   = request.query_params.get('boat_loa') or None
+        boat_beam  = request.query_params.get('boat_beam') or None
+        boat_draft = request.query_params.get('boat_draft') or None
 
         try:
             berths = compatible_available_berths(
@@ -140,6 +141,7 @@ class AvailableBerthsView(APIView):
                 check_out=check_out,
                 boat_loa=float(boat_loa) if boat_loa else None,
                 boat_beam=float(boat_beam) if boat_beam else None,
+                boat_draft=float(boat_draft) if boat_draft else None,
             )
         except ValueError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
@@ -172,6 +174,7 @@ class BookingEngineRequestView(APIView):
                 check_out=d['check_out'],
                 boat_loa=d.get('boat_loa'),
                 boat_beam=d.get('boat_beam'),
+                boat_draft=d.get('boat_draft'),
                 guest_name=d.get('guest_name', ''),
                 guest_email=d.get('guest_email', ''),
                 guest_phone=d.get('guest_phone', ''),
@@ -187,6 +190,7 @@ class BookingEngineRequestView(APIView):
                     check_out=d['check_out'],
                     boat_loa=d.get('boat_loa'),
                     boat_beam=d.get('boat_beam'),
+                    boat_draft=d.get('boat_draft'),
                     guest_name=d.get('guest_name', ''),
                     guest_email=d.get('guest_email', ''),
                     guest_phone=d.get('guest_phone', ''),

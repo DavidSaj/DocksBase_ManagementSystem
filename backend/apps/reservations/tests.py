@@ -428,6 +428,18 @@ class AvailableBerthsEndpointTest(TestCase):
         })
         self.assertEqual(resp.status_code, 400)
 
+    def test_boat_draft_filter(self):
+        self.b.max_draft_m = Decimal('2.0')
+        self.b.save()
+        resp = self.client.get('/api/v1/bookings/available-berths/', {
+            'check_in':   '2026-07-01',
+            'check_out':  '2026-07-05',
+            'boat_draft': '3.0',
+        })
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data]
+        self.assertNotIn(self.b.id, ids)
+
 
 class BookingEngineRequestEndpointTest(TestCase):
     def setUp(self):

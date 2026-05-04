@@ -29,6 +29,7 @@ class BookingEngineRequestSerializer(serializers.Serializer):
     check_out  = serializers.DateField()
     boat_loa   = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
     boat_beam  = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    boat_draft = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     guest_name  = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
     guest_email = serializers.EmailField(required=False, allow_blank=True, default='')
     guest_phone = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
