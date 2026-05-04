@@ -574,6 +574,17 @@ class AssignBerthEndpointTest(TestCase):
         })
         self.assertEqual(resp.status_code, 400)
 
+    @patch('apps.billing.stripe_service._create_checkout_session', return_value='https://checkout.stripe.com/assign')
+    @patch('apps.reservations.views.send_mail')
+    def test_assign_berth_sets_invoice_booking_fk(self, mock_mail, mock_checkout):
+        resp = self.client.post(f'/api/v1/bookings/{self.booking.id}/assign-berth/', {
+            'berth_id': self.berth.id,
+        })
+        self.assertEqual(resp.status_code, 200)
+        from apps.billing.models import Invoice
+        inv = Invoice.objects.get(source_type='berth_booking', source_id=str(self.booking.id))
+        self.assertEqual(inv.booking_id, self.booking.id)
+
 
 class CheckoutFinalisesInvoiceTest(TestCase):
     def setUp(self):
