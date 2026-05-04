@@ -3,7 +3,7 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
 import { useState, Component } from 'react';
-import { TenantProvider } from './context/TenantContext'
+import { TenantProvider, detectTenant } from './context/TenantContext'
 import PortalApp from './portal/PortalApp'
 
 class ScreenErrorBoundary extends Component {
@@ -57,13 +57,6 @@ import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
 import BoaterPortal from './screens/BoaterPortal.jsx';
 
-function getTenantSlug() {
-  const parts = window.location.hostname.split('.')
-  if (parts.length <= 1) return null
-  const sub = parts[0]
-  if (sub === 'app' || sub === 'www') return null
-  return sub
-}
 
 const SCREEN_MAP = {
   overview: Overview, map: MarinaMap, reservations: Reservations,
@@ -104,9 +97,7 @@ function DesktopApp() {
 }
 
 export default function App() {
-  const tenantSlug = getTenantSlug()
-
-  if (tenantSlug) {
+  if (detectTenant()) {
     return (
       <TenantProvider>
         <PortalApp />

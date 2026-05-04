@@ -126,6 +126,10 @@ STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 
+TWILIO_ACCOUNT_SID  = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN   = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_FROM_NUMBER  = os.environ.get('TWILIO_FROM_NUMBER', '')
+
 # Supabase Storage (S3-compatible). Falls back to local FileSystemStorage when env vars absent.
 _supabase_endpoint = os.environ.get('SUPABASE_S3_ENDPOINT', '')
 if _supabase_endpoint:

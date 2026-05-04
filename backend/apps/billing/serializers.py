@@ -5,6 +5,10 @@ from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem
 class ChargeableItemSerializer(serializers.ModelSerializer):
     pricing_model_display = serializers.CharField(source='get_pricing_model_display', read_only=True)
     category_display      = serializers.CharField(source='get_category_display',      read_only=True)
+    assigned_berths = serializers.SerializerMethodField()
+    berth_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False,
+    )
 
     class Meta:
         model  = ChargeableItem
@@ -14,8 +18,36 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
             'unit_price', 'tax_rate', 'is_active',
             'show_in_pos', 'fuel_dock_type',
             'created_at',
+            'assigned_berths', 'berth_ids',
         ]
         read_only_fields = ['id', 'created_at', 'pricing_model_display', 'category_display']
+
+    def get_assigned_berths(self, obj):
+        from apps.berths.models import Berth
+        return [
+            {'id': b.id, 'code': b.code}
+            for b in Berth.objects.filter(pricing_tier=obj, marina=obj.marina).order_by('code')
+        ]
+
+    def _assign_berths(self, instance, berth_ids):
+        from apps.berths.models import Berth
+        Berth.objects.filter(
+            id__in=berth_ids, marina=instance.marina
+        ).update(pricing_tier=instance)
+
+    def create(self, validated_data):
+        berth_ids = validated_data.pop('berth_ids', [])
+        instance = super().create(validated_data)
+        if berth_ids:
+            self._assign_berths(instance, berth_ids)
+        return instance
+
+    def update(self, instance, validated_data):
+        berth_ids = validated_data.pop('berth_ids', None)
+        instance = super().update(instance, validated_data)
+        if berth_ids is not None:
+            self._assign_berths(instance, berth_ids)
+        return instance
 
 
 class InvoiceLineItemSerializer(serializers.ModelSerializer):

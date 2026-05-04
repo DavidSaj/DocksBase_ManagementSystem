@@ -54,6 +54,7 @@ class Marina(models.Model):
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
     slug = models.SlugField(max_length=100, unique=True, blank=True)
+    custom_domain = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     def save(self, *args, **kwargs):
         if not self.slug:

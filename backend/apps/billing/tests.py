@@ -493,3 +493,81 @@ class PDFServiceTest(TestCase):
         _generate_store_and_email_pdf(inv.id)
 
         mock_email_cls.assert_not_called()
+
+
+# ── ChargeableItem berth assignment ───────────────────────────────────────────
+
+class ChargeableItemBerthAssignmentTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        pier = Pier.objects.create(marina=self.marina, code='A', label='Pier A')
+        self.tier_a = ChargeableItem.objects.create(
+            marina=self.marina, name='Standard Rate', category='berth',
+            pricing_model='per_night', unit_price=Decimal('50'),
+        )
+        self.tier_b = ChargeableItem.objects.create(
+            marina=self.marina, name='Premium Rate', category='berth',
+            pricing_model='per_night', unit_price=Decimal('80'),
+        )
+        self.berth1 = Berth.objects.create(marina=self.marina, pier=pier, code='A1', pricing_tier=self.tier_a)
+        self.berth2 = Berth.objects.create(marina=self.marina, pier=pier, code='A2', pricing_tier=self.tier_a)
+        self.berth3 = Berth.objects.create(marina=self.marina, pier=pier, code='A3', pricing_tier=self.tier_b)
+
+    def test_get_item_includes_assigned_berths(self):
+        resp = self.client.get(f'/api/v1/billing/service-catalog/{self.tier_a.id}/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('assigned_berths', data)
+        assigned_ids = [b['id'] for b in data['assigned_berths']]
+        self.assertIn(self.berth1.id, assigned_ids)
+        self.assertIn(self.berth2.id, assigned_ids)
+        self.assertNotIn(self.berth3.id, assigned_ids)
+
+    def test_assigned_berths_includes_code(self):
+        resp = self.client.get(f'/api/v1/billing/service-catalog/{self.tier_a.id}/')
+        berth = resp.json()['assigned_berths'][0]
+        self.assertIn('code', berth)
+
+    def test_patch_berth_ids_assigns_berths_to_tier(self):
+        resp = self.client.patch(
+            f'/api/v1/billing/service-catalog/{self.tier_b.id}/',
+            {'berth_ids': [self.berth1.id, self.berth3.id]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.berth1.refresh_from_db()
+        self.berth3.refresh_from_db()
+        self.assertEqual(self.berth1.pricing_tier_id, self.tier_b.id)
+        self.assertEqual(self.berth3.pricing_tier_id, self.tier_b.id)
+
+    def test_patch_berth_ids_does_not_unassign_excluded_berths(self):
+        # berth2 is on tier_a; patching tier_a with only berth1 should leave berth2 unchanged
+        self.client.patch(
+            f'/api/v1/billing/service-catalog/{self.tier_a.id}/',
+            {'berth_ids': [self.berth1.id]},
+            format='json',
+        )
+        self.berth2.refresh_from_db()
+        self.assertEqual(self.berth2.pricing_tier_id, self.tier_a.id)
+
+    def test_patch_berth_ids_restricted_to_own_marina(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_pier = Pier.objects.create(marina=other_marina, code='B', label='Pier B')
+        other_tier = ChargeableItem.objects.create(
+            marina=other_marina, name='Other Rate', category='berth',
+            pricing_model='per_night', unit_price=Decimal('60'),
+        )
+        other_berth = Berth.objects.create(
+            marina=other_marina, pier=other_pier, code='B1', pricing_tier=other_tier
+        )
+        self.client.patch(
+            f'/api/v1/billing/service-catalog/{self.tier_a.id}/',
+            {'berth_ids': [other_berth.id]},
+            format='json',
+        )
+        other_berth.refresh_from_db()
+        self.assertNotEqual(other_berth.pricing_tier_id, self.tier_a.id)

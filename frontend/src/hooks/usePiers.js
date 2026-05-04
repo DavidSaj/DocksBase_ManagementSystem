@@ -33,10 +33,16 @@ export default function usePiers() {
     return data
   }
 
+  async function patchPier(id, attrs) {
+    const { data } = await api.patch(`/piers/${id}/`, attrs)
+    setPiers(prev => prev.map(p => p.id === id ? data : p))
+    return data
+  }
+
   async function deletePier(id) {
     await api.delete(`/piers/${id}/`)
     setPiers(prev => prev.filter(p => p.id !== id))
   }
 
-  return { piers, loading, error, refetch: fetchPiers, createPier, updatePierCanvas, deletePier }
+  return { piers, loading, error, refetch: fetchPiers, createPier, updatePierCanvas, patchPier, deletePier }
 }

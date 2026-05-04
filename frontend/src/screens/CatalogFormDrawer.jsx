@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Ic from '../components/ui/Icon.jsx';
+import useBerths from '../hooks/useBerths.js';
 
 const CATEGORY_OPTIONS = [
   { value: 'berth',   label: 'Berth Rates' },
@@ -42,11 +43,13 @@ const BLANK = {
   tax_rate: '20',
   show_in_pos: false,
   fuel_dock_type: '',
+  berth_ids: [],
 };
 
 export default function CatalogFormDrawer({ open, onClose, item, createItem, updateItem }) {
   const isEdit = Boolean(item);
   const [form, setForm] = useState(BLANK);
+  const { berths } = useBerths();
   const [saving, setSaving] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState('');
@@ -64,6 +67,7 @@ export default function CatalogFormDrawer({ open, onClose, item, createItem, upd
           tax_rate:       item.tax_rate != null ? String(item.tax_rate) : '20',
           show_in_pos:    item.show_in_pos ?? false,
           fuel_dock_type: item.fuel_dock_type ?? '',
+          berth_ids:      item.assigned_berths?.map(b => b.id) ?? [],
         });
       } else {
         setForm(BLANK);
@@ -78,6 +82,35 @@ export default function CatalogFormDrawer({ open, onClose, item, createItem, upd
   function setCheck(k) {
     return (e) => setForm(f => ({ ...f, [k]: e.target.checked }));
   }
+
+  function toggleBerth(id) {
+    setForm(f => ({
+      ...f,
+      berth_ids: f.berth_ids.includes(id)
+        ? f.berth_ids.filter(x => x !== id)
+        : [...f.berth_ids, id],
+    }));
+  }
+
+  // Group berths by berth_type; berths without a type go under '' (shown as "Untyped")
+  const typeGroups = berths.reduce((acc, b) => {
+    const t = b.berth_type || '';
+    if (!acc[t]) acc[t] = [];
+    acc[t].push(b);
+    return acc;
+  }, {});
+
+  function selectByType(type) {
+    const ids = (typeGroups[type] ?? []).map(b => b.id);
+    setForm(f => {
+      const next = new Set(f.berth_ids);
+      ids.forEach(id => next.add(id));
+      return { ...f, berth_ids: [...next] };
+    });
+  }
+
+  function clearBerths() { setForm(f => ({ ...f, berth_ids: [] })); }
+  function selectAll()   { setForm(f => ({ ...f, berth_ids: berths.map(b => b.id) })); }
 
   function validate() {
     if (!form.name.trim()) return 'Name is required.';
@@ -100,6 +133,7 @@ export default function CatalogFormDrawer({ open, onClose, item, createItem, upd
         pricing_model:  form.pricing_model,
         unit_price:     parseFloat(form.unit_price),
         tax_rate:       parseFloat(form.tax_rate) || 0,
+        ...(form.category === 'berth'  ? { berth_ids: form.berth_ids } : {}),
         ...(form.category === 'retail' ? {
           show_in_pos:    form.show_in_pos,
           fuel_dock_type: form.fuel_dock_type || null,
@@ -213,6 +247,72 @@ export default function CatalogFormDrawer({ open, onClose, item, createItem, upd
               ))}
             </select>
           </div>
+
+          {/* Berth assignment — shown only for berth category */}
+          {form.category === 'berth' && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Assign to Berths</label>
+              {berths.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', fontStyle: 'italic', padding: '6px 0' }}>
+                  No berths found. Add berths in the Map editor first.
+                </div>
+              ) : (
+                <>
+                  {/* Type group shortcuts */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                    {Object.entries(typeGroups).sort(([a],[b]) => a.localeCompare(b)).map(([type, group]) => (
+                      <button key={type || '__none__'} type="button" className="btn btn-ghost btn-sm"
+                        style={{ fontSize: 10, padding: '2px 8px' }}
+                        onClick={() => selectByType(type)}>
+                        + {type || 'Untyped'} <span style={{ opacity: 0.5 }}>({group.length})</span>
+                      </button>
+                    ))}
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      style={{ fontSize: 10, padding: '2px 8px' }} onClick={selectAll}>All</button>
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      style={{ fontSize: 10, padding: '2px 8px', color: 'var(--red)' }} onClick={clearBerths}>Clear</button>
+                  </div>
+                  <div style={{
+                    maxHeight: 180, overflowY: 'auto',
+                    border: 'var(--border)', borderRadius: 6,
+                    padding: '4px 0',
+                  }}>
+                  {berths.map(b => (
+                    <label
+                      key={b.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '6px 12px', cursor: 'pointer',
+                        background: form.berth_ids.includes(b.id) ? 'rgba(0,100,220,0.05)' : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.berth_ids.includes(b.id)}
+                        onChange={() => toggleBerth(b.id)}
+                        style={{ width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{b.code}</span>
+                      {b.pier_code && (
+                        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Pier {b.pier_code}</span>
+                      )}
+                      {b.vessel_name && (
+                        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', marginLeft: 'auto' }}>
+                          {b.vessel_name}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                  </div>
+                </>
+              )}
+              {form.berth_ids.length > 0 && (
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 5 }}>
+                  {form.berth_ids.length} berth{form.berth_ids.length !== 1 ? 's' : ''} selected
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Unit Price + Tax side by side */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>

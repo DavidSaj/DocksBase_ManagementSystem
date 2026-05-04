@@ -97,6 +97,9 @@ const iconPaths = {
   bolt: (
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
   ),
+  zap: (
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  ),
   droplet: (
     <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
   ),

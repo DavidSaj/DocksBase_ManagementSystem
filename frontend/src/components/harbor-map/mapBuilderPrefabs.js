@@ -1,38 +1,84 @@
-// All prefab types available in the palette.
-// T Dock is intentionally omitted.
-// Sizes are ~40% smaller than the old PALETTE in MarinaMap.jsx.
+// Draggable prefabs — docking structures and buildings only.
+// Terrain (land, quay walls) is drawn with the click-to-draw terrain tools.
+// Compound docks (comb, custom) are built via the toolbar dialogs and saved to custom prefabs.
+
+// Pier materials — used by build dialogs and custom prefab storage
+export const MATERIALS = {
+  pontoon:  { label: 'Pontoon (Wood)',    bg: '#c8b97a', border: '#a89940' },
+  concrete: { label: 'Concrete / Stone', bg: '#b0aaa2', border: '#888480' },
+  steel:    { label: 'Steel',            bg: '#8a9aaa', border: '#607080' },
+}
+
 export const PREFABS = [
-  // ── Environment ──────────────────────────────────────────────────────────────
-  { type: 'water',         label: 'Water',           cat: 'Environment', w: 3, h: 3, bg: '#0f3a56', border: '#1a5a80' },
-  { type: 'shore',         label: 'Shore / Land',    cat: 'Environment', w: 5, h: 2, bg: '#d6cdb8', border: '#bfb7a4' },
-  { type: 'quay',          label: 'Quay Wall',       cat: 'Environment', w: 6, h: 1, bg: '#8a7d68', border: '#6a5e50' },
-  // ── Docking ──────────────────────────────────────────────────────────────────
-  { type: 'parallel-wall', label: 'Par. Wall',       cat: 'Docking',     w: 8, h: 1, bg: '#3a7f5f', border: '#5aaf8f', parallelWall: true },
-  { type: 'pier-v',        label: 'Pier (N–S)',      cat: 'Docking',     w: 1, h: 5, bg: '#c8b97a', border: '#a8994a' },
-  { type: 'pier-h',        label: 'Pier (E–W)',      cat: 'Docking',     w: 5, h: 1, bg: '#c8b97a', border: '#a8994a' },
-  { type: 'slip',          label: 'Berth Slip',      cat: 'Docking',     w: 2, h: 1, bg: '#c2ecce', border: '#38a860' },
-  { type: 'slip-t',        label: 'Transient Slip',  cat: 'Docking',     w: 2, h: 1, bg: '#c6dcf5', border: '#3a7fc8' },
-  { type: 'fuel-dock',     label: 'Fuel Dock',       cat: 'Docking',     w: 3, h: 1, bg: '#f6e7b0', border: '#c89020' },
-  { type: 'gangway',       label: 'Gangway',         cat: 'Docking',     w: 1, h: 2, bg: '#c0af72', border: '#a8994a' },
-  { type: 'ramp',          label: 'Launch Ramp',     cat: 'Docking',     w: 2, h: 3, bg: '#c8c0aa', border: '#a8a090' },
-  // ── Shapes ───────────────────────────────────────────────────────────────────
-  { type: 'tri-ul', label: 'Corner ◸', cat: 'Shapes', w: 3, h: 3, bg: '#8a8880', border: '#6a6860', clip: 'polygon(0 0, 100% 0, 0 100%)' },
-  { type: 'tri-ur', label: 'Corner ◹', cat: 'Shapes', w: 3, h: 3, bg: '#8a8880', border: '#6a6860', clip: 'polygon(0 0, 100% 0, 100% 100%)' },
-  { type: 'tri-bl', label: 'Corner ◺', cat: 'Shapes', w: 3, h: 3, bg: '#8a8880', border: '#6a6860', clip: 'polygon(0 0, 0 100%, 100% 100%)' },
-  { type: 'tri-br', label: 'Corner ◻', cat: 'Shapes', w: 3, h: 3, bg: '#8a8880', border: '#6a6860', clip: 'polygon(100% 0, 0 100%, 100% 100%)' },
-  { type: 'tri-up', label: 'Wedge ▲',  cat: 'Shapes', w: 3, h: 3, bg: '#8a8880', border: '#6a6860', clip: 'polygon(50% 0, 100% 100%, 0 100%)' },
-  { type: 'tri-rt', label: 'Wedge ▶',  cat: 'Shapes', w: 3, h: 3, bg: '#8a8880', border: '#6a6860', clip: 'polygon(0 0, 100% 50%, 0 100%)' },
-  // ── Buildings ────────────────────────────────────────────────────────────────
-  { type: 'office',     label: 'Harbormaster',    cat: 'Buildings', w: 3, h: 2, bg: '#ccc4ae', border: '#aaa090' },
-  { type: 'fuel-stn',   label: 'Fuel Station',    cat: 'Buildings', w: 2, h: 2, bg: '#ddd4aa', border: '#c0b070' },
-  { type: 'parking',    label: 'Parking',          cat: 'Buildings', w: 6, h: 4, bg: '#c0bcb0', border: '#a0a098' },
-  { type: 'boatyard',   label: 'Boatyard',         cat: 'Buildings', w: 5, h: 4, bg: '#b8b0a0', border: '#989080' },
-  { type: 'chandlery',  label: 'Chandlery',        cat: 'Buildings', w: 2, h: 2, bg: '#cec8b8', border: '#b0aa98' },
-  { type: 'restaurant', label: 'Restaurant',       cat: 'Buildings', w: 3, h: 2, bg: '#c8d8b8', border: '#88a870' },
-  { type: 'toilets',    label: 'Toilet Block',     cat: 'Buildings', w: 2, h: 2, bg: '#d0d8e8', border: '#98a8c0' },
-  { type: 'security',   label: 'Security / Gate',  cat: 'Buildings', w: 2, h: 2, bg: '#d8c8e0', border: '#a888c0' },
+  // ── Single-unit docking structures ────────────────────────────────────────────
+  { type: 'pontoon-spine-h',       label: 'Access Pontoon H (Wood)',   cat: 'Docking', w: 10, h: 2,   bg: '#c8b97a', border: '#a89940' },
+  { type: 'pontoon-spine-v',       label: 'Access Pontoon V (Wood)',   cat: 'Docking', w: 2,  h: 10,  bg: '#c8b97a', border: '#a89940' },
+  { type: 'pontoon-spine-h-stone', label: 'Access Pontoon H (Stone)',  cat: 'Docking', w: 10, h: 2,   bg: '#b0aaa2', border: '#888480' },
+  { type: 'pontoon-spine-v-stone', label: 'Access Pontoon V (Stone)',  cat: 'Docking', w: 2,  h: 10,  bg: '#b0aaa2', border: '#888480' },
+  { type: 'fuel-dock',             label: 'Fuel Dock',                 cat: 'Docking', w: 4,  h: 2,   bg: '#f0d878', border: '#c8a820' },
+  { type: 'ramp',                  label: 'Launch Ramp',               cat: 'Docking', w: 2,  h: 3,   bg: '#c8c0aa', border: '#a8a088' },
+  // ── Buildings — stored in MarinaMapConfig ─────────────────────────────────────
+  { type: 'office',     label: 'Harbormaster',   cat: 'Buildings', w: 3, h: 2, bg: '#d4cec4', border: '#aaa89a' },
+  { type: 'fuel-stn',   label: 'Fuel Station',   cat: 'Buildings', w: 2, h: 2, bg: '#e8daa8', border: '#c0b060' },
+  { type: 'parking',    label: 'Parking',         cat: 'Buildings', w: 6, h: 4, bg: '#c8c4bc', border: '#a0a098' },
+  { type: 'boatyard',   label: 'Boatyard',        cat: 'Buildings', w: 5, h: 4, bg: '#c4bca8', border: '#9a9280' },
+  { type: 'chandlery',  label: 'Chandlery',       cat: 'Buildings', w: 2, h: 2, bg: '#d4cec0', border: '#b0a890' },
+  { type: 'restaurant', label: 'Restaurant',      cat: 'Buildings', w: 3, h: 2, bg: '#d0dcc8', border: '#90a870' },
+  { type: 'toilets',    label: 'Toilet Block',    cat: 'Buildings', w: 2, h: 2, bg: '#ccd4e0', border: '#98a8c0' },
+  { type: 'security',   label: 'Security / Gate', cat: 'Buildings', w: 2, h: 2, bg: '#d8cce0', border: '#a888c0' },
 ]
 
 export const PREFAB_BY_TYPE = Object.fromEntries(PREFABS.map(p => [p.type, p]))
 
+// Maps prefab type → pier_type stored in DB (so specialized items keep their color)
+export const PREFAB_TO_PIER_TYPE = {
+  'pontoon-spine-h':       'pontoon',
+  'pontoon-spine-v':       'pontoon',
+  'pontoon-spine-h-stone': 'concrete',
+  'pontoon-spine-v-stone': 'concrete',
+  'fuel-dock':             'fuel-dock',
+  'gangway':               'gangway',
+  'ramp':                  'ramp',
+}
+
 export const CATEGORIES = [...new Set(PREFABS.map(p => p.cat))]
+
+// Terrain draw tools — appear in the map editor toolbar.
+export const TERRAIN_TOOLS = [
+  { type: 'land',      label: 'Land',      bg: '#8ac87a', border: '#5a9850', icon: '🌿' },
+  { type: 'quay-wall', label: 'Quay Wall', bg: '#c0bcb4', border: '#8a8880', icon: '⬜' },
+]
+
+/**
+ * Compute compound dock layout for the "Build Combo Dock" dialog.
+ * Returns { w, h, components } ready to drop into PREFABS / customPrefabs.
+ *
+ * @param {number} numFingers  — number of finger piers
+ * @param {number} fingerLen   — finger pier length in grid units
+ * @param {number} berthBeamGU — berth beam in grid units (determines spacing between fingers)
+ * @param {string} bg          — fill colour
+ * @param {string} border      — stroke colour
+ */
+export function buildComboDockLayout({ numFingers, fingerLen, berthBeamGU, bg, border }) {
+  const fingerW       = 2                            // 2 GU wide — visible at typical zoom levels
+  const fingerSpacing = fingerW + 2 * berthBeamGU   // exact room for one berth each side
+  const totalW        = (numFingers - 1) * fingerSpacing + 2  // 1 unit margin each side
+  const spineH        = 2                            // whole number — spine is the access walkway
+  const totalH        = spineH + fingerLen
+
+  const components = [
+    // Main access pontoon spanning the full width
+    { pier_type: 'pontoon', ox: totalW / 2, oy: spineH / 2, canvas_w: totalW, canvas_h: spineH, bg, border },
+    // Finger piers
+    ...Array.from({ length: numFingers }, (_, i) => ({
+      pier_type: 'pontoon',
+      ox: 1 + i * fingerSpacing,
+      oy: spineH + fingerLen / 2,
+      canvas_w: fingerW,
+      canvas_h: fingerLen,
+      bg, border,
+    })),
+  ]
+
+  return { w: totalW, h: totalH, components }
+}

@@ -2,9 +2,13 @@ from django.db import models
 
 
 PIER_TYPE_CHOICES = [
-    ('concrete', 'Concrete Pier'),
-    ('pontoon',  'Wooden Pontoon'),
-    ('land',     'Land / Grass'),
+    ('concrete',  'Concrete Pier'),
+    ('pontoon',   'Wooden Pontoon'),
+    ('steel',     'Steel'),
+    ('land',      'Land / Grass'),
+    ('fuel-dock', 'Fuel Dock'),
+    ('gangway',   'Gangway'),
+    ('ramp',      'Launch Ramp'),
 ]
 
 
@@ -20,8 +24,8 @@ class Pier(models.Model):
     # Canvas layout fields (center-origin, grid units)
     canvas_x = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     canvas_y = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    canvas_w = models.IntegerField(default=2)
-    canvas_h = models.IntegerField(default=10)
+    canvas_w = models.FloatField(default=2)
+    canvas_h = models.FloatField(default=10)
     rotation = models.IntegerField(default=0)
 
     class Meta:
@@ -59,6 +63,7 @@ class Berth(models.Model):
     pier   = models.ForeignKey(Pier, on_delete=models.SET_NULL, related_name='berths',
                                null=True, blank=True)   # null = unplaced on canvas
     code           = models.CharField(max_length=10)
+    berth_type     = models.CharField(max_length=50, blank=True, default='')
     side           = models.CharField(max_length=10, choices=SIDE_CHOICES, default='port')
     position_index = models.IntegerField(default=0)
     length_m       = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
