@@ -31,7 +31,7 @@ def make_berth(marina, price=50):
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
     tier = ChargeableItem.objects.create(
         marina=marina, name='Berth Night', category='berth',
-        pricing_model='per_night', unit_price=price,
+        pricing_model='per_night', unit_price=price, is_mandatory_transient_fee=False,
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code='A1', pricing_tier=tier, status='available'
@@ -141,7 +141,7 @@ def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='T', defaults={'label': 'Test Pier'})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Berth Night', category='berth',
-        defaults={'pricing_model': 'per_night', 'unit_price': price},
+        defaults={'pricing_model': 'per_night', 'unit_price': price, 'is_mandatory_transient_fee': False},
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code,
@@ -206,6 +206,7 @@ class CompatibleBerthsTest(TestCase):
         )
         ids = [b.id for b in result]
         self.assertNotIn(self.b_small.id, ids)
+        self.assertIn(self.b_large.id, ids)  # NULL draft = unlimited, must not be excluded
 
     def test_draft_fits_included(self):
         self.b_large.max_draft_m = Decimal('2.5')

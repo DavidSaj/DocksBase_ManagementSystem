@@ -2,7 +2,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db.models import Subquery, OuterRef
+from django.db.models import Q, Subquery, OuterRef
 
 from apps.berths.models import Berth
 from .models import Booking
@@ -33,7 +33,9 @@ def compatible_available_berths(
     if boat_beam is not None:
         qs = qs.filter(max_beam_m__gte=Decimal(str(boat_beam)))
     if boat_draft is not None:
-        qs = qs.filter(max_draft_m__gte=Decimal(str(boat_draft)))
+        qs = qs.filter(
+            Q(max_draft_m__isnull=True) | Q(max_draft_m__gte=Decimal(str(boat_draft)))
+        )
 
     blocked_ids = (
         Booking.objects.filter(
