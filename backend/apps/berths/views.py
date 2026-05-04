@@ -87,10 +87,12 @@ class BulkCreateBerthsView(APIView):
         prefix      = (request.data.get('prefix') or '').strip().upper()
         start       = request.data.get('start', 1)
         count       = request.data.get('count', 0)
-        length_m    = request.data.get('length_m')
-        beam_m      = request.data.get('beam_m')
-        max_draft_m = request.data.get('max_draft_m')
-        berth_type  = (request.data.get('berth_type') or '').strip()
+        length_m         = request.data.get('length_m')
+        beam_m           = request.data.get('beam_m')
+        max_draft_m      = request.data.get('max_draft_m')
+        berth_type       = (request.data.get('berth_type') or '').strip()
+        berth_class      = (request.data.get('berth_class') or 'standard').strip()
+        operational_type = (request.data.get('operational_type') or '').strip()
 
         if not prefix:
             return Response({'detail': 'prefix is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -110,11 +112,13 @@ class BulkCreateBerthsView(APIView):
                 marina=marina,
                 code=code,
                 defaults={
-                    'length_m':    length_m,
-                    'max_beam_m':  beam_m,
-                    'max_draft_m': max_draft_m,
-                    'berth_type':  berth_type,
-                    'status':      'available',
+                    'length_m':         length_m,
+                    'max_beam_m':       beam_m,
+                    'max_draft_m':      max_draft_m,
+                    'berth_type':       berth_type,
+                    'berth_class':      berth_class,
+                    'operational_type': operational_type,
+                    'status':           'available',
                 },
             )
             (created if was_created else skipped).append(code)
