@@ -147,3 +147,38 @@ class PortalAuthTokenTest(TestCase):
         url = make_magic_url(booking)
         self.assertIn('token=', url)
         self.assertIn(marina.slug, url)
+
+
+from apps.portal.checkin_auth import PortalTokenAuthentication, PortalUser
+from rest_framework.test import APIRequestFactory
+from rest_framework.exceptions import AuthenticationFailed
+
+
+class PortalTokenAuthTest(TestCase):
+    def setUp(self):
+        self.auth = PortalTokenAuthentication()
+        self.factory = APIRequestFactory()
+
+    def _request_with_token(self, token):
+        request = self.factory.get('/')
+        request.META['HTTP_AUTHORIZATION'] = f'Bearer {token}'
+        return request
+
+    def test_valid_token_returns_portal_user(self):
+        token = make_portal_token(booking_id=5, marina_slug='harbor', boater_email='b@test.com')
+        request = self._request_with_token(token)
+        user, _ = self.auth.authenticate(request)
+        self.assertIsInstance(user, PortalUser)
+        self.assertEqual(user.booking_id, 5)
+        self.assertEqual(user.marina_slug, 'harbor')
+        self.assertTrue(user.is_authenticated)
+
+    def test_invalid_token_raises_authentication_failed(self):
+        request = self._request_with_token('bad-token')
+        with self.assertRaises(AuthenticationFailed):
+            self.auth.authenticate(request)
+
+    def test_missing_header_returns_none(self):
+        request = self.factory.get('/')
+        result = self.auth.authenticate(request)
+        self.assertIsNone(result)
