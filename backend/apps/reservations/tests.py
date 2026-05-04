@@ -659,6 +659,11 @@ class ApproveBookingViewTest(TestCase):
         resp = self.client.post(self.url, {'berth_id': other_berth.pk}, format='json')
         self.assertEqual(resp.status_code, 400)
 
+    def test_approve_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        self.assertIn(resp.status_code, [401, 403])
+
 
 class RejectBookingViewTest(TestCase):
     def setUp(self):
