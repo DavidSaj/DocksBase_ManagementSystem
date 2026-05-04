@@ -10,6 +10,7 @@ class PortalUser:
         self.marina_slug = marina_slug
         self.boater_email = boater_email
         self.is_authenticated = True
+        self.pk = booking_id  # required by DRF throttling
 
 
 class PortalTokenAuthentication(BaseAuthentication):
@@ -23,3 +24,6 @@ class PortalTokenAuthentication(BaseAuthentication):
         except signing.BadSignature:
             raise AuthenticationFailed('Invalid or expired portal token.')
         return (PortalUser(**payload), None)
+
+    def authenticate_header(self, request):
+        return 'Bearer realm="portal"'

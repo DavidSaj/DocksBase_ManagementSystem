@@ -220,3 +220,59 @@ class PortalBookingSerializerTest(TestCase):
         self.assertIsNotNone(data['marina_wallet'])
         self.assertEqual(data['marina_wallet']['wifi_network'], 'HarborGuest')
         self.assertEqual(data['marina_wallet']['gate_codes'][0]['pin'], '4321')
+
+
+from django.urls import reverse
+
+
+class MagicAuthViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.booking = make_booking(self.marina)
+
+    def test_valid_token_returns_session_token_and_booking_id(self):
+        token = make_magic_token(self.booking.id, self.booking.guest_email)
+        resp = self.client.post('/api/v1/portal/checkin/auth/magic/', {'token': token}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('token', resp.data)
+        self.assertEqual(resp.data['booking_id'], self.booking.id)
+        self.assertEqual(resp.data['marina_slug'], self.marina.slug)
+
+    def test_invalid_token_returns_401(self):
+        resp = self.client.post('/api/v1/portal/checkin/auth/magic/', {'token': 'bad'}, format='json')
+        self.assertEqual(resp.status_code, 401)
+
+    def test_missing_token_returns_400(self):
+        resp = self.client.post('/api/v1/portal/checkin/auth/magic/', {}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+
+class PortalBookingGetViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.booking = make_booking(self.marina)
+        session_token = make_portal_token(
+            booking_id=self.booking.id,
+            marina_slug=self.marina.slug,
+            boater_email=self.booking.guest_email,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+
+    def test_get_booking_returns_200(self):
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('is_arrival_day', resp.data)
+        self.assertIn('pre_cleared', resp.data)
+
+    def test_cannot_get_another_booking(self):
+        other_marina = make_marina()
+        other_booking = make_booking(other_marina)
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{other_booking.id}/')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_unauthenticated_returns_401(self):
+        self.client.credentials()
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/')
+        self.assertEqual(resp.status_code, 401)

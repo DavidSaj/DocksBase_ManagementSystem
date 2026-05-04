@@ -24,6 +24,7 @@ urlpatterns = [
         path('', include('apps.fuel_dock.urls')),
         path('marina/', include('apps.accounts.marina_urls')),
         path('', include('apps.portal.urls')),
+        path('', include('apps.portal.checkin_urls')),
         path('public/', include('apps.portal.public_urls')),
         path('mobile/', include('apps.mobile.urls')),
     ])),
