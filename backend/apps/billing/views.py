@@ -19,6 +19,7 @@ from .models import Invoice, InvoiceLineItem, ChargeableItem
 from .pdf_service import _generate_store_and_email_pdf
 from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer
 from .signals import invoice_paid
+from apps.reservations.emails import send_booking_confirmed_email
 
 
 class StripeWebhookView(APIView):
@@ -59,10 +60,20 @@ class StripeWebhookView(APIView):
                     args=(invoice.id,),
                     daemon=True,
                 ).start()
+                if invoice.booking_id:
+                    from apps.reservations.models import Booking as BookingModel
+                    BookingModel.objects.filter(pk=invoice.booking_id).update(status='confirmed')
+                    invoice.refresh_from_db()
+                    send_booking_confirmed_email(invoice.booking)
 
         elif event_type == 'checkout.session.expired':
             invoice.stripe_checkout_session_id = ''
             invoice.save(update_fields=['stripe_checkout_session_id'])
+            if invoice.booking_id:
+                from apps.reservations.models import Booking as BookingModel
+                BookingModel.objects.filter(pk=invoice.booking_id).update(
+                    status='cancelled', berth=None
+                )
 
         return HttpResponse(status=200)
 
