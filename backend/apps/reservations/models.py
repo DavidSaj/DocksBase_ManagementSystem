@@ -17,6 +17,7 @@ class Booking(models.Model):
         ('checked_in',   'Checked In'),
         ('checked_out',  'Checked Out'),
         ('overstay',     'Overstay'),
+        ('cancelled',    'Cancelled'),
     ]
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='bookings')
