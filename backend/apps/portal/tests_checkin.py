@@ -276,3 +276,85 @@ class PortalBookingGetViewTest(TestCase):
         self.client.credentials()
         resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/')
         self.assertEqual(resp.status_code, 401)
+
+
+class PatchDimensionsViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.booking = make_booking(self.marina)
+        session_token = make_portal_token(
+            booking_id=self.booking.id,
+            marina_slug=self.marina.slug,
+            boater_email=self.booking.guest_email,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+
+    def test_patch_saves_dimensions(self):
+        resp = self.client.patch(
+            f'/api/v1/portal/checkin/bookings/{self.booking.id}/dimensions/',
+            {'boat_loa': '12.5', 'boat_beam': '4.2', 'boat_draft': '1.8'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertEqual(float(self.booking.boat_loa), 12.5)
+        self.assertEqual(float(self.booking.boat_draft), 1.8)
+
+    def test_patch_with_complete_dimensions_and_signed_waiver_sets_pre_cleared(self):
+        self.booking.waiver_signed = True
+        self.booking.save()
+        resp = self.client.patch(
+            f'/api/v1/portal/checkin/bookings/{self.booking.id}/dimensions/',
+            {'boat_loa': '12.5', 'boat_beam': '4.2', 'boat_draft': '1.8'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.pre_cleared)
+
+    def test_patch_without_waiver_does_not_set_pre_cleared(self):
+        resp = self.client.patch(
+            f'/api/v1/portal/checkin/bookings/{self.booking.id}/dimensions/',
+            {'boat_loa': '12.5', 'boat_beam': '4.2', 'boat_draft': '1.8'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.pre_cleared)
+
+
+class SelfCheckinViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        today = datetime.date.today()
+        self.booking = make_booking(self.marina, check_in=today, check_out=today + datetime.timedelta(days=2))
+        self.booking.pre_cleared = True
+        self.booking.save()
+        session_token = make_portal_token(
+            booking_id=self.booking.id,
+            marina_slug=self.marina.slug,
+            boater_email=self.booking.guest_email,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+
+    def test_self_checkin_sets_flags(self):
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/self-checkin/')
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.self_checked_in)
+        self.assertEqual(self.booking.status, 'checked_in')
+        self.assertIsNotNone(self.booking.self_checked_in_at)
+
+    def test_self_checkin_not_pre_cleared_returns_400(self):
+        self.booking.pre_cleared = False
+        self.booking.save()
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/self-checkin/')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_self_checkin_idempotent(self):
+        self.booking.self_checked_in = True
+        self.booking.save()
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/self-checkin/')
+        self.assertEqual(resp.status_code, 200)

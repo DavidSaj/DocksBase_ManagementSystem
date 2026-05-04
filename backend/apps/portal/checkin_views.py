@@ -72,3 +72,42 @@ class PortalBookingView(PortalBookingMixin, APIView):
         if err:
             return err
         return Response(PortalBookingSerializer(booking).data)
+
+
+class PatchDimensionsView(PortalBookingMixin, APIView):
+    def patch(self, request, pk):
+        booking, err = self.get_booking(request, pk)
+        if err:
+            return err
+
+        allowed = {'boat_loa', 'boat_beam', 'boat_draft'}
+        fields_to_save = list(allowed & set(request.data.keys()))
+        for field in fields_to_save:
+            setattr(booking, field, request.data[field])
+        if fields_to_save:
+            booking.save(update_fields=fields_to_save)
+
+        evaluate_pre_cleared(booking)
+        booking.refresh_from_db()
+        return Response(PortalBookingSerializer(booking).data)
+
+
+class SelfCheckinView(PortalBookingMixin, APIView):
+    def post(self, request, pk):
+        booking, err = self.get_booking(request, pk)
+        if err:
+            return err
+
+        if not booking.pre_cleared:
+            return Response(
+                {'detail': 'Pre-clearance not complete.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not booking.self_checked_in:
+            booking.self_checked_in = True
+            booking.self_checked_in_at = timezone.now()
+            booking.status = 'checked_in'
+            booking.save(update_fields=['self_checked_in', 'self_checked_in_at', 'status'])
+
+        return Response(PortalBookingSerializer(booking).data)
