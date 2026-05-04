@@ -83,6 +83,7 @@ POST /api/v1/bookings/<id>/reject/     { "reason": "No space available for your 
 
 **Approve behaviour:**
 - Validates booking is `pending_approval` and berth belongs to same marina.
+- **Collision check:** queries existing bookings where `berth=berth` AND `status` in `('awaiting_payment', 'confirmed', 'checked_in')` AND date ranges overlap (`check_in < requested.check_out AND check_out > requested.check_in`). If any found, returns `409 {"detail": "Berth is already booked for these dates."}` — no state change, no Stripe session created.
 - Calculates price: `nights × berth.pricing_tier.unit_price + sum(booking_fee ChargeableItems for marina)`.
 - Stores total in `booking.amount`.
 - Creates `Invoice` with `booking=booking`, creates Stripe Checkout session via existing `stripe_service`.
@@ -100,7 +101,7 @@ POST /api/v1/bookings/<id>/reject/     { "reason": "No space available for your 
 `StripeWebhookView` already handles `checkout.session.completed` and `checkout.session.expired`. Extension:
 
 - `checkout.session.completed`: if `invoice.booking` is set, set `booking.status = 'confirmed'`, send magic link email.
-- `checkout.session.expired`: if `invoice.booking` is set, set `booking.status = 'cancelled'`.
+- `checkout.session.expired`: if `invoice.booking` is set, set `booking.status = 'cancelled'` AND `booking.berth = null` — releases the physical berth back to inventory so it no longer appears occupied in the map or utilization reports.
 
 No new webhook endpoint.
 
@@ -175,8 +176,9 @@ The confirmation email is the bridge into the Half B check-in journey. Once sent
 - **Unknown marina** (bad slug/domain header): 404.
 - **Approve on wrong-status booking** (not `pending_approval`): 400 `{"detail": "Booking is not pending approval."}`.
 - **Berth from different marina**: 400 `{"detail": "Berth does not belong to this marina."}`.
+- **Berth already booked (collision)**: approve endpoint returns `409` before creating any Stripe session. No state change. Manager must pick a different berth.
 - **Stripe checkout creation failure**: log error, return 502, do not change booking status (manager can retry).
-- **Stripe checkout.session.expired**: booking set to `cancelled`. Boater receives no automated email (the payment link expiry message from Stripe is sufficient). Manager can re-approve if desired.
+- **Stripe checkout.session.expired**: set `booking.status = 'cancelled'` AND `booking.berth = null`. Releasing the berth is mandatory — without it, a cancelled booking with an assigned berth would appear occupied in the map and utilization reports. Boater receives no automated email (Stripe's own expiry message is sufficient). Manager can re-approve and pick a berth again if desired.
 
 ---
 
