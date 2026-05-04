@@ -15,7 +15,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'booking_type', 'check_in', 'check_out', 'nights', 'amount',
             'status', 'paid', 'notes',
             'guest_name', 'guest_email', 'guest_phone',
-            'boat_loa', 'boat_beam',
+            'boat_loa', 'boat_beam', 'boat_draft',
             'created_at',
         ]
         read_only_fields = [

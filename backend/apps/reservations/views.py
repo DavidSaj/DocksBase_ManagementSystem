@@ -139,9 +139,9 @@ class AvailableBerthsView(APIView):
                 marina=request.user.marina,
                 check_in=check_in,
                 check_out=check_out,
-                boat_loa=float(boat_loa) if boat_loa else None,
-                boat_beam=float(boat_beam) if boat_beam else None,
-                boat_draft=float(boat_draft) if boat_draft else None,
+                boat_loa=boat_loa,
+                boat_beam=boat_beam,
+                boat_draft=boat_draft,
             )
         except ValueError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
