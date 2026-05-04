@@ -8,8 +8,8 @@ def send_booking_request_boater_email(booking):
     marina = booking.marina
     nights = (booking.check_out - booking.check_in).days
     send_mail(
-        f'Booking request received — {marina.name}',
-        (
+        subject=f'Booking request received — {marina.name}',
+        message=(
             f'Hi {booking.guest_name or "there"},\n\n'
             f'We have received your booking request at {marina.name}.\n\n'
             f'Dates: {booking.check_in} – {booking.check_out} ({nights} night{"s" if nights != 1 else ""})\n'
@@ -17,8 +17,8 @@ def send_booking_request_boater_email(booking):
             f'The harbour master will review your request within 24 hours.\n\n'
             f'— {marina.name}'
         ),
-        settings.DEFAULT_FROM_EMAIL,
-        [booking.guest_email],
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.guest_email],
         fail_silently=True,
     )
 
@@ -34,8 +34,8 @@ def send_booking_request_manager_email(booking):
         return
     nights = (booking.check_out - booking.check_in).days
     send_mail(
-        f'New booking request — {booking.guest_name or "Guest"}',
-        (
+        subject=f'New booking request — {booking.guest_name or "Guest"}',
+        message=(
             f'A new transient booking request has been submitted.\n\n'
             f'Guest: {booking.guest_name or "—"} ({booking.guest_email})\n'
             f'Dates: {booking.check_in} – {booking.check_out} ({nights} night{"s" if nights != 1 else ""})\n'
@@ -43,8 +43,8 @@ def send_booking_request_manager_email(booking):
             f'Review in the Reservations screen: {getattr(settings, "FRONTEND_URL", "")}/reservations\n\n'
             f'— DocksBase'
         ),
-        settings.DEFAULT_FROM_EMAIL,
-        recipients,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=recipients,
         fail_silently=True,
     )
 
@@ -52,8 +52,8 @@ def send_booking_request_manager_email(booking):
 def send_approve_email(booking, checkout_url):
     marina = booking.marina
     send_mail(
-        f'Your berth is reserved — complete payment',
-        (
+        subject='Your berth is reserved — complete payment',
+        message=(
             f'Hi {booking.guest_name or "there"},\n\n'
             f'Great news! {marina.name} has assigned you a berth for '
             f'{booking.check_in} – {booking.check_out}.\n\n'
@@ -63,8 +63,8 @@ def send_approve_email(booking, checkout_url):
             f'{checkout_url}\n\n'
             f'— {marina.name}'
         ),
-        settings.DEFAULT_FROM_EMAIL,
-        [booking.guest_email],
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.guest_email],
         fail_silently=True,
     )
 
@@ -72,8 +72,8 @@ def send_approve_email(booking, checkout_url):
 def send_reject_email(booking, reason):
     marina = booking.marina
     send_mail(
-        f'Booking request update — {marina.name}',
-        (
+        subject=f'Booking request update — {marina.name}',
+        message=(
             f'Hi {booking.guest_name or "there"},\n\n'
             f'Unfortunately we are unable to accommodate your booking request '
             f'for {booking.check_in} – {booking.check_out}.\n\n'
@@ -81,8 +81,8 @@ def send_reject_email(booking, reason):
             f'We apologise for any inconvenience.\n\n'
             f'— {marina.name}'
         ),
-        settings.DEFAULT_FROM_EMAIL,
-        [booking.guest_email],
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.guest_email],
         fail_silently=True,
     )
 
@@ -91,8 +91,8 @@ def send_booking_confirmed_email(booking):
     marina = booking.marina
     magic_url = make_magic_url(booking)
     send_mail(
-        f'Booking confirmed — {marina.name}',
-        (
+        subject=f'Booking confirmed — {marina.name}',
+        message=(
             f'Hi {booking.guest_name or "there"},\n\n'
             f'Your booking at {marina.name} is confirmed!\n\n'
             f'Dates: {booking.check_in} – {booking.check_out}\n'
@@ -102,7 +102,7 @@ def send_booking_confirmed_email(booking):
             f'This link is personal to you and expires in 72 hours.\n\n'
             f'— {marina.name}'
         ),
-        settings.DEFAULT_FROM_EMAIL,
-        [booking.guest_email],
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.guest_email],
         fail_silently=True,
     )

@@ -526,10 +526,9 @@ class BookingEmailsTest(TestCase):
     def test_boater_request_received(self, mock_send):
         send_booking_request_boater_email(self.booking)
         mock_send.assert_called_once()
-        _, kwargs = mock_send.call_args[0], mock_send.call_args[1] if mock_send.call_args[1] else {}
-        args = mock_send.call_args[0]
-        self.assertIn('Sunport Marina', args[0])
-        self.assertEqual(args[3], ['sailor@example.com'])
+        kwargs = mock_send.call_args.kwargs
+        self.assertIn('Sunport Marina', kwargs['subject'])
+        self.assertEqual(kwargs['recipient_list'], ['sailor@example.com'])
 
     @patch('apps.reservations.emails.send_mail')
     def test_manager_notification_sent_to_owners_and_managers(self, mock_send):
@@ -538,7 +537,7 @@ class BookingEmailsTest(TestCase):
         User.objects.create_user(email='staff@m.com', password='x', marina=self.marina, role='staff')
         send_booking_request_manager_email(self.booking)
         mock_send.assert_called_once()
-        recipients = mock_send.call_args[0][3]
+        recipients = mock_send.call_args.kwargs['recipient_list']
         self.assertIn('owner@m.com', recipients)
         self.assertIn('mgr@m.com', recipients)
         self.assertNotIn('staff@m.com', recipients)
@@ -547,17 +546,19 @@ class BookingEmailsTest(TestCase):
     def test_approve_email_contains_checkout_url(self, mock_send):
         send_approve_email(self.booking, checkout_url='https://checkout.stripe.com/xyz')
         mock_send.assert_called_once()
-        message = mock_send.call_args[0][1]
+        kwargs = mock_send.call_args.kwargs
+        message = kwargs['message']
         self.assertIn('https://checkout.stripe.com/xyz', message)
-        self.assertEqual(mock_send.call_args[0][3], ['sailor@example.com'])
+        self.assertEqual(kwargs['recipient_list'], ['sailor@example.com'])
 
     @patch('apps.reservations.emails.send_mail')
     def test_reject_email_contains_reason(self, mock_send):
         send_reject_email(self.booking, reason='No space available.')
         mock_send.assert_called_once()
-        message = mock_send.call_args[0][1]
+        kwargs = mock_send.call_args.kwargs
+        message = kwargs['message']
         self.assertIn('No space available.', message)
-        self.assertEqual(mock_send.call_args[0][3], ['sailor@example.com'])
+        self.assertEqual(kwargs['recipient_list'], ['sailor@example.com'])
 
     @patch('apps.reservations.emails.send_mail')
     @patch('apps.reservations.emails.make_magic_url')
@@ -565,7 +566,8 @@ class BookingEmailsTest(TestCase):
         mock_magic.return_value = 'https://book.docksbase.com/sunport/portal?token=abc123'
         send_booking_confirmed_email(self.booking)
         mock_send.assert_called_once()
-        message = mock_send.call_args[0][1]
+        kwargs = mock_send.call_args.kwargs
+        message = kwargs['message']
         self.assertIn('abc123', message)
         mock_magic.assert_called_once_with(self.booking)
 
