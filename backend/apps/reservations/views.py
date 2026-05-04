@@ -352,80 +352,77 @@ class ApproveBookingView(APIView):
 
         marina = request.user.marina
 
-        with transaction.atomic():
-            # Lock the berth row to serialize concurrent approve requests.
-            try:
-                berth = Berth.objects.select_for_update().get(pk=berth_id, marina=marina)
-            except Berth.DoesNotExist:
-                return Response(
-                    {'detail': 'Berth does not belong to this marina.'},
-                    status=http_status.HTTP_400_BAD_REQUEST,
+        try:
+            with transaction.atomic():
+                # Lock the berth row to serialize concurrent approve requests.
+                try:
+                    berth = Berth.objects.select_for_update().get(pk=berth_id, marina=marina)
+                except Berth.DoesNotExist:
+                    return Response(
+                        {'detail': 'Berth does not belong to this marina.'},
+                        status=http_status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Collision check inside the lock — safe against concurrent approvals.
+                collision = Booking.objects.filter(
+                    berth=berth,
+                    status__in=('awaiting_payment', 'confirmed', 'checked_in'),
+                    check_in__lt=booking.check_out,
+                    check_out__gt=booking.check_in,
+                ).exists()
+                if collision:
+                    return Response(
+                        {'detail': 'Berth is already booked for these dates.'},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+
+                if not hasattr(berth, 'pricing_tier') or berth.pricing_tier is None:
+                    return Response(
+                        {'detail': 'Berth has no pricing tier configured.'},
+                        status=http_status.HTTP_400_BAD_REQUEST,
+                    )
+
+                nights = booking.nights or (booking.check_out - booking.check_in).days or 1
+                berth_cost = berth.pricing_tier.unit_price * nights
+                fees = ChargeableItem.objects.filter(
+                    marina=marina, category='booking_fee'
+                ).aggregate(total=Sum('unit_price'))['total'] or 0
+                total = berth_cost + fees
+
+                nights_label = f'{nights} night{"s" if nights != 1 else ""}'
+                due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
+
+                booking.berth = berth
+                booking.amount = total
+                booking.status = 'awaiting_payment'
+                booking.save(update_fields=['berth', 'amount', 'status'])
+
+                inv = billing_service.create_invoice(
+                    marina,
+                    source_type='berth_booking',
+                    source_id=str(booking.id),
+                    due_date=due_date,
                 )
-
-            # Collision check inside the lock — safe against concurrent approvals.
-            collision = Booking.objects.filter(
-                berth=berth,
-                status__in=('awaiting_payment', 'confirmed', 'checked_in'),
-                check_in__lt=booking.check_out,
-                check_out__gt=booking.check_in,
-            ).exists()
-            if collision:
-                return Response(
-                    {'detail': 'Berth is already booked for these dates.'},
-                    status=http_status.HTTP_409_CONFLICT,
-                )
-
-            if not hasattr(berth, 'pricing_tier') or berth.pricing_tier is None:
-                return Response(
-                    {'detail': 'Berth has no pricing tier configured.'},
-                    status=http_status.HTTP_400_BAD_REQUEST,
-                )
-
-            nights = booking.nights or (booking.check_out - booking.check_in).days or 1
-            berth_cost = berth.pricing_tier.unit_price * nights
-            fees = ChargeableItem.objects.filter(
-                marina=marina, category='booking_fee'
-            ).aggregate(total=Sum('unit_price'))['total'] or 0
-            total = berth_cost + fees
-
-            nights_label = f'{nights} night{"s" if nights != 1 else ""}'
-            due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
-
-            booking.berth = berth
-            booking.amount = total
-            booking.status = 'awaiting_payment'
-            booking.save(update_fields=['berth', 'amount', 'status'])
-
-            inv = billing_service.create_invoice(
-                marina,
-                source_type='berth_booking',
-                source_id=str(booking.id),
-                due_date=due_date,
-            )
-            billing_service.add_line_item(
-                inv,
-                description=f'Berth {berth.code} — {nights_label} @ {berth.pricing_tier.unit_price}/night',
-                quantity=1,
-                unit_price=berth_cost,
-            )
-            for fee_item in ChargeableItem.objects.filter(marina=marina, category='booking_fee'):
                 billing_service.add_line_item(
                     inv,
-                    description=fee_item.name,
+                    description=f'Berth {berth.code} — {nights_label} @ {berth.pricing_tier.unit_price}/night',
                     quantity=1,
-                    unit_price=fee_item.unit_price,
+                    unit_price=berth_cost,
                 )
-            billing_service.finalize_invoice(inv)
+                for fee_item in ChargeableItem.objects.filter(marina=marina, category='booking_fee'):
+                    billing_service.add_line_item(
+                        inv,
+                        description=fee_item.name,
+                        quantity=1,
+                        unit_price=fee_item.unit_price,
+                    )
+                billing_service.finalize_invoice(inv)
 
-            inv.booking = booking
-            inv.save(update_fields=['booking'])
+                inv.booking = booking
+                inv.save(update_fields=['booking'])
 
-            try:
                 checkout_url = billing_service.create_stripe_checkout_session(inv)
-            except Exception:
-                raise  # re-raise so the atomic block rolls back
-
-        if not checkout_url:
+        except Exception:
             return Response(
                 {'detail': 'Payment provider error. Please try again.'},
                 status=http_status.HTTP_503_SERVICE_UNAVAILABLE,
