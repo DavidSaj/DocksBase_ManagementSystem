@@ -15,7 +15,10 @@ export default function BookingRequest({ marina, onSubmitted }) {
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    if (errors[k]) setErrors(e => { const n = { ...e }; delete n[k]; return n; });
+  };
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -24,9 +27,9 @@ export default function BookingRequest({ marina, onSubmitted }) {
     try {
       await api.post('/public/bookings/', {
         ...form,
-        boat_loa: parseFloat(form.boat_loa),
-        boat_beam: parseFloat(form.boat_beam),
-        boat_draft: parseFloat(form.boat_draft),
+        boat_loa: form.boat_loa !== '' ? parseFloat(form.boat_loa) : undefined,
+        boat_beam: form.boat_beam !== '' ? parseFloat(form.boat_beam) : undefined,
+        boat_draft: form.boat_draft !== '' ? parseFloat(form.boat_draft) : undefined,
       });
       onSubmitted();
     } catch (err) {
@@ -50,7 +53,7 @@ export default function BookingRequest({ marina, onSubmitted }) {
         {...extra}
         style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', fontSize: 14, border: `1px solid ${errors[key] ? '#dc2626' : 'rgba(0,0,0,0.2)'}`, borderRadius: 6 }}
       />
-      {errors[key] && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>{errors[key]}</div>}
+      {errors[key] && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>{[].concat(errors[key]).join(' ')}</div>}
     </div>
   );
 
@@ -63,7 +66,7 @@ export default function BookingRequest({ marina, onSubmitted }) {
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 0 }}>
             <div>{field('Check-in', 'check_in', 'date')}</div>
-            <div>{field('Check-out', 'check_out', 'date')}</div>
+            <div>{field('Check-out', 'check_out', 'date', { min: form.check_in || today })}</div>
           </div>
           {field('Your name', 'guest_name')}
           {field('Email address', 'guest_email', 'email')}
@@ -78,7 +81,7 @@ export default function BookingRequest({ marina, onSubmitted }) {
           </div>
 
           {errors.non_field_errors && (
-            <div style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>{errors.non_field_errors}</div>
+            <div style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>{[].concat(errors.non_field_errors).join(' ')}</div>
           )}
 
           <button
