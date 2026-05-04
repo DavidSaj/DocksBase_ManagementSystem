@@ -1,6 +1,6 @@
 import datetime
 import json
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina
@@ -49,28 +49,52 @@ def _make_stripe_event(event_type, invoice_id):
     }
 
 
+def _sync_thread_mock():
+    """
+    Builds a mock for `threading` whose Thread(...).start() calls the target
+    synchronously in the test thread. This keeps assertions deterministic
+    without time.sleep.
+    """
+    mock_threading = MagicMock()
+
+    def make_thread(**kwargs):
+        thread = MagicMock()
+        target = kwargs.get('target')
+        args = kwargs.get('args', ())
+        thread.start = lambda: target(*args) if target else None
+        return thread
+
+    mock_threading.Thread = MagicMock(side_effect=lambda **kw: make_thread(**kw))
+    return mock_threading
+
+
 class StripeWebhookBookingTest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.marina, self.booking, self.invoice, self.berth = _setup()
 
     @patch('apps.billing.views.send_booking_confirmed_email')
-    @patch('apps.billing.views.threading')
+    @patch('apps.billing.views._generate_store_and_email_pdf')
     @patch('apps.billing.stripe_service.stripe')
-    def test_checkout_completed_confirms_booking_and_sends_magic_link(self, mock_stripe, mock_threading, mock_email):
+    def test_checkout_completed_confirms_booking_and_sends_magic_link(
+        self, mock_stripe, mock_pdf, mock_email
+    ):
         mock_stripe.Webhook.construct_event.return_value = _make_stripe_event(
             'checkout.session.completed', self.invoice.id
         )
-        resp = self.client.post(
-            '/api/v1/billing/stripe/webhook/',
-            data=json.dumps({}),
-            content_type='application/json',
-            HTTP_STRIPE_SIGNATURE='sig',
-        )
+        with patch('apps.billing.views.threading', _sync_thread_mock()):
+            resp = self.client.post(
+                '/api/v1/billing/stripe/webhook/',
+                data=json.dumps({}),
+                content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='sig',
+            )
         self.assertEqual(resp.status_code, 200)
         self.booking.refresh_from_db()
         self.assertEqual(self.booking.status, 'confirmed')
-        mock_email.assert_called_once_with(self.booking)
+        mock_email.assert_called_once()
+        called_booking = mock_email.call_args[0][0]
+        self.assertEqual(called_booking.pk, self.booking.pk)
 
     @patch('apps.billing.stripe_service.stripe')
     def test_checkout_expired_cancels_booking_and_releases_berth(self, mock_stripe):
@@ -88,9 +112,12 @@ class StripeWebhookBookingTest(TestCase):
         self.assertEqual(self.booking.status, 'cancelled')
         self.assertIsNone(self.booking.berth)
 
-    @patch('apps.billing.views.threading')
+    @patch('apps.billing.views.send_booking_confirmed_email')
+    @patch('apps.billing.views._generate_store_and_email_pdf')
     @patch('apps.billing.stripe_service.stripe')
-    def test_checkout_completed_without_booking_fk_still_marks_invoice_paid(self, mock_stripe, mock_threading):
+    def test_checkout_completed_without_booking_fk_still_marks_invoice_paid(
+        self, mock_stripe, mock_pdf, mock_email
+    ):
         invoice_no_booking = Invoice.objects.create(
             marina=self.marina,
             invoice_number='INV-2026-0002',
@@ -99,12 +126,14 @@ class StripeWebhookBookingTest(TestCase):
         mock_stripe.Webhook.construct_event.return_value = _make_stripe_event(
             'checkout.session.completed', invoice_no_booking.id
         )
-        resp = self.client.post(
-            '/api/v1/billing/stripe/webhook/',
-            data=json.dumps({}),
-            content_type='application/json',
-            HTTP_STRIPE_SIGNATURE='sig',
-        )
+        with patch('apps.billing.views.threading', _sync_thread_mock()):
+            resp = self.client.post(
+                '/api/v1/billing/stripe/webhook/',
+                data=json.dumps({}),
+                content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='sig',
+            )
         self.assertEqual(resp.status_code, 200)
         invoice_no_booking.refresh_from_db()
         self.assertEqual(invoice_no_booking.status, 'paid')
+        mock_email.assert_not_called()
