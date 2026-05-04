@@ -4,33 +4,10 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
-def clear_fuel_berth_strings(apps, schema_editor):
-    """Zero out any existing string fuel_berth values before the FK is added.
-
-    SQLite AlterField rebuilds the table; the old varchar column must not contain
-    strings that would be interpreted as invalid FK integers.  We DELETE rows
-    that have a non-empty fuel_berth string (dev/test data only — production
-    will not have any rows at this point).
-    """
-    db = schema_editor.connection.vendor
-    with schema_editor.connection.cursor() as cursor:
-        if db == 'sqlite':
-            # SQLite: just wipe the column to empty string so the table-rebuild
-            # treats it as the default empty value (AlterField will then turn it
-            # into NULL via the new nullable FK column definition).
-            cursor.execute(
-                "UPDATE fuel_dock_fueldockentry SET fuel_berth = '' WHERE fuel_berth <> ''"
-            )
-        else:
-            cursor.execute(
-                "UPDATE fuel_dock_fueldockentry SET fuel_berth = NULL WHERE fuel_berth NOT IN (SELECT id::text FROM berths_berth)"
-            )
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('berths', '0017_fueldockentry_fuel_berth_fk'),
+        ('berths', '0017_operational_type_add_empty_choice'),
         ('fuel_dock', '0001_initial'),
     ]
 
@@ -87,7 +64,7 @@ class Migration(migrations.Migration):
                         DROP TABLE fuel_dock_fueldockentry;
                         ALTER TABLE fuel_dock_fueldockentry_new RENAME TO fuel_dock_fueldockentry;
                     """,
-                    reverse_sql=migrations.RunSQL.noop,
+                    reverse_sql=migrations.RunSQL.noop,  # intentionally irreversible
                 ),
             ],
             state_operations=[
