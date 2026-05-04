@@ -182,3 +182,41 @@ class PortalTokenAuthTest(TestCase):
         request = self.factory.get('/')
         result = self.auth.authenticate(request)
         self.assertIsNone(result)
+
+
+from apps.portal.checkin_serializers import PortalBookingSerializer
+
+
+class PortalBookingSerializerTest(TestCase):
+    def test_is_arrival_day_true_when_checkin_today(self):
+        marina = make_marina()
+        booking = make_booking(marina, check_in=datetime.date.today())
+        data = PortalBookingSerializer(booking).data
+        self.assertTrue(data['is_arrival_day'])
+
+    def test_is_arrival_day_false_when_checkin_future(self):
+        marina = make_marina()
+        future = datetime.date.today() + datetime.timedelta(days=5)
+        booking = make_booking(marina, check_in=future, check_out=future + datetime.timedelta(days=2))
+        data = PortalBookingSerializer(booking).data
+        self.assertFalse(data['is_arrival_day'])
+
+    def test_marina_wallet_absent_before_checkin(self):
+        marina = make_marina()
+        booking = make_booking(marina)
+        data = PortalBookingSerializer(booking).data
+        self.assertIsNone(data['marina_wallet'])
+
+    def test_marina_wallet_present_after_self_checkin(self):
+        marina = make_marina()
+        marina.wallet_wifi_network = 'HarborGuest'
+        marina.wallet_wifi_password = 'anchor123'
+        marina.wallet_gate_codes = [{'label': 'Main Gate', 'pin': '4321'}]
+        marina.save()
+        booking = make_booking(marina)
+        booking.self_checked_in = True
+        booking.save()
+        data = PortalBookingSerializer(booking).data
+        self.assertIsNotNone(data['marina_wallet'])
+        self.assertEqual(data['marina_wallet']['wifi_network'], 'HarborGuest')
+        self.assertEqual(data['marina_wallet']['gate_codes'][0]['pin'], '4321')
