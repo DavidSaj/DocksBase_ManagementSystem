@@ -213,6 +213,8 @@ class BookingEngineRequestView(APIView):
                     unit_price=booking.amount,
                 )
                 billing_service.finalize_invoice(inv)
+                inv.booking = booking
+                inv.save(update_fields=['booking'])
                 checkout_url = billing_service.create_stripe_checkout_session(inv)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)

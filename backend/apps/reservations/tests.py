@@ -503,6 +503,25 @@ class BookingEngineRequestEndpointTest(TestCase):
         })
         self.assertEqual(resp.status_code, 409)
 
+    @patch('apps.billing.stripe_service._create_checkout_session', return_value='https://checkout.stripe.com/test')
+    def test_auto_tetris_sets_invoice_booking_fk(self, mock_checkout):
+        self.marina.booking_mode = 'auto_tetris'
+        self.marina.save()
+        resp = self.client.post('/api/v1/bookings/engine-request/', {
+            'check_in':   '2026-09-01',
+            'check_out':  '2026-09-05',
+            'boat_loa':   '12.0',
+            'boat_beam':  '4.0',
+            'guest_name': 'I. Boatman',
+            'guest_email': 'i@sea.com',
+            'guest_phone': '',
+        })
+        self.assertEqual(resp.status_code, 201)
+        booking_id = resp.data['booking']['id']
+        from apps.billing.models import Invoice
+        inv = Invoice.objects.get(source_type='berth_booking', source_id=str(booking_id))
+        self.assertEqual(inv.booking_id, booking_id)
+
 
 class AssignBerthEndpointTest(TestCase):
     def setUp(self):
