@@ -15,7 +15,6 @@ export const PREFABS = [
   { type: 'pontoon-spine-v',       label: 'Access Pontoon V (Wood)',   cat: 'Docking', w: 2,  h: 10,  bg: '#c8b97a', border: '#a89940' },
   { type: 'pontoon-spine-h-stone', label: 'Access Pontoon H (Stone)',  cat: 'Docking', w: 10, h: 2,   bg: '#b0aaa2', border: '#888480' },
   { type: 'pontoon-spine-v-stone', label: 'Access Pontoon V (Stone)',  cat: 'Docking', w: 2,  h: 10,  bg: '#b0aaa2', border: '#888480' },
-  { type: 'fuel-dock',             label: 'Fuel Dock',                 cat: 'Docking', w: 4,  h: 2,   bg: '#f0d878', border: '#c8a820' },
   { type: 'ramp',                  label: 'Launch Ramp',               cat: 'Docking', w: 2,  h: 3,   bg: '#c8c0aa', border: '#a8a088' },
   // ── Buildings — stored in MarinaMapConfig ─────────────────────────────────────
   { type: 'office',     label: 'Harbormaster',   cat: 'Buildings', w: 3, h: 2, bg: '#d4cec4', border: '#aaa89a' },
@@ -36,7 +35,6 @@ export const PREFAB_TO_PIER_TYPE = {
   'pontoon-spine-v':       'pontoon',
   'pontoon-spine-h-stone': 'concrete',
   'pontoon-spine-v-stone': 'concrete',
-  'fuel-dock':             'fuel-dock',
   'gangway':               'gangway',
   'ramp':                  'ramp',
 }
