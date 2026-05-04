@@ -288,6 +288,65 @@ class RunTetrisTest(TestCase):
                 guest_phone='',
             )
 
+    def test_boat_draft_wired_through(self):
+        self.b1.max_draft_m = Decimal('1.0')
+        self.b1.save()
+        self.b2.max_draft_m = Decimal('3.0')
+        self.b2.save()
+        booking = run_tetris(
+            marina=self.marina,
+            check_in='2026-07-01',
+            check_out='2026-07-04',
+            boat_loa=12.0,
+            boat_beam=4.0,
+            boat_draft=2.5,
+            guest_name='D. Drafter',
+            guest_email='d@sea.com',
+            guest_phone='',
+        )
+        self.assertEqual(booking.berth, self.b2)
+
+    def test_race_condition_falls_to_next_candidate(self):
+        # b1 gets a booking ending the day before check_in → tight gap → ranked 1st
+        Booking.objects.create(
+            marina=self.marina, berth=self.b1,
+            check_in='2026-06-28', check_out='2026-07-01',
+            nights=3, status='confirmed',
+        )
+        # b2 has no nearby bookings → large gap score → ranked 2nd
+
+        berth_1_id = self.b1.pk
+        mock_sfu_qs = MagicMock()
+
+        def sfu_get_side_effect(pk):
+            if pk == berth_1_id:
+                # Simulate a concurrent request committing a booking on b1 just before
+                # our collision check runs — our subsequent .filter(...).exists() finds it.
+                Booking.objects.create(
+                    marina=self.marina, berth=self.b1,
+                    check_in='2026-07-01', check_out='2026-07-05',
+                    nights=4, status='pending_payment',
+                )
+            return Berth.objects.get(pk=pk)
+
+        mock_sfu_qs.get.side_effect = sfu_get_side_effect
+
+        with patch.object(Berth.objects, 'select_for_update', return_value=mock_sfu_qs):
+            booking = run_tetris(
+                marina=self.marina,
+                check_in='2026-07-01',
+                check_out='2026-07-05',
+                boat_loa=12.0,
+                boat_beam=4.0,
+                boat_draft=None,
+                guest_name='T. Racer',
+                guest_email='',
+                guest_phone='',
+            )
+
+        self.assertEqual(booking.berth, self.b2)
+        self.assertEqual(booking.status, 'pending_payment')
+
 
 class CreateManualApprovalTest(TestCase):
     def setUp(self):

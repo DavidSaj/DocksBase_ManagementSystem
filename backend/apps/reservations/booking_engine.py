@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Q, Subquery, OuterRef
 
 from apps.berths.models import Berth
@@ -124,43 +125,63 @@ def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, gue
     )
 
 
-def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, guest_name, guest_email, guest_phone):
+def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None,
+               guest_name='', guest_email='', guest_phone=''):
     """
     Mode B: run gap-minimisation, assign berth immediately, return Booking
     with status=pending_payment.
     Raises NoAvailableBerthError if no compatible berth is free.
+
+    Uses select_for_update() + collision re-check inside a transaction to guard
+    against TOCTOU races: if a concurrent request steals the top-ranked berth
+    between scoring and writing, we fall through to the next candidate.
     """
     if isinstance(check_in, str):
         check_in = date.fromisoformat(check_in)
     if isinstance(check_out, str):
         check_out = date.fromisoformat(check_out)
-
     if check_out <= check_in:
         raise ValueError(f'check_out ({check_out}) must be after check_in ({check_in}).')
 
-    candidates = compatible_available_berths(marina, check_in, check_out, boat_loa, boat_beam)
+    candidates = compatible_available_berths(
+        marina, check_in, check_out, boat_loa, boat_beam, boat_draft,
+    )
     scored = _score_berths(candidates, check_in, check_out)
-
     if not scored:
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
 
-    best_berth = scored[0][1]
     nights = (check_out - check_in).days or 1
-    price = best_berth.pricing_tier.unit_price
-    amount = Decimal(str(price)) * nights
 
-    return Booking.objects.create(
-        marina=marina,
-        berth=best_berth,
-        vessel=None,
-        check_in=check_in,
-        check_out=check_out,
-        nights=nights,
-        amount=amount,
-        status='pending_payment',
-        boat_loa=boat_loa,
-        boat_beam=boat_beam,
-        guest_name=guest_name,
-        guest_email=guest_email,
-        guest_phone=guest_phone,
-    )
+    with transaction.atomic():
+        for _, berth in scored:
+            Berth.objects.select_for_update().get(pk=berth.pk)
+
+            collision = Booking.objects.filter(
+                berth=berth,
+                status__in=ACTIVE_STATUSES,
+                check_in__lt=check_out,
+                check_out__gt=check_in,
+            ).exists()
+            if collision:
+                continue
+
+            price = berth.pricing_tier.unit_price
+            amount = Decimal(str(price)) * nights
+            return Booking.objects.create(
+                marina=marina,
+                berth=berth,
+                vessel=None,
+                check_in=check_in,
+                check_out=check_out,
+                nights=nights,
+                amount=amount,
+                status='pending_payment',
+                boat_loa=boat_loa,
+                boat_beam=boat_beam,
+                boat_draft=boat_draft,
+                guest_name=guest_name,
+                guest_email=guest_email,
+                guest_phone=guest_phone,
+            )
+
+        raise NoAvailableBerthError('No compatible berth available for the requested dates.')
