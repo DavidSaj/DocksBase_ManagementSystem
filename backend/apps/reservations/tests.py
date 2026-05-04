@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -196,6 +197,33 @@ class CompatibleBerthsTest(TestCase):
         result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=12.0, boat_beam=None)
         ids = [b.id for b in result]
         self.assertIn(self.b_large.id, ids)
+
+    def test_draft_too_deep_excluded(self):
+        self.b_small.max_draft_m = Decimal('1.5')
+        self.b_small.save()
+        result = compatible_available_berths(
+            self.marina, '2026-06-01', '2026-06-05', boat_draft=2.0,
+        )
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_small.id, ids)
+
+    def test_draft_fits_included(self):
+        self.b_large.max_draft_m = Decimal('2.5')
+        self.b_large.save()
+        result = compatible_available_berths(
+            self.marina, '2026-06-01', '2026-06-05', boat_draft=2.0,
+        )
+        ids = [b.id for b in result]
+        self.assertIn(self.b_large.id, ids)
+
+    def test_maintenance_berth_excluded(self):
+        self.b_large.status = 'maintenance'
+        self.b_large.save()
+        result = compatible_available_berths(
+            self.marina, '2026-06-01', '2026-06-05',
+        )
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_large.id, ids)
 
 
 class RunTetrisTest(TestCase):

@@ -16,17 +16,24 @@ class NoAvailableBerthError(Exception):
     pass
 
 
-def compatible_available_berths(marina, check_in, check_out, boat_loa=None, boat_beam=None):
+def compatible_available_berths(
+    marina, check_in, check_out,
+    boat_loa=None, boat_beam=None, boat_draft=None,
+):
     """
     Return a queryset of Berths that:
-    1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam)
-    2. Have no confirmed/active booking that overlaps [check_in, check_out)
+    1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam, max_draft_m >= boat_draft)
+    2. Are not in maintenance status
+    3. Have no confirmed/active booking that overlaps [check_in, check_out)
     """
-    qs = Berth.objects.filter(marina=marina)
+    qs = Berth.objects.filter(marina=marina).exclude(status='maintenance')
+
     if boat_loa is not None:
         qs = qs.filter(length_m__gte=Decimal(str(boat_loa)))
     if boat_beam is not None:
         qs = qs.filter(max_beam_m__gte=Decimal(str(boat_beam)))
+    if boat_draft is not None:
+        qs = qs.filter(max_draft_m__gte=Decimal(str(boat_draft)))
 
     blocked_ids = (
         Booking.objects.filter(
