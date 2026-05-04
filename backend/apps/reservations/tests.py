@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
@@ -8,6 +9,13 @@ from apps.billing import service as billing_service
 from apps.members.models import Member
 from apps.vessels.models import Vessel
 from .models import Booking, BookingRequest
+from .emails import (
+    send_booking_request_boater_email,
+    send_booking_request_manager_email,
+    send_approve_email,
+    send_reject_email,
+    send_booking_confirmed_email,
+)
 
 
 def make_marina():
@@ -292,7 +300,7 @@ class CreateManualApprovalTest(TestCase):
 # ── Endpoint Tests ───────────────────────────────────────────────────────────
 
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 
 class AvailableBerthsEndpointTest(TestCase):
@@ -490,4 +498,74 @@ class CheckoutFinalisesInvoiceTest(TestCase):
         self.invoice.save()
         resp = self.client.patch(f'/api/v1/bookings/{self.booking.id}/', {'status': 'checked_out'}, format='json')
         self.assertEqual(resp.status_code, 200)
+
+
+# ── Email Helper Tests ───────────────────────────────────────────────────────
+
+class BookingEmailsTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.marina.name = 'Sunport Marina'
+        self.marina.save()
+        self.berth = make_berth(self.marina)
+        self.booking = Booking.objects.create(
+            marina=self.marina,
+            berth=None,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            guest_name='J. Sailor',
+            guest_email='sailor@example.com',
+            boat_loa=12.5,
+            boat_beam=4.2,
+            boat_draft=1.8,
+        )
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_boater_request_received(self, mock_send):
+        send_booking_request_boater_email(self.booking)
+        mock_send.assert_called_once()
+        _, kwargs = mock_send.call_args[0], mock_send.call_args[1] if mock_send.call_args[1] else {}
+        args = mock_send.call_args[0]
+        self.assertIn('Sunport Marina', args[0])
+        self.assertEqual(args[3], ['sailor@example.com'])
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_manager_notification_sent_to_owners_and_managers(self, mock_send):
+        User.objects.create_user(email='owner@m.com', password='x', marina=self.marina, role='owner')
+        User.objects.create_user(email='mgr@m.com', password='x', marina=self.marina, role='manager')
+        User.objects.create_user(email='staff@m.com', password='x', marina=self.marina, role='staff')
+        send_booking_request_manager_email(self.booking)
+        mock_send.assert_called_once()
+        recipients = mock_send.call_args[0][3]
+        self.assertIn('owner@m.com', recipients)
+        self.assertIn('mgr@m.com', recipients)
+        self.assertNotIn('staff@m.com', recipients)
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_approve_email_contains_checkout_url(self, mock_send):
+        send_approve_email(self.booking, checkout_url='https://checkout.stripe.com/xyz')
+        mock_send.assert_called_once()
+        message = mock_send.call_args[0][1]
+        self.assertIn('https://checkout.stripe.com/xyz', message)
+        self.assertEqual(mock_send.call_args[0][3], ['sailor@example.com'])
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_reject_email_contains_reason(self, mock_send):
+        send_reject_email(self.booking, reason='No space available.')
+        mock_send.assert_called_once()
+        message = mock_send.call_args[0][1]
+        self.assertIn('No space available.', message)
+        self.assertEqual(mock_send.call_args[0][3], ['sailor@example.com'])
+
+    @patch('apps.reservations.emails.send_mail')
+    @patch('apps.reservations.emails.make_magic_url')
+    def test_confirmed_email_contains_magic_link(self, mock_magic, mock_send):
+        mock_magic.return_value = 'https://book.docksbase.com/sunport/portal?token=abc123'
+        send_booking_confirmed_email(self.booking)
+        mock_send.assert_called_once()
+        message = mock_send.call_args[0][1]
+        self.assertIn('abc123', message)
+        mock_magic.assert_called_once_with(self.booking)
 
