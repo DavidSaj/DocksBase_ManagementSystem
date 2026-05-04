@@ -6,12 +6,23 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(cfg => {
-  const tenant = detectTenant();
-  if (tenant?.slug) {
-    cfg.headers['X-Marina-Slug'] = tenant.slug;
-  } else if (tenant?.customDomain) {
-    cfg.headers['X-Marina-Domain'] = tenant.customDomain;
+  const sessionToken = localStorage.getItem('portal_session_token');
+  if (sessionToken) {
+    cfg.headers['Authorization'] = `Bearer ${sessionToken}`;
   }
+
+  const marinaSlug = localStorage.getItem('portal_marina_slug');
+  if (marinaSlug) {
+    cfg.headers['X-Marina-Slug'] = marinaSlug;
+  } else {
+    const tenant = detectTenant();
+    if (tenant?.slug) {
+      cfg.headers['X-Marina-Slug'] = tenant.slug;
+    } else if (tenant?.customDomain) {
+      cfg.headers['X-Marina-Domain'] = tenant.customDomain;
+    }
+  }
+
   return cfg;
 });
 
