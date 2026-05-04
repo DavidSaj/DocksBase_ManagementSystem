@@ -216,6 +216,7 @@ class CompatibleBerthsTest(TestCase):
         )
         ids = [b.id for b in result]
         self.assertIn(self.b_large.id, ids)
+        self.assertIn(self.b_small.id, ids)  # NULL max_draft_m = unconstrained, must pass
 
     def test_maintenance_berth_excluded(self):
         self.b_large.status = 'maintenance'

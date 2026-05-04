@@ -22,7 +22,7 @@ def compatible_available_berths(
 ):
     """
     Return a queryset of Berths that:
-    1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam, max_draft_m >= boat_draft)
+    1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam, max_draft_m >= boat_draft (NULL max_draft_m = unconstrained, always passes))
     2. Are not in maintenance status
     3. Have no confirmed/active booking that overlaps [check_in, check_out)
     """
