@@ -154,6 +154,8 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None
 
     with transaction.atomic():
         for _, berth in scored:
+            # Acquire a row-level lock on this berth for the duration of the transaction,
+            # preventing concurrent run_tetris calls from booking the same berth.
             Berth.objects.select_for_update().get(pk=berth.pk)
 
             collision = Booking.objects.filter(

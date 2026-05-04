@@ -1,6 +1,6 @@
 import datetime
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
@@ -305,6 +305,7 @@ class RunTetrisTest(TestCase):
             guest_phone='',
         )
         self.assertEqual(booking.berth, self.b2)
+        self.assertEqual(booking.boat_draft, Decimal('2.5'))
 
     def test_race_condition_falls_to_next_candidate(self):
         # b1 gets a booking ending the day before check_in → tight gap → ranked 1st
@@ -389,7 +390,6 @@ class CreateManualApprovalTest(TestCase):
 # ── Endpoint Tests ───────────────────────────────────────────────────────────
 
 import json
-from unittest.mock import MagicMock
 
 
 class AvailableBerthsEndpointTest(TestCase):
