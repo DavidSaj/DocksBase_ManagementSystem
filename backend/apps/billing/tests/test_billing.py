@@ -136,10 +136,10 @@ class ServiceLayerTest(TestCase):
             self.marina, member=self.member,
             source_type='berth_booking', source_id='10',
         )
-        self.assertEqual(inv.vat_rate, self.marina.vat_rate)
         self.assertEqual(inv.status, 'draft')
         self.assertEqual(inv.member, self.member)
         self.assertEqual(inv.source_id, '10')
+        self.assertIsNone(inv.vat_rate)   # per-line-item tax rates, not invoice-level
 
     def test_add_line_item_calculates_total_price(self):
         inv = billing_service.create_invoice(self.marina, source_type='berth_booking', source_id='11')
@@ -156,13 +156,13 @@ class ServiceLayerTest(TestCase):
 
     def test_finalize_calculates_subtotal_tax_total(self):
         inv = billing_service.create_invoice(self.marina, source_type='berth_booking', source_id='13')
-        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('100.00'))
-        billing_service.add_line_item(inv, 'Electricity', Decimal('1'), Decimal('20.00'))
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('100.00'), tax_rate=Decimal('8.10'))
+        billing_service.add_line_item(inv, 'Electricity', Decimal('1'), Decimal('20.00'), tax_rate=Decimal('0.00'))
         billing_service.finalize_invoice(inv)
         inv.refresh_from_db()
         self.assertEqual(inv.subtotal, Decimal('120.00'))
-        # vat_rate is 8.10 (from make_marina)
-        expected_tax = (Decimal('120.00') * Decimal('8.10') / 100).quantize(Decimal('0.01'))
+        # tax comes from per-line-item tax_rate: only the berth line has tax
+        expected_tax = (Decimal('100.00') * Decimal('8.10') / 100).quantize(Decimal('0.01'))
         self.assertEqual(inv.tax_total, expected_tax)
         self.assertEqual(inv.total, inv.subtotal + inv.tax_total)
         self.assertEqual(inv.status, 'open')
@@ -376,7 +376,10 @@ class StripeWebhookViewTest(TestCase):
 
     @patch('apps.billing.stripe_service.stripe')
     def test_invalid_signature_returns_400(self, mock_stripe):
-        mock_stripe.Webhook.construct_event.side_effect = Exception('Invalid signature')
+        class FakeSignatureError(Exception):
+            pass
+        mock_stripe.error.SignatureVerificationError = FakeSignatureError
+        mock_stripe.Webhook.construct_event.side_effect = FakeSignatureError('bad sig')
         resp = self.client.post(
             '/api/v1/billing/stripe/webhook/',
             data=b'{}', content_type='application/json',
