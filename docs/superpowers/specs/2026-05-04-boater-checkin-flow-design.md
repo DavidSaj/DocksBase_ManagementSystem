@@ -133,7 +133,25 @@ The portal opens `sign_url` in a new tab. Embedded iframe is avoided due to cros
 **Webhook:** `POST /api/webhooks/dropbox-sign/`
 - Validates Dropbox Sign HMAC header.
 - On `signature_request_all_signed` event: look up booking by `metadata.booking_id`, set `waiver_signed = True`.
-- In the same transaction: if vessel dimensions are also complete, set `pre_cleared = True`.
+- In the same transaction: run `evaluate_pre_cleared(booking)` (see below).
+
+**`evaluate_pre_cleared(booking)` — shared helper, called from two entry points:**
+
+```python
+def evaluate_pre_cleared(booking):
+    if (booking.waiver_signed
+            and booking.vessel_loa is not None
+            and booking.vessel_beam is not None
+            and booking.vessel_draft is not None):
+        booking.pre_cleared = True
+        booking.save(update_fields=['pre_cleared'])
+```
+
+This helper must be called from **both**:
+1. The Dropbox Sign webhook (after setting `waiver_signed = True`)
+2. The `PATCH /api/portal/bookings/<id>/` endpoint (after saving vessel dimensions)
+
+This ensures `pre_cleared` is set regardless of which item the boater completes last. Without this, a boater who signs the waiver first and then fills dimensions will be stuck at 99% completion forever — the webhook already fired and will not fire again.
 
 ### Item 3 — Insurance Document (optional)
 
@@ -199,7 +217,18 @@ portal/src/
 
 `BookingDashboard` fetches `GET /api/portal/bookings/<id>/` and passes the response to a single `deriveState(booking)` helper that returns one of `'checklist' | 'countdown' | 'arrival' | 'wallet'`. Each view is a separate component with no shared local state between them.
 
-The `GET` response includes a server-computed `is_arrival_day: bool` field so the client doesn't need to compare dates in local timezone — the backend evaluates `check_in == date.today()` in UTC, which is acceptable for marina operations.
+The `GET` response includes a server-computed `is_arrival_day: bool` field so the client never compares dates. The backend computes it using the marina's local timezone:
+
+```python
+from zoneinfo import ZoneInfo
+import datetime
+
+tz = ZoneInfo(booking.marina.timezone)  # e.g. "Australia/Sydney", "America/Los_Angeles"
+today_local = datetime.datetime.now(tz).date()
+is_arrival_day = booking.check_in == today_local
+```
+
+`Marina.timezone` already exists on the model (`CharField`, default `'UTC'`). No migration required. UTC must never be used here — a Sydney marina at 9 AM local is still the previous UTC day, which would block a boater standing at the gate from checking in.
 
 ---
 
