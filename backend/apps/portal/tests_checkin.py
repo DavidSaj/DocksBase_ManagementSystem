@@ -45,3 +45,15 @@ class BookingPortalFieldsTest(TestCase):
         self.assertFalse(booking.self_checked_in)
         self.assertIsNone(booking.self_checked_in_at)
         self.assertFalse(booking.insurance_doc)
+
+
+class MarinaWalletFieldsTest(TestCase):
+    def test_wallet_fields_exist(self):
+        marina = make_marina()
+        self.assertIsNone(marina.wallet_wifi_network)
+        self.assertIsNone(marina.wallet_wifi_password)
+        self.assertEqual(marina.wallet_gate_codes, [])
+        self.assertIsNone(marina.wallet_harbour_master_phone)
+        self.assertIsNone(marina.wallet_vhf_channel)
+        self.assertIsNone(marina.wallet_office_hours)
+        self.assertIsNone(marina.waiver_template_id)
