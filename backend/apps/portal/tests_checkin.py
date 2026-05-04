@@ -6,6 +6,13 @@ from apps.accounts.models import Marina
 from apps.berths.models import Pier, Berth
 from apps.billing.models import ChargeableItem
 from apps.reservations.models import Booking
+from apps.portal.checkin_utils import (
+    evaluate_pre_cleared,
+    make_magic_token, decode_magic_token,
+    make_portal_token, decode_portal_token,
+    make_magic_url,
+)
+from django.core import signing
 
 _marina_counter = itertools.count(1)
 
@@ -57,3 +64,86 @@ class MarinaWalletFieldsTest(TestCase):
         self.assertIsNone(marina.wallet_vhf_channel)
         self.assertIsNone(marina.wallet_office_hours)
         self.assertIsNone(marina.waiver_template_id)
+
+
+class EvaluatePreClearedTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.booking = make_booking(self.marina)
+
+    def test_not_cleared_without_waiver(self):
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        self.booking.boat_draft = 1.5
+        self.booking.save()
+        evaluate_pre_cleared(self.booking)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.pre_cleared)
+
+    def test_not_cleared_without_dimensions(self):
+        self.booking.waiver_signed = True
+        self.booking.save()
+        evaluate_pre_cleared(self.booking)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.pre_cleared)
+
+    def test_not_cleared_with_partial_dimensions(self):
+        self.booking.waiver_signed = True
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        # boat_draft is None
+        self.booking.save()
+        evaluate_pre_cleared(self.booking)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.pre_cleared)
+
+    def test_cleared_when_waiver_and_all_dimensions_complete(self):
+        self.booking.waiver_signed = True
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        self.booking.boat_draft = 1.5
+        self.booking.save()
+        evaluate_pre_cleared(self.booking)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.pre_cleared)
+
+    def test_idempotent_when_already_cleared(self):
+        self.booking.waiver_signed = True
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        self.booking.boat_draft = 1.5
+        self.booking.pre_cleared = True
+        self.booking.save()
+        evaluate_pre_cleared(self.booking)  # should not error
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.pre_cleared)
+
+
+class PortalAuthTokenTest(TestCase):
+    def test_magic_token_round_trip(self):
+        token = make_magic_token(booking_id=42, boater_email='b@test.com')
+        payload = decode_magic_token(token)
+        self.assertEqual(payload['booking_id'], 42)
+        self.assertEqual(payload['boater_email'], 'b@test.com')
+
+    def test_magic_token_invalid_raises(self):
+        with self.assertRaises(signing.BadSignature):
+            decode_magic_token('not-a-valid-token')
+
+    def test_portal_token_round_trip(self):
+        token = make_portal_token(booking_id=7, marina_slug='harbor', boater_email='b@test.com')
+        payload = decode_portal_token(token)
+        self.assertEqual(payload['booking_id'], 7)
+        self.assertEqual(payload['marina_slug'], 'harbor')
+        self.assertEqual(payload['boater_email'], 'b@test.com')
+
+    def test_portal_token_invalid_raises(self):
+        with self.assertRaises(signing.BadSignature):
+            decode_portal_token('tampered-token')
+
+    def test_make_magic_url_contains_token_and_slug(self):
+        marina = make_marina()
+        booking = make_booking(marina)
+        url = make_magic_url(booking)
+        self.assertIn('token=', url)
+        self.assertIn(marina.slug, url)
