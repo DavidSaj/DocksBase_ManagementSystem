@@ -6,6 +6,7 @@ import useBerths from '../hooks/useBerths.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
+import PendingRequestsTab from '../components/reservations/PendingRequestsTab.jsx';
 
 const filterMap = {
   all:              {},
@@ -541,6 +542,16 @@ export default function Reservations() {
   const [selReq, setSelReq] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [assignModal, setAssignModal] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    api.get('/bookings/', { params: { status: 'pending_approval' } })
+      .then(r => {
+        const items = r.data.results ?? r.data;
+        setPendingCount(Array.isArray(items) ? items.length : 0);
+      })
+      .catch(() => {});
+  }, []);
 
   const { bookings, loading, updateBooking, refetch, assignBerth } = useBookings(
     bookingTabs.includes(tab) ? filterMap[tab] : {}
@@ -586,8 +597,15 @@ export default function Reservations() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}><Ic n="plus" s={12} />New Booking</button>
       </div>
       <div className="tabs">
-        {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending_approval','Pending Approval'],['pending','Pending'],['overdue','Overdue'],['waitlist','Wait List']].map(([v,l]) => (
-          <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => { setTab(v); setSel(null); setSelReq(null); }}>{l}</div>
+        {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending_approval','Pending Approval'],['pending_requests','Pending Requests'],['pending','Pending'],['overdue','Overdue'],['waitlist','Wait List']].map(([v,l]) => (
+          <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => { setTab(v); setSel(null); setSelReq(null); }}>
+            {l}
+            {v === 'pending_requests' && pendingCount > 0 && (
+              <span style={{ marginLeft: 6, background: '#dc2626', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, verticalAlign: 'middle' }}>
+                {pendingCount}
+              </span>
+            )}
+          </div>
         ))}
       </div>
 
@@ -651,6 +669,14 @@ export default function Reservations() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'pending_requests' && (
+        <div className="card" style={{ padding: 20 }}>
+          <PendingRequestsTab
+            onApproved={() => setPendingCount(c => Math.max(0, c - 1))}
+          />
         </div>
       )}
 
