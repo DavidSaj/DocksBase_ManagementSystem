@@ -6,6 +6,7 @@ import useBoaterAccounts from '../hooks/useBoaterAccounts.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
+import { ageDays } from '../utils/ageDays.js';
 
 function fmtInv(inv) {
   const rawAmt = inv.total ?? inv.amount;
@@ -102,6 +103,15 @@ export default function Billing() {
   useEffect(() => {
     if (tab === 'boater-accounts') fetchAccounts({ search: acctSearch, showAll: acctShowAll });
   }, [tab, acctSearch, acctShowAll, fetchAccounts]);
+
+  // Cross-screen jump: Members screen stores a member ID here before navigating to Billing
+  useEffect(() => {
+    const pendingId = localStorage.getItem('billing_open_member');
+    if (!pendingId) return;
+    localStorage.removeItem('billing_open_member');
+    setTab('boater-accounts');
+    openDrawer(Number(pendingId));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function runBatch() {
     setBatchLoading(true);
@@ -381,7 +391,7 @@ export default function Billing() {
   return (
     <div>
       <div className="tabs">
-        {[['invoices','Invoices'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts'],['boater-accounts','Boater Accounts']].map(([v,l]) => (
+        {[['invoices','Invoices'],['boater-accounts','Boater Accounts'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -865,6 +875,33 @@ export default function Billing() {
 
       {tab === 'boater-accounts' && !selectedId && (
         <div>
+          {/* Aging bucket summary */}
+          {(() => {
+            const today = new Date();
+            const overdue = accounts.filter(a =>
+              Number(a.total_outstanding) > 0 &&
+              a.oldest_due_date &&
+              new Date(a.oldest_due_date) < today
+            );
+            const under30 = overdue.filter(a => ageDays(a.oldest_due_date) < 30).length;
+            const d30to60 = overdue.filter(a => { const d = ageDays(a.oldest_due_date); return d >= 30 && d < 60; }).length;
+            const over60  = overdue.filter(a => ageDays(a.oldest_due_date) >= 60).length;
+            return (
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                {[
+                  ['< 30 Days',  under30, 'badge-orange'],
+                  ['30–60 Days', d30to60, 'badge-red'],
+                  ['60+ Days',   over60,  'badge-red'],
+                ].map(([label, count, cls]) => (
+                  <div key={label} className="card" style={{ padding: '12px 18px', display: 'flex', gap: 10, alignItems: 'center', flex: 1 }}>
+                    <span className={`badge ${cls}`} style={{ fontSize: 15, fontWeight: 700, minWidth: 26, textAlign: 'center' }}>{count}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           <div className="sec-hdr">
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
@@ -893,7 +930,11 @@ export default function Billing() {
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
                 ) : accounts.length === 0 ? (
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No outstanding balances.</td></tr>
-                ) : accounts.map(a => {
+                ) : [...accounts].sort((a, b) => {
+                  if (!a.oldest_due_date) return 1;
+                  if (!b.oldest_due_date) return -1;
+                  return new Date(a.oldest_due_date) - new Date(b.oldest_due_date);
+                }).map(a => {
                   const isOverdue = a.oldest_due_date && new Date(a.oldest_due_date) < new Date();
                   return (
                     <tr key={a.member_id}>
@@ -1024,6 +1065,25 @@ export default function Billing() {
                   >
                     {payLoading ? 'Recording…' : 'Record Payment'}
                   </button>
+                </div>
+
+                {/* Heavy account actions — placeholder until backend endpoints exist */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+                  {[
+                    'Apply Credit',
+                    'Issue Refund',
+                    'Send Payment Reminder',
+                  ].map(label => (
+                    <button
+                      key={label}
+                      className="btn btn-ghost"
+                      style={{ justifyContent: 'center', opacity: 0.4, cursor: 'not-allowed' }}
+                      disabled
+                      title="Coming soon"
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Invoice groups */}

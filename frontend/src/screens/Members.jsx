@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useMembers from '../hooks/useMembers.js';
 import useSegments from '../hooks/useSegments.js';
 import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import { sendMagicLink } from '../api.js';
+import api, { sendMagicLink } from '../api.js';
 
 function NewMemberModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
@@ -138,13 +138,21 @@ function UploadDocModal({ members, onClose, onUpload }) {
   );
 }
 
-export default function Members() {
+export default function Members({ setScreen }) {
   const [tab, setTab] = useState('members');
   const [sel, setSel] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showUploadDoc, setShowUploadDoc] = useState(false);
   const [linkSent, setLinkSent]       = useState(false);
   const [linkSending, setLinkSending] = useState(false);
+  const [financialSnap, setFinancialSnap] = useState(null);
+  const [snapLoading, setSnapLoading]     = useState(false);
+  const [showPayModal, setShowPayModal]   = useState(false);
+  const [payAmount, setPayAmount]         = useState('');
+  const [payMethod, setPayMethod]         = useState('cash');
+  const [payNotes, setPayNotes]           = useState('');
+  const [payLoading, setPayLoading]       = useState(false);
+  const [payError, setPayError]           = useState(null);
 
   async function handleSendPortalLink() {
     if (!sel?.id) return;
@@ -157,6 +165,43 @@ export default function Members() {
       // silently ignore
     } finally {
       setLinkSending(false);
+    }
+  }
+
+  const selId = sel?.id ?? null;
+  useEffect(() => {
+    if (!selId) { setFinancialSnap(null); return; }
+    let cancelled = false;
+    setSnapLoading(true);
+    setFinancialSnap(null);
+    api.get(`/billing/accounts/${selId}/`)
+      .then(r => { if (!cancelled) setFinancialSnap(r.data); })
+      .catch(() => { if (!cancelled) setFinancialSnap(null); })
+      .finally(() => { if (!cancelled) setSnapLoading(false); });
+    return () => { cancelled = true; };
+  }, [selId]);
+
+  async function recordPayment() {
+    if (!payAmount || Number(payAmount) <= 0 || !sel?.id) return;
+    setPayLoading(true);
+    setPayError(null);
+    try {
+      await api.post(`/billing/accounts/${sel.id}/payments/`, {
+        amount: payAmount,
+        method: payMethod,
+        notes: payNotes,
+      });
+      setShowPayModal(false);
+      try {
+        const r = await api.get(`/billing/accounts/${sel.id}/`);
+        setFinancialSnap(r.data);
+      } catch {
+        setFinancialSnap(null);
+      }
+    } catch (ex) {
+      setPayError(ex?.response?.data?.detail ?? 'Payment failed. Please try again.');
+    } finally {
+      setPayLoading(false);
     }
   }
 
@@ -209,6 +254,68 @@ export default function Members() {
                 <button className="btn btn-ghost btn-sm" onClick={() => setSel(null)} style={{ padding: '3px 7px' }}><Ic n="x" s={12} /></button>
               </div>
               <div className="detail-sub">{sel.vessel} · {sel.type}</div>
+
+              {/* Financial Snapshot */}
+              {snapLoading && (
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>Loading balance…</div>
+              )}
+              {financialSnap && (() => {
+                const outstanding = Number(financialSnap.summary.total_outstanding);
+                const anyOverdue  = financialSnap.open_invoices.some(
+                  inv => inv.due_date && new Date(inv.due_date) < new Date()
+                );
+                const balColor = outstanding === 0 ? 'var(--green)' : anyOverdue ? 'var(--red)' : 'var(--navy)';
+                const sortedInv = [...financialSnap.open_invoices].sort((a, b) =>
+                  (a.due_date ?? '9999') < (b.due_date ?? '9999') ? -1 : 1
+                );
+                return (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 14px', margin: '8px 0 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Outstanding Balance</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: balColor, marginBottom: 8 }}>
+                      €{outstanding.toFixed(2)}
+                      {outstanding === 0 && <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 8 }}>✓ Settled</span>}
+                    </div>
+                    {sortedInv.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        {sortedInv.slice(0, 3).map(inv => {
+                          const isOverdue = inv.due_date && new Date(inv.due_date) < new Date();
+                          const remaining = Number(inv.total ?? 0) - Number(inv.amount_paid_so_far ?? 0);
+                          return (
+                            <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 0', borderBottom: 'var(--border)' }}>
+                              <span style={{ color: isOverdue ? 'var(--red)' : 'rgba(0,0,0,0.55)' }}>
+                                {inv.invoice_number}
+                                {isOverdue && <span className="badge badge-red" style={{ marginLeft: 5, fontSize: 9 }}>OVERDUE</span>}
+                              </span>
+                              <span style={{ fontWeight: 600 }}>€{remaining.toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
+                        {sortedInv.length > 3 && (
+                          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>…and {sortedInv.length - 3} more</div>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        disabled={sortedInv.length === 0}
+                        onClick={() => { setPayAmount(''); setPayMethod('cash'); setPayNotes(''); setPayError(null); setShowPayModal(true); }}
+                      >
+                        Record Payment
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={() => { localStorage.setItem('billing_open_member', String(sel.id)); setScreen?.('billing'); }}
+                      >
+                        View Full Ledger →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {[['Email',sel.email],['Phone',sel.phone],['Insurance',sel.insurance],['Documents',sel.docs],['Member Since',sel.joined]].map(([k,v]) => (
                 <div key={k} className="detail-row">
                   <div className="detail-key">{k}</div>
@@ -357,6 +464,74 @@ export default function Members() {
           onClose={() => setShowAdd(false)}
           onCreate={async (payload) => { await createMember(payload); setShowAdd(false); }}
         />
+      )}
+
+      {showPayModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setShowPayModal(false)}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Record Payment</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>{sel?.name}</div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>AMOUNT (€)</div>
+              <input
+                type="number" step="0.01" min="0.01" autoFocus
+                value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 6 }}>PAYMENT METHOD</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[['cash','Cash'],['external_card','Card'],['bank_transfer','Bank Transfer']].map(([v,l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setPayMethod(v)}
+                    style={{
+                      padding: '10px 4px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: payMethod === v ? '2px solid var(--navy)' : '1px solid rgba(0,0,0,0.15)',
+                      background: payMethod === v ? 'var(--navy)' : '#fff',
+                      color: payMethod === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                    }}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>NOTES (optional)</div>
+              <input
+                placeholder="e.g. Cash received at desk"
+                value={payNotes}
+                onChange={e => setPayNotes(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {payError && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>{payError}</div>}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-ghost"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => setShowPayModal(false)}
+                disabled={payLoading}
+              >Cancel</button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={recordPayment}
+                disabled={!payAmount || payLoading}
+              >{payLoading ? 'Recording…' : 'Record Payment'}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
