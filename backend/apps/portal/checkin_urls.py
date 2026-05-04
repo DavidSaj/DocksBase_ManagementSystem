@@ -6,6 +6,7 @@ from .checkin_views import (
     SelfCheckinView,
     WaiverView,
     DropboxSignWebhookView,
+    InsuranceUploadView,
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path('portal/checkin/bookings/<int:pk>/self-checkin/',          SelfCheckinView.as_view(),           name='portal_self_checkin'),
     path('portal/checkin/bookings/<int:pk>/waiver/',                WaiverView.as_view(),               name='portal_waiver'),
     path('portal/checkin/webhooks/dropbox-sign/',                   DropboxSignWebhookView.as_view(),   name='portal_dropbox_webhook'),
+    path('portal/checkin/bookings/<int:pk>/insurance/',             InsuranceUploadView.as_view(),      name='portal_insurance'),
 ]

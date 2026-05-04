@@ -219,3 +219,20 @@ class DropboxSignWebhookView(APIView):
         evaluate_pre_cleared(booking)
 
         return Response({'status': 'ok'})
+
+
+class InsuranceUploadView(PortalBookingMixin, APIView):
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, pk):
+        booking, err = self.get_booking(request, pk)
+        if err:
+            return err
+
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'file required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        booking.insurance_doc = file
+        booking.save(update_fields=['insurance_doc'])
+        return Response(PortalBookingSerializer(booking).data)

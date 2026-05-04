@@ -462,3 +462,38 @@ class DropboxSignWebhookTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.booking.refresh_from_db()
         self.assertFalse(self.booking.waiver_signed)
+
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+
+class InsuranceUploadViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.booking = make_booking(self.marina)
+        session_token = make_portal_token(
+            booking_id=self.booking.id,
+            marina_slug=self.marina.slug,
+            boater_email=self.booking.guest_email,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+
+    def test_upload_insurance_doc(self):
+        file = SimpleUploadedFile('policy.pdf', b'fake pdf content', content_type='application/pdf')
+        resp = self.client.post(
+            f'/api/v1/portal/checkin/bookings/{self.booking.id}/insurance/',
+            {'file': file},
+            format='multipart',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertTrue(bool(self.booking.insurance_doc))
+
+    def test_upload_missing_file_returns_400(self):
+        resp = self.client.post(
+            f'/api/v1/portal/checkin/bookings/{self.booking.id}/insurance/',
+            {},
+            format='multipart',
+        )
+        self.assertEqual(resp.status_code, 400)
