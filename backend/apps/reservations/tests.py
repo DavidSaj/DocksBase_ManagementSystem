@@ -698,3 +698,53 @@ class RejectBookingViewTest(TestCase):
         self.assertEqual(resp.status_code, 400)
         mock_email.assert_not_called()
 
+
+class BerthCapableForTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        pier = Pier.objects.create(marina=self.marina, code='P', label='Pier P')
+        tier = ChargeableItem.objects.create(
+            marina=self.marina, name='Berth Night', category='berth',
+            pricing_model='per_night', unit_price=80,
+        )
+        self.big_berth = Berth.objects.create(
+            marina=self.marina, pier=pier, code='B1', pricing_tier=tier,
+            length_m=20, max_beam_m=6, max_draft_m=3, status='available',
+        )
+        self.small_berth = Berth.objects.create(
+            marina=self.marina, pier=pier, code='B2', pricing_tier=tier,
+            length_m=8, max_beam_m=3, max_draft_m=1, status='available',
+        )
+        self.booking = Booking.objects.create(
+            marina=self.marina,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            boat_loa=12.5,
+            boat_beam=4.2,
+            boat_draft=1.8,
+        )
+
+    def test_capable_for_returns_only_fitting_berths(self):
+        resp = self.client.get(f'/api/v1/berths/?capable_for={self.booking.pk}')
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data['results']]
+        self.assertIn(self.big_berth.pk, ids)
+        self.assertNotIn(self.small_berth.pk, ids)
+
+    def test_capable_for_unknown_booking_returns_400(self):
+        resp = self.client.get('/api/v1/berths/?capable_for=99999')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_without_capable_for_returns_all_berths(self):
+        resp = self.client.get('/api/v1/berths/')
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data['results']]
+        self.assertIn(self.big_berth.pk, ids)
+        self.assertIn(self.small_berth.pk, ids)
+

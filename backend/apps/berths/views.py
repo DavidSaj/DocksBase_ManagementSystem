@@ -30,10 +30,28 @@ class BerthListCreateView(generics.ListCreateAPIView):
     filterset_fields = ['status', 'pier', 'berth_type']
 
     def get_queryset(self):
-        return (Berth.objects
-                .filter(marina=self.request.user.marina)
-                .select_related('pier', 'vessel')
-                .prefetch_related('bookings'))
+        from rest_framework.exceptions import ValidationError
+        from apps.reservations.models import Booking
+
+        qs = (Berth.objects
+              .filter(marina=self.request.user.marina)
+              .select_related('pier', 'vessel')
+              .prefetch_related('bookings'))
+
+        capable_for = self.request.query_params.get('capable_for')
+        if capable_for:
+            try:
+                booking = Booking.objects.get(pk=int(capable_for), marina=self.request.user.marina)
+            except (Booking.DoesNotExist, ValueError):
+                raise ValidationError({'capable_for': 'Booking not found.'})
+            if booking.boat_loa:
+                qs = qs.filter(length_m__gte=booking.boat_loa)
+            if booking.boat_beam:
+                qs = qs.filter(max_beam_m__gte=booking.boat_beam)
+            if booking.boat_draft:
+                qs = qs.filter(max_draft_m__gte=booking.boat_draft)
+
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(marina=self.request.user.marina)
