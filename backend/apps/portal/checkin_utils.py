@@ -10,6 +10,8 @@ SESSION_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
 
 
 def evaluate_pre_cleared(booking):
+    if booking.pre_cleared:
+        return
     if (booking.waiver_signed
             and booking.boat_loa is not None
             and booking.boat_beam is not None
@@ -47,6 +49,9 @@ def make_magic_url(booking):
 
 
 def is_arrival_day(booking):
-    tz = ZoneInfo(booking.marina.timezone)
+    try:
+        tz = ZoneInfo(booking.marina.timezone or 'UTC')
+    except KeyError:
+        tz = ZoneInfo('UTC')
     today_local = datetime.datetime.now(tz).date()
     return booking.check_in == today_local

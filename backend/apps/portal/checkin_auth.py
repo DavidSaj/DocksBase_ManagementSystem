@@ -5,11 +5,13 @@ from .checkin_utils import decode_portal_token
 
 
 class PortalUser:
+    is_authenticated = True
+    is_anonymous = False
+
     def __init__(self, booking_id, marina_slug, boater_email):
         self.booking_id = booking_id
         self.marina_slug = marina_slug
         self.boater_email = boater_email
-        self.is_authenticated = True
         self.pk = booking_id  # required by DRF throttling
 
 
