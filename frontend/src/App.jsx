@@ -48,7 +48,6 @@ import Sales           from './screens/Sales.jsx';
 import Operations      from './screens/Operations.jsx';
 import Infrastructure      from './screens/Infrastructure.jsx';
 import ServiceCatalogScreen from './screens/ServiceCatalogScreen.jsx';
-import Field        from './screens/Field.jsx';
 import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
@@ -103,7 +102,6 @@ export default function App() {
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
         <Route path="/portal" element={<ProtectedRoute element={<BoaterPortal />} allowedRoles={['boater']} />} />
-        <Route path="/field"  element={<ProtectedRoute element={<Field />}        allowedRoles={['staff', 'owner', 'manager']} />} />
         <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />
       </Routes>
     </AuthProvider>
