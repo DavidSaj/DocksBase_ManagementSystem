@@ -9,15 +9,14 @@ import api from '../api.js';
 import PendingRequestsTab from '../components/reservations/PendingRequestsTab.jsx';
 
 const filterMap = {
-  all:              {},
-  transient:        { booking_type: 'transient' },
-  seasonal:         { booking_type: 'seasonal' },
-  pending_approval: { status: 'pending_approval' },
-  pending:          { status: 'pending' },
-  overdue:          { status: 'overstay' },
+  all:       {},
+  transient: { booking_type: 'transient' },
+  seasonal:  { booking_type: 'seasonal' },
+  pending:   { status: 'pending' },
+  overdue:   { status: 'overstay' },
 };
 
-const bookingTabs = ['all', 'transient', 'seasonal', 'pending_approval', 'pending', 'overdue'];
+const bookingTabs = ['all', 'transient', 'seasonal', 'pending', 'overdue'];
 
 const LABEL = { fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' };
 
