@@ -33,7 +33,12 @@ class FuelDockEntry(models.Model):
 
     # Queue state
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default='waiting')
-    fuel_berth = models.CharField(max_length=20, blank=True)
+    fuel_berth = models.ForeignKey(
+        'berths.Berth',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='fuel_entries',
+    )
 
     # Timestamps
     arrived_at    = models.DateTimeField(auto_now_add=True)
