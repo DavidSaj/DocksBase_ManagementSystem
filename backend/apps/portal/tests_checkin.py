@@ -1,23 +1,27 @@
 import datetime
+import itertools
 from django.test import TestCase
 from rest_framework.test import APIClient
-from apps.accounts.models import Marina, User
+from apps.accounts.models import Marina
 from apps.berths.models import Pier, Berth
 from apps.billing.models import ChargeableItem
 from apps.reservations.models import Booking
 
+_marina_counter = itertools.count(1)
+
 
 def make_marina(timezone='UTC'):
-    return Marina.objects.create(name='Test Marina', slug='test-marina', timezone=timezone)
+    n = next(_marina_counter)
+    return Marina.objects.create(name='Test Marina', slug=f'test-marina-{n}', timezone=timezone)
 
 
 def make_booking(marina, check_in=None, check_out=None):
-    pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
-    tier = ChargeableItem.objects.create(
-        marina=marina, name='Berth Night', category='berth',
-        pricing_model='per_night', unit_price=50,
+    pier, _ = Pier.objects.get_or_create(marina=marina, code='A', defaults={'label': 'Pier A'})
+    tier, _ = ChargeableItem.objects.get_or_create(
+        marina=marina, name='Berth Night',
+        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50},
     )
-    berth = Berth.objects.create(marina=marina, pier=pier, code='A1', pricing_tier=tier, status='available')
+    berth, _ = Berth.objects.get_or_create(marina=marina, pier=pier, code='A1', defaults={'pricing_tier': tier, 'status': 'available'})
     today = datetime.date.today()
     return Booking.objects.create(
         marina=marina,
@@ -40,3 +44,4 @@ class BookingPortalFieldsTest(TestCase):
         self.assertFalse(booking.pre_cleared)
         self.assertFalse(booking.self_checked_in)
         self.assertIsNone(booking.self_checked_in_at)
+        self.assertFalse(booking.insurance_doc)
