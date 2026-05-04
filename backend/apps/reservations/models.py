@@ -39,6 +39,15 @@ class Booking(models.Model):
     # Boat dimensions for berth compatibility check
     boat_loa = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     boat_beam = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    boat_draft = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
+    # Portal check-in fields
+    waiver_envelope_id = models.CharField(max_length=255, null=True, blank=True)
+    waiver_signed = models.BooleanField(default=False)
+    insurance_doc = models.FileField(upload_to='insurance/', null=True, blank=True)
+    pre_cleared = models.BooleanField(default=False)
+    self_checked_in = models.BooleanField(default=False)
+    self_checked_in_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
