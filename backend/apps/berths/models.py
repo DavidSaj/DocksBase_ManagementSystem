@@ -97,6 +97,15 @@ class Berth(models.Model):
     position_on_parent = models.JSONField(null=True, blank=True)
     # position_on_parent format: {"side": "port"|"starboard", "slot_index": int}
 
+    CHANNEL_CHOICES = [
+        ('direct', 'Direct'),
+        ('mysea',  'mySea'),
+    ]
+    sales_channel = models.CharField(
+        max_length=20, choices=CHANNEL_CHOICES, default='direct'
+    )
+    channel_cooldown_until = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         unique_together = ('marina', 'code')
         ordering = ['pier__code', 'position_index']

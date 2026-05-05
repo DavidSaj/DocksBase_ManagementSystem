@@ -63,6 +63,12 @@ class Marina(models.Model):
     wallet_office_hours = models.CharField(max_length=100, null=True, blank=True)
     waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
 
+    # mySea channel management
+    auto_allocate_inventory = models.BooleanField(default=False)
+    mysea_target_pct = models.IntegerField(default=20)
+    mysea_ical_url = models.URLField(blank=True, default='')
+    mysea_last_synced = models.DateTimeField(null=True, blank=True)
+
     def save(self, *args, **kwargs):
         if not self.slug:
             base = slugify(self.name)[:96] or _uuid.uuid4().hex[:8]
