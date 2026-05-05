@@ -20,9 +20,13 @@ def run_smart_allocator(marina, freed_berth):
     if total_pool == 0:
         return
 
+    # Exclude the freed berth itself so its current channel doesn't skew the count.
+    # Example: a mySea berth comes out of maintenance — without exclusion, it would
+    # appear as already-counted-mysea and get flipped to direct when at target.
     current_mysea = (
         Berth.objects.filter(marina=marina, sales_channel='mysea')
         .exclude(status='maintenance')
+        .exclude(pk=freed_berth.pk)
         .count()
     )
     target_mysea = round(total_pool * marina.mysea_target_pct / 100)

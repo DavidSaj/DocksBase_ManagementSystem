@@ -68,6 +68,21 @@ class RunSmartAllocatorTest(TestCase):
         freed.refresh_from_db()
         self.assertEqual(freed.sales_channel, 'mysea')
 
+    def test_freed_mysea_berth_stays_mysea_when_at_target(self):
+        from apps.berths.allocator import run_smart_allocator
+        # Set exactly 2 berths to mysea (20% of 10 = 2 = target met).
+        # One of them is freed (e.g. booking checked out). It should stay mysea,
+        # not get flipped to direct — the freed berth itself must not be counted
+        # in current_mysea when deciding its own destination.
+        self.berths[1].sales_channel = 'mysea'
+        self.berths[1].save(update_fields=['sales_channel'])
+        freed = self.berths[2]
+        freed.sales_channel = 'mysea'
+        freed.save(update_fields=['sales_channel'])
+        run_smart_allocator(self.marina, freed)
+        freed.refresh_from_db()
+        self.assertEqual(freed.sales_channel, 'mysea')
+
 
 class RebalanceDownTest(TestCase):
     def setUp(self):
