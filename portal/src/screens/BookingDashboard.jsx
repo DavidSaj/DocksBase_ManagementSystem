@@ -5,6 +5,7 @@ import ChecklistView from '../components/portal/ChecklistView';
 import CountdownView from '../components/portal/CountdownView';
 import ArrivalView from '../components/portal/ArrivalView';
 import WalletCard from '../components/portal/WalletCard';
+import InstallBanner from '../components/portal/InstallBanner';
 
 export default function BookingDashboard() {
   const bookingId = localStorage.getItem('portal_booking_id');
@@ -43,8 +44,13 @@ export default function BookingDashboard() {
 
   const state = deriveState(booking);
 
-  if (state === 'wallet') return <WalletCard booking={booking} />;
-  if (state === 'arrival') return <ArrivalView booking={booking} onCheckedIn={reload} />;
-  if (state === 'countdown') return <CountdownView booking={booking} />;
-  return <ChecklistView booking={booking} onUpdate={reload} />;
+  return (
+    <>
+      {state === 'wallet' && <WalletCard booking={booking} />}
+      {state === 'arrival' && <ArrivalView booking={booking} onCheckedIn={reload} />}
+      {state === 'countdown' && <CountdownView booking={booking} />}
+      {state === 'checklist' && <ChecklistView booking={booking} onUpdate={reload} />}
+      <InstallBanner />
+    </>
+  );
 }

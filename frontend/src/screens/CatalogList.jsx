@@ -1,5 +1,3 @@
-import useServiceCatalog from '../hooks/useServiceCatalog.js';
-
 const PRICING_MODEL_LABELS = {
   flat:      'Flat Rate',
   per_night: 'Per Night',
@@ -14,8 +12,7 @@ function fmtPrice(val) {
   return `€${Number(val).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function CatalogList({ category, onRowClick }) {
-  const { items, loading, error } = useServiceCatalog(category);
+export default function CatalogList({ items, loading, error, onRowClick }) {
 
   if (loading) {
     return (

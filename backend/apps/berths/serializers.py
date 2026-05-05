@@ -1,6 +1,9 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig
+from .models import Pier, Berth, MarinaMapConfig, Amenity
 from apps.billing.models import ChargeableItem
+
+
+_GHOST_SLOT_KEYS = {'x', 'y', 'rotation', 'width_m', 'height_m'}
 
 
 class PierSerializer(serializers.ModelSerializer):
@@ -10,6 +13,20 @@ class PierSerializer(serializers.ModelSerializer):
             'id', 'code', 'label', 'polygon_points', 'pier_type', 'ghost_slots',
             'canvas_x', 'canvas_y', 'canvas_w', 'canvas_h', 'rotation',
         ]
+
+    def validate_ghost_slots(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError('ghost_slots must be a list.')
+        for slot in value:
+            if not isinstance(slot, dict):
+                raise serializers.ValidationError('Each ghost slot must be an object.')
+            missing = _GHOST_SLOT_KEYS - slot.keys()
+            if missing:
+                raise serializers.ValidationError(f'Ghost slot missing keys: {missing}.')
+            for key in _GHOST_SLOT_KEYS:
+                if not isinstance(slot[key], (int, float)):
+                    raise serializers.ValidationError(f'Ghost slot field "{key}" must be numeric.')
+        return value
 
 
 _ACTIVE_BOOKING_STATUSES = frozenset([
@@ -68,6 +85,15 @@ class BerthSerializer(serializers.ModelSerializer):
         if value and value.category != 'berth':
             raise serializers.ValidationError("pricing_tier must be a Berth Rate item.")
         return value
+
+
+class AmenitySerializer(serializers.ModelSerializer):
+    type = serializers.ChoiceField(choices=[t[0] for t in Amenity.AMENITY_TYPES])
+
+    class Meta:
+        model = Amenity
+        fields = ['id', 'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation']
+        read_only_fields = ['id']
 
 
 class MarinaMapConfigSerializer(serializers.ModelSerializer):

@@ -172,8 +172,10 @@ boat_draft = serializers.DecimalField(max_digits=5, decimal_places=2, required=F
 
 | Test | Assertion |
 |---|---|
-| `test_race_condition_falls_to_next_candidate` | With two berths ranked 1st and 2nd: pre-create a conflicting booking on the 1st berth inside the atomic block, `run_tetris` returns the 2nd berth |
+| `test_race_condition_falls_to_next_candidate` | With two berths ranked 1st and 2nd: mock `select_for_update().get()` to inject a conflicting booking on the 1st berth immediately before the collision check runs (simulating a concurrent commit), `run_tetris` returns the 2nd berth without raising |
 | `test_boat_draft_wired_through` | berth that fails `max_draft_m` check is never selected |
+
+The race condition test uses `unittest.mock.patch` to side-effect the database rather than spawning real threads. When `select_for_update().get(pk=berth_1.pk)` is called, the mock creates a conflicting `Booking` in the database then returns the real berth object — the subsequent `Booking.objects.filter(...).exists()` then finds the collision and the loop falls through to berth 2.
 
 ### `BookingEngineRequestViewTest` addition
 
@@ -202,6 +204,12 @@ No new error types. The existing 409 / 400 / 503 response pattern is unchanged.
 
 ---
 
-## 7. No migration required
+## 7. Concurrency scope note
+
+The `select_for_update` lock in `run_tetris` serialises all requests that go through the booking engine. It does **not** protect against a manager creating a booking via the Django admin, because the admin bypasses the engine entirely. `create_manual_approval` always sets `berth=None` (the berth is assigned later by `ApproveBookingView`, which already holds a `select_for_update` lock from Phase 1), so that path is safe. The Django admin is the only unguarded path — acceptable for now given admin access is restricted to trusted staff.
+
+---
+
+## 8. No migration required
 
 All changes are to Python logic only. `boat_draft` already exists on `Booking` (added in an earlier migration). `Berth.max_draft_m` already exists. No model fields are added or changed.

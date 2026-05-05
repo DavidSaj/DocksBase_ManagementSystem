@@ -3,23 +3,30 @@ import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import Ic from '../components/ui/Icon.jsx';
 import CatalogList from './CatalogList.jsx';
 import CatalogFormDrawer from './CatalogFormDrawer.jsx';
+import BerthPricingAssigner from './BerthPricingAssigner.jsx';
 
 const TABS = [
-  { value: 'berth',   label: 'Berth Rates' },
-  { value: 'utility', label: 'Utilities' },
-  { value: 'service', label: 'Services' },
-  { value: 'retail',  label: 'Retail & Fuel' },
+  { value: 'berth',   label: 'Berth Rates',  addLabel: 'Add Berth Rate'  },
+  { value: 'utility', label: 'Utilities',     addLabel: 'Add Utility'     },
+  { value: 'service', label: 'Services',      addLabel: 'Add Service'     },
+  { value: 'retail',  label: 'Retail & Fuel', addLabel: 'Add Retail Item' },
 ];
 
 export default function ServiceCatalogScreen() {
-  const [tab, setTab]         = useState('berth');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editItem, setEditItem]     = useState(null);
+  const [tab, setTab]                   = useState('berth');
+  const [drawerOpen, setDrawerOpen]     = useState(false);
+  const [assignerOpen, setAssignerOpen] = useState(false);
+  const [editItem, setEditItem]         = useState(null);
 
-  // We need createItem/updateItem — hook is keyed to current tab category
-  const { createItem, updateItem } = useServiceCatalog(tab);
+  const { items, loading, error, createItem, updateItem } = useServiceCatalog(tab);
 
   function openCreate() {
+    setEditItem(null);
+    setDrawerOpen(true);
+  }
+
+  function openCreateFromAssigner() {
+    setAssignerOpen(false);
     setEditItem(null);
     setDrawerOpen(true);
   }
@@ -34,43 +41,69 @@ export default function ServiceCatalogScreen() {
     setEditItem(null);
   }
 
+  const activeTab = TABS.find(t => t.value === tab);
+
   return (
     <div>
       {/* Page header */}
       <div className="sec-hdr" style={{ marginBottom: 0 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>Service Catalog</div>
-        <button className="btn btn-primary" onClick={openCreate}>
-          <Ic n="plus" s={12} />
-          New Pricing Rule
-        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs" style={{ marginBottom: 16 }}>
-        {TABS.map(t => (
-          <div
-            key={t.value}
-            className={`tab${tab === t.value ? ' active' : ''}`}
-            onClick={() => setTab(t.value)}
-          >
-            {t.label}
-          </div>
-        ))}
+      {/* Tabs row with contextual Add button */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <div className="tabs" style={{ flex: 1, marginBottom: 0 }}>
+          {TABS.map(t => (
+            <div
+              key={t.value}
+              className={`tab${tab === t.value ? ' active' : ''}`}
+              onClick={() => setTab(t.value)}
+            >
+              {t.label}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+          {tab === 'berth' && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setAssignerOpen(true)}
+              style={{ fontSize: 12 }}
+            >
+              Assign Rates
+            </button>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={openCreate}>
+            <Ic n="plus" s={12} />
+            {activeTab?.addLabel ?? 'Add'}
+          </button>
+        </div>
       </div>
 
       {/* List for active tab */}
       <CatalogList
-        category={tab}
+        items={items}
+        loading={loading}
+        error={error}
         onRowClick={openEdit}
       />
 
-      {/* Drawer */}
+      {/* Catalog form drawer */}
       <CatalogFormDrawer
         open={drawerOpen}
         onClose={closeDrawer}
         item={editItem}
+        category={tab}
         createItem={createItem}
         updateItem={updateItem}
+      />
+
+      {/* Berth pricing assigner (berth tab only) */}
+      <BerthPricingAssigner
+        open={assignerOpen}
+        onClose={() => setAssignerOpen(false)}
+        onNewRate={openCreateFromAssigner}
+        berthRates={items}
       />
     </div>
   );

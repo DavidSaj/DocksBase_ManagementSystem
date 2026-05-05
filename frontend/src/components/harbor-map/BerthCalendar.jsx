@@ -31,6 +31,14 @@ const ROW_H  = 32  // px per berth row
 const MIN_LABEL_W = 60
 const MAX_LABEL_W = 260
 
+// Use berth_type if set; otherwise derive from the alphabetic prefix of the code
+// so berths named "Small1", "Small2" automatically appear as type "Small".
+function berthDisplayType(berth) {
+  if (berth.berth_type) return berth.berth_type
+  const m = (berth.code || '').match(/^([A-Za-z]+)/)
+  return m ? m[1] : ''
+}
+
 function startOfDay(d) {
   const x = new Date(d); x.setHours(0, 0, 0, 0); return x
 }
@@ -257,6 +265,7 @@ export default function BerthCalendar({ onJumpToMap }) {
   const [searchTo,   setSearchTo]       = useState('')
   const [filterType, setFilterType]     = useState('all')
   const [filterAvailOnly, setFilterAvailOnly] = useState(false)
+  const [boatLoa,    setBoatLoa]        = useState('')
   const [selectedBerth,   setSelectedBerth]   = useState(null)
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [labelWidth, setLabelWidth]     = useState(100)
@@ -264,6 +273,7 @@ export default function BerthCalendar({ onJumpToMap }) {
   const gridRef       = useRef(null)
   const resizeDrag    = useRef(null)
   const labelWidthRef = useRef(labelWidth)
+  const panDrag       = useRef(null)
 
   const today = useMemo(() => isoDate(new Date()), [])
 
@@ -298,6 +308,46 @@ export default function BerthCalendar({ onJumpToMap }) {
     if (w > 0) setPeriod(periodForWidth(w - labelWidth))
   }, [labelWidth])
 
+  // ── Mouse-wheel horizontal scroll (vertical wheel → scroll left/right) ────
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    function onWheel(e) {
+      // Trackpad: honour native deltaX; mouse wheel: remap deltaY → horizontal
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return // trackpad horizontal — let browser handle
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // ── Click-drag panning ────────────────────────────────────────────────────
+  const onGridPointerDown = useCallback((e) => {
+    // Only the plain grid background — not booking bars, berth labels, or resizers
+    if (e.target.closest('[data-interactive]')) return
+    if (e.button !== 0) return
+    panDrag.current = {
+      startX: e.clientX, startY: e.clientY,
+      scrollLeft: gridRef.current.scrollLeft,
+      scrollTop:  gridRef.current.scrollTop,
+      moved: false,
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [])
+
+  const onGridPointerMove = useCallback((e) => {
+    if (!panDrag.current) return
+    const dx = e.clientX - panDrag.current.startX
+    const dy = e.clientY - panDrag.current.startY
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) panDrag.current.moved = true
+    if (!panDrag.current.moved) return
+    gridRef.current.scrollLeft = panDrag.current.scrollLeft - dx
+    gridRef.current.scrollTop  = panDrag.current.scrollTop  - dy
+  }, [])
+
+  const onGridPointerUp = useCallback(() => { panDrag.current = null }, [])
+
   // ── Resizable label column ────────────────────────────────────────────────
   const onResizerPointerDown = useCallback((e) => {
     e.preventDefault()
@@ -329,6 +379,11 @@ export default function BerthCalendar({ onJumpToMap }) {
 
   const berthById = useMemo(() => Object.fromEntries(berths.map(b => [b.id, b])), [berths])
 
+  const berthTypes = useMemo(() =>
+    [...new Set(berths.map(b => berthDisplayType(b)).filter(Boolean))].sort(),
+    [berths]
+  )
+
   function isBerthFreeInRange(berth, from, to) {
     if (!from || !to) return true
     return !(bookingsByBerth[berth.id] ?? []).some(bk => {
@@ -340,19 +395,26 @@ export default function BerthCalendar({ onJumpToMap }) {
   const filteredBerths = useMemo(() => {
     let list = [...berths]
     if (filterType !== 'all') {
-      list = list.filter(b => {
-        const l = parseFloat(b.length_m) || 0
-        if (filterType === 'small')  return l > 0  && l <= 10
-        if (filterType === 'medium') return l > 10 && l <= 18
-        if (filterType === 'large')  return l > 18
-        return true
-      })
+      list = list.filter(b => berthDisplayType(b) === filterType)
     }
     if (filterAvailOnly && searchFrom && searchTo) {
       list = list.filter(b => isBerthFreeInRange(b, searchFrom, searchTo))
     }
-    return list.sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }))
-  }, [berths, filterType, filterAvailOnly, searchFrom, searchTo, bookingsByBerth])
+    const loa = parseFloat(boatLoa)
+    if (boatLoa && !isNaN(loa)) {
+      list.sort((a, b) => {
+        const aLen = parseFloat(a.length_m) || 0
+        const bLen = parseFloat(b.length_m) || 0
+        const aFits = aLen >= loa
+        const bFits = bLen >= loa
+        if (aFits !== bFits) return aFits ? -1 : 1
+        return aLen - bLen
+      })
+    } else {
+      list.sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }))
+    }
+    return list
+  }, [berths, filterType, filterAvailOnly, searchFrom, searchTo, bookingsByBerth, boatLoa])
 
   // ── Navigation ────────────────────────────────────────────────────────────
   function navPrev() {
@@ -411,6 +473,14 @@ export default function BerthCalendar({ onJumpToMap }) {
           <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>→</span>
           <input type="date" value={searchTo} onChange={e => setSearchTo(e.target.value)}
             style={{ fontSize: 11, padding: '4px 8px', border: 'var(--border)', borderRadius: 6, color: 'rgba(0,0,0,0.7)' }} />
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={!searchFrom}
+            onClick={() => { if (searchFrom) setAnchor(startOfDay(new Date(searchFrom + 'T00:00:00'))) }}
+            style={{ fontSize: 11 }}
+          >
+            Search
+          </button>
         </div>
 
         <select
@@ -418,11 +488,19 @@ export default function BerthCalendar({ onJumpToMap }) {
           onChange={e => setFilterType(e.target.value)}
           style={{ fontSize: 11, padding: '4px 8px', border: 'var(--border)', borderRadius: 6, color: 'rgba(0,0,0,0.7)', background: '#fff' }}
         >
-          <option value="all">All sizes</option>
-          <option value="small">Small (≤10m)</option>
-          <option value="medium">Medium (10–18m)</option>
-          <option value="large">Large (&gt;18m)</option>
+          <option value="all">All types</option>
+          {berthTypes.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input
+            type="number" min="0" step="0.5"
+            value={boatLoa}
+            onChange={e => setBoatLoa(e.target.value)}
+            placeholder="Boat LOA (m)"
+            style={{ fontSize: 11, padding: '4px 8px', border: 'var(--border)', borderRadius: 6, color: 'rgba(0,0,0,0.7)', width: 110 }}
+          />
+        </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(0,0,0,0.6)', cursor: 'pointer', userSelect: 'none' }}>
           <input type="checkbox" checked={filterAvailOnly} onChange={e => setFilterAvailOnly(e.target.checked)} disabled={!searchFrom || !searchTo} />
@@ -433,7 +511,13 @@ export default function BerthCalendar({ onJumpToMap }) {
       </div>
 
       {/* Calendar grid */}
-      <div ref={gridRef} style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+      <div
+        ref={gridRef}
+        onPointerDown={onGridPointerDown}
+        onPointerMove={onGridPointerMove}
+        onPointerUp={onGridPointerUp}
+        style={{ flex: 1, overflow: 'auto', position: 'relative', cursor: 'grab' }}
+      >
         <div style={{ minWidth: labelWidth + days.length * COL_W }}>
           {/* Day header — sticky top */}
           <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 10, background: '#fff', borderBottom: '1.5px solid rgba(0,0,0,0.1)' }}>
@@ -459,16 +543,22 @@ export default function BerthCalendar({ onJumpToMap }) {
               const iso = isoDate(d)
               const isToday = iso === today
               const isWeekend = d.getDay() === 0 || d.getDay() === 6
+              const isInRange = searchFrom && searchTo && iso >= searchFrom && iso <= searchTo
+              const isRangeStart = iso === searchFrom
+              const isRangeEnd = iso === searchTo
               return (
                 <div key={iso} style={{
                   width: COL_W, minWidth: COL_W, flexShrink: 0,
                   borderRight: '1px solid rgba(0,0,0,0.05)', textAlign: 'center', padding: '4px 0',
-                  background: isToday ? 'rgba(0,117,222,0.06)' : isWeekend ? 'rgba(0,0,0,0.02)' : 'transparent',
+                  background: isInRange
+                    ? (isRangeStart || isRangeEnd ? 'rgba(0,117,222,0.18)' : 'rgba(0,117,222,0.08)')
+                    : isToday ? 'rgba(0,117,222,0.06)' : isWeekend ? 'rgba(0,0,0,0.02)' : 'transparent',
+                  borderBottom: isInRange ? '2px solid rgba(0,117,222,0.5)' : undefined,
                 }}>
-                  <div style={{ fontSize: 9, fontWeight: 500, color: isToday ? '#0075de' : 'rgba(0,0,0,0.35)', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: 9, fontWeight: 500, color: isInRange || isToday ? '#0075de' : 'rgba(0,0,0,0.35)', textTransform: 'uppercase' }}>
                     {d.toLocaleDateString('en-GB', { weekday: 'short' })}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isToday ? '#0075de' : 'rgba(0,0,0,0.7)' }}>
+                  <div style={{ fontSize: 12, fontWeight: isToday || isRangeStart || isRangeEnd ? 700 : 500, color: isInRange || isToday ? '#0075de' : 'rgba(0,0,0,0.7)' }}>
                     {d.getDate()}
                   </div>
                 </div>
@@ -484,11 +574,15 @@ export default function BerthCalendar({ onJumpToMap }) {
           ) : filteredBerths.map((berth, ri) => {
             const berthBks = bookingsByBerth[berth.id] ?? []
             const rowBg = ri % 2 === 0 ? '#fff' : '#fafafa'
+            const loaNum = parseFloat(boatLoa)
+            const berthLen = parseFloat(berth.length_m) || 0
+            const doesFit = !boatLoa || isNaN(loaNum) || berthLen >= loaNum
 
             return (
-              <div key={berth.id} style={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.05)', background: rowBg, height: ROW_H }}>
+              <div key={berth.id} style={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.05)', background: rowBg, height: ROW_H, opacity: doesFit ? 1 : 0.45 }}>
                 {/* Label with resizer */}
-                <div style={{ width: labelWidth, minWidth: labelWidth, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', borderRight: '1px solid rgba(0,0,0,0.08)', cursor: 'pointer', userSelect: 'none' }}
+                <div data-interactive
+                  style={{ width: labelWidth, minWidth: labelWidth, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', borderRight: '1px solid rgba(0,0,0,0.08)', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => setSelectedBerth(berth)}
                   title="View berth details"
                 >
@@ -497,6 +591,11 @@ export default function BerthCalendar({ onJumpToMap }) {
                   </span>
                   {berth.length_m && labelWidth > 80 && (
                     <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', flexShrink: 0 }}>{berth.length_m}m</span>
+                  )}
+                  {boatLoa && !isNaN(loaNum) && labelWidth > 90 && (
+                    <span style={{ fontSize: 9, fontWeight: 700, flexShrink: 0, color: doesFit ? '#1a8c2e' : '#c0392b' }}>
+                      {doesFit ? '✓' : '✗'}
+                    </span>
                   )}
                   {/* Resize handle (invisible, but functional — matches header) */}
                   <div
@@ -515,11 +614,14 @@ export default function BerthCalendar({ onJumpToMap }) {
                       const iso = isoDate(d)
                       const isToday = iso === today
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6
+                      const isInRange = searchFrom && searchTo && iso >= searchFrom && iso <= searchTo
                       return (
                         <div key={iso} style={{
                           width: COL_W, minWidth: COL_W, flexShrink: 0, height: '100%',
                           borderRight: '1px solid rgba(0,0,0,0.04)',
-                          background: isToday ? 'rgba(0,117,222,0.04)' : isWeekend ? 'rgba(0,0,0,0.015)' : 'transparent',
+                          background: isInRange
+                            ? 'rgba(0,117,222,0.06)'
+                            : isToday ? 'rgba(0,117,222,0.04)' : isWeekend ? 'rgba(0,0,0,0.015)' : 'transparent',
                         }} />
                       )
                     })}
@@ -546,6 +648,7 @@ export default function BerthCalendar({ onJumpToMap }) {
                     return (
                       <div
                         key={bk.id}
+                        data-interactive
                         onClick={() => setSelectedBooking(bk)}
                         title={`${bk.vessel_name || bk.guest_name || 'Booking'} · ${bk.check_in} → ${bk.check_out}`}
                         style={{

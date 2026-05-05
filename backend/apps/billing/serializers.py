@@ -16,7 +16,7 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
             'id', 'name', 'category', 'category_display',
             'pricing_model', 'pricing_model_display',
             'unit_price', 'tax_rate', 'is_active',
-            'show_in_pos', 'fuel_dock_type',
+            'show_in_pos', 'fuel_dock_type', 'is_mandatory_transient_fee',
             'created_at',
             'assigned_berths', 'berth_ids',
         ]

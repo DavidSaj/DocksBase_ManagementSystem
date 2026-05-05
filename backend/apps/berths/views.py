@@ -3,8 +3,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Pier, Berth, MarinaMapConfig
-from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer
+from .models import Pier, Berth, MarinaMapConfig, Amenity
+from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer
 from .sms_service import send_sms
 
 
@@ -15,6 +15,14 @@ class PierListCreateView(generics.ListCreateAPIView):
         return Pier.objects.filter(marina=self.request.user.marina)
 
     def perform_create(self, serializer):
+        code = serializer.validated_data.get('code', '')
+        if '{n}' in code:
+            marina = self.request.user.marina
+            n = 1
+            existing = set(Pier.objects.filter(marina=marina).values_list('code', flat=True))
+            while code.replace('{n}', str(n)) in existing:
+                n += 1
+            serializer.validated_data['code'] = code.replace('{n}', str(n))
         serializer.save(marina=self.request.user.marina)
 
 
@@ -220,3 +228,21 @@ class BroadcastSMSView(APIView):
             'failed': failed,
             'detail': f'Broadcast complete: {sent} sent, {failed} failed.',
         })
+
+
+class AmenityListCreateView(generics.ListCreateAPIView):
+    serializer_class = AmenitySerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return Amenity.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
+
+
+class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AmenitySerializer
+
+    def get_queryset(self):
+        return Amenity.objects.filter(marina=self.request.user.marina)
