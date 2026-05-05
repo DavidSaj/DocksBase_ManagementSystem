@@ -490,46 +490,47 @@ class DraftAccountView(APIView):
                 status=status.HTTP_201_CREATED,
             )
 
-        marina = Marina.objects.create(
-            name=d['marina_name'],
-            address=d['address'],
-            lat=d.get('lat'),
-            lng=d.get('lng'),
-            phone=d['phone'],
-            contact_email=d['contact_email'],
-            vat_number=d.get('vat_number', ''),
-            currency=d['currency'],
-            status='pending_payment',
-        )
+        with transaction.atomic():
+            marina = Marina.objects.create(
+                name=d['marina_name'],
+                address=d['address'],
+                lat=d.get('lat'),
+                lng=d.get('lng'),
+                phone=d['phone'],
+                contact_email=d['contact_email'],
+                vat_number=d.get('vat_number', ''),
+                currency=d['currency'],
+                status='pending_payment',
+            )
 
-        User.objects.create_user(
-            email=email,
-            password=d['password'],
-            first_name=d['first_name'],
-            last_name=d['last_name'],
-            role='owner',
-            marina=marina,
-            is_active=False,
-        )
+            User.objects.create_user(
+                email=email,
+                password=d['password'],
+                first_name=d['first_name'],
+                last_name=d['last_name'],
+                role='owner',
+                marina=marina,
+                is_active=False,
+            )
 
-        customer = stripe.Customer.create(
-            email=email,
-            name=d['marina_name'],
-            metadata={'marina_id': str(marina.id)},
-        )
-        marina.stripe_customer_id = customer.id
+            customer = stripe.Customer.create(
+                email=email,
+                name=d['marina_name'],
+                metadata={'marina_id': str(marina.id)},
+            )
+            marina.stripe_customer_id = customer.id
 
-        subscription = stripe.Subscription.create(
-            customer=customer.id,
-            items=[{'price': d['plan_price_id']}],
-            payment_behavior='default_incomplete',
-            trial_period_days=30,
-            expand=['pending_setup_intent'],
-            metadata={'marina_id': str(marina.id)},
-        )
-        marina.stripe_subscription_id = subscription.id
-        marina.plan = PRICE_ID_TO_PLAN.get(d['plan_price_id'], 'professional')
-        marina.save(update_fields=['stripe_customer_id', 'stripe_subscription_id', 'plan'])
+            subscription = stripe.Subscription.create(
+                customer=customer.id,
+                items=[{'price': d['plan_price_id']}],
+                payment_behavior='default_incomplete',
+                trial_period_days=30,
+                expand=['pending_setup_intent'],
+                metadata={'marina_id': str(marina.id)},
+            )
+            marina.stripe_subscription_id = subscription.id
+            marina.plan = PRICE_ID_TO_PLAN.get(d['plan_price_id'], 'professional')
+            marina.save(update_fields=['stripe_customer_id', 'stripe_subscription_id', 'plan'])
 
         return Response(
             {'client_secret': subscription.pending_setup_intent.client_secret},
