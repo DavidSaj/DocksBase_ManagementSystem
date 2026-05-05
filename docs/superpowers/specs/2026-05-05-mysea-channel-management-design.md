@@ -58,6 +58,20 @@ Adds a dynamic inventory allocation layer that splits marina berths between the 
 
 Auto-allocations do **not** set `channel_cooldown_until` — no limbo needed since the booking engine never touches mySea berths.
 
+### Target change rebalance
+
+When `mysea_target_pct` is lowered via `PATCH /marina/channel-settings/`, the endpoint immediately runs a one-time rebalance on all **currently unoccupied** mySea berths (no active booking in `ACTIVE_STATUSES`):
+
+```
+1. Recalculate target_mysea with the new percentage
+2. While current_mysea > target_mysea:
+   a. Pick one unoccupied mySea berth (ordered by code)
+   b. Set sales_channel = 'direct'
+   c. decrement current_mysea
+```
+
+This avoids the slow-trickle problem when the manager lowers the target. Berths with active bookings are never touched — they stay on mySea until the booking ends, at which point the normal release signal re-evaluates them.
+
 ### Manual override
 
 When staff changes `sales_channel` via the API:
@@ -98,6 +112,7 @@ Generates one `VEVENT` per active booking (`status` in `ACTIVE_STATUSES`) on a b
 - `DTSTART` / `DTEND`: booking `check_in` / `check_out`
 - `SUMMARY`: boat dimensions or guest name (enough for mySea to identify the block)
 - `UID`: `booking-<id>@docksbase`
+- `DTSTAMP`: UTC timestamp of feed generation (`timezone.now()`) — required by RFC 5545 §3.6.1; omitting it causes strict iCal parsers to reject the feed
 
 Marina pastes this URL into their mySea extranet once. mySea polls it on their own schedule.
 
