@@ -128,10 +128,22 @@ PLAN_PRICE_IDS = {
 3. Create `Marina(status='pending_payment', ...)`.
 4. Create `User(role='owner', is_active=False, marina=marina, ...)`.
 5. `stripe.Customer.create(email=email, name=marina_name, metadata={'marina_id': marina.id})` → store `stripe_customer_id` on Marina.
-6. `stripe.Subscription.create(customer=customer_id, items=[{'price': plan_price_id}], payment_behavior='default_incomplete', trial_period_days=30, expand=['latest_invoice.payment_intent'])` → store `stripe_subscription_id` on Marina.
-7. Return `{ "client_secret": subscription.latest_invoice.payment_intent.client_secret }`.
+6. `stripe.Subscription.create(customer=customer_id, items=[{'price': plan_price_id}], payment_behavior='default_incomplete', trial_period_days=30, expand=['pending_setup_intent'])` → store `stripe_subscription_id` on Marina.
+   Note: because the trial makes the first invoice €0, Stripe creates a SetupIntent (not a PaymentIntent) to collect the card for future billing. `latest_invoice.payment_intent` will be null — always use `pending_setup_intent`.
+7. Return `{ "client_secret": subscription.pending_setup_intent.client_secret }`.
 
 **Response:** `201` with `client_secret`. On validation error: `400` with field errors.
+
+### New Endpoint: `POST /api/v1/onboarding/resume/`
+
+Used by the abandoned-cart resume link. No authentication required.
+
+**Request body:** `{ "token": "<signed_token>" }`
+
+**Logic:**
+1. Verify token using `TimestampSigner` with `max_age=172800` (48 hours). Return `400` if invalid or expired.
+2. Look up Marina by the decoded UUID. Return `400` if not found or not in `pending_payment` state.
+3. Retrieve the existing Stripe subscription and return `{ "client_secret": subscription.pending_setup_intent.client_secret, "plan": ..., "marina_name": ... }` so the frontend can pre-fill step 4 directly.
 
 ### Stripe Webhooks
 
@@ -150,11 +162,12 @@ All webhook handlers verify Stripe signature before processing.
 `backend/apps/accounts/management/commands/chase_pending_signups.py`
 
 - Finds all Marinas with `status='pending_payment'` and `created_at < now - 2 hours`
-- Sends one email per Marina (tracked via a `abandon_email_sent` boolean field on Marina to avoid repeat sends)
+- Sends one email per Marina (tracked via `abandon_email_sent` boolean on Marina to avoid repeat sends)
 - Email: "Hey [first_name], looks like you didn't finish setting up [marina_name]. Click here to resume."
-- Resume URL: `{WEBSITE_URL}/signup/resume?email={encoded_email}` — pre-fills the wizard and skips to step 4 by re-fetching the `client_secret` from the backend
+- Resume token: generated via `django.core.signing.TimestampSigner` signing the marina's UUID. Link: `{WEBSITE_URL}/signup/resume?token={signed_token}`.
+- Frontend sends the token to `POST /api/v1/onboarding/resume/`. Backend verifies signature and timestamp (max age: 48 hours), looks up the Marina, returns the existing `client_secret`. The email address is never exposed in the URL — no unauthenticated party can fetch another user's setup intent by guessing an email.
 
-Scheduled via cron or Celery beat to run every 24 hours.
+Scheduled via cron or Celery beat to run **every 1 hour**. The 2-hour threshold ensures leads receive the email while still warm, regardless of when within the hour the cron fires.
 
 ---
 
