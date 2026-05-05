@@ -39,9 +39,8 @@ export default function QuoteScreen({ state, navigate, marina }) {
         navigate('search', { errorBanner: 'Availability changed while you were reviewing. Please check your dates again.' });
         return;
       }
-      setError('Something went wrong, please try again.');
-    } finally {
       setBusy(false);
+      setError('Something went wrong, please try again.');
     }
   };
 

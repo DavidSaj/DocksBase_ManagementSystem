@@ -237,7 +237,7 @@ class PublicEngineRequestView(APIView):
                     due_date=due_date,
                 )
                 if not booking.amount:
-                    raise ValueError('Berth has no price set — cannot create invoice.')
+                    raise RuntimeError('Berth has no price set — cannot create invoice.')
                 billing_service.add_line_item(
                     inv,
                     description=f'Berth — {nights_label} @ {booking.berth.pricing_tier.unit_price}/night',
