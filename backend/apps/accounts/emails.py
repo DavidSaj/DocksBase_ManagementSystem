@@ -19,3 +19,17 @@ def send_welcome_email(user):
         from_email=None,
         recipient_list=[user.email],
     )
+
+
+def send_payment_failed_email(user):
+    send_mail(
+        subject='Your DocksBase payment failed',
+        message=(
+            f'Hi {user.first_name or user.email},\n\n'
+            'We were unable to charge your card for your DocksBase subscription.\n\n'
+            f'Please update your payment details here: {settings.FRONTEND_URL}/settings/billing\n\n'
+            '— The DocksBase Team'
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+    )
