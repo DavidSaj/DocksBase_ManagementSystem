@@ -2,7 +2,7 @@ const page = { minHeight: '100vh', display: 'flex', alignItems: 'center', justif
 const card = { background: '#fff', borderRadius: 12, padding: 36, maxWidth: 480, width: '100%', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' };
 
 function formatDate(iso) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 export default function AlternativesScreen({ state, navigate }) {

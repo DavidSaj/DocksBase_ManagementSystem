@@ -14,7 +14,7 @@ const state = { alternatives };
 describe('AlternativesScreen', () => {
   it('renders one card per alternative with correct price and dates', () => {
     render(<AlternativesScreen state={state} navigate={navigate} />);
-    expect(screen.getByText(/Jul 11/i)).toBeInTheDocument();
+    expect(screen.getByText(/11 Jul/i)).toBeInTheDocument();
     expect(screen.getByText(/€270/i)).toBeInTheDocument();
     expect(screen.getByText(/€360/i)).toBeInTheDocument();
   });
