@@ -152,6 +152,12 @@ export default function Settings() {
       ais:         marina.features?.ais         ?? false,
       multimarina: marina.features?.multimarina ?? false,
     });
+    setCs({
+      auto_allocate_inventory: marina.auto_allocate_inventory ?? false,
+      mysea_target_pct:        marina.mysea_target_pct        ?? 20,
+      mysea_ical_url:          marina.mysea_ical_url          ?? '',
+    });
+    setCsLastSynced(marina.mysea_last_synced ?? null);
   }, [marina]);
 
   function fm(field) { return mf?.[field] ?? ''; }
@@ -232,6 +238,39 @@ export default function Settings() {
       await updateMarina({ features: flags });
     } finally {
       setFlagsSaving(false);
+    }
+  }
+
+  // ── Channel management ─────────────────────────────────────────────────
+
+  const [cs, setCs] = useState({ auto_allocate_inventory: false, mysea_target_pct: 20, mysea_ical_url: '' });
+  const [csSaving, setCsSaving] = useState(false);
+  const [csSyncing, setCsSyncing] = useState(false);
+  const [csLastSynced, setCsLastSynced] = useState(null);
+
+  async function saveChannelSettings() {
+    setCsSaving(true);
+    try {
+      const { data } = await api.patch('/auth/marina/channel-settings/', {
+        auto_allocate_inventory: cs.auto_allocate_inventory,
+        mysea_target_pct: cs.mysea_target_pct,
+        mysea_ical_url: cs.mysea_ical_url,
+      });
+      setCsLastSynced(data.mysea_last_synced);
+    } finally {
+      setCsSaving(false);
+    }
+  }
+
+  async function triggerMySeaSync() {
+    setCsSyncing(true);
+    try {
+      const { data } = await api.post('/berths/sync-mysea/');
+      setCsLastSynced(data.last_synced);
+    } catch {
+      // sync failed — last_synced won't update
+    } finally {
+      setCsSyncing(false);
     }
   }
 
@@ -648,6 +687,76 @@ export default function Settings() {
                   <button className="btn btn-primary btn-sm" disabled={flagsSaving || marinaLoading} onClick={saveFlags}>
                     {flagsSaving ? 'Saving…' : 'Save Flags'}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Channel Management — mySea integration */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-header-title">Channel Management</div>
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>mySea OTA inventory allocation</div>
+              </div>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>Automatic allocation</div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>
+                      Automatically assign freed berths to mySea based on target %
+                    </div>
+                  </div>
+                  <Toggle
+                    on={cs.auto_allocate_inventory}
+                    onChange={v => setCs(c => ({ ...c, auto_allocate_inventory: v }))}
+                  />
+                </div>
+
+                {cs.auto_allocate_inventory && (
+                  <FieldRow
+                    label="mySea target %"
+                    hint={`Direct: ${100 - cs.mysea_target_pct}% · mySea: ${cs.mysea_target_pct}%`}
+                  >
+                    <input
+                      type="range" min={0} max={50} step={5}
+                      value={cs.mysea_target_pct}
+                      onChange={e => setCs(c => ({ ...c, mysea_target_pct: Number(e.target.value) }))}
+                      style={{ width: '100%' }}
+                    />
+                  </FieldRow>
+                )}
+
+                <FieldRow label="mySea iCal feed URL" hint="Paste the iCal URL from your mySea extranet">
+                  <input
+                    type="url"
+                    value={cs.mysea_ical_url}
+                    onChange={e => setCs(c => ({ ...c, mysea_ical_url: e.target.value }))}
+                    placeholder="https://www.mysea.app/calendar/..."
+                  />
+                </FieldRow>
+
+                {csLastSynced && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                    Last synced: {new Date(csLastSynced).toLocaleString()}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={csSaving || marinaLoading}
+                    onClick={saveChannelSettings}
+                  >
+                    {csSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  {cs.mysea_ical_url && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      disabled={csSyncing}
+                      onClick={triggerMySeaSync}
+                    >
+                      {csSyncing ? 'Syncing…' : 'Sync now'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
