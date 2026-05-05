@@ -178,7 +178,7 @@ export default function Settings() {
     if (tab !== 'users') return;
     setUsersLoading(true);
     api.get('/marina/users/')
-      .then(r => setUsers(r.data.results ?? r.data))d)
+      .then(r => setUsers(r.data.results ?? r.data))
       .catch(() => {})
       .finally(() => setUsersLoading(false));
   }, [tab]);
