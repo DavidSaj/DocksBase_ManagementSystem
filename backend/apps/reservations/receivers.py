@@ -8,13 +8,16 @@ def on_invoice_paid(sender, invoice, **kwargs):
         Booking.objects.filter(pk=invoice.source_id).update(status='confirmed')
 
 
-@receiver(post_save, sender=Booking)
+@receiver(post_save, sender=Booking, dispatch_uid='reservations.on_booking_save')
 def on_booking_save(sender, instance, **kwargs):
     """
     When a booking is released (checked_out or cancelled) and has a berth,
     run the smart allocator to re-evaluate that berth's channel assignment.
-    Only fires on status transitions that free a berth.
+    Only fires when the status field was actually updated.
     """
+    update_fields = kwargs.get('update_fields')
+    if update_fields is not None and 'status' not in update_fields:
+        return
     if instance.status not in ('checked_out', 'cancelled'):
         return
     if not instance.berth_id:
