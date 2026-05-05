@@ -30,3 +30,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 STRIPE_SECRET_KEY = 'sk_test_placeholder'
 STRIPE_WEBHOOK_SECRET = 'whsec_placeholder'
+
+# Disable rate throttling in development/test so test suites don't hit 429s
+REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []

@@ -4,6 +4,7 @@ from apps.portal.public_booking_views import (
     PublicBookingCreateView,
     PublicAvailableBerthsView,
     PublicAvailabilityAlternativesView,
+    PublicEngineRequestView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path('bookings/',                           PublicBookingCreateView.as_view(),             name='public-booking-create'),
     path('bookings/available-berths/',          PublicAvailableBerthsView.as_view(),           name='public-available-berths'),
     path('bookings/availability-alternatives/', PublicAvailabilityAlternativesView.as_view(),  name='public-availability-alternatives'),
+    path('bookings/engine-request/',            PublicEngineRequestView.as_view(),             name='public-engine-request'),
 ]

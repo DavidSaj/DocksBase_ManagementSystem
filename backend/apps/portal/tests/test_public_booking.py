@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Marina
 from apps.reservations.models import Booking
 from apps.berths.models import Pier, Berth
-from apps.billing.models import ChargeableItem
+from apps.billing.models import ChargeableItem, Invoice
 
 
 class PublicBookingCreateTest(TestCase):
@@ -248,4 +248,73 @@ class PublicAvailabilityAlternativesTest(TestCase):
 
     def test_equal_dates_returns_400(self):
         resp = self._get(check_in='2027-07-10', check_out='2027-07-10')
+        self.assertEqual(resp.status_code, 400)
+
+
+class PublicEngineRequestTest(TestCase):
+    def setUp(self):
+        self.marina = make_auto_marina()
+        self.berth = make_test_berth(self.marina)
+        self.client = APIClient()
+        self.today = datetime.date.today()
+        self.payload = {
+            'check_in': str(self.today + datetime.timedelta(days=30)),
+            'check_out': str(self.today + datetime.timedelta(days=33)),
+            'guest_name': 'J. Sailor',
+            'guest_email': 'sailor@sea.com',
+            'guest_phone': '+353871234567',
+            'boat_loa': 12.5,
+            'boat_beam': 4.2,
+        }
+
+    def _post(self, payload=None, slug='auto-marina'):
+        return self.client.post(
+            '/api/v1/public/bookings/engine-request/',
+            payload or self.payload,
+            format='json',
+            HTTP_X_MARINA_SLUG=slug,
+        )
+
+    @patch('apps.portal.public_booking_views.billing_service.create_stripe_checkout_session', return_value='https://stripe.test/pay')
+    def test_creates_booking_and_returns_checkout_url(self, _mock):
+        resp = self._post()
+        self.assertEqual(resp.status_code, 201)
+        self.assertIn('checkout_url', resp.data)
+        self.assertIn('booking', resp.data)
+        self.assertEqual(resp.data['checkout_url'], 'https://stripe.test/pay')
+
+    @patch('apps.portal.public_booking_views.billing_service.create_stripe_checkout_session', return_value='https://stripe.test/pay')
+    def test_invoice_booking_fk_is_set(self, _mock):
+        resp = self._post()
+        self.assertEqual(resp.status_code, 201)
+        booking_id = resp.data['booking']['id']
+        inv = Invoice.objects.get(source_type='berth_booking', source_id=str(booking_id))
+        self.assertEqual(inv.booking_id, booking_id)
+
+    def test_no_availability_returns_409(self):
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth,
+            check_in=self.today + datetime.timedelta(days=30),
+            check_out=self.today + datetime.timedelta(days=33),
+            nights=3, amount='270', status='confirmed', booking_type='transient',
+        )
+        resp = self._post()
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(Booking.objects.count(), 1)  # only the pre-existing blocking booking
+
+    def test_unknown_marina_returns_404(self):
+        resp = self._post(slug='no-such-marina')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_missing_field_returns_400(self):
+        payload = {**self.payload}
+        del payload['guest_email']
+        resp = self._post(payload)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('guest_email', resp.data)
+
+    def test_non_auto_tetris_marina_returns_400(self):
+        manual_marina = Marina.objects.create(name='Manual', slug='manual-m', booking_mode='manual_approval')
+        make_test_berth(manual_marina, code='M1')
+        resp = self._post(slug='manual-m')
         self.assertEqual(resp.status_code, 400)
