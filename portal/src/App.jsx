@@ -5,6 +5,7 @@ import Magic from './screens/Magic';
 import BookingDashboard from './screens/BookingDashboard';
 import BookingRequest from './screens/BookingRequest';
 import BookingRequestSent from './screens/BookingRequestSent';
+import BookingWizard from './screens/BookingWizard';
 
 export default function App() {
   const [params] = useSearchParams();
@@ -41,10 +42,5 @@ export default function App() {
     return <BookingRequest marina={marina} onSubmitted={() => setSubmitted(true)} />;
   }
 
-  return (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: 600, margin: '80px auto', textAlign: 'center' }}>
-      <h1>{marina.name}</h1>
-      <p>Online booking coming soon.</p>
-    </div>
-  );
+  return <BookingWizard marina={marina} />;
 }
