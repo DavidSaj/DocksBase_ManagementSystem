@@ -3,8 +3,6 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
 import { useState, Component } from 'react';
-import { TenantProvider, detectTenant } from './context/TenantContext'
-import PortalApp from './portal/PortalApp'
 
 class ScreenErrorBoundary extends Component {
   constructor(props) {
@@ -50,7 +48,6 @@ import Sales           from './screens/Sales.jsx';
 import Operations      from './screens/Operations.jsx';
 import Infrastructure      from './screens/Infrastructure.jsx';
 import ServiceCatalogScreen from './screens/ServiceCatalogScreen.jsx';
-import Field        from './screens/Field.jsx';
 import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
@@ -97,14 +94,6 @@ function DesktopApp() {
 }
 
 export default function App() {
-  if (detectTenant()) {
-    return (
-      <TenantProvider>
-        <PortalApp />
-      </TenantProvider>
-    )
-  }
-
   return (
     <AuthProvider>
       <Routes>
@@ -113,7 +102,6 @@ export default function App() {
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
         <Route path="/portal" element={<ProtectedRoute element={<BoaterPortal />} allowedRoles={['boater']} />} />
-        <Route path="/field"  element={<ProtectedRoute element={<Field />}        allowedRoles={['staff', 'owner', 'manager']} />} />
         <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />
       </Routes>
     </AuthProvider>

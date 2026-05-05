@@ -55,6 +55,13 @@ class Marina(models.Model):
     max_staff = models.IntegerField(default=10)
     slug = models.SlugField(max_length=100, unique=True, blank=True)
     custom_domain = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    wallet_wifi_network = models.CharField(max_length=100, null=True, blank=True)
+    wallet_wifi_password = models.CharField(max_length=100, null=True, blank=True)
+    wallet_gate_codes = models.JSONField(default=list)
+    wallet_harbour_master_phone = models.CharField(max_length=30, null=True, blank=True)
+    wallet_vhf_channel = models.CharField(max_length=10, null=True, blank=True)
+    wallet_office_hours = models.CharField(max_length=100, null=True, blank=True)
+    waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.slug:

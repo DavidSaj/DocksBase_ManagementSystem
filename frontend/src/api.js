@@ -4,16 +4,6 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
 });
 
-// --- Tenant helpers ---
-
-function getTenantSlug() {
-  const parts = window.location.hostname.split('.')
-  if (parts.length <= 1) return null
-  const sub = parts[0]
-  if (sub === 'app' || sub === 'www') return null
-  return sub
-}
-
 // --- Auth helpers (defined early so interceptor and login/logout can use them) ---
 
 export function storeUser(user) {
@@ -40,10 +30,6 @@ export function getStoredUser() {
 api.interceptors.request.use(cfg => {
   const token = localStorage.getItem('access_token');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
-  const slug = getTenantSlug()
-  if (slug) {
-    cfg.headers['X-Marina-Slug'] = slug
-  }
   return cfg;
 });
 

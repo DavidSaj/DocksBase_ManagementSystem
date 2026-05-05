@@ -1,8 +1,10 @@
 # backend/apps/reservations/booking_engine.py
 from datetime import date, timedelta
 from decimal import Decimal
+from django.utils import timezone
 
-from django.db.models import Subquery, OuterRef
+from django.db import transaction
+from django.db.models import Q, Subquery, OuterRef
 
 from apps.berths.models import Berth
 from .models import Booking
@@ -16,17 +18,26 @@ class NoAvailableBerthError(Exception):
     pass
 
 
-def compatible_available_berths(marina, check_in, check_out, boat_loa=None, boat_beam=None):
+def compatible_available_berths(
+    marina, check_in, check_out,
+    boat_loa=None, boat_beam=None, boat_draft=None,
+):
     """
     Return a queryset of Berths that:
-    1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam)
-    2. Have no confirmed/active booking that overlaps [check_in, check_out)
+    1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam, max_draft_m >= boat_draft (NULL max_draft_m = unconstrained, always passes))
+    2. Are not in maintenance status
+    3. Have no confirmed/active booking that overlaps [check_in, check_out)
     """
-    qs = Berth.objects.filter(marina=marina)
+    qs = Berth.objects.filter(marina=marina).exclude(status='maintenance')
+
     if boat_loa is not None:
         qs = qs.filter(length_m__gte=Decimal(str(boat_loa)))
     if boat_beam is not None:
         qs = qs.filter(max_beam_m__gte=Decimal(str(boat_beam)))
+    if boat_draft is not None:
+        qs = qs.filter(
+            Q(max_draft_m__isnull=True) | Q(max_draft_m__gte=Decimal(str(boat_draft)))
+        )
 
     blocked_ids = (
         Booking.objects.filter(
@@ -87,7 +98,8 @@ def _score_berths(available_berths, check_in, check_out):
     return scored
 
 
-def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, guest_name, guest_email, guest_phone):
+def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None,
+                           guest_name='', guest_email='', guest_phone=''):
     """Mode A: create a Booking with berth=null, status=pending_approval."""
     if isinstance(check_in, str):
         check_in = date.fromisoformat(check_in)
@@ -109,49 +121,141 @@ def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, gue
         status='pending_approval',
         boat_loa=boat_loa,
         boat_beam=boat_beam,
+        boat_draft=boat_draft,
         guest_name=guest_name,
         guest_email=guest_email,
         guest_phone=guest_phone,
     )
 
 
-def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, guest_name, guest_email, guest_phone):
+def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None,
+               guest_name='', guest_email='', guest_phone=''):
     """
     Mode B: run gap-minimisation, assign berth immediately, return Booking
     with status=pending_payment.
     Raises NoAvailableBerthError if no compatible berth is free.
+
+    Uses select_for_update() + collision re-check inside a transaction to guard
+    against TOCTOU races: if a concurrent request steals the top-ranked berth
+    between scoring and writing, we fall through to the next candidate.
     """
     if isinstance(check_in, str):
         check_in = date.fromisoformat(check_in)
     if isinstance(check_out, str):
         check_out = date.fromisoformat(check_out)
-
     if check_out <= check_in:
         raise ValueError(f'check_out ({check_out}) must be after check_in ({check_in}).')
 
-    candidates = compatible_available_berths(marina, check_in, check_out, boat_loa, boat_beam)
+    candidates = compatible_available_berths(
+        marina, check_in, check_out, boat_loa, boat_beam, boat_draft,
+    )
     scored = _score_berths(candidates, check_in, check_out)
-
     if not scored:
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
 
-    best_berth = scored[0][1]
     nights = (check_out - check_in).days or 1
-    price = best_berth.pricing_tier.unit_price
-    amount = Decimal(str(price)) * nights
 
-    return Booking.objects.create(
-        marina=marina,
-        berth=best_berth,
-        vessel=None,
-        check_in=check_in,
-        check_out=check_out,
-        nights=nights,
-        amount=amount,
-        status='pending_payment',
-        boat_loa=boat_loa,
-        boat_beam=boat_beam,
-        guest_name=guest_name,
-        guest_email=guest_email,
-        guest_phone=guest_phone,
+    with transaction.atomic():
+        for _, berth in scored:
+            # Acquire a row-level lock on this berth for the duration of the transaction,
+            # preventing concurrent run_tetris calls from booking the same berth.
+            Berth.objects.select_for_update().get(pk=berth.pk)
+
+            collision = Booking.objects.filter(
+                berth=berth,
+                status__in=ACTIVE_STATUSES,
+                check_in__lt=check_out,
+                check_out__gt=check_in,
+            ).exists()
+            if collision:
+                continue
+
+            price = berth.pricing_tier.unit_price
+            amount = Decimal(str(price)) * nights
+            return Booking.objects.create(
+                marina=marina,
+                berth=berth,
+                vessel=None,
+                check_in=check_in,
+                check_out=check_out,
+                nights=nights,
+                amount=amount,
+                status='pending_payment',
+                boat_loa=boat_loa,
+                boat_beam=boat_beam,
+                boat_draft=boat_draft,
+                guest_name=guest_name,
+                guest_email=guest_email,
+                guest_phone=guest_phone,
+            )
+
+        raise NoAvailableBerthError('No compatible berth available for the requested dates.')
+
+
+ALTERNATIVE_SHIFTS = [-2, -1, 1, 2]     # days to shift check_in, same duration
+ALTERNATIVE_DURATIONS = [-1, 1, -2, 2]  # nights delta, same check_in
+
+
+def find_date_alternatives(marina, check_in, check_out, boat_loa, boat_beam, boat_draft, max_results=4):
+    """
+    When the exact dates are unavailable, find nearby date windows that do have
+    compatible berths. Checks shifted windows (same duration, different start)
+    and duration variants (same check_in, ±1 or ±2 nights).
+    Returns up to max_results dicts sorted by proximity to the original dates.
+    Uses timezone.localdate() for the past-date guard so it respects the server
+    timezone rather than Python's date.today().
+    """
+    if isinstance(check_in, str):
+        check_in = date.fromisoformat(check_in)
+    if isinstance(check_out, str):
+        check_out = date.fromisoformat(check_out)
+    original_nights = (check_out - check_in).days
+    today = timezone.localdate()
+    candidates = []
+
+    for delta in ALTERNATIVE_SHIFTS:
+        new_in = check_in + timedelta(days=delta)
+        new_out = new_in + timedelta(days=original_nights)
+        if new_in < today:
+            continue
+        scored = _score_berths(
+            compatible_available_berths(marina, new_in, new_out, boat_loa, boat_beam, boat_draft).select_related('pricing_tier'),
+            new_in, new_out,
+        )
+        if scored:
+            berth = scored[0][1]
+            if not berth.pricing_tier:
+                continue  # skip unpriced berths; try next permutation
+            candidates.append({
+                'check_in': new_in,
+                'check_out': new_out,
+                'nights': original_nights,
+                'price_per_night': berth.pricing_tier.unit_price,
+                'total': berth.pricing_tier.unit_price * original_nights,
+            })
+
+    for delta in ALTERNATIVE_DURATIONS:
+        new_nights = original_nights + delta
+        if new_nights < 1:
+            continue
+        new_out = check_in + timedelta(days=new_nights)
+        scored = _score_berths(
+            compatible_available_berths(marina, check_in, new_out, boat_loa, boat_beam, boat_draft).select_related('pricing_tier'),
+            check_in, new_out,
+        )
+        if scored:
+            berth = scored[0][1]
+            if not berth.pricing_tier:
+                continue  # skip unpriced berths; try next permutation
+            candidates.append({
+                'check_in': check_in,
+                'check_out': new_out,
+                'nights': new_nights,
+                'price_per_night': berth.pricing_tier.unit_price,
+                'total': berth.pricing_tier.unit_price * new_nights,
+            })
+
+    candidates.sort(
+        key=lambda c: abs((c['check_in'] - check_in).days) + abs(c['nights'] - original_nights)
     )
+    return candidates[:max_results]

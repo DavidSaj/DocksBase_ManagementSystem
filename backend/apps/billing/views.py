@@ -19,6 +19,21 @@ from .models import Invoice, InvoiceLineItem, ChargeableItem
 from .pdf_service import _generate_store_and_email_pdf
 from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer
 from .signals import invoice_paid
+from apps.reservations.emails import send_booking_confirmed_email
+from apps.reservations.models import Booking as BookingModel
+
+
+def _post_payment_tasks(invoice_id):
+    """Fire-and-forget: generate PDF and, if linked, confirm the booking and send the email."""
+    _generate_store_and_email_pdf(invoice_id)
+    try:
+        inv = Invoice.objects.select_related('booking__marina').get(pk=invoice_id)
+        if inv.booking_id:
+            BookingModel.objects.filter(pk=inv.booking_id).update(status='confirmed')
+            booking = BookingModel.objects.select_related('marina', 'berth').get(pk=inv.booking_id)
+            send_booking_confirmed_email(booking)
+    except Exception:
+        pass  # daemon thread — log silently, don't block
 
 
 class StripeWebhookView(APIView):
@@ -55,7 +70,7 @@ class StripeWebhookView(APIView):
                 invoice.refresh_from_db()
                 invoice_paid.send(sender=Invoice, invoice=invoice)
                 threading.Thread(
-                    target=_generate_store_and_email_pdf,
+                    target=_post_payment_tasks,
                     args=(invoice.id,),
                     daemon=True,
                 ).start()
@@ -63,6 +78,13 @@ class StripeWebhookView(APIView):
         elif event_type == 'checkout.session.expired':
             invoice.stripe_checkout_session_id = ''
             invoice.save(update_fields=['stripe_checkout_session_id'])
+            if invoice.booking_id:
+                try:
+                    BookingModel.objects.filter(pk=invoice.booking_id).update(
+                        status='cancelled', berth=None
+                    )
+                except Exception:
+                    pass
 
         return HttpResponse(status=200)
 

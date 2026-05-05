@@ -29,14 +29,16 @@ function BerthDetailModal({ berth, onClose, onSaved }) {
 
   useEffect(() => {
     setForm({
-      berth_type:   berth.berth_type   || '',
-      status:       berth.status,
-      length_m:     berth.length_m     != null ? String(berth.length_m)     : '',
-      max_beam_m:   berth.max_beam_m   != null ? String(berth.max_beam_m)   : '',
-      max_draft_m:  berth.max_draft_m  != null ? String(berth.max_draft_m)  : '',
-      side:         berth.side         || '',
-      pricing_tier: berth.pricing_tier != null ? String(berth.pricing_tier) : '',
-      amenities:    berth.amenities    ?? [],
+      berth_type:       berth.berth_type       || '',
+      berth_class:      berth.berth_class      || 'standard',
+      operational_type: berth.operational_type || '',
+      status:           berth.status,
+      length_m:         berth.length_m     != null ? String(berth.length_m)     : '',
+      max_beam_m:       berth.max_beam_m   != null ? String(berth.max_beam_m)   : '',
+      max_draft_m:      berth.max_draft_m  != null ? String(berth.max_draft_m)  : '',
+      side:             berth.side         || '',
+      pricing_tier:     berth.pricing_tier != null ? String(berth.pricing_tier) : '',
+      amenities:        berth.amenities    ?? [],
     });
     setError('');
   }, [berth?.id]);
@@ -54,14 +56,16 @@ function BerthDetailModal({ berth, onClose, onSaved }) {
     setSaving(true); setError('');
     try {
       const patch = {
-        berth_type:   form.berth_type.trim(),
-        status:       form.status,
-        side:         form.side || null,
-        length_m:     form.length_m    !== '' ? Number(form.length_m)    : null,
-        max_beam_m:   form.max_beam_m  !== '' ? Number(form.max_beam_m)  : null,
-        max_draft_m:  form.max_draft_m !== '' ? Number(form.max_draft_m) : null,
-        pricing_tier: form.pricing_tier !== '' ? Number(form.pricing_tier) : null,
-        amenities:    form.amenities,
+        berth_type:       form.berth_type.trim(),
+        berth_class:      form.berth_class,
+        operational_type: form.berth_class === 'operational' ? form.operational_type : '',
+        status:           form.status,
+        side:             form.side || null,
+        length_m:         form.length_m    !== '' ? Number(form.length_m)    : null,
+        max_beam_m:       form.max_beam_m  !== '' ? Number(form.max_beam_m)  : null,
+        max_draft_m:      form.max_draft_m !== '' ? Number(form.max_draft_m) : null,
+        pricing_tier:     form.pricing_tier !== '' ? Number(form.pricing_tier) : null,
+        amenities:        form.amenities,
       };
       await api.patch(`/berths/${berth.id}/`, patch);
       onSaved();
@@ -90,10 +94,46 @@ function BerthDetailModal({ berth, onClose, onSaved }) {
         </div>
 
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Berth Type */}
+          {/* Berth Type — hidden for operational berths */}
+          {form.berth_class !== 'operational' && (
           <div>
             <label style={lbl}>Berth Type</label>
             <input value={form.berth_type} onChange={set('berth_type')} placeholder="e.g. Small, Large, Visitor…" style={inputSt} />
+          </div>
+          )}
+
+          {/* Classification */}
+          <div>
+            <label style={lbl}>Classification</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: form.berth_class === 'operational' ? 8 : 0 }}>
+              {[['standard', 'Standard'], ['operational', 'Operational']].map(([v, l]) => (
+                <button
+                  key={v} type="button"
+                  onClick={() => setForm(f => ({
+                    ...f,
+                    berth_class: v,
+                    operational_type: v === 'standard' ? '' : f.operational_type,
+                  }))}
+                  style={{
+                    padding: '6px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
+                    border: `1.5px solid ${form.berth_class === v ? 'var(--navy)' : 'rgba(0,0,0,0.15)'}`,
+                    background: form.berth_class === v ? 'var(--navy)' : '#fff',
+                    color: form.berth_class === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                    fontFamily: 'var(--font)',
+                  }}
+                >{l}</button>
+              ))}
+            </div>
+            {form.berth_class === 'operational' && (
+              <select
+                value={form.operational_type}
+                onChange={e => setForm(f => ({ ...f, operational_type: e.target.value }))}
+                style={inputSt}
+              >
+                <option value="">Select operational type…</option>
+                <option value="fuel_dock">Fuel Dock</option>
+              </select>
+            )}
           </div>
 
           {/* Status + Side */}
@@ -180,6 +220,7 @@ function BerthDetailModal({ berth, onClose, onSaved }) {
 function BulkCreateModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     prefix: '', start: 1, count: 10, berth_type: '',
+    berth_class: 'standard', operational_type: '',
     length_m: '', beam_m: '', max_draft_m: '',
   });
   const [saving, setSaving] = useState(false);
@@ -194,13 +235,15 @@ function BulkCreateModal({ onClose, onCreated }) {
     setError('');
     try {
       await api.post('/berths/bulk-create/', {
-        prefix:      form.prefix.trim().toUpperCase(),
-        start:       Number(form.start),
-        count:       Number(form.count),
-        berth_type:  form.berth_type.trim(),
-        length_m:    form.length_m    ? Number(form.length_m)    : null,
-        beam_m:      form.beam_m      ? Number(form.beam_m)      : null,
-        max_draft_m: form.max_draft_m ? Number(form.max_draft_m) : null,
+        prefix:           form.prefix.trim().toUpperCase(),
+        start:            Number(form.start),
+        count:            Number(form.count),
+        berth_type:       form.berth_type.trim(),
+        berth_class:      form.berth_class,
+        operational_type: form.berth_class === 'operational' ? form.operational_type : '',
+        length_m:         form.length_m    ? Number(form.length_m)    : null,
+        beam_m:           form.beam_m      ? Number(form.beam_m)      : null,
+        max_draft_m:      form.max_draft_m ? Number(form.max_draft_m) : null,
       });
       onCreated();
       onClose();
@@ -223,9 +266,36 @@ function BulkCreateModal({ onClose, onCreated }) {
           Physical berth records only — attach pricing in the Service Catalog.
         </div>
 
+        {form.berth_class !== 'operational' && (
         <div style={{ marginBottom: 14 }}>
           <div className="field-label">Berth Type <span style={{ color: 'rgba(0,0,0,0.35)', fontWeight: 400 }}>(used for grouping &amp; filtering)</span></div>
           <input className="field-input" placeholder="e.g. Small, Large, Visitor, Floating…" value={form.berth_type} onChange={e => set('berth_type', e.target.value)} />
+        </div>
+        )}
+
+        <div style={{ marginBottom: 14 }}>
+          <div className="field-label">Classification</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: form.berth_class === 'operational' ? 8 : 0 }}>
+            {[['standard', 'Standard'], ['operational', 'Operational']].map(([v, l]) => (
+              <button
+                key={v} type="button"
+                onClick={() => setForm(f => ({ ...f, berth_class: v, operational_type: v === 'standard' ? '' : f.operational_type }))}
+                style={{
+                  padding: '5px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
+                  border: `1.5px solid ${form.berth_class === v ? 'var(--navy)' : 'rgba(0,0,0,0.15)'}`,
+                  background: form.berth_class === v ? 'var(--navy)' : '#fff',
+                  color: form.berth_class === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                  fontFamily: 'var(--font)',
+                }}
+              >{l}</button>
+            ))}
+          </div>
+          {form.berth_class === 'operational' && (
+            <select className="field-input" value={form.operational_type} onChange={e => set('operational_type', e.target.value)}>
+              <option value="">Select operational type…</option>
+              <option value="fuel_dock">Fuel Dock</option>
+            </select>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>

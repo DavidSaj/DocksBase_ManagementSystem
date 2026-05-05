@@ -20,10 +20,18 @@ _OCCUPIED_STATUSES = frozenset(['checked_in', 'overstay'])
 
 
 class BerthSerializer(serializers.ModelSerializer):
-    pier_code        = serializers.CharField(source='pier.code', read_only=True, default=None)
-    vessel_name      = serializers.CharField(source='vessel.name', read_only=True, default=None)
-    is_placed        = serializers.SerializerMethodField()
-    effective_status = serializers.SerializerMethodField()
+    pier_code                = serializers.CharField(source='pier.code',              read_only=True, default=None)
+    vessel_name              = serializers.CharField(source='vessel.name',            read_only=True, default=None)
+    pricing_tier_name        = serializers.CharField(source='pricing_tier.name',      read_only=True, default=None)
+    pricing_tier_unit_price  = serializers.DecimalField(
+        source='pricing_tier.unit_price',
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+        allow_null=True,
+    )
+    is_placed          = serializers.SerializerMethodField()
+    effective_status   = serializers.SerializerMethodField()
     pricing_tier = serializers.PrimaryKeyRelatedField(
         queryset=ChargeableItem.objects.filter(category='berth'),
         allow_null=True,
@@ -33,9 +41,11 @@ class BerthSerializer(serializers.ModelSerializer):
     class Meta:
         model = Berth
         fields = [
-            'id', 'code', 'berth_type', 'pier', 'pier_code', 'side', 'position_index',
+            'id', 'code', 'berth_type', 'berth_class', 'operational_type',
+            'pier', 'pier_code', 'side', 'position_index',
             'length_m', 'max_draft_m', 'max_beam_m', 'amenities',
-            'pricing_tier', 'status', 'effective_status', 'vessel', 'vessel_name',
+            'pricing_tier', 'pricing_tier_name', 'pricing_tier_unit_price',
+            'status', 'effective_status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
         ]
         read_only_fields = ['id', 'pier_code', 'vessel_name', 'is_placed', 'effective_status']
