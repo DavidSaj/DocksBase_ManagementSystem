@@ -76,7 +76,7 @@ class BerthDetailView(generics.RetrieveUpdateAPIView):
         from django.utils import timezone
         from datetime import timedelta
 
-        instance = self.get_object()
+        instance = serializer.instance  # already fetched by UpdateModelMixin.update()
         new_channel = serializer.validated_data.get('sales_channel')
 
         if new_channel and new_channel != instance.sales_channel:

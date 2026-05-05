@@ -145,3 +145,13 @@ class BerthCooldownTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.berth.refresh_from_db()
         self.assertIsNone(self.berth.channel_cooldown_until)
+
+    def test_same_channel_does_not_set_cooldown(self):
+        resp = self.client.patch(
+            f'/api/v1/berths/{self.berth.pk}/',
+            {'sales_channel': 'direct'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.berth.refresh_from_db()
+        self.assertIsNone(self.berth.channel_cooldown_until)
