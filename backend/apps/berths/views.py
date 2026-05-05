@@ -15,6 +15,14 @@ class PierListCreateView(generics.ListCreateAPIView):
         return Pier.objects.filter(marina=self.request.user.marina)
 
     def perform_create(self, serializer):
+        code = serializer.validated_data.get('code', '')
+        if '{n}' in code:
+            marina = self.request.user.marina
+            n = 1
+            existing = set(Pier.objects.filter(marina=marina).values_list('code', flat=True))
+            while code.replace('{n}', str(n)) in existing:
+                n += 1
+            serializer.validated_data['code'] = code.replace('{n}', str(n))
         serializer.save(marina=self.request.user.marina)
 
 

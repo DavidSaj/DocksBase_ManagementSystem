@@ -14,7 +14,7 @@ PIER_TYPE_CHOICES = [
 
 class Pier(models.Model):
     marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
-    code           = models.CharField(max_length=10)
+    code           = models.CharField(max_length=50)
     label          = models.CharField(max_length=50, blank=True)
     polygon_points = models.JSONField(default=list)
     pier_type      = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='concrete')

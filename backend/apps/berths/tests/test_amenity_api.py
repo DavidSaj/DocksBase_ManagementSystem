@@ -101,9 +101,6 @@ class AmenityAPITest(TestCase):
         data = resp.json()
         self.assertIn('polygon_points', data)
         self.assertEqual(data['polygon_points'], points)
-        # Pier no longer uses canvas_x / canvas_width
-        self.assertNotIn('canvas_x', data)
-        self.assertNotIn('canvas_width', data)
         # Verify persisted
         pier = Pier.objects.get(marina=self.marina, code='P1')
         self.assertEqual(pier.polygon_points, points)
