@@ -150,6 +150,45 @@ def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
     )
 
 
+class ChannelFilterTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.berth = make_berth(self.marina)
+        self.check_in = datetime.date(2030, 7, 1)
+        self.check_out = datetime.date(2030, 7, 5)
+
+    def test_mysea_berth_excluded_from_direct_search(self):
+        from apps.reservations.booking_engine import compatible_available_berths
+        self.berth.sales_channel = 'mysea'
+        self.berth.save(update_fields=['sales_channel'])
+        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
+        self.assertNotIn(self.berth, qs)
+
+    def test_direct_berth_included_in_search(self):
+        from apps.reservations.booking_engine import compatible_available_berths
+        self.berth.sales_channel = 'direct'
+        self.berth.save(update_fields=['sales_channel'])
+        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
+        self.assertIn(self.berth, qs)
+
+    def test_cooldown_berth_excluded(self):
+        from apps.reservations.booking_engine import compatible_available_berths
+        self.berth.sales_channel = 'direct'
+        self.berth.channel_cooldown_until = timezone.now() + datetime.timedelta(minutes=20)
+        self.berth.save(update_fields=['sales_channel', 'channel_cooldown_until'])
+        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
+        self.assertNotIn(self.berth, qs)
+
+    def test_expired_cooldown_berth_included(self):
+        from apps.reservations.booking_engine import compatible_available_berths
+        self.berth.sales_channel = 'direct'
+        self.berth.channel_cooldown_until = timezone.now() - datetime.timedelta(minutes=1)
+        self.berth.save(update_fields=['sales_channel', 'channel_cooldown_until'])
+        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
+        self.assertIn(self.berth, qs)
+
+
 class CompatibleBerthsTest(TestCase):
     def setUp(self):
         self.marina = make_marina()

@@ -27,8 +27,12 @@ def compatible_available_berths(
     1. Physically fit the boat (length_m >= boat_loa, max_beam_m >= boat_beam, max_draft_m >= boat_draft (NULL max_draft_m = unconstrained, always passes))
     2. Are not in maintenance status
     3. Have no confirmed/active booking that overlaps [check_in, check_out)
+    4. Are on the direct sales channel (not mysea)
+    5. Are not in channel cooldown
     """
     qs = Berth.objects.filter(marina=marina).exclude(status='maintenance')
+    qs = qs.filter(sales_channel='direct')
+    qs = qs.exclude(channel_cooldown_until__gt=timezone.now())
 
     if boat_loa is not None:
         qs = qs.filter(length_m__gte=Decimal(str(boat_loa)))
