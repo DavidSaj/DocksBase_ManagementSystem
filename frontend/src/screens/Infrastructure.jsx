@@ -94,11 +94,13 @@ function BerthDetailModal({ berth, onClose, onSaved }) {
         </div>
 
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Berth Type */}
+          {/* Berth Type — hidden for operational berths */}
+          {form.berth_class !== 'operational' && (
           <div>
             <label style={lbl}>Berth Type</label>
             <input value={form.berth_type} onChange={set('berth_type')} placeholder="e.g. Small, Large, Visitor…" style={inputSt} />
           </div>
+          )}
 
           {/* Classification */}
           <div>
@@ -264,10 +266,12 @@ function BulkCreateModal({ onClose, onCreated }) {
           Physical berth records only — attach pricing in the Service Catalog.
         </div>
 
+        {form.berth_class !== 'operational' && (
         <div style={{ marginBottom: 14 }}>
           <div className="field-label">Berth Type <span style={{ color: 'rgba(0,0,0,0.35)', fontWeight: 400 }}>(used for grouping &amp; filtering)</span></div>
           <input className="field-input" placeholder="e.g. Small, Large, Visitor, Floating…" value={form.berth_type} onChange={e => set('berth_type', e.target.value)} />
         </div>
+        )}
 
         <div style={{ marginBottom: 14 }}>
           <div className="field-label">Classification</div>
