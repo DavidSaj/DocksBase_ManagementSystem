@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
@@ -246,3 +247,24 @@ class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Amenity.objects.filter(marina=self.request.user.marina)
+
+
+class IcalFeedView(APIView):
+    permission_classes = []  # public — the URL slug is the secret
+
+    def get(self, request):
+        from apps.accounts.models import Marina
+        from .ical import generate_mysea_ical
+
+        slug = request.query_params.get('marina', '')
+        try:
+            marina = Marina.objects.get(slug=slug)
+        except Marina.DoesNotExist:
+            return Response({'detail': 'Marina not found.'}, status=404)
+
+        ical_bytes = generate_mysea_ical(marina)
+        return HttpResponse(
+            ical_bytes,
+            content_type='text/calendar; charset=utf-8',
+            headers={'Content-Disposition': 'attachment; filename="mysea.ics"'},
+        )

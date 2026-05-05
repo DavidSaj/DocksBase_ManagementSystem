@@ -7,6 +7,7 @@ from .views import (
     BulkUpdateBerthPricingView,
     BroadcastSMSView,
     AmenityListCreateView, AmenityDetailView,
+    IcalFeedView,
 )
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     path('berths/bulk-pricing/', BulkUpdateBerthPricingView.as_view(), name='berths_bulk_pricing'),
     path('berths/', BerthListCreateView.as_view(), name='berth_list'),
     path('berths/<int:pk>/', BerthDetailView.as_view(), name='berth_detail'),
+    path('berths/ical/mysea.ics', IcalFeedView.as_view(), name='berths_ical_mysea'),
     path('map/config/', MapConfigView.as_view(), name='map_config'),
     path('broadcast/', BroadcastSMSView.as_view(), name='broadcast_sms'),
     path('amenities/', AmenityListCreateView.as_view(), name='amenity_list'),
