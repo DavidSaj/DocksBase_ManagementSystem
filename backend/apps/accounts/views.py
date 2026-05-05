@@ -1,4 +1,5 @@
 import datetime
+import stripe
 from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
@@ -14,9 +15,12 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Marina, User, MagicToken, EmailVerification
-from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer
+from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer, DraftAccountSerializer
 from .emails import send_verification_email, send_welcome_email
 from apps.members.models import Member
+from config.plans import PRICE_ID_TO_PLAN
+
+stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
 
 
 class SignupView(APIView):
@@ -461,3 +465,73 @@ class ChannelSettingsView(APIView):
             'mysea_ical_url': marina.mysea_ical_url,
             'mysea_last_synced': marina.mysea_last_synced,
         })
+
+
+class DraftAccountView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        ser = DraftAccountSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        d = ser.validated_data
+        email = d['email']
+
+        # Idempotency: return existing client_secret for pending_payment accounts
+        existing_user = User.objects.filter(email=email).select_related('marina').first()
+        if existing_user and existing_user.marina and existing_user.marina.status == 'pending_payment':
+            sub = stripe.Subscription.retrieve(
+                existing_user.marina.stripe_subscription_id,
+                expand=['pending_setup_intent'],
+            )
+            return Response(
+                {'client_secret': sub.pending_setup_intent.client_secret},
+                status=status.HTTP_201_CREATED,
+            )
+
+        marina = Marina.objects.create(
+            name=d['marina_name'],
+            address=d['address'],
+            lat=d.get('lat'),
+            lng=d.get('lng'),
+            phone=d['phone'],
+            contact_email=d['contact_email'],
+            vat_number=d.get('vat_number', ''),
+            currency=d['currency'],
+            status='pending_payment',
+        )
+
+        User.objects.create_user(
+            email=email,
+            password=d['password'],
+            first_name=d['first_name'],
+            last_name=d['last_name'],
+            role='owner',
+            marina=marina,
+            is_active=False,
+        )
+
+        customer = stripe.Customer.create(
+            email=email,
+            name=d['marina_name'],
+            metadata={'marina_id': str(marina.id)},
+        )
+        marina.stripe_customer_id = customer.id
+
+        subscription = stripe.Subscription.create(
+            customer=customer.id,
+            items=[{'price': d['plan_price_id']}],
+            payment_behavior='default_incomplete',
+            trial_period_days=30,
+            expand=['pending_setup_intent'],
+            metadata={'marina_id': str(marina.id)},
+        )
+        marina.stripe_subscription_id = subscription.id
+        marina.plan = PRICE_ID_TO_PLAN.get(d['plan_price_id'], 'professional')
+        marina.save(update_fields=['stripe_customer_id', 'stripe_subscription_id', 'plan'])
+
+        return Response(
+            {'client_secret': subscription.pending_setup_intent.client_secret},
+            status=status.HTTP_201_CREATED,
+        )
