@@ -1,6 +1,7 @@
 import datetime
 import stripe
 from django.conf import settings
+from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.core.cache import cache
@@ -536,3 +537,30 @@ class DraftAccountView(APIView):
             {'client_secret': subscription.pending_setup_intent.client_secret},
             status=status.HTTP_201_CREATED,
         )
+
+
+class ResumeView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token', '')
+        signer = TimestampSigner()
+        try:
+            marina_id = signer.unsign(token, max_age=172800)  # 48 hours
+        except (SignatureExpired, BadSignature):
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            marina = Marina.objects.get(pk=marina_id, status='pending_payment')
+        except Marina.DoesNotExist:
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        sub = stripe.Subscription.retrieve(
+            marina.stripe_subscription_id,
+            expand=['pending_setup_intent'],
+        )
+        return Response({
+            'client_secret': sub.pending_setup_intent.client_secret,
+            'marina_name':   marina.name,
+            'plan':          marina.plan,
+        })
