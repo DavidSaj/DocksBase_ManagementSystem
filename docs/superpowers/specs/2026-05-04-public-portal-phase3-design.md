@@ -86,6 +86,8 @@ Renders one card per alternative:
 
 On card click: `navigate('quote', { checkIn: alt.check_in, checkOut: alt.check_out, quotedPrice: alt.price_per_night, quotedTotal: alt.total })`
 
+React `key` prop for each card: use `alt.check_in + '_' + alt.check_out` (composite string). Never use array index — the alternatives array may re-sort and index-based keys cause rendering bugs.
+
 Back link → `SearchScreen` with form pre-filled.
 
 ### `QuoteScreen`
@@ -97,7 +99,7 @@ Displays:
 On submit:
 1. `POST /api/v1/bookings/engine-request/` with all wizard state fields
 2. Success → `window.location.href = checkout_url`
-3. 409 → `navigate('search')` with banner: "That berth just got booked — please search again"
+3. 409 → `navigate('search')` with banner: "Availability changed while you were reviewing. Please check your dates again." (covers both the concurrent-booking case and the tab-left-open-for-45-minutes case without implying a system error)
 4. 503 → inline error: "Something went wrong, please try again"
 
 ---
@@ -112,6 +114,8 @@ Query params: `check_in`, `check_out`, `boat_loa`, `boat_beam`, `boat_draft` —
 
 ### Engine function
 
+Use `from django.utils import timezone` and check against `timezone.localdate()` rather than `date.today()`, so the "today" boundary respects the marina's local timezone rather than the server's UTC clock.
+
 ```python
 ALTERNATIVE_SHIFTS = [-2, -1, 1, 2]       # days to shift check_in, same duration
 ALTERNATIVE_DURATIONS = [-1, 1, -2, 2]    # nights delta, same check_in
@@ -123,7 +127,7 @@ def find_date_alternatives(marina, check_in, check_out, boat_loa, boat_beam, boa
     for delta in ALTERNATIVE_SHIFTS:
         new_in = check_in + timedelta(days=delta)
         new_out = new_in + timedelta(days=original_nights)
-        if new_in < date.today():
+        if new_in < timezone.localdate():
             continue
         scored = _score_berths(
             compatible_available_berths(marina, new_in, new_out, boat_loa, boat_beam, boat_draft),
