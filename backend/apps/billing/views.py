@@ -196,11 +196,8 @@ class ChargeableItemListCreateView(generics.ListCreateAPIView):
     serializer_class   = ChargeableItemSerializer
     permission_classes = [IsAuthenticated]
     pagination_class   = None
-<<<<<<< HEAD
     filter_backends    = [DjangoFilterBackend]
     filterset_fields   = ['category', 'is_active']
-=======
->>>>>>> 091d9d2 (fix: service catalog crash — pagination_class=None on view, results??data in frontend)
 
     def get_queryset(self):
         return ChargeableItem.objects.filter(marina=self.request.user.marina)

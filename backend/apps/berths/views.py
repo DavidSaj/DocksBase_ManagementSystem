@@ -73,7 +73,6 @@ class MapConfigView(generics.RetrieveUpdateAPIView):
         return obj
 
 
-<<<<<<< HEAD
 class BulkCreateBerthsView(APIView):
     """
     POST /api/v1/berths/bulk-create/
