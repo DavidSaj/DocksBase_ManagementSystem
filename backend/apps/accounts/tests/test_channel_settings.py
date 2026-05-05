@@ -46,3 +46,22 @@ class ChannelSettingsViewTest(TestCase):
     def test_invalid_pct_rejected(self):
         resp = self.client.patch('/api/v1/auth/marina/channel-settings/', {'mysea_target_pct': 150}, format='json')
         self.assertEqual(resp.status_code, 400)
+
+    def test_raising_target_does_not_rebalance(self):
+        from unittest.mock import patch as mock_patch
+        with mock_patch('apps.berths.allocator.rebalance_down') as mock_rb:
+            resp = self.client.patch(
+                '/api/v1/auth/marina/channel-settings/',
+                {'mysea_target_pct': 75},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 200)
+        mock_rb.assert_not_called()
+
+    def test_boolean_pct_rejected(self):
+        resp = self.client.patch('/api/v1/auth/marina/channel-settings/', {'mysea_target_pct': True}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_invalid_ical_url_rejected(self):
+        resp = self.client.patch('/api/v1/auth/marina/channel-settings/', {'mysea_ical_url': 'not-a-url'}, format='json')
+        self.assertEqual(resp.status_code, 400)
