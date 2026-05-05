@@ -29,9 +29,7 @@ export default function SearchScreen({ state, navigate, marina }) {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const params = new URLSearchParams({ check_in: form.checkIn, check_out: form.checkOut });
-    if (form.boatLoa)  params.set('boat_loa', form.boatLoa);
-    if (form.boatBeam) params.set('boat_beam', form.boatBeam);
+    const params = new URLSearchParams({ check_in: form.checkIn, check_out: form.checkOut, boat_loa: form.boatLoa, boat_beam: form.boatBeam });
     if (form.boatDraft) params.set('boat_draft', form.boatDraft);
     try {
       const { data: berths } = await api.get(`/public/bookings/available-berths/?${params}`);

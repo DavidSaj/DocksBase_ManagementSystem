@@ -42,7 +42,12 @@ describe('SearchScreen', () => {
     fillDates();
     fireEvent.click(screen.getByRole('button', { name: /check availability/i }));
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('quote', expect.objectContaining({ quotedTotal: 270 }));
+      expect(navigate).toHaveBeenCalledWith('quote', expect.objectContaining({
+        checkIn: '2027-07-10',
+        checkOut: '2027-07-13',
+        quotedPrice: 90,
+        quotedTotal: 270,
+      }));
     });
   });
 
