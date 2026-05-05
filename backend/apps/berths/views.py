@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
@@ -70,6 +71,20 @@ class BerthDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return Berth.objects.filter(marina=self.request.user.marina)
+
+    def perform_update(self, serializer):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        instance = serializer.instance  # already fetched by UpdateModelMixin.update()
+        new_channel = serializer.validated_data.get('sales_channel')
+
+        if new_channel and new_channel != instance.sales_channel:
+            serializer.save(
+                channel_cooldown_until=timezone.now() + timedelta(minutes=30)
+            )
+        else:
+            serializer.save()
 
 
 class MapConfigView(generics.RetrieveUpdateAPIView):
@@ -246,3 +261,37 @@ class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Amenity.objects.filter(marina=self.request.user.marina)
+
+
+class SyncMySeaView(APIView):
+    """POST /berths/sync-mysea/ — manually trigger inbound iCal sync for this marina."""
+
+    def post(self, request):
+        from apps.reservations.management.commands.sync_mysea_bookings import sync_marina
+        marina = request.user.marina
+        if not marina.mysea_ical_url:
+            return Response({'detail': 'No mySea iCal URL configured.'}, status=400)
+        count = sync_marina(marina, dry=False, stdout=None)
+        marina.refresh_from_db(fields=['mysea_last_synced'])
+        return Response({'synced': count, 'last_synced': marina.mysea_last_synced})
+
+
+class IcalFeedView(APIView):
+    permission_classes = []  # public — the URL slug is the secret
+
+    def get(self, request):
+        from apps.accounts.models import Marina
+        from .ical import generate_mysea_ical
+
+        slug = request.query_params.get('marina', '')
+        try:
+            marina = Marina.objects.get(slug=slug)
+        except Marina.DoesNotExist:
+            return Response({'detail': 'Marina not found.'}, status=404)
+
+        ical_bytes = generate_mysea_ical(marina)
+        return HttpResponse(
+            ical_bytes,
+            content_type='text/calendar; charset=utf-8',
+            headers={'Content-Disposition': 'attachment; filename="mysea.ics"'},
+        )

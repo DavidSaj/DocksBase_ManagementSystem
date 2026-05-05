@@ -11,7 +11,7 @@ function CheckIcon() {
 }
 
 const small = [
-  'Free plan, no credit card',
+  'Free trial included',
   'Berths, bookings & vessels',
   'Weather & tide dashboard',
   'eSign & member comms',

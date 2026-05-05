@@ -5,14 +5,20 @@ export default function Hero() {
   const { t } = useLang()
   const h = t.hero
 
+
   return (
     <section className={styles.hero}>
-      <div className={styles.bg} />
+      <div className={styles.bgOuter}>
+        <div className={styles.bgInner} />
+      </div>
       <div className={styles.overlay} />
       <div className={styles.content}>
         <div className={styles.eyebrow}>{h.eyebrow}</div>
         <h1 className={styles.title}>
-          {h.title1} <em>{h.titleEm}</em><br />{h.title2}
+          <span className={styles.word1}>{h.title1}</span>{' '}
+          <em className={styles.wordEm}>{h.titleEm}</em>
+          <br />
+          <span className={styles.word2}>{h.title2}</span>
         </h1>
         <p className={styles.sub}>{h.sub}</p>
         <div className={styles.actions}>

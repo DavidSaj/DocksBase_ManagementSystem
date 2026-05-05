@@ -13,7 +13,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'The all-in-one harbor management platform',
-      title1: 'Run your', titleEm: 'whole harbor.', title2: 'One platform.',
+      title1: 'Your', titleEm: 'Whole Harbor.', title2: 'One Smart Platform.',
       sub: 'From berth assignments to boatyard cranes, billing to eSign — DocksBase gives harbor masters and marina operators every operational tool in one cloud-based system.',
       cta1: 'Start free — no card needed', cta2: 'See all 18 modules',
     },
@@ -32,7 +32,7 @@ const strings = {
     pricing: {
       eyebrow: 'Pricing', title: 'Simple pricing for every harbor.',
       sub: 'Start free. Scale as you grow. No surprise fees.',
-      note: 'All plans include a 14-day free trial. No credit card required.',
+      note: 'All plans include a 14-day free trial.',
     },
     cta: {
       title1: 'Ready to modernize', titleEm: 'your harbor?',
@@ -46,6 +46,7 @@ const strings = {
       body: "Give boaters a seamless online experience under your own domain — no DocksBase branding, no third-party redirects. One DNS record is all it takes: your booking portal goes live at reservations.yourmarina.com and boaters never know we exist.",
       checklist: [
         'Custom subdomain — reservations.yourmarina.com',
+        'Or go live instantly on booking.docksbase.com/yourmarina — no DNS setup needed',
         'Your logo, colours & marina name throughout',
         'Automatic berth allocation — mathematical algorithm picks the most efficient available berth',
         'Or manual mode — your harbor master reviews and assigns every request',
@@ -85,7 +86,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'Die All-in-One-Hafenmanagementsoftware',
-      title1: 'Ihr', titleEm: 'ganzer Hafen.', title2: 'Eine Plattform.',
+      title1: 'Ihr', titleEm: 'ganzer Hafen.', title2: 'Eine smarte Plattform.',
       sub: 'Von Liegeplätzen bis zum Bootshaus, von der Abrechnung bis zur digitalen Unterschrift — DocksBase bündelt jedes Betriebswerkzeug in einem cloudbasierten System.',
       cta1: 'Kostenlos starten', cta2: 'Alle 14 Module ansehen',
     },
@@ -118,6 +119,7 @@ const strings = {
       body: 'Bieten Sie Bootsfahrern ein nahtloses Online-Erlebnis unter Ihrer eigenen Domain — ohne DocksBase-Branding. Ein DNS-Eintrag genügt: Ihr Buchungsportal läuft unter reservierungen.ihrhafen.de, ohne dass Kunden jemals von uns erfahren.',
       checklist: [
         'Eigene Subdomain — reservierungen.ihrhafen.de',
+        'Oder sofort live auf ihrhafen.docksbase.io — kein DNS-Setup erforderlich',
         'Ihr Logo, Ihre Farben & Ihr Hafenname',
         'Online-Buchungen, Liegeplatzanfragen & Zahlungen',
         'Bootsfahrer sehen niemals den Namen DocksBase',
@@ -156,7 +158,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'Het alles-in-één havenbeheersysteem',
-      title1: 'Beheer uw', titleEm: 'hele haven.', title2: 'Één platform.',
+      title1: 'Uw', titleEm: 'hele haven.', title2: 'Één slim platform.',
       sub: 'Van ligplaatsen tot scheepswerf, van facturering tot eSign — DocksBase geeft havenmeester en marinaoperators alle operationele tools in één cloudgebaseerd systeem.',
       cta1: 'Gratis starten — geen kaart nodig', cta2: 'Alle 14 modules bekijken',
     },
@@ -189,6 +191,7 @@ const strings = {
       body: 'Bied boteneigenaren een naadloze online ervaring onder uw eigen domein — geen DocksBase-branding, geen omleidingen. Één DNS-record volstaat: uw boekingsportaal is live op reserveringen.uwmarina.nl en bezoekers weten nooit van ons bestaan.',
       checklist: [
         'Eigen subdomein — reserveringen.uwmarina.nl',
+        'Of direct live op uwmarina.docksbase.io — geen DNS-configuratie nodig',
         'Uw logo, kleuren & marinanaam door het hele portaal',
         'Online boekingen, ligplaatsverzoeken & betalingen',
         'Bootseigenaren zien nooit de naam DocksBase',
@@ -227,7 +230,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'La piattaforma all-in-one per la gestione portuale',
-      title1: 'Gestisci il tuo', titleEm: 'intero porto.', title2: 'Un\'unica piattaforma.',
+      title1: 'Il tuo', titleEm: 'intero porto.', title2: 'Una piattaforma intelligente.',
       sub: 'Dalle assegnazioni dei posti barca alle gru del cantiere, dalla fatturazione alla firma digitale — DocksBase offre ai capitani di porto e agli operatori marittimi ogni strumento in un unico sistema cloud.',
       cta1: 'Inizia gratis — nessuna carta', cta2: 'Scopri tutti i 14 moduli',
     },
@@ -260,6 +263,7 @@ const strings = {
       body: "Offrite ai diportisti un'esperienza online fluida sotto il vostro dominio — nessun branding DocksBase, nessun reindirizzamento. Un solo record DNS basta: il portale di prenotazione va live su prenotazioni.iltuoporto.it e i clienti non sapranno mai di noi.",
       checklist: [
         'Sottodominio personalizzato — prenotazioni.iltuoporto.it',
+        'O vai subito live su iltuoporto.docksbase.io — nessuna configurazione DNS',
         'Il vostro logo, colori & nome del porto ovunque',
         'Prenotazioni online, richieste ormeggio & pagamenti',
         'I diportisti non vedono mai il nome DocksBase',
@@ -298,7 +302,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'La plataforma todo en uno para gestión portuaria',
-      title1: 'Gestiona', titleEm: 'todo tu puerto.', title2: 'Una plataforma.',
+      title1: 'Todo', titleEm: 'tu puerto.', title2: 'Una plataforma inteligente.',
       sub: 'Desde la asignación de amarres hasta las grúas del astillero, la facturación y la firma digital — DocksBase ofrece a los capitanes de puerto y operadores marítimos todas las herramientas en un sistema en la nube.',
       cta1: 'Empezar gratis — sin tarjeta', cta2: 'Ver los 14 módulos',
     },
@@ -331,6 +335,7 @@ const strings = {
       body: 'Ofrezca a los navegantes una experiencia online fluida bajo su propio dominio — sin branding de DocksBase, sin redirecciones. Un solo registro DNS es suficiente: su portal de reservas estará en reservas.supuerto.es y los usuarios nunca sabrán que existimos.',
       checklist: [
         'Subdominio personalizado — reservas.supuerto.es',
+        'O en línea al instante en supuerto.docksbase.io — sin configuración DNS',
         'Su logo, colores & nombre del puerto en todo el portal',
         'Reservas online, solicitudes de amarre & pagos',
         'Los navegantes nunca ven el nombre DocksBase',
@@ -369,7 +374,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'La plateforme tout-en-un de gestion portuaire',
-      title1: 'Gérez', titleEm: 'tout votre port.', title2: 'Une seule plateforme.',
+      title1: 'Tout', titleEm: 'votre port.', title2: 'Une plateforme intelligente.',
       sub: 'Des attributions de postes aux grues du chantier naval, de la facturation à la signature électronique — DocksBase donne aux capitaines de port et aux opérateurs de marina tous les outils dans un système cloud.',
       cta1: 'Démarrer gratuitement', cta2: 'Voir les 14 modules',
     },
@@ -402,6 +407,7 @@ const strings = {
       body: "Offrez aux plaisanciers une expérience en ligne fluide sous votre propre domaine — sans branding DocksBase, sans redirections. Un seul enregistrement DNS suffit : votre portail de réservation est en ligne à reservations.votreport.fr et les visiteurs ne sauront jamais que nous existons.",
       checklist: [
         'Sous-domaine personnalisé — reservations.votreport.fr',
+        'Ou en ligne instantanément sur votreport.docksbase.io — sans configuration DNS',
         'Votre logo, couleurs & nom du port partout',
         'Réservations en ligne, demandes de poste & paiements',
         'Les plaisanciers ne voient jamais le nom DocksBase',
@@ -440,7 +446,7 @@ const strings = {
     },
     hero: {
       eyebrow: 'Η ολοκληρωμένη πλατφόρμα διαχείρισης λιμένων',
-      title1: 'Διαχειριστείτε', titleEm: 'όλο το λιμάνι σας.', title2: 'Μία πλατφόρμα.',
+      title1: 'Όλο το', titleEm: 'λιμάνι σας.', title2: 'Μία έξυπνη πλατφόρμα.',
       sub: 'Από εκχώρηση θέσεων έως γερανούς ναυπηγείου, τιμολόγηση και ηλεκτρονικές υπογραφές — το DocksBase προσφέρει σε λιμεναρχεία και χειριστές μαρίνας κάθε εργαλείο σε ένα σύστημα cloud.',
       cta1: 'Ξεκινήστε δωρεάν', cta2: 'Δείτε και τις 14 ενότητες',
     },
@@ -473,6 +479,7 @@ const strings = {
       body: 'Δώστε στους ναυτιλόμενους μια άψογη online εμπειρία κάτω από το δικό σας domain — χωρίς branding DocksBase, χωρίς ανακατευθύνσεις. Αρκεί μία εγγραφή DNS: η πύλη κρατήσεών σας λειτουργεί στο kratiseis.limani-sas.gr και οι επισκέπτες δεν θα μάθουν ποτέ για εμάς.',
       checklist: [
         'Προσαρμοσμένο υποτομέα — kratiseis.limani-sas.gr',
+        'Ή ζωντανά αμέσως στο limani-sas.docksbase.io — χωρίς ρύθμιση DNS',
         'Το λογότυπό σας, χρώματα & όνομα λιμανιού παντού',
         'Online κρατήσεις, αιτήματα θέσεων & πληρωμές',
         'Οι ναυτιλόμενοι δεν βλέπουν ποτέ το όνομα DocksBase',

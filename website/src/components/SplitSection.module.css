@@ -8,14 +8,27 @@
 .imageWrap {
   border-radius: 12px; overflow: hidden;
   aspect-ratio: 4/3; position: relative;
+  opacity: 0;
+  transform: translateY(48px) scale(0.98);
+  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.imageVisible { opacity: 1; transform: none; }
+.img { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
 .imgOverlay {
   position: absolute; inset: 0;
   background: linear-gradient(135deg, rgba(12,31,61,0.2) 0%, transparent 60%);
 }
 
-.text { display: flex; flex-direction: column; justify-content: center; }
+.text {
+  display: flex; flex-direction: column; justify-content: center;
+  opacity: 0;
+  transform: translateY(48px);
+  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: 0.15s;
+}
+.textVisible { opacity: 1; transform: none; }
 .eyebrow {
   font-size: 11px; font-weight: 600; color: var(--gold);
   letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px;

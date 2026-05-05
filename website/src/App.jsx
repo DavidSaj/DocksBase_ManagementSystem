@@ -1,4 +1,5 @@
 import './index.css'
+import { useRef, useEffect } from 'react'
 import { LanguageProvider } from './context/LanguageContext'
 import Nav from './components/Nav'
 import Hero from './components/Hero'
@@ -12,77 +13,94 @@ import HarborSizes from './components/HarborSizes'
 import Quote from './components/Quote'
 import MobileApp from './components/MobileApp'
 import Pricing from './components/Pricing'
+import Faq from './components/Faq'
 import FeatureRequest from './components/FeatureRequest'
 import CTA from './components/CTA'
 import Footer from './components/Footer'
+
+function ScrollReveal({ children, delay = 0 }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { el.classList.add('sr-in'); obs.unobserve(el) } },
+      { threshold: 0.08 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  return (
+    <div ref={ref} className="sr" style={delay ? { transitionDelay: `${delay}ms` } : undefined}>
+      {children}
+    </div>
+  )
+}
 
 function LandingPage() {
   return (
     <>
       <Nav />
       <Hero />
-      <TrustBar />
       <Features />
       <Stats />
       <ProductSection />
 
       <SplitSection
-        eyebrow="Berths & Reservations"
-        title="Live occupancy. Zero clipboards."
-        body="See every berth across every pier in real time. Take walk-in arrivals at the dock or advance bookings online — and generate invoices the moment a vessel departs."
-        checklist={[
-          'Real-time berth grid across all piers',
-          'Walk-in arrivals and advance online bookings',
-          'Auto-invoices on check-out',
-          'Wait list management with deposit tracking',
-          'Fuel dock queue and POS built in',
-        ]}
-        cta="Explore reservations"
-        image="/images/marina-aerial-close.jpg"
-        alt="Aerial view of marina piers with boats"
-      />
-
+          eyebrow="Built to Integrate"
+          title="Fits your marina. Works with what you have."
+          body="DocksBase is designed to slot into your existing operation — not replace it. Keep the tools your team already relies on and add DocksBase alongside them. Or run it fully standalone. Either way, you're up and running without disrupting a single season."
+          checklist={[
+            'No rip-and-replace — works alongside existing systems',
+            'Connects with booking platforms and third-party apps',
+            'Import your existing berth, vessel, and customer data',
+            'Gradual rollout by department or pier at your pace',
+            'Full standalone capability when you need it',
+          ]}
+          cta="See how it fits"
+          image="/images/marina-aerial-close.jpg"
+          alt="Aerial view of marina piers with boats"
+        />
       <SplitSection
-        eyebrow="Boatyard & Maintenance"
-        title="Crane schedules to work orders — fully coordinated."
-        body="Run your full boatyard from one screen. Haul-outs, launches, dry storage, work orders, parts inventory, tools, and contractors — every job tracked, every technician accountable."
-        checklist={[
-          'Haul-out & launch queue with weather hold',
-          'Dry storage map with visual lane layout',
-          'Work orders with parts, costs, and status',
-          'Asset register with overdue service alerts',
-          'Defect log with work order escalation',
-        ]}
-        cta="Explore boatyard"
-        image="/images/marina-sailboats.jpg"
-        alt="Sailboats moored in calm harbor"
-        reverse
-        cream
-      />
-
+          eyebrow="Your Rules. Your Workflow."
+          title="Manual control or smart algorithms — you decide."
+          body="Some harbourmasters want full control over every berth assignment. Others want the system to handle it automatically. DocksBase supports both — switch between manual allocation and algorithmic optimisation at any time, for any pier."
+          checklist={[
+            'Manual mode: assign every berth yourself with full visibility',
+            'Algorithmic mode: auto-assign by vessel size, draft, and stay length',
+            'Sync incoming bookings from other booking platforms automatically',
+            'Override algorithmic suggestions at any time',
+            'Set rules per pier, per season, or per vessel type',
+          ]}
+          cta="Explore allocation modes"
+          image="/images/marina-sailboats.jpg"
+          alt="Sailboats moored in calm harbor"
+          reverse
+          cream
+        />
       <SplitSection
-        eyebrow="Billing & Finance"
-        title="From berth fee to aged debtor — one place."
-        body="Automated invoices, utility meter billing, fuel dock POS, and a full aged debtor chase workflow. Export everything to CSV, PDF, or XLSX — or push straight to your accounts system."
-        checklist={[
-          'Automated invoices on vessel departure',
-          'Utility meter readings with estimated charges',
-          'Fuel dock point-of-sale with receipt printing',
-          'Aged debtor buckets with one-click chase',
-          'Batch billing and end-of-day Z-reports',
-        ]}
-        cta="Explore billing"
-        image="/images/marina-dock-boats.jpg"
-        alt="Classic wooden boats at a dock"
-      />
+          eyebrow="Complete Marina Platform"
+          title="From arrival to invoice — every operation covered."
+          body="DocksBase covers your full operation: live berth occupancy across all piers, a coordinated boatyard with crane schedules and work orders, and automated billing from berth fee to aged debtor. One system, one login, one source of truth."
+          checklist={[
+            'Real-time berth grid with walk-in and online bookings',
+            'Haul-out queue, dry storage map, and work orders',
+            'Automated invoices, utility billing, and fuel dock POS',
+            'Aged debtor tracking with one-click chase workflow',
+            'Export to CSV, PDF, XLSX or push to your accounts system',
+          ]}
+          cta="See the full platform"
+          image="/images/marina-dock-boats.jpg"
+          alt="Classic wooden boats at a dock"
+        />
 
-      <WhiteLabel />
+      <ScrollReveal><WhiteLabel /></ScrollReveal>
       <MobileApp />
       {/* <HarborSizes /> */}
       {/* <Quote /> */}
-      <Pricing />
-      <FeatureRequest />
-      <CTA />
+      <ScrollReveal><Pricing /></ScrollReveal>
+      <ScrollReveal><Faq /></ScrollReveal>
+      <ScrollReveal><FeatureRequest /></ScrollReveal>
+      <ScrollReveal><CTA /></ScrollReveal>
       <Footer />
     </>
   )

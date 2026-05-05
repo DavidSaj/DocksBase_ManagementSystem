@@ -104,7 +104,7 @@ export default function Pricing() {
             </div>
           ))}
         </div>
-        <p className={styles.note}>All plans include a 30-day free trial. No credit card required.</p>
+        <p className={styles.note}>All plans include a 30-day free trial.</p>
       </div>
     </section>
   )
