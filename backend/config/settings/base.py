@@ -125,6 +125,7 @@ PLATFORM_FEE_RATE = '0.01'  # 1% of GMV
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+WEBSITE_URL = os.environ.get('WEBSITE_URL', '')
 
 TWILIO_ACCOUNT_SID  = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN   = os.environ.get('TWILIO_AUTH_TOKEN', '')
