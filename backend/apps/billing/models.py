@@ -27,6 +27,13 @@ class Invoice(models.Model):
     due_date = models.DateField(null=True, blank=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     pdf_document = models.FileField(upload_to='invoices/', null=True, blank=True)
+    booking = models.ForeignKey(
+        'reservations.Booking',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -86,10 +93,11 @@ class Payment(models.Model):
 
 class ChargeableItem(models.Model):
     class Category(models.TextChoices):
-        BERTH    = 'berth',   'Berth'
-        UTILITY  = 'utility', 'Utility'
-        SERVICE  = 'service', 'Service'
-        RETAIL   = 'retail',  'Retail'
+        BERTH        = 'berth',       'Berth'
+        UTILITY      = 'utility',     'Utility'
+        SERVICE      = 'service',     'Service'
+        RETAIL       = 'retail',      'Retail'
+        BOOKING_FEE  = 'booking_fee', 'Booking Fee'
 
     class PricingModel(models.TextChoices):
         FLAT_FEE            = 'flat_fee',            'Flat Fee'

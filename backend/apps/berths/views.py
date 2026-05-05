@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -27,13 +28,30 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
 class BerthListCreateView(generics.ListCreateAPIView):
     serializer_class = BerthSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['status', 'pier', 'berth_type']
+    filterset_fields = ['status', 'pier', 'berth_type', 'operational_type']
 
     def get_queryset(self):
-        return (Berth.objects
-                .filter(marina=self.request.user.marina)
-                .select_related('pier', 'vessel')
-                .prefetch_related('bookings'))
+        from apps.reservations.models import Booking
+
+        qs = (Berth.objects
+              .filter(marina=self.request.user.marina)
+              .select_related('pier', 'vessel', 'pricing_tier')
+              .prefetch_related('bookings'))
+
+        capable_for = self.request.query_params.get('capable_for')
+        if capable_for:
+            try:
+                booking = Booking.objects.get(pk=int(capable_for), marina=self.request.user.marina)
+            except (Booking.DoesNotExist, ValueError):
+                raise ValidationError({'capable_for': 'Booking not found.'})
+            if booking.boat_loa is not None:
+                qs = qs.filter(length_m__gte=booking.boat_loa)
+            if booking.boat_beam is not None:
+                qs = qs.filter(max_beam_m__gte=booking.boat_beam)
+            if booking.boat_draft is not None:
+                qs = qs.filter(max_draft_m__gte=booking.boat_draft)
+
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(marina=self.request.user.marina)
@@ -69,10 +87,12 @@ class BulkCreateBerthsView(APIView):
         prefix      = (request.data.get('prefix') or '').strip().upper()
         start       = request.data.get('start', 1)
         count       = request.data.get('count', 0)
-        length_m    = request.data.get('length_m')
-        beam_m      = request.data.get('beam_m')
-        max_draft_m = request.data.get('max_draft_m')
-        berth_type  = (request.data.get('berth_type') or '').strip()
+        length_m         = request.data.get('length_m')
+        beam_m           = request.data.get('beam_m')
+        max_draft_m      = request.data.get('max_draft_m')
+        berth_type       = (request.data.get('berth_type') or '').strip()
+        berth_class      = (request.data.get('berth_class') or 'standard').strip()
+        operational_type = (request.data.get('operational_type') or '').strip()
 
         if not prefix:
             return Response({'detail': 'prefix is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -92,11 +112,13 @@ class BulkCreateBerthsView(APIView):
                 marina=marina,
                 code=code,
                 defaults={
-                    'length_m':    length_m,
-                    'max_beam_m':  beam_m,
-                    'max_draft_m': max_draft_m,
-                    'berth_type':  berth_type,
-                    'status':      'available',
+                    'length_m':         length_m,
+                    'max_beam_m':       beam_m,
+                    'max_draft_m':      max_draft_m,
+                    'berth_type':       berth_type,
+                    'berth_class':      berth_class,
+                    'operational_type': operational_type,
+                    'status':           'available',
                 },
             )
             (created if was_created else skipped).append(code)
@@ -106,6 +128,38 @@ class BulkCreateBerthsView(APIView):
             'skipped': len(skipped),
             'detail': f'Created {len(created)} berths, skipped {len(skipped)} existing.',
         }, status=status.HTTP_201_CREATED)
+
+
+class BulkUpdateBerthPricingView(APIView):
+    """
+    PATCH /api/v1/berths/bulk-pricing/
+    Body: { berth_ids: [1,2,3], pricing_tier_id: 7 | null }
+    Updates pricing_tier on the given berths (null to unassign).
+    """
+
+    def patch(self, request):
+        from apps.billing.models import ChargeableItem
+
+        marina       = request.user.marina
+        berth_ids    = request.data.get('berth_ids', [])
+        tier_id      = request.data.get('pricing_tier_id')
+
+        if not berth_ids or not isinstance(berth_ids, list):
+            return Response({'detail': 'berth_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if tier_id is not None:
+            try:
+                tier_id = int(tier_id)
+                ChargeableItem.objects.get(pk=tier_id, category='berth', marina=marina)
+            except (ValueError, ChargeableItem.DoesNotExist):
+                return Response({'detail': 'Pricing tier not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = Berth.objects.filter(
+            id__in=berth_ids,
+            marina=marina,
+        ).update(pricing_tier_id=tier_id)
+
+        return Response({'updated': updated})
 
 
 class BroadcastSMSView(APIView):

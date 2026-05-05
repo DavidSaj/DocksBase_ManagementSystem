@@ -1,4 +1,6 @@
 import datetime
+from decimal import Decimal
+from unittest.mock import MagicMock, patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
@@ -8,6 +10,13 @@ from apps.billing import service as billing_service
 from apps.members.models import Member
 from apps.vessels.models import Vessel
 from .models import Booking, BookingRequest
+from .emails import (
+    send_booking_request_boater_email,
+    send_booking_request_manager_email,
+    send_approve_email,
+    send_reject_email,
+    send_booking_confirmed_email,
+)
 
 
 def make_marina():
@@ -22,7 +31,7 @@ def make_berth(marina, price=50):
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
     tier = ChargeableItem.objects.create(
         marina=marina, name='Berth Night', category='berth',
-        pricing_model='per_night', unit_price=price,
+        pricing_model='per_night', unit_price=price, is_mandatory_transient_fee=False,
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code='A1', pricing_tier=tier, status='available'
@@ -132,7 +141,7 @@ def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='T', defaults={'label': 'Test Pier'})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Berth Night', category='berth',
-        defaults={'pricing_model': 'per_night', 'unit_price': price},
+        defaults={'pricing_model': 'per_night', 'unit_price': price, 'is_mandatory_transient_fee': False},
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code,
@@ -188,6 +197,35 @@ class CompatibleBerthsTest(TestCase):
         result = compatible_available_berths(self.marina, '2026-06-01', '2026-06-05', boat_loa=12.0, boat_beam=None)
         ids = [b.id for b in result]
         self.assertIn(self.b_large.id, ids)
+
+    def test_draft_too_deep_excluded(self):
+        self.b_small.max_draft_m = Decimal('1.5')
+        self.b_small.save()
+        result = compatible_available_berths(
+            self.marina, '2026-06-01', '2026-06-05', boat_draft=2.0,
+        )
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_small.id, ids)
+        self.assertIn(self.b_large.id, ids)  # NULL draft = unlimited, must not be excluded
+
+    def test_draft_fits_included(self):
+        self.b_large.max_draft_m = Decimal('2.5')
+        self.b_large.save()
+        result = compatible_available_berths(
+            self.marina, '2026-06-01', '2026-06-05', boat_draft=2.0,
+        )
+        ids = [b.id for b in result]
+        self.assertIn(self.b_large.id, ids)
+        self.assertIn(self.b_small.id, ids)  # NULL max_draft_m = unconstrained, must pass
+
+    def test_maintenance_berth_excluded(self):
+        self.b_large.status = 'maintenance'
+        self.b_large.save()
+        result = compatible_available_berths(
+            self.marina, '2026-06-01', '2026-06-05',
+        )
+        ids = [b.id for b in result]
+        self.assertNotIn(self.b_large.id, ids)
 
 
 class RunTetrisTest(TestCase):
@@ -250,6 +288,66 @@ class RunTetrisTest(TestCase):
                 guest_phone='',
             )
 
+    def test_boat_draft_wired_through(self):
+        self.b1.max_draft_m = Decimal('1.0')
+        self.b1.save()
+        self.b2.max_draft_m = Decimal('3.0')
+        self.b2.save()
+        booking = run_tetris(
+            marina=self.marina,
+            check_in='2026-07-01',
+            check_out='2026-07-04',
+            boat_loa=12.0,
+            boat_beam=4.0,
+            boat_draft=2.5,
+            guest_name='D. Drafter',
+            guest_email='d@sea.com',
+            guest_phone='',
+        )
+        self.assertEqual(booking.berth, self.b2)
+        self.assertEqual(booking.boat_draft, Decimal('2.5'))
+
+    def test_race_condition_falls_to_next_candidate(self):
+        # b1 gets a booking ending the day before check_in → tight gap → ranked 1st
+        Booking.objects.create(
+            marina=self.marina, berth=self.b1,
+            check_in='2026-06-28', check_out='2026-07-01',
+            nights=3, status='confirmed',
+        )
+        # b2 has no nearby bookings → large gap score → ranked 2nd
+
+        berth_1_id = self.b1.pk
+        mock_sfu_qs = MagicMock()
+
+        def sfu_get_side_effect(pk):
+            if pk == berth_1_id:
+                # Simulate a concurrent request committing a booking on b1 just before
+                # our collision check runs — our subsequent .filter(...).exists() finds it.
+                Booking.objects.create(
+                    marina=self.marina, berth=self.b1,
+                    check_in='2026-07-01', check_out='2026-07-05',
+                    nights=4, status='pending_payment',
+                )
+            return Berth.objects.get(pk=pk)
+
+        mock_sfu_qs.get.side_effect = sfu_get_side_effect
+
+        with patch.object(Berth.objects, 'select_for_update', return_value=mock_sfu_qs):
+            booking = run_tetris(
+                marina=self.marina,
+                check_in='2026-07-01',
+                check_out='2026-07-05',
+                boat_loa=12.0,
+                boat_beam=4.0,
+                boat_draft=None,
+                guest_name='T. Racer',
+                guest_email='',
+                guest_phone='',
+            )
+
+        self.assertEqual(booking.berth, self.b2)
+        self.assertEqual(booking.status, 'pending_payment')
+
 
 class CreateManualApprovalTest(TestCase):
     def setUp(self):
@@ -292,7 +390,6 @@ class CreateManualApprovalTest(TestCase):
 # ── Endpoint Tests ───────────────────────────────────────────────────────────
 
 import json
-from unittest.mock import patch, MagicMock
 
 
 class AvailableBerthsEndpointTest(TestCase):
@@ -330,6 +427,18 @@ class AvailableBerthsEndpointTest(TestCase):
             'boat_loa': '12.0',
         })
         self.assertEqual(resp.status_code, 400)
+
+    def test_boat_draft_filter(self):
+        self.b.max_draft_m = Decimal('2.0')
+        self.b.save()
+        resp = self.client.get('/api/v1/bookings/available-berths/', {
+            'check_in':   '2026-07-01',
+            'check_out':  '2026-07-05',
+            'boat_draft': '3.0',
+        })
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data]
+        self.assertNotIn(self.b.id, ids)
 
 
 class BookingEngineRequestEndpointTest(TestCase):
@@ -394,6 +503,25 @@ class BookingEngineRequestEndpointTest(TestCase):
         })
         self.assertEqual(resp.status_code, 409)
 
+    @patch('apps.billing.stripe_service._create_checkout_session', return_value='https://checkout.stripe.com/test')
+    def test_auto_tetris_sets_invoice_booking_fk(self, mock_checkout):
+        self.marina.booking_mode = 'auto_tetris'
+        self.marina.save()
+        resp = self.client.post('/api/v1/bookings/engine-request/', {
+            'check_in':   '2026-09-01',
+            'check_out':  '2026-09-05',
+            'boat_loa':   '12.0',
+            'boat_beam':  '4.0',
+            'guest_name': 'I. Boatman',
+            'guest_email': 'i@sea.com',
+            'guest_phone': '',
+        })
+        self.assertEqual(resp.status_code, 201)
+        booking_id = resp.data['booking']['id']
+        from apps.billing.models import Invoice
+        inv = Invoice.objects.get(source_type='berth_booking', source_id=str(booking_id))
+        self.assertEqual(inv.booking_id, booking_id)
+
 
 class AssignBerthEndpointTest(TestCase):
     def setUp(self):
@@ -446,6 +574,17 @@ class AssignBerthEndpointTest(TestCase):
         })
         self.assertEqual(resp.status_code, 400)
 
+    @patch('apps.billing.stripe_service._create_checkout_session', return_value='https://checkout.stripe.com/assign')
+    @patch('apps.reservations.views.send_mail')
+    def test_assign_berth_sets_invoice_booking_fk(self, mock_mail, mock_checkout):
+        resp = self.client.post(f'/api/v1/bookings/{self.booking.id}/assign-berth/', {
+            'berth_id': self.berth.id,
+        })
+        self.assertEqual(resp.status_code, 200)
+        from apps.billing.models import Invoice
+        inv = Invoice.objects.get(source_type='berth_booking', source_id=str(self.booking.id))
+        self.assertEqual(inv.booking_id, self.booking.id)
+
 
 class CheckoutFinalisesInvoiceTest(TestCase):
     def setUp(self):
@@ -490,4 +629,270 @@ class CheckoutFinalisesInvoiceTest(TestCase):
         self.invoice.save()
         resp = self.client.patch(f'/api/v1/bookings/{self.booking.id}/', {'status': 'checked_out'}, format='json')
         self.assertEqual(resp.status_code, 200)
+
+
+# ── Email Helper Tests ───────────────────────────────────────────────────────
+
+class BookingEmailsTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.marina.name = 'Sunport Marina'
+        self.marina.save()
+        self.berth = make_berth(self.marina)
+        self.booking = Booking.objects.create(
+            marina=self.marina,
+            berth=None,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            guest_name='J. Sailor',
+            guest_email='sailor@example.com',
+            boat_loa=12.5,
+            boat_beam=4.2,
+            boat_draft=1.8,
+        )
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_boater_request_received(self, mock_send):
+        send_booking_request_boater_email(self.booking)
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args.kwargs
+        self.assertIn('Sunport Marina', kwargs['subject'])
+        self.assertEqual(kwargs['recipient_list'], ['sailor@example.com'])
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_manager_notification_sent_to_owners_and_managers(self, mock_send):
+        User.objects.create_user(email='owner@m.com', password='x', marina=self.marina, role='owner')
+        User.objects.create_user(email='mgr@m.com', password='x', marina=self.marina, role='manager')
+        User.objects.create_user(email='staff@m.com', password='x', marina=self.marina, role='staff')
+        send_booking_request_manager_email(self.booking)
+        mock_send.assert_called_once()
+        recipients = mock_send.call_args.kwargs['recipient_list']
+        self.assertIn('owner@m.com', recipients)
+        self.assertIn('mgr@m.com', recipients)
+        self.assertNotIn('staff@m.com', recipients)
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_approve_email_contains_checkout_url(self, mock_send):
+        send_approve_email(self.booking, checkout_url='https://checkout.stripe.com/xyz')
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args.kwargs
+        message = kwargs['message']
+        self.assertIn('https://checkout.stripe.com/xyz', message)
+        self.assertEqual(kwargs['recipient_list'], ['sailor@example.com'])
+
+    @patch('apps.reservations.emails.send_mail')
+    def test_reject_email_contains_reason(self, mock_send):
+        send_reject_email(self.booking, reason='No space available.')
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args.kwargs
+        message = kwargs['message']
+        self.assertIn('No space available.', message)
+        self.assertEqual(kwargs['recipient_list'], ['sailor@example.com'])
+
+    @patch('apps.reservations.emails.send_mail')
+    @patch('apps.reservations.emails.make_magic_url')
+    def test_confirmed_email_contains_magic_link(self, mock_magic, mock_send):
+        mock_magic.return_value = 'https://book.docksbase.com/sunport/portal?token=abc123'
+        send_booking_confirmed_email(self.booking)
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args.kwargs
+        message = kwargs['message']
+        self.assertIn('abc123', message)
+        mock_magic.assert_called_once_with(self.booking)
+
+
+class ApproveBookingViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.berth = make_berth(self.marina, price=100)
+        self.berth.length_m = 15
+        self.berth.max_beam_m = 5
+        self.berth.max_draft_m = 2
+        self.berth.save()
+        self.booking = Booking.objects.create(
+            marina=self.marina,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            nights=7,
+            status='pending_approval',
+            booking_type='transient',
+            guest_name='J. Sailor',
+            guest_email='sailor@example.com',
+            boat_loa=12.5,
+            boat_beam=4.2,
+            boat_draft=1.8,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.url = f'/api/v1/bookings/{self.booking.pk}/approve/'
+
+    @patch('apps.reservations.views.send_approve_email')
+    @patch('apps.billing.service.create_stripe_checkout_session', return_value='https://stripe.com/pay/xyz')
+    def test_approve_assigns_berth_and_returns_checkout_url(self, mock_stripe, mock_email):
+        resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('checkout_url', resp.data)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, 'awaiting_payment')
+        self.assertEqual(self.booking.berth, self.berth)
+        self.assertIsNotNone(self.booking.amount)
+        mock_email.assert_called_once()
+
+    @patch('apps.reservations.views.send_approve_email')
+    @patch('apps.billing.service.create_stripe_checkout_session', return_value='https://stripe.com/pay/xyz')
+    def test_approve_sets_invoice_booking_fk(self, mock_stripe, mock_email):
+        self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        invoice = Invoice.objects.get(source_type='berth_booking', source_id=str(self.booking.pk))
+        self.assertEqual(invoice.booking_id, self.booking.pk)
+
+    @patch('apps.reservations.views.send_approve_email')
+    @patch('apps.billing.service.create_stripe_checkout_session', return_value='https://stripe.com/pay/xyz')
+    def test_approve_includes_booking_fee_in_amount(self, mock_stripe, mock_email):
+        ChargeableItem.objects.create(
+            marina=self.marina, name='Harbour Dues', category='booking_fee',
+            pricing_model='flat_fee', unit_price='30.00',
+        )
+        resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        expected = 100 * 7 + 30  # berth_cost + harbour_dues
+        self.assertEqual(float(self.booking.amount), expected)
+
+    def test_approve_returns_409_on_berth_collision(self):
+        # Create a conflicting booking on the same berth
+        Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 7, 18),
+            check_out=datetime.date(2026, 7, 25),
+            status='confirmed',
+            booking_type='transient',
+        )
+        resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        self.assertEqual(resp.status_code, 409)
+        # Booking must not have changed
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, 'pending_approval')
+        self.assertIsNone(self.booking.berth)
+
+    def test_approve_returns_400_if_not_pending_approval(self):
+        self.booking.status = 'awaiting_payment'
+        self.booking.save()
+        resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_approve_returns_400_if_berth_from_different_marina(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_berth = make_berth(other_marina)
+        resp = self.client.post(self.url, {'berth_id': other_berth.pk}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_approve_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
+        self.assertIn(resp.status_code, [401, 403])
+
+
+class RejectBookingViewTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.booking = Booking.objects.create(
+            marina=self.marina,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            guest_name='J. Sailor',
+            guest_email='sailor@example.com',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.url = f'/api/v1/bookings/{self.booking.pk}/reject/'
+
+    @patch('apps.reservations.views.send_reject_email')
+    def test_reject_sets_cancelled_status(self, mock_email):
+        resp = self.client.post(self.url, {'reason': 'No space available.'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, 'cancelled')
+        mock_email.assert_called_once_with(self.booking, reason='No space available.')
+
+    @patch('apps.reservations.views.send_reject_email')
+    def test_reject_returns_400_if_not_pending_approval(self, mock_email):
+        self.booking.status = 'confirmed'
+        self.booking.save()
+        resp = self.client.post(self.url, {'reason': 'No space.'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        mock_email.assert_not_called()
+
+
+class BerthCapableForTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = make_user(self.marina)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        pier = Pier.objects.create(marina=self.marina, code='P', label='Pier P')
+        tier = ChargeableItem.objects.create(
+            marina=self.marina, name='Berth Night', category='berth',
+            pricing_model='per_night', unit_price=80,
+        )
+        self.big_berth = Berth.objects.create(
+            marina=self.marina, pier=pier, code='B1', pricing_tier=tier,
+            length_m=20, max_beam_m=6, max_draft_m=3, status='available',
+        )
+        self.small_berth = Berth.objects.create(
+            marina=self.marina, pier=pier, code='B2', pricing_tier=tier,
+            length_m=8, max_beam_m=3, max_draft_m=1, status='available',
+        )
+        self.booking = Booking.objects.create(
+            marina=self.marina,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            boat_loa=12.5,
+            boat_beam=4.2,
+            boat_draft=1.8,
+        )
+
+    def test_capable_for_returns_only_fitting_berths(self):
+        resp = self.client.get(f'/api/v1/berths/?capable_for={self.booking.pk}')
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data['results']]
+        self.assertIn(self.big_berth.pk, ids)
+        self.assertNotIn(self.small_berth.pk, ids)
+
+    def test_capable_for_unknown_booking_returns_400(self):
+        resp = self.client.get('/api/v1/berths/?capable_for=99999')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_without_capable_for_returns_all_berths(self):
+        resp = self.client.get('/api/v1/berths/')
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data['results']]
+        self.assertIn(self.big_berth.pk, ids)
+        self.assertIn(self.small_berth.pk, ids)
+
+    def test_capable_for_cross_marina_booking_returns_400(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        other_booking = Booking.objects.create(
+            marina=other_marina,
+            check_in=datetime.date(2026, 7, 15),
+            check_out=datetime.date(2026, 7, 22),
+            status='pending_approval',
+            booking_type='transient',
+            boat_loa=12.5,
+        )
+        resp = self.client.get(f'/api/v1/berths/?capable_for={other_booking.pk}')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_capable_for_non_integer_returns_400(self):
+        resp = self.client.get('/api/v1/berths/?capable_for=abc')
+        self.assertEqual(resp.status_code, 400)
 

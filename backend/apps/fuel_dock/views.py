@@ -49,7 +49,7 @@ class FuelQueueListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = FuelDockEntry.objects.filter(marina=self.request.user.marina).select_related(
-            'vessel', 'member', 'invoice'
+            'vessel', 'member', 'invoice', 'fuel_berth'
         )
         if self.request.query_params.get('active', '1') == '1':
             qs = qs.exclude(status='completed')
@@ -87,7 +87,7 @@ class FuelQueueDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return FuelDockEntry.objects.filter(marina=self.request.user.marina).select_related(
-            'vessel', 'member'
+            'vessel', 'member', 'fuel_berth'
         )
 
     def perform_update(self, serializer):

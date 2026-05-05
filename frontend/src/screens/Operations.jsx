@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import useFuelQueue from '../hooks/useFuelQueue.js';
+import useBerths from '../hooks/useBerths.js';
 import useVessels from '../hooks/useVessels.js';
-import { useMarinaContext } from '../context/MarinaContext.jsx';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 
+const FUEL_DOCK_FILTER = { operational_type: 'fuel_dock' };
+
 function AddQueueForm({ vessels, onAdd, onCancel }) {
-  const [mode, setMode] = useState('stranger'); // 'member' | 'stranger'
+  const [mode, setMode] = useState('stranger');
   const [form, setForm] = useState({
     vessel: '', guest_description: '', guest_phone: '',
     fuel_type: 'diesel', estimated_litres: '',
@@ -107,23 +109,79 @@ function CompletionForm({ entry, onComplete, onCancel }) {
   );
 }
 
+function BerthPickerModal({ entry, fuelBerths, serviceEntries, onPick, onCancel }) {
+  const occupiedIds = new Set(serviceEntries.map(e => e.fuel_berth).filter(Boolean));
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <div className="modal-hdr">
+          <span className="modal-title">Assign to Fuel Berth</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}><Ic n="x" s={13}/></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0 8px' }}>
+          {fuelBerths.length === 0 && (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', fontStyle: 'italic' }}>
+              No fuel dock berths configured. Add them in Harbor Infrastructure.
+            </div>
+          )}
+          {fuelBerths.map(berth => {
+            const occupied = occupiedIds.has(berth.id);
+            return (
+              <button
+                key={berth.id}
+                type="button"
+                disabled={occupied}
+                onClick={() => onPick(berth.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 14px', borderRadius: 6, cursor: occupied ? 'not-allowed' : 'pointer',
+                  border: '1.5px solid rgba(0,0,0,0.12)',
+                  background: occupied ? 'rgba(0,0,0,0.04)' : '#fff8e8',
+                  opacity: occupied ? 0.6 : 1,
+                  fontFamily: 'var(--font)',
+                }}
+              >
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{berth.code}</span>
+                {occupied
+                  ? <span className="badge badge-teal">In Use</span>
+                  : <span className="badge badge-green">Available</span>
+                }
+              </button>
+            );
+          })}
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FuelDockTab() {
   const { queue, loading, addToQueue, advanceEntry, removeEntry } = useFuelQueue();
   const { vessels } = useVessels();
-  const { marina } = useMarinaContext();
-  const fuelBerths = marina?.fuel_berths?.length ? marina.fuel_berths : ['FD-1', 'FD-2'];
-  const [showAddForm, setShowAddForm]   = useState(false);
-  const [completingId, setCompletingId] = useState(null);
+  const { berths: fuelBerths } = useBerths(FUEL_DOCK_FILTER);
+  const [showAddForm,    setShowAddForm]    = useState(false);
+  const [completingId,   setCompletingId]   = useState(null);
+  const [berthPickingId, setBerthPickingId] = useState(null);
 
   const NEXT_LABEL = { waiting: 'Next', next: 'To Berth', service: 'Complete' };
 
   async function handleAdvance(entry) {
     if (entry.status === 'service') {
       setCompletingId(entry.id);
+    } else if (entry.status === 'next') {
+      setBerthPickingId(entry.id);
     } else {
-      const nextStatus = { waiting: 'next', next: 'service' }[entry.status];
-      await advanceEntry(entry.id, { status: nextStatus });
+      await advanceEntry(entry.id, { status: 'next' });
     }
+  }
+
+  async function handleBerthPick(berthId) {
+    await advanceEntry(berthPickingId, { status: 'service', fuel_berth: berthId });
+    setBerthPickingId(null);
   }
 
   async function handleComplete(id, patch) {
@@ -132,6 +190,7 @@ function FuelDockTab() {
   }
 
   const serviceEntries = queue.filter(e => e.status === 'service');
+  const berthPickingEntry = queue.find(e => e.id === berthPickingId);
 
   return (
     <div>
@@ -157,17 +216,32 @@ function FuelDockTab() {
         />
       )}
 
+      {berthPickingEntry && (
+        <BerthPickerModal
+          entry={berthPickingEntry}
+          fuelBerths={fuelBerths}
+          serviceEntries={serviceEntries}
+          onPick={handleBerthPick}
+          onCancel={() => setBerthPickingId(null)}
+        />
+      )}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
       ) : (
         <div className="grid-2" style={{ alignItems: 'start' }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Fuel Dock Berths</div>
+            {fuelBerths.length === 0 && (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic', padding: '10px 0' }}>
+                No fuel dock berths. Create berths with Classification → Operational → Fuel Dock in Harbor Infrastructure.
+              </div>
+            )}
             {fuelBerths.map(berth => {
-              const occ = serviceEntries.find(e => e.fuel_berth === berth);
+              const occ = serviceEntries.find(e => e.fuel_berth === berth.id);
               return (
-                <div key={berth} className="fuel-berth">
-                  <div className="fuel-berth-id">{berth}</div>
+                <div key={berth.id} className="fuel-berth">
+                  <div className="fuel-berth-id">{berth.code}</div>
                   {occ ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
@@ -203,6 +277,7 @@ function FuelDockTab() {
                           <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>
                             {q.member_name || q.guest_phone || ''}
                             {q.estimated_litres ? ` · ~${q.estimated_litres}L` : ''}
+                            {q.fuel_berth_code ? ` · Berth ${q.fuel_berth_code}` : ''}
                           </div>
                         </div>
                       </div>

@@ -26,7 +26,7 @@ class FuelDockBillingTest(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def _create_entry(self, **kwargs):
-        defaults = dict(marina=self.marina, fuel_type='diesel', status='service', fuel_berth='FD-1')
+        defaults = dict(marina=self.marina, fuel_type='diesel', status='service')
         defaults.update(kwargs)
         return FuelDockEntry.objects.create(**defaults)
 

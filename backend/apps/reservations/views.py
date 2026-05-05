@@ -12,13 +12,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.berths.models import Berth
 from apps.billing import service as billing_service
-from apps.billing.models import Invoice as InvoiceModel
+from apps.billing.models import ChargeableItem, Invoice as InvoiceModel
+from django.db.models import Sum
 from .booking_engine import (
     NoAvailableBerthError,
     compatible_available_berths,
     create_manual_approval,
     run_tetris,
 )
+from .emails import send_approve_email, send_reject_email
 from .models import Booking, BookingRequest
 from .serializers import (
     AssignBerthSerializer,
@@ -123,21 +125,23 @@ class AvailableBerthsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        check_in = request.query_params.get('check_in')
+        check_in  = request.query_params.get('check_in')
         check_out = request.query_params.get('check_out')
         if not check_in or not check_out:
             return Response({'detail': 'check_in and check_out are required.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        boat_loa = request.query_params.get('boat_loa') or None
-        boat_beam = request.query_params.get('boat_beam') or None
+        boat_loa   = request.query_params.get('boat_loa') or None
+        boat_beam  = request.query_params.get('boat_beam') or None
+        boat_draft = request.query_params.get('boat_draft') or None
 
         try:
             berths = compatible_available_berths(
                 marina=request.user.marina,
                 check_in=check_in,
                 check_out=check_out,
-                boat_loa=float(boat_loa) if boat_loa else None,
-                boat_beam=float(boat_beam) if boat_beam else None,
+                boat_loa=boat_loa,
+                boat_beam=boat_beam,
+                boat_draft=boat_draft,
             )
         except ValueError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
@@ -170,6 +174,7 @@ class BookingEngineRequestView(APIView):
                 check_out=d['check_out'],
                 boat_loa=d.get('boat_loa'),
                 boat_beam=d.get('boat_beam'),
+                boat_draft=d.get('boat_draft'),
                 guest_name=d.get('guest_name', ''),
                 guest_email=d.get('guest_email', ''),
                 guest_phone=d.get('guest_phone', ''),
@@ -185,6 +190,7 @@ class BookingEngineRequestView(APIView):
                     check_out=d['check_out'],
                     boat_loa=d.get('boat_loa'),
                     boat_beam=d.get('boat_beam'),
+                    boat_draft=d.get('boat_draft'),
                     guest_name=d.get('guest_name', ''),
                     guest_email=d.get('guest_email', ''),
                     guest_phone=d.get('guest_phone', ''),
@@ -207,6 +213,8 @@ class BookingEngineRequestView(APIView):
                     unit_price=booking.amount,
                 )
                 billing_service.finalize_invoice(inv)
+                inv.booking = booking
+                inv.save(update_fields=['booking'])
                 checkout_url = billing_service.create_stripe_checkout_session(inv)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)
@@ -298,6 +306,8 @@ class AssignBerthView(APIView):
                     unit_price=amount,
                 )
                 billing_service.finalize_invoice(inv)
+                inv.booking = booking
+                inv.save(update_fields=['booking'])
                 checkout_url = billing_service.create_stripe_checkout_session(inv)
         except Exception:
             return Response(
@@ -323,3 +333,135 @@ class AssignBerthView(APIView):
             )
 
         return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)
+
+
+class ApproveBookingView(APIView):
+    """
+    POST /api/v1/bookings/<pk>/approve/   { "berth_id": 42 }
+    Manager assigns berth + sends Stripe payment link. Collision-safe.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk, marina=request.user.marina)
+        except Booking.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        if booking.status != 'pending_approval':
+            return Response(
+                {'detail': 'Booking is not pending approval.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        berth_id = request.data.get('berth_id')
+        if not berth_id:
+            return Response({'detail': 'berth_id is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        marina = request.user.marina
+
+        try:
+            with transaction.atomic():
+                # Lock the berth row to serialize concurrent approve requests.
+                try:
+                    berth = Berth.objects.select_for_update().get(pk=berth_id, marina=marina)
+                except Berth.DoesNotExist:
+                    return Response(
+                        {'detail': 'Berth does not belong to this marina.'},
+                        status=http_status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Collision check inside the lock — safe against concurrent approvals.
+                collision = Booking.objects.filter(
+                    berth=berth,
+                    status__in=('awaiting_payment', 'confirmed', 'checked_in'),
+                    check_in__lt=booking.check_out,
+                    check_out__gt=booking.check_in,
+                ).exists()
+                if collision:
+                    return Response(
+                        {'detail': 'Berth is already booked for these dates.'},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+
+                if not hasattr(berth, 'pricing_tier') or berth.pricing_tier is None:
+                    return Response(
+                        {'detail': 'Berth has no pricing tier configured.'},
+                        status=http_status.HTTP_400_BAD_REQUEST,
+                    )
+
+                nights = booking.nights or (booking.check_out - booking.check_in).days or 1
+                berth_cost = berth.pricing_tier.unit_price * nights
+                fees = ChargeableItem.objects.filter(
+                    marina=marina, category='booking_fee'
+                ).aggregate(total=Sum('unit_price'))['total'] or 0
+                total = berth_cost + fees
+
+                nights_label = f'{nights} night{"s" if nights != 1 else ""}'
+                due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
+
+                booking.berth = berth
+                booking.amount = total
+                booking.status = 'awaiting_payment'
+                booking.save(update_fields=['berth', 'amount', 'status'])
+
+                inv = billing_service.create_invoice(
+                    marina,
+                    source_type='berth_booking',
+                    source_id=str(booking.id),
+                    due_date=due_date,
+                )
+                billing_service.add_line_item(
+                    inv,
+                    description=f'Berth {berth.code} — {nights_label} @ {berth.pricing_tier.unit_price}/night',
+                    quantity=1,
+                    unit_price=berth_cost,
+                )
+                for fee_item in ChargeableItem.objects.filter(marina=marina, category='booking_fee'):
+                    billing_service.add_line_item(
+                        inv,
+                        description=fee_item.name,
+                        quantity=1,
+                        unit_price=fee_item.unit_price,
+                    )
+                billing_service.finalize_invoice(inv)
+
+                inv.booking = booking
+                inv.save(update_fields=['booking'])
+
+                checkout_url = billing_service.create_stripe_checkout_session(inv)
+        except Exception:
+            return Response(
+                {'detail': 'Payment provider error. Please try again.'},
+                status=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        send_approve_email(booking, checkout_url=checkout_url)
+        return Response({'checkout_url': checkout_url}, status=http_status.HTTP_200_OK)
+
+
+class RejectBookingView(APIView):
+    """
+    POST /api/v1/bookings/<pk>/reject/   { "reason": "..." }
+    Manager rejects a pending_approval booking.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk, marina=request.user.marina)
+        except Booking.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        if booking.status != 'pending_approval':
+            return Response(
+                {'detail': 'Booking is not pending approval.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason = request.data.get('reason', '')
+        booking.status = 'cancelled'
+        booking.save(update_fields=['status'])
+
+        send_reject_email(booking, reason=reason)
+        return Response({'detail': 'Booking rejected.'}, status=http_status.HTTP_200_OK)
