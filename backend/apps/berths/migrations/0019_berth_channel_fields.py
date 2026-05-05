@@ -20,9 +20,4 @@ class Migration(migrations.Migration):
             name='sales_channel',
             field=models.CharField(choices=[('direct', 'Direct'), ('mysea', 'mySea')], default='direct', max_length=20),
         ),
-        migrations.AlterField(
-            model_name='pier',
-            name='code',
-            field=models.CharField(max_length=50),
-        ),
     ]
