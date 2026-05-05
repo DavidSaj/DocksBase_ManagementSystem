@@ -89,7 +89,7 @@ def make_test_berth(marina, code='B1', loa=20.0, beam=6.0, price=90):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='P', defaults={'label': 'Pier'})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Berth Night', category='berth',
-        defaults={'pricing_model': 'per_night', 'unit_price': price, 'is_mandatory_transient_fee': False},
+        defaults={'pricing_model': 'per_night', 'unit_price': price},
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code,
