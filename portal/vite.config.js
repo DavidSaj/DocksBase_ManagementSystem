@@ -8,4 +8,9 @@ export default defineConfig({
     port: 5176,
     allowedHosts: ['.lvh.me', 'localhost', 'booking.docksbase.com'],
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.js'],
+    globals: true,
+  },
 });
