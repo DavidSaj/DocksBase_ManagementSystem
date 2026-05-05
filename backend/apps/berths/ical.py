@@ -1,8 +1,5 @@
-from datetime import timedelta
 from django.utils import timezone
 from icalendar import Calendar, Event
-
-from apps.reservations.booking_engine import ACTIVE_STATUSES
 
 
 def generate_mysea_ical(marina) -> bytes:
@@ -15,6 +12,7 @@ def generate_mysea_ical(marina) -> bytes:
     """
     from apps.berths.models import Berth
     from apps.reservations.models import Booking
+    from apps.reservations.booking_engine import ACTIVE_STATUSES
 
     now = timezone.now()
     cal = Calendar()
@@ -52,9 +50,9 @@ def generate_mysea_ical(marina) -> bytes:
         event = Event()
         event.add('uid', f'cooldown-{berth.pk}@docksbase')
         event.add('dtstamp', now)
-        # Block from now until cooldown expires
-        event.add('dtstart', now.date())
-        event.add('dtend', berth.channel_cooldown_until.date() + timedelta(days=1))
+        # Block from now until cooldown expires (datetime span, not all-day)
+        event.add('dtstart', now)
+        event.add('dtend', berth.channel_cooldown_until)
         event.add('summary', f'Cooldown — Berth {berth.code}')
         cal.add_component(event)
 
