@@ -188,6 +188,12 @@ class ChannelFilterTest(TestCase):
         qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
         self.assertIn(self.berth, qs)
 
+    def test_null_cooldown_berth_included(self):
+        from apps.reservations.booking_engine import compatible_available_berths
+        self.assertIsNone(self.berth.channel_cooldown_until)
+        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
+        self.assertIn(self.berth, qs)
+
 
 class CompatibleBerthsTest(TestCase):
     def setUp(self):
