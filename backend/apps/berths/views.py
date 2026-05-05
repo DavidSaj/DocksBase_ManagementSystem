@@ -263,6 +263,19 @@ class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Amenity.objects.filter(marina=self.request.user.marina)
 
 
+class SyncMySeaView(APIView):
+    """POST /berths/sync-mysea/ — manually trigger inbound iCal sync for this marina."""
+
+    def post(self, request):
+        from apps.reservations.management.commands.sync_mysea_bookings import sync_marina
+        marina = request.user.marina
+        if not marina.mysea_ical_url:
+            return Response({'detail': 'No mySea iCal URL configured.'}, status=400)
+        count = sync_marina(marina, dry=False, stdout=None)
+        marina.refresh_from_db(fields=['mysea_last_synced'])
+        return Response({'synced': count, 'last_synced': marina.mysea_last_synced})
+
+
 class IcalFeedView(APIView):
     permission_classes = []  # public — the URL slug is the secret
 

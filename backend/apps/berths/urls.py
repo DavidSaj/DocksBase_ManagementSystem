@@ -8,11 +8,13 @@ from .views import (
     BroadcastSMSView,
     AmenityListCreateView, AmenityDetailView,
     IcalFeedView,
+    SyncMySeaView,
 )
 
 urlpatterns = [
     path('piers/', PierListCreateView.as_view(), name='pier_list'),
     path('piers/<int:pk>/', PierDetailView.as_view(), name='pier_detail'),
+    path('berths/sync-mysea/', SyncMySeaView.as_view(), name='berths_sync_mysea'),
     path('berths/bulk-create/', BulkCreateBerthsView.as_view(), name='berths_bulk_create'),
     path('berths/bulk-pricing/', BulkUpdateBerthPricingView.as_view(), name='berths_bulk_pricing'),
     path('berths/ical/mysea.ics', IcalFeedView.as_view(), name='berths_ical_mysea'),
