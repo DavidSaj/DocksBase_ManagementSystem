@@ -4,6 +4,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina
 from apps.reservations.models import Booking
+from apps.berths.models import Pier, Berth
+from apps.billing.models import ChargeableItem
 
 
 class PublicBookingCreateTest(TestCase):
@@ -74,4 +76,176 @@ class PublicBookingCreateTest(TestCase):
     def test_check_in_in_past_returns_400(self):
         payload = {**self.payload, 'check_in': '2020-01-01', 'check_out': '2020-01-08'}
         resp = self._post(payload)
+        self.assertEqual(resp.status_code, 400)
+
+
+def make_auto_marina():
+    return Marina.objects.create(
+        name='Auto Marina', slug='auto-marina', booking_mode='auto_tetris',
+    )
+
+
+def make_test_berth(marina, code='B1', loa=20.0, beam=6.0, price=90):
+    pier, _ = Pier.objects.get_or_create(marina=marina, code='P', defaults={'label': 'Pier'})
+    tier, _ = ChargeableItem.objects.get_or_create(
+        marina=marina, name='Berth Night', category='berth',
+        defaults={'pricing_model': 'per_night', 'unit_price': price, 'is_mandatory_transient_fee': False},
+    )
+    return Berth.objects.create(
+        marina=marina, pier=pier, code=code,
+        length_m=loa, max_beam_m=beam,
+        pricing_tier=tier, status='available',
+    )
+
+
+class PublicAvailableBerthsTest(TestCase):
+    def setUp(self):
+        self.marina = make_auto_marina()
+        self.berth = make_test_berth(self.marina)
+        self.client = APIClient()
+        self.today = datetime.date.today()
+        self.check_in = str(self.today + datetime.timedelta(days=30))
+        self.check_out = str(self.today + datetime.timedelta(days=33))
+
+    def _get(self, slug='auto-marina', **params):
+        qs = '&'.join(f'{k}={v}' for k, v in params.items())
+        return self.client.get(
+            f'/api/v1/public/bookings/available-berths/?{qs}',
+            HTTP_X_MARINA_SLUG=slug,
+        )
+
+    def test_returns_berths_when_available(self):
+        resp = self._get(check_in=self.check_in, check_out=self.check_out)
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(len(resp.data), 0)
+        self.assertIn('pricing_tier_unit_price', resp.data[0])
+
+    def test_returns_empty_when_blocked(self):
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth,
+            check_in=self.today + datetime.timedelta(days=30),
+            check_out=self.today + datetime.timedelta(days=33),
+            nights=3, amount='270', status='confirmed', booking_type='transient',
+        )
+        resp = self._get(check_in=self.check_in, check_out=self.check_out)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, [])
+
+    def test_missing_dates_returns_400(self):
+        resp = self._get()
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_marina_returns_404(self):
+        resp = self._get(slug='no-such-marina', check_in=self.check_in, check_out=self.check_out)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_invalid_date_format_returns_400(self):
+        resp = self._get(check_in='not-a-date', check_out='also-not-a-date')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_boat_draft_filter(self):
+        self.berth.max_draft_m = '1.0'
+        self.berth.save()
+        resp = self._get(check_in=self.check_in, check_out=self.check_out, boat_draft='2.0')
+        self.assertEqual(resp.status_code, 200)
+        ids = [b['id'] for b in resp.data]
+        self.assertNotIn(self.berth.id, ids)
+
+    def test_equal_dates_returns_400(self):
+        resp = self._get(check_in='2027-07-10', check_out='2027-07-10')
+        self.assertEqual(resp.status_code, 400)
+
+
+class PublicAvailabilityAlternativesTest(TestCase):
+    def setUp(self):
+        self.marina = make_auto_marina()
+        self.berth = make_test_berth(self.marina)
+        self.berth2 = make_test_berth(self.marina, code='B2')
+        self.client = APIClient()
+        self.today = datetime.date.today()
+        self.check_in = str(self.today + datetime.timedelta(days=60))
+        self.check_out = str(self.today + datetime.timedelta(days=63))
+
+    def _get(self, slug='auto-marina', **params):
+        qs = '&'.join(f'{k}={v}' for k, v in params.items())
+        return self.client.get(
+            f'/api/v1/public/bookings/availability-alternatives/?{qs}',
+            HTTP_X_MARINA_SLUG=slug,
+        )
+
+    def _block_all(self, check_in_offset, check_out_offset):
+        ci = self.today + datetime.timedelta(days=check_in_offset)
+        co = self.today + datetime.timedelta(days=check_out_offset)
+        for berth in (self.berth, self.berth2):
+            Booking.objects.create(
+                marina=self.marina, berth=berth,
+                check_in=ci, check_out=co,
+                nights=(co - ci).days, amount='270',
+                status='confirmed', booking_type='transient',
+            )
+
+    def test_returns_alternatives_when_primary_blocked(self):
+        # Block both berths for exact dates — berth2 is free for shifted windows
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth,
+            check_in=self.today + datetime.timedelta(days=60),
+            check_out=self.today + datetime.timedelta(days=63),
+            nights=3, amount='270', status='confirmed', booking_type='transient',
+        )
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth2,
+            check_in=self.today + datetime.timedelta(days=60),
+            check_out=self.today + datetime.timedelta(days=63),
+            nights=3, amount='270', status='confirmed', booking_type='transient',
+        )
+        # A third free berth provides the alternative
+        make_test_berth(self.marina, code='B3')
+        resp = self._get(check_in=self.check_in, check_out=self.check_out)
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(len(resp.data), 0)
+        alt = resp.data[0]
+        self.assertIn('check_in', alt)
+        self.assertIn('check_out', alt)
+        self.assertIn('nights', alt)
+        self.assertIn('price_per_night', alt)
+        self.assertIn('total', alt)
+
+    def test_returns_empty_when_no_alternatives(self):
+        self._block_all(55, 70)
+        resp = self._get(check_in=self.check_in, check_out=self.check_out)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, [])
+
+    def test_missing_dates_returns_400(self):
+        resp = self._get()
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_marina_returns_404(self):
+        resp = self._get(slug='no-such-marina', check_in=self.check_in, check_out=self.check_out)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_boat_draft_respected(self):
+        self.berth.max_draft_m = '1.0'
+        self.berth.save()
+        self.berth2.max_draft_m = '1.0'
+        self.berth2.save()
+        # Block exact dates on both shallow berths
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth,
+            check_in=self.today + datetime.timedelta(days=60),
+            check_out=self.today + datetime.timedelta(days=63),
+            nights=3, amount='270', status='confirmed', booking_type='transient',
+        )
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth2,
+            check_in=self.today + datetime.timedelta(days=60),
+            check_out=self.today + datetime.timedelta(days=63),
+            nights=3, amount='270', status='confirmed', booking_type='transient',
+        )
+        resp = self._get(check_in=self.check_in, check_out=self.check_out, boat_draft='2.0')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, [])
+
+    def test_equal_dates_returns_400(self):
+        resp = self._get(check_in='2027-07-10', check_out='2027-07-10')
         self.assertEqual(resp.status_code, 400)
