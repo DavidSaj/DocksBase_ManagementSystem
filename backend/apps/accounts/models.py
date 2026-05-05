@@ -40,10 +40,14 @@ class Marina(models.Model):
     booking_mode = models.CharField(max_length=20, choices=BOOKING_MODE_CHOICES, default='manual_approval')
     vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     stripe_account_id = models.CharField(max_length=255, blank=True)
+    stripe_customer_id     = models.CharField(max_length=64, blank=True, null=True)
+    stripe_subscription_id = models.CharField(max_length=64, blank=True, null=True)
+    abandon_email_sent     = models.BooleanField(default=False)
     MARINA_STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('trial', 'Trial'),
-        ('suspended', 'Suspended'),
+        ('pending_payment', 'Pending Payment'),
+        ('trial',           'Trial'),
+        ('active',          'Active'),
+        ('suspended',       'Suspended'),
     ]
     status = models.CharField(max_length=20, choices=MARINA_STATUS_CHOICES, default='active')
     trial_ends = models.DateField(null=True, blank=True)
