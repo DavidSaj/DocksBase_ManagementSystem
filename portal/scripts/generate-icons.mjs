@@ -1,0 +1,51 @@
+import { chromium } from 'playwright';
+import { writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const publicDir = join(__dirname, '..', 'public');
+
+const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="18" fill="#1e2d6b"/>
+  <path d="M 39.65,11.36 L 47.56,10.07 L 48.17,4.04 L 51.83,4.04 L 52.44,10.07 A 40 40 0 0 1 60.35,11.36 A 40 40 0 0 1 60.35,11.36 L 67.85,14.20 L 71.40,9.28 L 74.56,11.11 L 72.08,16.64 A 40 40 0 0 1 78.28,21.72 A 40 40 0 0 1 78.28,21.72 L 83.36,27.92 L 88.89,25.44 L 90.72,28.60 L 85.80,32.15 A 40 40 0 0 1 88.64,39.65 A 40 40 0 0 1 88.64,39.65 L 89.93,47.56 L 95.96,48.17 L 95.96,51.83 L 89.93,52.44 A 40 40 0 0 1 88.64,60.35 A 40 40 0 0 1 88.64,60.35 L 85.80,67.85 L 90.72,71.40 L 88.89,74.56 L 83.36,72.08 A 40 40 0 0 1 78.28,78.28 A 40 40 0 0 1 78.28,78.28 L 72.08,83.36 L 74.56,88.89 L 71.40,90.72 L 67.85,85.80 A 40 40 0 0 1 60.35,88.64 A 40 40 0 0 1 60.35,88.64 L 52.44,89.93 L 51.83,95.96 L 48.17,95.96 L 47.56,89.93 A 40 40 0 0 1 39.65,88.64 A 40 40 0 0 1 39.65,88.64 L 32.15,85.80 L 28.60,90.72 L 25.44,88.89 L 27.92,83.36 A 40 40 0 0 1 21.72,78.28 A 40 40 0 0 1 21.72,78.28 L 16.64,72.08 L 11.11,74.56 L 9.28,71.40 L 14.20,67.85 A 40 40 0 0 1 11.36,60.35 A 40 40 0 0 1 11.36,60.35 L 10.07,52.44 L 4.04,51.83 L 4.04,48.17 L 10.07,47.56 A 40 40 0 0 1 11.36,39.65 A 40 40 0 0 1 11.36,39.65 L 14.20,32.15 L 9.28,28.60 L 11.11,25.44 L 16.64,27.92 A 40 40 0 0 1 21.72,21.72 A 40 40 0 0 1 21.72,21.72 L 27.92,16.64 L 25.44,11.11 L 28.60,9.28 L 32.15,14.20 A 40 40 0 0 1 39.65,11.36 Z" stroke="#c9a84c" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
+  <circle cx="50" cy="50" r="36" stroke="#c9a84c" stroke-width="0.88" fill="none" opacity="0.45"/>
+  <path d="M 50.00,22.00 L 54.50,50.00 L 50.00,46.00 L 45.50,50.00 Z" stroke="#c9a84c" stroke-width="0.88" fill="#c9a84c" stroke-linejoin="round"/>
+  <path d="M 50.00,78.00 L 45.50,50.00 L 50.00,54.00 L 54.50,50.00 Z" stroke="#c9a84c" stroke-width="0.88" fill="none" stroke-linejoin="round" opacity="0.7"/>
+  <path d="M 69.00,50.00 L 50.00,53.50 L 53.00,50.00 L 50.00,46.50 Z" stroke="#c9a84c" stroke-width="0.88" fill="none" stroke-linejoin="round" opacity="0.8"/>
+  <path d="M 31.00,50.00 L 50.00,46.50 L 47.00,50.00 L 50.00,53.50 Z" stroke="#c9a84c" stroke-width="0.88" fill="none" stroke-linejoin="round" opacity="0.8"/>
+  <circle cx="50" cy="50" r="3.5" stroke="#c9a84c" stroke-width="1.6" fill="#c9a84c"/>
+</svg>
+`;
+
+const html = (size) => `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: ${size}px; height: ${size}px; background: transparent; }
+  body { display: flex; align-items: center; justify-content: center; }
+  svg { width: ${size}px; height: ${size}px; }
+</style>
+</head>
+<body>${svg}</body>
+</html>`;
+
+const browser = await chromium.launch();
+
+for (const size of [512, 192]) {
+  const page = await browser.newPage();
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(html(size));
+  await page.waitForTimeout(100);
+  const buf = await page.screenshot({ type: 'png', omitBackground: true });
+  const outPath = join(publicDir, `icon-${size}.png`);
+  writeFileSync(outPath, buf);
+  console.log(`✓ ${outPath}`);
+  await page.close();
+}
+
+await browser.close();
+console.log('Done.');
