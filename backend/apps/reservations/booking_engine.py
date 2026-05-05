@@ -1,6 +1,7 @@
 # backend/apps/reservations/booking_engine.py
 from datetime import date, timedelta
 from decimal import Decimal
+from django.utils import timezone
 
 from django.db import transaction
 from django.db.models import Q, Subquery, OuterRef
@@ -189,3 +190,72 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None
             )
 
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
+
+
+ALTERNATIVE_SHIFTS = [-2, -1, 1, 2]     # days to shift check_in, same duration
+ALTERNATIVE_DURATIONS = [-1, 1, -2, 2]  # nights delta, same check_in
+
+
+def find_date_alternatives(marina, check_in, check_out, boat_loa, boat_beam, boat_draft, max_results=4):
+    """
+    When the exact dates are unavailable, find nearby date windows that do have
+    compatible berths. Checks shifted windows (same duration, different start)
+    and duration variants (same check_in, ±1 or ±2 nights).
+    Returns up to max_results dicts sorted by proximity to the original dates.
+    Uses timezone.localdate() for the past-date guard so it respects the server
+    timezone rather than Python's date.today().
+    """
+    if isinstance(check_in, str):
+        check_in = date.fromisoformat(check_in)
+    if isinstance(check_out, str):
+        check_out = date.fromisoformat(check_out)
+    original_nights = (check_out - check_in).days
+    today = timezone.localdate()
+    candidates = []
+
+    for delta in ALTERNATIVE_SHIFTS:
+        new_in = check_in + timedelta(days=delta)
+        new_out = new_in + timedelta(days=original_nights)
+        if new_in < today:
+            continue
+        scored = _score_berths(
+            compatible_available_berths(marina, new_in, new_out, boat_loa, boat_beam, boat_draft).select_related('pricing_tier'),
+            new_in, new_out,
+        )
+        if scored:
+            berth = scored[0][1]
+            if not berth.pricing_tier:
+                continue  # skip unpriced berths; try next permutation
+            candidates.append({
+                'check_in': new_in,
+                'check_out': new_out,
+                'nights': original_nights,
+                'price_per_night': berth.pricing_tier.unit_price,
+                'total': berth.pricing_tier.unit_price * original_nights,
+            })
+
+    for delta in ALTERNATIVE_DURATIONS:
+        new_nights = original_nights + delta
+        if new_nights < 1:
+            continue
+        new_out = check_in + timedelta(days=new_nights)
+        scored = _score_berths(
+            compatible_available_berths(marina, check_in, new_out, boat_loa, boat_beam, boat_draft).select_related('pricing_tier'),
+            check_in, new_out,
+        )
+        if scored:
+            berth = scored[0][1]
+            if not berth.pricing_tier:
+                continue  # skip unpriced berths; try next permutation
+            candidates.append({
+                'check_in': check_in,
+                'check_out': new_out,
+                'nights': new_nights,
+                'price_per_night': berth.pricing_tier.unit_price,
+                'total': berth.pricing_tier.unit_price * new_nights,
+            })
+
+    candidates.sort(
+        key=lambda c: abs((c['check_in'] - check_in).days) + abs(c['nights'] - original_nights)
+    )
+    return candidates[:max_results]

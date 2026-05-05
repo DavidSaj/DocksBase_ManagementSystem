@@ -2,6 +2,7 @@ import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
@@ -134,7 +135,7 @@ class BookingRequestConvertTest(TestCase):
 # ── Booking Engine Tests ─────────────────────────────────────────────────────
 
 from apps.berths.models import Pier, Berth
-from .booking_engine import compatible_available_berths, run_tetris, create_manual_approval
+from .booking_engine import compatible_available_berths, run_tetris, create_manual_approval, find_date_alternatives
 
 
 def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
@@ -895,4 +896,96 @@ class BerthCapableForTest(TestCase):
     def test_capable_for_non_integer_returns_400(self):
         resp = self.client.get('/api/v1/berths/?capable_for=abc')
         self.assertEqual(resp.status_code, 400)
+
+
+class FindDateAlternativesTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.marina.booking_mode = 'auto_tetris'
+        self.marina.save()
+        self.berth = make_berth_with_dims(self.marina, 'ALT1', loa=20.0, beam=6.0, price=90)
+        self.berth2 = make_berth_with_dims(self.marina, 'ALT2', loa=20.0, beam=6.0, price=90)
+        self.check_in = datetime.date.today() + datetime.timedelta(days=60)
+        self.check_out = self.check_in + datetime.timedelta(days=3)
+
+    def _block(self, check_in, check_out, berth=None):
+        """Book a berth (defaults to self.berth) for a date range."""
+        if berth is None:
+            berth = self.berth
+        Booking.objects.create(
+            marina=self.marina,
+            berth=berth,
+            check_in=check_in,
+            check_out=check_out,
+            nights=(check_out - check_in).days,
+            amount=Decimal('270'),
+            status='confirmed',
+            booking_type='transient',
+        )
+
+    def _block_all(self, check_in, check_out):
+        """Book BOTH berths for a date range, making those dates truly unavailable."""
+        self._block(check_in, check_out, berth=self.berth)
+        self._block(check_in, check_out, berth=self.berth2)
+
+    def test_shift_window_finds_alternative(self):
+        self._block(self.check_in, self.check_out)
+        results = find_date_alternatives(
+            self.marina, self.check_in, self.check_out,
+            boat_loa=None, boat_beam=None, boat_draft=None,
+        )
+        result_pairs = [(r['check_in'], r['check_out']) for r in results]
+        shifted = (self.check_in + datetime.timedelta(days=1), self.check_out + datetime.timedelta(days=1))
+        self.assertIn(shifted, result_pairs)
+
+    def test_duration_variant_finds_alternative(self):
+        self._block(self.check_in, self.check_out)
+        results = find_date_alternatives(
+            self.marina, self.check_in, self.check_out,
+            boat_loa=None, boat_beam=None, boat_draft=None,
+        )
+        result_pairs = [(r['check_in'], r['check_out']) for r in results]
+        extended = (self.check_in, self.check_out + datetime.timedelta(days=1))
+        self.assertIn(extended, result_pairs)
+
+    def test_returns_empty_when_truly_no_availability(self):
+        big_block_in = self.check_in - datetime.timedelta(days=5)
+        big_block_out = self.check_out + datetime.timedelta(days=5)
+        # Block both berths over a wide window so every alternative is also unavailable
+        self._block_all(big_block_in, big_block_out)
+        results = find_date_alternatives(
+            self.marina, self.check_in, self.check_out,
+            boat_loa=None, boat_beam=None, boat_draft=None,
+        )
+        self.assertEqual(results, [])
+
+    def test_capped_at_max_results(self):
+        results = find_date_alternatives(
+            self.marina, self.check_in, self.check_out,
+            boat_loa=None, boat_beam=None, boat_draft=None,
+            max_results=4,
+        )
+        self.assertEqual(len(results), 4)
+
+    def test_sorted_by_proximity(self):
+        self._block(self.check_in, self.check_out)
+        results = find_date_alternatives(
+            self.marina, self.check_in, self.check_out,
+            boat_loa=None, boat_beam=None, boat_draft=None,
+        )
+        if len(results) >= 2:
+            first_distance = abs((results[0]['check_in'] - self.check_in).days) + abs(results[0]['nights'] - 3)
+            second_distance = abs((results[1]['check_in'] - self.check_in).days) + abs(results[1]['nights'] - 3)
+            self.assertLessEqual(first_distance, second_distance)
+
+    def test_past_dates_excluded(self):
+        near_future_in = datetime.date.today() + datetime.timedelta(days=1)
+        near_future_out = near_future_in + datetime.timedelta(days=3)
+        self._block(near_future_in, near_future_out)
+        results = find_date_alternatives(
+            self.marina, near_future_in, near_future_out,
+            boat_loa=None, boat_beam=None, boat_draft=None,
+        )
+        for r in results:
+            self.assertGreaterEqual(r['check_in'], timezone.localdate())
 
