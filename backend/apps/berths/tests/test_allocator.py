@@ -1,7 +1,8 @@
 import datetime
 from django.test import TestCase
 from django.utils import timezone
-from apps.accounts.models import Marina
+from rest_framework.test import APIClient
+from apps.accounts.models import Marina, User
 from apps.berths.models import Berth, Pier
 from apps.billing.models import ChargeableItem
 
@@ -111,3 +112,36 @@ class RebalanceDownTest(TestCase):
         # Target=1, but 3 are occupied → can only free 2 unoccupied ones → mysea still has 3
         mysea_count = Berth.objects.filter(marina=self.marina, sales_channel='mysea').count()
         self.assertEqual(mysea_count, 3)
+
+
+class BerthCooldownTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.user = User.objects.create_user(
+            email='staff@test.com', password='pass', marina=self.marina, role='manager'
+        )
+        self.berth = make_berth(self.marina, 'C1', channel='direct')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_channel_change_sets_cooldown(self):
+        resp = self.client.patch(
+            f'/api/v1/berths/{self.berth.pk}/',
+            {'sales_channel': 'mysea'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.berth.refresh_from_db()
+        self.assertEqual(self.berth.sales_channel, 'mysea')
+        self.assertIsNotNone(self.berth.channel_cooldown_until)
+        self.assertGreater(self.berth.channel_cooldown_until, timezone.now())
+
+    def test_non_channel_update_does_not_set_cooldown(self):
+        resp = self.client.patch(
+            f'/api/v1/berths/{self.berth.pk}/',
+            {'status': 'maintenance'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.berth.refresh_from_db()
+        self.assertIsNone(self.berth.channel_cooldown_until)

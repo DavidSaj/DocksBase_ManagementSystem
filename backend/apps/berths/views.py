@@ -72,6 +72,20 @@ class BerthDetailView(generics.RetrieveUpdateAPIView):
     def get_queryset(self):
         return Berth.objects.filter(marina=self.request.user.marina)
 
+    def perform_update(self, serializer):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        instance = self.get_object()
+        new_channel = serializer.validated_data.get('sales_channel')
+
+        if new_channel and new_channel != instance.sales_channel:
+            serializer.save(
+                channel_cooldown_until=timezone.now() + timedelta(minutes=30)
+            )
+        else:
+            serializer.save()
+
 
 class MapConfigView(generics.RetrieveUpdateAPIView):
     serializer_class = MarinaMapConfigSerializer
