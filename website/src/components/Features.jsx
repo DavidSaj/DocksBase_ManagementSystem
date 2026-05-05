@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import styles from './Features.module.css'
 import AnchorDivider from './AnchorDivider'
 
@@ -140,6 +140,29 @@ const MODULE_COUNT = TABS.reduce((sum, t) => sum + t.modules.length, 0)
 export default function Features() {
   const [activeTab, setActiveTab] = useState(0)
   const modules = TABS[activeTab].modules
+  const gridRef = useRef(null)
+  const seenRef = useRef(false)
+
+  const animateCards = useCallback(() => {
+    const cards = gridRef.current?.querySelectorAll(`.${styles.card}`)
+    if (!cards) return
+    cards.forEach(card => card.classList.remove(styles.cardVisible))
+    void gridRef.current?.offsetWidth
+    cards.forEach((card, i) => setTimeout(() => card.classList.add(styles.cardVisible), i * 80))
+  }, [])
+
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { seenRef.current = true; animateCards(); obs.unobserve(el) } },
+      { threshold: 0.08 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [animateCards])
+
+  useEffect(() => { if (seenRef.current) animateCards() }, [activeTab, animateCards])
 
   return (
     <section className={styles.section} id="features">
@@ -161,7 +184,7 @@ export default function Features() {
             </button>
           ))}
         </div>
-        <div className={styles.grid}>
+        <div className={styles.grid} ref={gridRef}>
           {modules.map(m => (
             <div className={styles.card} key={m.title}>
               <div className={styles.icon}>{m.icon}</div>

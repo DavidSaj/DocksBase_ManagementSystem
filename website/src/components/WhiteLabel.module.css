@@ -58,6 +58,30 @@
 }
 .cta:hover { background: var(--navy); color: #fff; }
 
+.hostedCard {
+  margin-top: 20px;
+  display: flex; align-items: flex-start; gap: 14px;
+  background: rgba(26,107,110,0.07);
+  border: 1px solid rgba(26,107,110,0.2);
+  border-radius: 10px; padding: 16px 18px;
+}
+.hostedCardIcon {
+  flex-shrink: 0; margin-top: 1px;
+  color: var(--teal);
+}
+.hostedCardTitle {
+  font-size: 14px; font-weight: 600; color: var(--navy);
+  margin-bottom: 4px;
+}
+.hostedCardBody {
+  font-size: 13px; color: var(--text-sec); line-height: 1.55;
+}
+.hostedUrl {
+  font-family: 'Courier New', monospace; font-size: 12px;
+  background: rgba(26,107,110,0.1); color: var(--teal);
+  padding: 1px 6px; border-radius: 4px;
+}
+
 /* ── Right: browser mockup ── */
 .right { perspective: 1000px; }
 .browser {

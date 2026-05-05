@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import styles from './SplitSection.module.css'
 
 function CheckIcon() {
@@ -11,10 +12,29 @@ function CheckIcon() {
 }
 
 export default function SplitSection({ eyebrow, title, body, checklist, cta, image, alt, reverse, cream }) {
+  const layoutRef = useRef(null)
+
+  useEffect(() => {
+    const el = layoutRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.querySelector(`.${styles.imageWrap}`)?.classList.add(styles.imageVisible)
+          el.querySelector(`.${styles.text}`)?.classList.add(styles.textVisible)
+          obs.unobserve(el)
+        }
+      },
+      { threshold: 0.12 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   return (
     <section className={`${styles.section} ${cream ? styles.cream : ''}`} id="about">
       <div className={styles.inner}>
-        <div className={`${styles.layout} ${reverse ? styles.reverse : ''}`}>
+        <div className={`${styles.layout} ${reverse ? styles.reverse : ''}`} ref={layoutRef}>
           <div className={styles.imageWrap}>
             <img src={image} alt={alt} loading="lazy" className={styles.img} />
             <div className={styles.imgOverlay} />

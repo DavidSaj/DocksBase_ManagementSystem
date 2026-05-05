@@ -39,8 +39,13 @@
 }
 .card {
   background: #fff; padding: 32px 28px; border: var(--border);
-  transition: box-shadow 0.2s;
+  opacity: 0;
+  transform: translateY(36px) scale(0.97);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s;
 }
+.cardVisible { opacity: 1; transform: none; }
 .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); position: relative; z-index: 1; }
 .card:first-child { border-radius: 12px 0 0 0; }
 .card:last-child { border-radius: 0 0 12px 0; }

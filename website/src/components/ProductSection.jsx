@@ -1,10 +1,30 @@
+import { useEffect, useRef } from 'react'
 import styles from './ProductSection.module.css'
 
 export default function ProductSection() {
+  const layoutRef = useRef(null)
+
+  useEffect(() => {
+    const el = layoutRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.querySelector(`.${styles.text}`)?.classList.add(styles.textVisible)
+          setTimeout(() => el.querySelector(`.${styles.screenshot}`)?.classList.add(styles.shotVisible), 150)
+          obs.unobserve(el)
+        }
+      },
+      { threshold: 0.1 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   return (
     <section className={styles.section} id="product">
       <div className={styles.inner}>
-        <div className={styles.layout}>
+        <div className={styles.layout} ref={layoutRef}>
           <div className={styles.text}>
             <div className={styles.eyebrow}>Live Platform</div>
             <h2 className={styles.title}>Built for the dock. Ready on day one.</h2>

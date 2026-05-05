@@ -6,8 +6,7 @@ import { useLang, LANGUAGES } from '../context/LanguageContext'
 
 const ABOUT_ITEMS = [
   { key: 'aboutUs',       icon: '⚓', internal: true },
-  { key: 'blog',          icon: '✦', href: '#' },
-  { key: 'faq',           icon: '?', href: '#' },
+  { key: 'faq',           icon: '?', href: '#faq' },
   { key: 'documentation', icon: '↗', href: 'https://docs.docksbase.io', external: true },
   { key: 'status',        icon: '●', href: 'https://status.docksbase.io', external: true },
 ]
