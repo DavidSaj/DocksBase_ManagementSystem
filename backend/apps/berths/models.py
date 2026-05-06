@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 
 
@@ -10,6 +12,24 @@ PIER_TYPE_CHOICES = [
     ('gangway',   'Gangway'),
     ('ramp',      'Launch Ramp'),
 ]
+
+
+class OTAConnection(models.Model):
+    marina           = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='ota_connections')
+    name             = models.CharField(max_length=100)
+    slug             = models.SlugField(max_length=100)
+    inbound_ical_url = models.URLField(blank=True, default='')
+    outbound_token   = models.UUIDField(default=uuid.uuid4, unique=True)
+    target_pct       = models.IntegerField(default=20)
+    auto_allocate    = models.BooleanField(default=False)
+    last_synced      = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('marina', 'slug')
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.marina})'
 
 
 class Pier(models.Model):
