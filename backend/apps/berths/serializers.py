@@ -27,6 +27,12 @@ class OTAConnectionSerializer(serializers.ModelSerializer):
         validated_data['marina'] = self.context['request'].user.marina
         return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        from django.utils.text import slugify
+        if 'name' in validated_data:
+            validated_data['slug'] = slugify(validated_data['name'])
+        return super().update(instance, validated_data)
+
 
 _GHOST_SLOT_KEYS = {'x', 'y', 'rotation', 'width_m', 'height_m'}
 

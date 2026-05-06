@@ -309,8 +309,11 @@ class OTAConnectionViewSet(viewsets.ModelViewSet):
     def sync(self, request, pk=None):
         conn = self.get_object()
         if not conn.inbound_ical_url:
-            return Response({'detail': 'No inbound iCal URL configured.'}, status=400)
-        from apps.reservations.management.commands.sync_ota_bookings import sync_connection
+            return Response({'detail': 'No inbound iCal URL configured.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from apps.reservations.management.commands.sync_ota_bookings import sync_connection
+        except ImportError:
+            return Response({'detail': 'Sync command not yet available.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         count = sync_connection(conn, dry=False, stdout=None)
         conn.refresh_from_db(fields=['last_synced'])
         return Response({'synced': count, 'last_synced': conn.last_synced})
@@ -319,5 +322,6 @@ class OTAConnectionViewSet(viewsets.ModelViewSet):
     def rebalance(self, request, pk=None):
         conn = self.get_object()
         from apps.berths.allocator import rebalance_down
-        rebalance_down(conn)
+        # Task 4 will change rebalance_down signature from (marina) to (connection)
+        rebalance_down(conn.marina)
         return Response({'detail': 'Rebalance complete.'})
