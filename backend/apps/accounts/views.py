@@ -415,61 +415,6 @@ class ExchangeMagicTokenView(APIView):
         })
 
 
-class ChannelSettingsView(APIView):
-    """
-    PATCH /auth/marina/channel-settings/
-    Update auto_allocate_inventory, mysea_target_pct, mysea_ical_url.
-    If mysea_target_pct is lowered, immediately rebalances unoccupied mySea berths.
-    """
-    permission_classes = [IsMarinaStaff]
-
-    def patch(self, request):
-        marina = request.user.marina
-        old_target = marina.mysea_target_pct
-
-        allowed = {'auto_allocate_inventory', 'mysea_target_pct', 'mysea_ical_url'}
-        data = {k: v for k, v in request.data.items() if k in allowed}
-
-        if not data:
-            return Response({'detail': 'No valid fields provided.'}, status=400)
-
-        if 'mysea_target_pct' in data:
-            pct = data['mysea_target_pct']
-            # bool is a subclass of int in Python — reject it explicitly
-            if isinstance(pct, bool) or not isinstance(pct, int) or not (0 <= pct <= 100):
-                return Response(
-                    {'mysea_target_pct': 'Must be an integer between 0 and 100.'},
-                    status=400,
-                )
-
-        if 'mysea_ical_url' in data and data['mysea_ical_url']:
-            from django.core.validators import URLValidator
-            from django.core.exceptions import ValidationError as DjangoValidationError
-            try:
-                URLValidator()(data['mysea_ical_url'])
-            except DjangoValidationError:
-                return Response({'mysea_ical_url': 'Enter a valid URL.'}, status=400)
-
-        for field, value in data.items():
-            setattr(marina, field, value)
-        marina.save(update_fields=list(data.keys()))
-
-        # Rebalance immediately if target was lowered
-        new_target = marina.mysea_target_pct
-        if 'mysea_target_pct' in data and new_target < old_target:
-            from apps.berths.models import OTAConnection
-            from apps.berths.allocator import rebalance_down
-            for conn in OTAConnection.objects.filter(marina=marina):
-                rebalance_down(conn)
-
-        return Response({
-            'auto_allocate_inventory': marina.auto_allocate_inventory,
-            'mysea_target_pct': marina.mysea_target_pct,
-            'mysea_ical_url': marina.mysea_ical_url,
-            'mysea_last_synced': marina.mysea_last_synced,
-        })
-
-
 class ConnectOnboardView(APIView):
     """Start (or restart) Stripe Express onboarding for a marina."""
     permission_classes = [IsMarinaStaff]
