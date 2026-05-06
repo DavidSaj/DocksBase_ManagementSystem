@@ -28,8 +28,8 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-STRIPE_SECRET_KEY = 'sk_test_placeholder'
-STRIPE_WEBHOOK_SECRET = 'whsec_placeholder'
+STRIPE_SECRET_KEY = _os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_WEBHOOK_SECRET = _os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
 # Disable rate throttling in development/test so test suites don't hit 429s
 REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []

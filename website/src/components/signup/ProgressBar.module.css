@@ -1,23 +1,125 @@
 .bar {
-  display: flex; align-items: flex-start; justify-content: center;
-  gap: 0; margin-bottom: 48px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  margin-bottom: 48px;
 }
-.item { display: flex; flex-direction: column; align-items: center; position: relative; }
+
+/* stepGroup wraps one step + its trailing connector */
+.stepGroup {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  max-width: 160px;
+}
+.stepGroup:last-child {
+  flex: 0;
+}
+
+.stepCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Connector ── */
+.connector {
+  flex: 1;
+  height: 2px;
+  margin-top: 19px;
+  position: relative;
+  background: rgba(12, 31, 61, 0.12);
+  border-radius: 1px;
+  min-width: 24px;
+  overflow: hidden;
+}
+
+/* sweep fill on top of the grey base */
+.connector::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--teal);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.connectorDone::after {
+  transform: scaleX(1);
+}
+
+/* ── Circle ── */
 .circle {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: rgba(12,31,61,0.08); color: var(--text-muted);
-  font-family: var(--font-sans); font-size: 13px; font-weight: 600;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.3s, color 0.3s;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  border: 2px solid transparent;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
-.active { background: var(--navy); color: #fff; }
-.done   { background: var(--teal); color: #fff; }
-.label  { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-top: 6px; white-space: nowrap; }
-.labelActive { color: var(--navy); font-weight: 600; }
-.line {
-  position: absolute; top: 16px; left: 32px;
-  width: 64px; height: 2px;
-  background: rgba(12,31,61,0.1);
-  transition: background 0.3s;
+
+.future {
+  background: rgba(12, 31, 61, 0.06);
+  border-color: rgba(12, 31, 61, 0.12);
+  color: rgba(12, 31, 61, 0.35);
 }
-.lineDone { background: var(--teal); }
+
+.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(12, 31, 61, 0.12);
+  animation: circlePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.done {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+
+@keyframes circlePop {
+  from { transform: scale(0.75); }
+  to   { transform: scale(1); }
+}
+
+/* Checkmark draw-in */
+.done svg polyline {
+  stroke-dasharray: 28;
+  stroke-dashoffset: 0;
+  animation: drawCheck 0.35s ease-out 0.1s both;
+}
+@keyframes drawCheck {
+  from { stroke-dashoffset: 28; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.num {
+  line-height: 1;
+}
+
+/* ── Labels ── */
+.label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(12, 31, 61, 0.35);
+  margin-top: 8px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  transition: color 0.3s ease, font-weight 0.2s ease;
+}
+.labelActive {
+  color: var(--navy);
+  font-weight: 700;
+}
+.labelDone {
+  color: var(--teal);
+  font-weight: 600;
+}

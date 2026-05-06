@@ -35,6 +35,8 @@ export const PLANS = [
     monthlyPrice: 899,
     currency:     'EUR',
     stripePriceId: import.meta.env.VITE_STRIPE_PRICE_ENTERPRISE,
+    addonPriceId:  import.meta.env.VITE_STRIPE_PRICE_ENTERPRISE_ADDON_MARINA,
+    addonPricePerMarina: 250,
     tagline:      'For large marinas & groups',
     features: [
       'Everything in Professional',

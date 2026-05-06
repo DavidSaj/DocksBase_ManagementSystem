@@ -8,7 +8,7 @@ def _create_checkout_session(invoice):
     line_items = [
         {
             'price_data': {
-                'currency': 'chf',
+                'currency': invoice.marina.currency.lower(),
                 'product_data': {'name': item.description},
                 'unit_amount': int(round(float(item.unit_price) * 100)),
             },
@@ -20,8 +20,8 @@ def _create_checkout_session(invoice):
         payment_method_types=['card'],
         line_items=line_items,
         mode='payment',
-        success_url=f'{settings.FRONTEND_URL}/bookings/{invoice.source_id}/confirmed',
-        cancel_url=f'{settings.FRONTEND_URL}/bookings/{invoice.source_id}',
+        success_url=f'{settings.PORTAL_BASE_URL}/booking/{invoice.source_id}/confirmed',
+        cancel_url=f'{settings.PORTAL_BASE_URL}/booking/{invoice.source_id}',
         metadata={'invoice_id': str(invoice.id)},
         stripe_account=invoice.marina.stripe_account_id or None,
     )

@@ -1,6 +1,6 @@
 @keyframes kenBurns {
   from { transform: scale(1.0); }
-  to   { transform: scale(1.08); }
+  to   { transform: scale(1.04); }
 }
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -22,10 +22,10 @@
   will-change: transform;
 }
 .bgInner {
-  position: absolute; inset: -25%;
+  position: absolute; inset: -5%;
   background-image: url('/images/marina-aerial-hero - Copy.jpg');
   background-size: cover; background-position: center center;
-  animation: kenBurns 14s ease-out forwards, fadeIn 1s ease forwards;
+  animation: kenBurns 20s ease-out forwards, fadeIn 1s ease forwards;
 }
 .overlay {
   position: absolute; inset: 0;

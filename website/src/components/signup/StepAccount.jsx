@@ -61,6 +61,9 @@ export default function StepAccount({ form, patch, onBack, onSubmit, apiError })
           {errors.password && <p className={styles.fieldError}>{Array.isArray(errors.password) ? errors.password[0] : errors.password}</p>}
         </div>
       </div>
+      {errors.plan_price_id && <p className={styles.apiError}>Plan error: {Array.isArray(errors.plan_price_id) ? errors.plan_price_id[0] : errors.plan_price_id}</p>}
+      {errors.non_field_errors && <p className={styles.apiError}>{Array.isArray(errors.non_field_errors) ? errors.non_field_errors[0] : errors.non_field_errors}</p>}
+      {errors.detail && <p className={styles.apiError}>{errors.detail}</p>}
       {apiError && <p className={styles.apiError}>{apiError}</p>}
       <div className={styles.actions}>
         <button className={styles.backBtn} onClick={onBack} type="button" disabled={loading}>← Back</button>

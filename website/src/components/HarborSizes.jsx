@@ -47,7 +47,7 @@ export default function HarborSizes() {
                 <li key={item}><CheckIcon />{item}</li>
               ))}
             </ul>
-            <a href="#" className={`${styles.btn} ${styles.btnOutline}`}>Get started free →</a>
+            <a href="/signup" className={`${styles.btn} ${styles.btnOutline}`}>Get started free →</a>
           </div>
           <div className={`${styles.card} ${styles.cardFeatured}`}>
             <div className={styles.cardEyebrow}>Large Port / Group</div>

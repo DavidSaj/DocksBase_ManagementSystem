@@ -13,14 +13,21 @@ const API = import.meta.env.VITE_API_URL || ''
 export default function SignupPage({ resume = false }) {
   const [searchParams] = useSearchParams()
   const [step, setStep] = useState(1)
+  const [dir, setDir] = useState(1)
   const [form, setForm] = useState({
     plan: null,
+    marinaCount: 1,
     marinaName: '', address: '', lat: null, lng: null,
     phone: '', contactEmail: '', vatNumber: '', currency: 'EUR',
     firstName: '', lastName: '', email: '', password: '',
   })
   const [clientSecret, setClientSecret] = useState(null)
   const [apiError, setApiError] = useState(null)
+
+  function goTo(n) {
+    setDir(n > step ? 1 : -1)
+    setStep(n)
+  }
 
   // Resume flow: token in query string → skip to step 4
   useEffect(() => {
@@ -37,6 +44,7 @@ export default function SignupPage({ resume = false }) {
         if (data.client_secret) {
           setClientSecret(data.client_secret)
           setForm(f => ({ ...f, marinaName: data.marina_name || '' }))
+          setDir(1)
           setStep(4)
         }
       })
@@ -49,6 +57,7 @@ export default function SignupPage({ resume = false }) {
     setApiError(null)
     const body = {
       plan_price_id: form.plan.stripePriceId,
+      marina_count:  form.marinaCount,
       marina_name:   form.marinaName,
       address:       form.address,
       lat:           form.lat,
@@ -68,8 +77,9 @@ export default function SignupPage({ resume = false }) {
       body: JSON.stringify(body),
     })
     const data = await resp.json()
-    if (!resp.ok) return data  // return errors to StepAccount
+    if (!resp.ok) return data
     setClientSecret(data.client_secret)
+    setDir(1)
     setStep(4)
     return null
   }
@@ -82,11 +92,15 @@ export default function SignupPage({ resume = false }) {
           <p className={styles.sub}>Start your 30-day free trial</p>
         </div>
         {step < 5 && <ProgressBar step={step} />}
-        {step === 1 && <StepPlan form={form} patch={patch} onNext={() => setStep(2)} />}
-        {step === 2 && <StepMarina form={form} patch={patch} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
-        {step === 3 && <StepAccount form={form} patch={patch} onBack={() => setStep(2)} onSubmit={submitDraft} apiError={apiError} />}
-        {step === 4 && clientSecret && <StepPayment clientSecret={clientSecret} marinaName={form.marinaName} plan={form.plan} />}
-        {step === 5 && <StepConfirmation />}
+        <div className={styles.stepWrap}>
+          <div key={step} className={dir > 0 ? styles.slideIn : styles.slideInBack}>
+            {step === 1 && <StepPlan form={form} patch={patch} onNext={() => goTo(2)} />}
+            {step === 2 && <StepMarina form={form} patch={patch} onBack={() => goTo(1)} onNext={() => goTo(3)} />}
+            {step === 3 && <StepAccount form={form} patch={patch} onBack={() => goTo(2)} onSubmit={submitDraft} apiError={apiError} />}
+            {step === 4 && clientSecret && <StepPayment clientSecret={clientSecret} marinaName={form.marinaName} plan={form.plan} marinaCount={form.marinaCount} />}
+            {step === 5 && <StepConfirmation />}
+          </div>
+        </div>
       </div>
     </div>
   )

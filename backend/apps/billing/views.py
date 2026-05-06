@@ -34,7 +34,7 @@ def _handle_marina_subscription_event(event_type, obj):
     except _Marina.DoesNotExist:
         return
 
-    if event_type == 'customer.subscription.updated' and obj.get('status') == 'active':
+    if event_type == 'customer.subscription.updated' and obj.get('status') in ('trialing', 'active'):
         trial_end_ts = obj.get('trial_end')
         if trial_end_ts:
             trial_ends = _dt.date.fromtimestamp(trial_end_ts)
@@ -52,6 +52,19 @@ def _handle_marina_subscription_event(event_type, obj):
     elif event_type == 'customer.subscription.deleted':
         marina.status = 'suspended'
         marina.save(update_fields=['status'])
+
+
+def _handle_connect_account_updated(obj):
+    account_id = obj.get('id')
+    if not account_id:
+        return
+    try:
+        marina = _Marina.objects.get(stripe_account_id=account_id)
+    except _Marina.DoesNotExist:
+        return
+    if obj.get('details_submitted'):
+        marina.onboarding = {**marina.onboarding, 'connect_bank': True}
+        marina.save(update_fields=['onboarding'])
 
 
 def _handle_marina_payment_failed(obj):
@@ -101,6 +114,67 @@ class StripeWebhookView(APIView):
         if event_type == 'invoice.payment_failed':
             _handle_marina_payment_failed(obj)
             return HttpResponse(status=200)
+        if event_type == 'account.updated':
+            _handle_connect_account_updated(obj)
+            return HttpResponse(status=200)
+
+        invoice_id = obj.get('metadata', {}).get('invoice_id')
+        if not invoice_id:
+            return HttpResponse(status=200)
+
+        try:
+            invoice = Invoice.objects.get(pk=invoice_id)
+        except Invoice.DoesNotExist:
+            return HttpResponse(status=200)
+
+        if event_type == 'checkout.session.completed':
+            updated = Invoice.objects.filter(pk=invoice.pk, status='open').update(
+                stripe_payment_intent_id=obj.get('payment_intent', ''),
+                status='paid',
+                paid_at=timezone.now(),
+            )
+            if updated:
+                invoice.refresh_from_db()
+                invoice_paid.send(sender=Invoice, invoice=invoice)
+                threading.Thread(
+                    target=_post_payment_tasks,
+                    args=(invoice.id,),
+                    daemon=True,
+                ).start()
+
+        elif event_type == 'checkout.session.expired':
+            invoice.stripe_checkout_session_id = ''
+            invoice.save(update_fields=['stripe_checkout_session_id'])
+            if invoice.booking_id:
+                try:
+                    BookingModel.objects.filter(pk=invoice.booking_id).update(
+                        status='cancelled', berth=None
+                    )
+                except Exception:
+                    pass
+
+        return HttpResponse(status=200)
+
+
+class StripeConnectWebhookView(APIView):
+    """
+    Receives checkout.session.completed / expired events fired on connected accounts.
+    Stripe sends these here when the endpoint is registered as a Connect webhook.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
+        try:
+            event = _stripe_svc.stripe.Webhook.construct_event(
+                payload, sig_header, settings.STRIPE_CONNECT_WEBHOOK_SECRET
+            )
+        except (ValueError, _stripe_svc.stripe.error.SignatureVerificationError):
+            return HttpResponse(status=400)
+
+        event_type = event['type']
+        obj = event['data']['object']
 
         invoice_id = obj.get('metadata', {}).get('invoice_id')
         if not invoice_id:
@@ -488,3 +562,130 @@ class InvoiceExportView(APIView):
         response = StreamingHttpResponse(rows(), content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="invoices.csv"'
         return response
+
+
+import stripe as _stripe
+from config.plans import PLAN_PRICE_IDS, PRICE_ID_TO_PLAN, ENTERPRISE_ADDON_MARINA_PRICE_ID, PLAN_MONTHLY_PRICES
+
+
+class SubscriptionBillingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        marina = request.user.marina
+        if not marina.stripe_subscription_id:
+            return Response({'detail': 'No subscription found.'}, status=404)
+
+        sub = _stripe.Subscription.retrieve(
+            marina.stripe_subscription_id,
+            expand=['default_payment_method'],
+        )
+
+        card_brand = card_last4 = None
+        pm = sub.get('default_payment_method')
+        if pm and isinstance(pm, dict):
+            card_brand = pm.get('card', {}).get('brand')
+            card_last4 = pm.get('card', {}).get('last4')
+
+        if not card_last4 and marina.stripe_customer_id:
+            customer = _stripe.Customer.retrieve(
+                marina.stripe_customer_id,
+                expand=['invoice_settings.default_payment_method'],
+            )
+            pm = (customer.get('invoice_settings') or {}).get('default_payment_method')
+            if pm and isinstance(pm, dict):
+                card_brand = pm.get('card', {}).get('brand')
+                card_last4 = pm.get('card', {}).get('last4')
+
+        return Response({
+            'plan':          marina.plan,
+            'monthly_price': PLAN_MONTHLY_PRICES.get(marina.plan, 0),
+            'status':        marina.status,
+            'trial_ends':    marina.trial_ends,
+            'next_renewal':  marina.next_renewal,
+            'card_brand':    card_brand,
+            'card_last4':    card_last4,
+            'cancel_at_period_end': sub.get('cancel_at_period_end', False),
+        })
+
+
+class CancelSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        marina = request.user.marina
+        if not marina.stripe_subscription_id:
+            return Response({'detail': 'No subscription found.'}, status=404)
+        _stripe.Subscription.modify(
+            marina.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+        return Response({'status': 'ok'})
+
+
+class InvoiceCheckoutView(APIView):
+    """Create (or reuse) a Stripe Checkout session for a payable invoice."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            invoice = Invoice.objects.select_related('marina').get(
+                pk=pk, marina=request.user.marina, status='open'
+            )
+        except Invoice.DoesNotExist:
+            return Response(
+                {'detail': 'Invoice not found or not payable.'},
+                status=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        if not invoice.marina.stripe_account_id:
+            return Response(
+                {'detail': 'Payments not configured for this marina.'},
+                status=http_status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
+        if invoice.stripe_checkout_session_id:
+            try:
+                session = _stripe_svc.stripe.checkout.Session.retrieve(
+                    invoice.stripe_checkout_session_id,
+                    stripe_account=invoice.marina.stripe_account_id,
+                )
+                if session.status == 'open':
+                    return Response({'url': session.url})
+            except Exception:
+                pass
+
+        url = _stripe_svc._create_checkout_session(invoice)
+        return Response({'url': url}, status=http_status.HTTP_201_CREATED)
+
+
+class ChangePlanView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        plan_key = request.data.get('plan', '')
+        new_price_id = PLAN_PRICE_IDS.get(plan_key, '')
+        if not new_price_id:
+            return Response({'detail': 'Invalid plan.'}, status=400)
+
+        marina = request.user.marina
+        if not marina.stripe_subscription_id:
+            return Response({'detail': 'No subscription found.'}, status=404)
+
+        sub = _stripe.Subscription.retrieve(marina.stripe_subscription_id)
+        addon_price_ids = {ENTERPRISE_ADDON_MARINA_PRICE_ID} - {''}
+        base_item = next(
+            (item for item in sub['items']['data'] if item['price']['id'] not in addon_price_ids),
+            None,
+        )
+        if not base_item:
+            return Response({'detail': 'Subscription item not found.'}, status=400)
+
+        _stripe.Subscription.modify(
+            marina.stripe_subscription_id,
+            items=[{'id': base_item['id'], 'price': new_price_id}],
+            proration_behavior='create_prorations',
+        )
+        marina.plan = PRICE_ID_TO_PLAN.get(new_price_id, marina.plan)
+        marina.save(update_fields=['plan'])
+        return Response({'status': 'ok'})
