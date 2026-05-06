@@ -49,5 +49,5 @@ class OTAConnectionCRUDTest(TestCase):
 
     def test_duplicate_slug_rejected(self):
         OTAConnection.objects.create(marina=self.marina, name='A', slug='a')
-        resp = self.client.post('/api/v1/ota-connections/', {'name': 'A2'}, format='json')
+        resp = self.client.post('/api/v1/ota-connections/', {'name': 'A'}, format='json')
         self.assertEqual(resp.status_code, 400)

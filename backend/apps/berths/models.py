@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
@@ -20,7 +21,7 @@ class OTAConnection(models.Model):
     slug             = models.SlugField(max_length=100)
     inbound_ical_url = models.URLField(blank=True, default='')
     outbound_token   = models.UUIDField(default=uuid.uuid4, unique=True)
-    target_pct       = models.IntegerField(default=20)
+    target_pct       = models.IntegerField(default=20, validators=[MinValueValidator(0), MaxValueValidator(100)])
     auto_allocate    = models.BooleanField(default=False)
     last_synced      = models.DateTimeField(null=True, blank=True)
 
