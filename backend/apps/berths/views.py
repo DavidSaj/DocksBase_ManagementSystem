@@ -260,37 +260,20 @@ class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Amenity.objects.filter(marina=self.request.user.marina)
 
 
-class SyncMySeaView(APIView):
-    """POST /berths/sync-mysea/ — manually trigger inbound iCal sync for this marina."""
-
-    def post(self, request):
-        from apps.reservations.management.commands.sync_mysea_bookings import sync_marina
-        marina = request.user.marina
-        if not marina.mysea_ical_url:
-            return Response({'detail': 'No mySea iCal URL configured.'}, status=400)
-        count = sync_marina(marina, dry=False, stdout=None)
-        marina.refresh_from_db(fields=['mysea_last_synced'])
-        return Response({'synced': count, 'last_synced': marina.mysea_last_synced})
-
-
 class IcalFeedView(APIView):
-    permission_classes = []  # public — the URL slug is the secret
+    permission_classes = []  # public — outbound_token is the secret
 
-    def get(self, request):
-        from apps.accounts.models import Marina
-        from .ical import generate_mysea_ical
-
-        slug = request.query_params.get('marina', '')
+    def get(self, request, token):
+        from apps.berths.models import OTAConnection
+        from .ical import generate_ota_ical
         try:
-            marina = Marina.objects.get(slug=slug)
-        except Marina.DoesNotExist:
-            return Response({'detail': 'Marina not found.'}, status=404)
-
-        ical_bytes = generate_mysea_ical(marina)
+            conn = OTAConnection.objects.get(outbound_token=token)
+        except OTAConnection.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=404)
         return HttpResponse(
-            ical_bytes,
+            generate_ota_ical(conn),
             content_type='text/calendar; charset=utf-8',
-            headers={'Content-Disposition': 'attachment; filename="mysea.ics"'},
+            headers={'Content-Disposition': f'attachment; filename="{conn.slug}.ics"'},
         )
 
 
