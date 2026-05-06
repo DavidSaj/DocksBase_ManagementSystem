@@ -1,4 +1,5 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
 from .views import (
     PierListCreateView, PierDetailView,
     BerthListCreateView, BerthDetailView,
@@ -9,7 +10,11 @@ from .views import (
     AmenityListCreateView, AmenityDetailView,
     IcalFeedView,
     SyncMySeaView,
+    OTAConnectionViewSet,
 )
+
+router = DefaultRouter()
+router.register(r'ota-connections', OTAConnectionViewSet, basename='ota-connection')
 
 urlpatterns = [
     path('piers/', PierListCreateView.as_view(), name='pier_list'),
@@ -24,4 +29,4 @@ urlpatterns = [
     path('broadcast/', BroadcastSMSView.as_view(), name='broadcast_sms'),
     path('amenities/', AmenityListCreateView.as_view(), name='amenity_list'),
     path('amenities/<int:pk>/', AmenityDetailView.as_view(), name='amenity_detail'),
-]
+] + router.urls

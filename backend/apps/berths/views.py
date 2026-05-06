@@ -1,11 +1,12 @@
 from django.http import HttpResponse
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Pier, Berth, MarinaMapConfig, Amenity
-from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer
+from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection
+from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer, OTAConnectionSerializer
 from .sms_service import send_sms
 
 
@@ -295,3 +296,28 @@ class IcalFeedView(APIView):
             content_type='text/calendar; charset=utf-8',
             headers={'Content-Disposition': 'attachment; filename="mysea.ics"'},
         )
+
+
+class OTAConnectionViewSet(viewsets.ModelViewSet):
+    serializer_class = OTAConnectionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return OTAConnection.objects.filter(marina=self.request.user.marina)
+
+    @action(detail=True, methods=['post'])
+    def sync(self, request, pk=None):
+        conn = self.get_object()
+        if not conn.inbound_ical_url:
+            return Response({'detail': 'No inbound iCal URL configured.'}, status=400)
+        from apps.reservations.management.commands.sync_ota_bookings import sync_connection
+        count = sync_connection(conn, dry=False, stdout=None)
+        conn.refresh_from_db(fields=['last_synced'])
+        return Response({'synced': count, 'last_synced': conn.last_synced})
+
+    @action(detail=True, methods=['post'])
+    def rebalance(self, request, pk=None):
+        conn = self.get_object()
+        from apps.berths.allocator import rebalance_down
+        rebalance_down(conn)
+        return Response({'detail': 'Rebalance complete.'})
