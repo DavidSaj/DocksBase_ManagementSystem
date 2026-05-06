@@ -127,21 +127,27 @@ function OTAConnectionsCard() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null); // { name: '', inbound_ical_url: '' } | null
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(null); // connection id being synced
+  const [removing, setRemoving] = useState(null); // connection id being removed
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     api.get('/ota-connections/')
       .then(r => setConnections(r.data.results ?? r.data))
-      .catch(() => {})
+      .catch(() => setError('Failed to load OTA connections.'))
       .finally(() => setLoading(false));
   }, []);
 
   async function addConnection() {
     if (!form?.name?.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       const { data } = await api.post('/ota-connections/', form);
       setConnections(prev => [...prev, data]);
       setForm(null);
+    } catch {
+      setError('Failed to add connection.');
     } finally {
       setSaving(false);
     }
@@ -149,32 +155,56 @@ function OTAConnectionsCard() {
 
   async function deleteConnection(id) {
     if (!window.confirm('Remove this OTA connection? Berths assigned to it will revert to Direct.')) return;
-    await api.delete(`/ota-connections/${id}/`);
-    setConnections(prev => prev.filter(c => c.id !== id));
+    setRemoving(id);
+    setError(null);
+    try {
+      await api.delete(`/ota-connections/${id}/`);
+      setConnections(prev => prev.filter(c => c.id !== id));
+    } catch {
+      setError('Failed to remove connection.');
+    } finally {
+      setRemoving(null);
+    }
   }
 
   async function triggerSync(conn) {
-    await api.post(`/ota-connections/${conn.id}/sync/`);
-    const { data } = await api.get(`/ota-connections/${conn.id}/`);
-    setConnections(prev => prev.map(c => c.id === conn.id ? data : c));
+    if (syncing === conn.id) return;
+    setSyncing(conn.id);
+    setError(null);
+    try {
+      await api.post(`/ota-connections/${conn.id}/sync/`);
+      const { data } = await api.get(`/ota-connections/${conn.id}/`);
+      setConnections(prev => prev.map(c => c.id === conn.id ? data : c));
+    } catch {
+      setError('Sync failed.');
+    } finally {
+      setSyncing(null);
+    }
   }
 
   if (loading) return <div style={{ padding: '12px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {connections.length === 0 && (
+      {error && <div style={{ fontSize: 12, color: '#c0392b', padding: '4px 0' }}>{error}</div>}
+      {connections.length === 0 && !error && (
         <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 0' }}>No OTA connections yet.</div>
       )}
       {connections.map(conn => (
         <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
-            <button className="btn btn-danger btn-sm" onClick={() => deleteConnection(conn.id)}>Remove</button>
+            <button
+              className="btn btn-danger btn-sm"
+              disabled={removing === conn.id}
+              onClick={() => deleteConnection(conn.id)}
+            >
+              {removing === conn.id ? 'Removing…' : 'Remove'}
+            </button>
           </div>
           {conn.inbound_ical_url && (
             <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
-              Inbound: <span style={{ fontFamily: 'monospace' }}>{conn.inbound_ical_url.slice(0, 50)}…</span>
+              Inbound: <span style={{ fontFamily: 'monospace' }}>{conn.inbound_ical_url.length > 50 ? conn.inbound_ical_url.slice(0, 50) + '…' : conn.inbound_ical_url}</span>
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -183,14 +213,19 @@ function OTAConnectionsCard() {
               <button
                 className="btn btn-ghost btn-sm"
                 style={{ marginLeft: 6, fontSize: 10 }}
-                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`)}
+                onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`)}
               >
                 Copy URL
               </button>
             </div>
             {conn.inbound_ical_url && (
-              <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={() => triggerSync(conn)}>
-                Sync now {conn.last_synced ? `· ${new Date(conn.last_synced).toLocaleTimeString()}` : ''}
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11 }}
+                disabled={syncing === conn.id}
+                onClick={() => triggerSync(conn)}
+              >
+                {syncing === conn.id ? 'Syncing…' : `Sync now${conn.last_synced ? ` · ${new Date(conn.last_synced).toLocaleTimeString()}` : ''}`}
               </button>
             )}
           </div>
