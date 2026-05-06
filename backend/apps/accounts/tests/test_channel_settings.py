@@ -41,11 +41,9 @@ class OTAViewsetRebalanceTest(TestCase):
         resp = self.client.patch('/api/v1/auth/marina/channel-settings/', {}, format='json')
         self.assertEqual(resp.status_code, 404)
 
-    def test_patch_target_pct_via_viewset(self):
-        resp = self.client.patch(f'/api/v1/ota-connections/{self.conn.pk}/', {'target_pct': 25}, format='json')
-        self.assertEqual(resp.status_code, 200)
-        self.conn.refresh_from_db()
-        self.assertEqual(self.conn.target_pct, 25)
+    def test_target_pct_out_of_range_rejected(self):
+        resp = self.client.patch(f'/api/v1/ota-connections/{self.conn.pk}/', {'target_pct': 150}, format='json')
+        self.assertEqual(resp.status_code, 400)
 
     def test_rebalance_action_flips_excess_berths(self):
         # marina has 4 OTA out of 8 = 50%. Lower to 0% then rebalance
