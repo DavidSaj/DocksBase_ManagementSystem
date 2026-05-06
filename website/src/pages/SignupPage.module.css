@@ -1,0 +1,13 @@
+.page {
+  min-height: 100vh;
+  background: var(--cream);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 64px 24px;
+}
+.inner { width: 100%; max-width: 680px; }
+.header { text-align: center; margin-bottom: 48px; }
+.logo {
+  font-family: var(--font-serif); font-size: 28px; font-weight: 700;
+  color: var(--navy); letter-spacing: -0.5px; margin-bottom: 8px;
+}
+.sub { font-size: 15px; color: var(--text-sec); }

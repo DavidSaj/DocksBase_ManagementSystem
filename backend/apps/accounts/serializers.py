@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from .models import Marina, User
+from config.plans import PLAN_PRICE_IDS, PRICE_ID_TO_PLAN
 
 
 class MarinaSerializer(serializers.ModelSerializer):
@@ -100,4 +101,33 @@ class SignupSerializer(serializers.Serializer):
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError(['A user with this email already exists.'])
+        return value
+
+
+class DraftAccountSerializer(serializers.Serializer):
+    plan_price_id  = serializers.CharField()
+    marina_name    = serializers.CharField(max_length=200)
+    address        = serializers.CharField()
+    lat            = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    lng            = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    phone          = serializers.CharField(max_length=30)
+    contact_email  = serializers.EmailField()
+    vat_number     = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    currency       = serializers.ChoiceField(choices=['EUR', 'GBP', 'USD', 'DKK', 'SEK', 'NOK'])
+    first_name     = serializers.CharField(max_length=150)
+    last_name      = serializers.CharField(max_length=150)
+    email          = serializers.EmailField()
+    password       = serializers.CharField(min_length=8, write_only=True)
+
+    def validate_plan_price_id(self, value):
+        if value not in PLAN_PRICE_IDS.values():
+            raise serializers.ValidationError('Invalid plan.')
+        return value
+
+    def validate_email(self, value):
+        user = User.objects.filter(email=value).select_related('marina').first()
+        if user and user.marina and user.marina.status in ('trial', 'active'):
+            raise serializers.ValidationError(
+                'An account with this email already exists. Please log in.'
+            )
         return value

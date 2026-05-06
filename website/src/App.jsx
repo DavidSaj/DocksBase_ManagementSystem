@@ -1,6 +1,9 @@
 import './index.css'
 import { useRef, useEffect } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LanguageProvider } from './context/LanguageContext'
+import SignupPage from './pages/SignupPage'
+import SignupSuccessPage from './pages/SignupSuccessPage'
 import Nav from './components/Nav'
 import Hero from './components/Hero'
 import TrustBar from './components/TrustBar'
@@ -108,8 +111,15 @@ function LandingPage() {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <LandingPage />
-    </LanguageProvider>
+    <BrowserRouter>
+      <LanguageProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/signup/resume" element={<SignupPage resume />} />
+          <Route path="/signup/success" element={<SignupSuccessPage />} />
+        </Routes>
+      </LanguageProvider>
+    </BrowserRouter>
   )
 }

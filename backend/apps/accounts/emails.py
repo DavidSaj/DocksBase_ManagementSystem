@@ -19,3 +19,32 @@ def send_welcome_email(user):
         from_email=None,
         recipient_list=[user.email],
     )
+
+
+def send_payment_failed_email(user):
+    send_mail(
+        subject='Your DocksBase payment failed',
+        message=(
+            f'Hi {user.first_name or user.email},\n\n'
+            'We were unable to charge your card for your DocksBase subscription.\n\n'
+            f'Please update your payment details here: {settings.FRONTEND_URL}/settings/billing\n\n'
+            '— The DocksBase Team'
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+    )
+
+
+def send_abandoned_cart_email(user, marina_name, resume_url):
+    send_mail(
+        subject=f'Finish setting up {marina_name} on DocksBase',
+        message=(
+            f'Hi {user.first_name or user.email},\n\n'
+            f"Looks like you didn't finish setting up {marina_name}.\n\n"
+            f'Click here to pick up where you left off:\n{resume_url}\n\n'
+            'This link expires in 48 hours.\n\n'
+            '— The DocksBase Team'
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+    )
