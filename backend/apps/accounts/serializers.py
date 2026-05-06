@@ -14,6 +14,7 @@ class MarinaSerializer(serializers.ModelSerializer):
             'name', 'address', 'lat', 'lng', 'timezone', 'contact_email', 'phone',
             'currency', 'vat_rate', 'vat_number', 'payment_terms', 'booking_mode',
             'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft', 'fuel_berths',
+            'operations_paused',
             # read-only: owner can see but not change
             'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',

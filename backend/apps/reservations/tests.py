@@ -476,6 +476,8 @@ class AvailableBerthsEndpointTest(TestCase):
 class BookingEngineRequestEndpointTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
+        self.marina.stripe_account_id = 'acct_test'
+        self.marina.save()
         self.user = make_user(self.marina)
         self.b = make_berth_with_dims(self.marina, 'R1', loa=20.0, beam=6.0, price=100)
         self.client = APIClient()
@@ -558,6 +560,8 @@ class BookingEngineRequestEndpointTest(TestCase):
 class AssignBerthEndpointTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
+        self.marina.stripe_account_id = 'acct_test'
+        self.marina.save()
         self.user = make_user(self.marina)
         self.berth = make_berth_with_dims(self.marina, 'AS1', loa=20.0, beam=6.0, price=75)
         self.booking = Booking.objects.create(
