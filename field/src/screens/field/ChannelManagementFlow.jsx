@@ -15,7 +15,8 @@ export default function ChannelManagementFlow({ onBack }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
   const [confirm, setConfirm] = useState(null); // { berth, newConnId }
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // fatal (replaces list) or transient (banner)
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -38,7 +39,7 @@ export default function ChannelManagementFlow({ onBack }) {
       const resp = await api.patch(`/berths/${berth.id}/`, { ota_connection: newConnId });
       setBerths(prev => prev.map(b => b.id === berth.id ? { ...b, ...resp.data } : b));
     } catch {
-      setError('Failed to update berth channel.');
+      setSaveError('Failed to update berth channel.');
     } finally {
       setSaving(null);
     }
@@ -49,6 +50,8 @@ export default function ChannelManagementFlow({ onBack }) {
     try {
       const resp = await api.patch(`/berths/${berth.id}/`, { channel_locked: false });
       setBerths(prev => prev.map(b => b.id === berth.id ? { ...b, ...resp.data } : b));
+    } catch {
+      setSaveError('Failed to unlock berth.');
     } finally {
       setSaving(null);
     }
@@ -94,6 +97,12 @@ export default function ChannelManagementFlow({ onBack }) {
         <div style={{ padding: 40, textAlign: 'center', color: '#c0392b', fontSize: 14 }}>{error}</div>
       ) : (
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {saveError && (
+            <div style={{ background: '#fdedec', color: '#c0392b', padding: '10px 14px', borderRadius: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {saveError}
+              <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#c0392b', padding: '0 4px' }}>×</button>
+            </div>
+          )}
           {berths.map(b => {
             const badge = b.channel_locked
               ? { style: LOCKED_BADGE, label: `🔒 ${connName(b.ota_connection)}` }
