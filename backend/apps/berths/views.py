@@ -74,7 +74,7 @@ class BerthDetailView(generics.RetrieveUpdateAPIView):
         return Berth.objects.filter(marina=self.request.user.marina)
 
     def perform_update(self, serializer):
-        instance = self.get_object()
+        instance = serializer.instance
         new_conn = serializer.validated_data.get('ota_connection', '__not_provided__')
 
         if new_conn != '__not_provided__' and new_conn != instance.ota_connection:
