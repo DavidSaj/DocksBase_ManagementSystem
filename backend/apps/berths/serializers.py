@@ -95,11 +95,10 @@ class BerthSerializer(serializers.ModelSerializer):
             'pricing_tier', 'pricing_tier_name', 'pricing_tier_unit_price',
             'status', 'effective_status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
-            'sales_channel', 'channel_cooldown_until',
+            'ota_connection', 'channel_locked',
         ]
         read_only_fields = [
             'id', 'pier_code', 'vessel_name', 'is_placed', 'effective_status',
-            'channel_cooldown_until',
         ]
 
     def get_is_placed(self, obj):

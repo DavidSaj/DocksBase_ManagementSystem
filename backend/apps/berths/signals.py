@@ -47,20 +47,13 @@ def on_berth_pre_save(sender, instance, **kwargs):
 def on_berth_save(sender, instance, created, **kwargs):
     _push_berth_update(instance)
 
-    if created:
-        return
-
-    # When a berth comes out of maintenance, run allocator to assign it a channel.
-    # Note: QuerySet.update() bypasses post_save entirely, so no loop risk from the
-    # allocator itself. This guard protects against manual berth.save(update_fields=
-    # ['sales_channel']) calls (e.g. from Task 7 cooldown logic) triggering a
-    # spurious maintenance-transition check.
     update_fields = kwargs.get('update_fields')
-    if update_fields is not None and 'sales_channel' in update_fields and 'status' not in update_fields:
-        return
+    if update_fields and 'ota_connection' in update_fields and len(update_fields) == 1:
+        return  # allocator .update() — skip to avoid loops
     prev = getattr(instance, '_prev_status', None)
     if prev == 'maintenance' and instance.status != 'maintenance':
         marina = instance.marina
-        if marina.auto_allocate_inventory:
+        from apps.berths.models import OTAConnection
+        if OTAConnection.objects.filter(marina=marina).exists():
             from apps.berths.allocator import run_smart_allocator
             run_smart_allocator(marina, instance)

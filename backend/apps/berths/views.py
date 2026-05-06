@@ -74,16 +74,12 @@ class BerthDetailView(generics.RetrieveUpdateAPIView):
         return Berth.objects.filter(marina=self.request.user.marina)
 
     def perform_update(self, serializer):
-        from django.utils import timezone
-        from datetime import timedelta
+        instance = self.get_object()
+        new_conn = serializer.validated_data.get('ota_connection', '__not_provided__')
 
-        instance = serializer.instance  # already fetched by UpdateModelMixin.update()
-        new_channel = serializer.validated_data.get('sales_channel')
-
-        if new_channel and new_channel != instance.sales_channel:
-            serializer.save(
-                channel_cooldown_until=timezone.now() + timedelta(minutes=30)
-            )
+        if new_conn != '__not_provided__' and new_conn != instance.ota_connection:
+            # Manual channel change → lock the berth permanently
+            serializer.save(channel_locked=True)
         else:
             serializer.save()
 
