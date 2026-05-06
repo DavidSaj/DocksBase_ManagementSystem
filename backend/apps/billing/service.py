@@ -166,5 +166,7 @@ def void_invoice(invoice):
 def create_stripe_checkout_session(invoice):
     if invoice.status != 'open':
         raise ValueError(f'Cannot create Stripe session for a {invoice.status} invoice.')
+    if not invoice.marina.stripe_account_id:
+        raise ValueError('This marina has not connected a payment account yet.')
     from .stripe_service import _create_checkout_session
     return _create_checkout_session(invoice)

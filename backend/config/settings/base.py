@@ -3,8 +3,10 @@ import secrets as _secrets
 from pathlib import Path
 from datetime import timedelta
 from corsheaders.defaults import default_headers
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+load_dotenv(BASE_DIR / '.env')
 
 SECRET_KEY = os.environ.get('SECRET_KEY', _secrets.token_hex(50))
 
@@ -124,6 +126,7 @@ PLATFORM_FEE_RATE = '0.01'  # 1% of GMV
 
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_CONNECT_WEBHOOK_SECRET = os.environ.get('STRIPE_CONNECT_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')
 

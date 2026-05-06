@@ -92,6 +92,12 @@ const FLAG_DEFS = [
 
 const ROLE_LABELS = { owner: 'Owner', manager: 'Manager', staff: 'Staff', boater: 'Boater' };
 
+const PLAN_OPTIONS = [
+  { key: 'starter',      name: 'Starter',      monthlyPrice: 149, tagline: 'For small marinas getting started' },
+  { key: 'professional', name: 'Professional',  monthlyPrice: 349, tagline: 'For growing marinas', badge: 'Most popular' },
+  { key: 'enterprise',   name: 'Enterprise',    monthlyPrice: 899, tagline: 'For large marinas & groups' },
+];
+
 // Placeholder notification groups — displayed in disabled/coming-soon state
 const NOTIF_GROUPS = [
   { group: 'Bookings', items: [
@@ -114,10 +120,200 @@ const NOTIF_GROUPS = [
   ]},
 ];
 
+// ── OTA Connections card ───────────────────────────────────────────────────
+
+function OTAConnectionsCard() {
+  const [connections, setConnections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(null); // { name: '', inbound_ical_url: '' } | null
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(null); // connection id being synced
+  const [removing, setRemoving] = useState(null); // connection id being removed
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.get('/ota-connections/')
+      .then(r => setConnections(r.data.results ?? r.data))
+      .catch(() => setError('Failed to load OTA connections.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function addConnection() {
+    if (!form?.name?.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { data } = await api.post('/ota-connections/', form);
+      setConnections(prev => [...prev, data]);
+      setForm(null);
+    } catch {
+      setError('Failed to add connection.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteConnection(id) {
+    if (!window.confirm('Remove this OTA connection? Berths assigned to it will revert to Direct.')) return;
+    setRemoving(id);
+    setError(null);
+    try {
+      await api.delete(`/ota-connections/${id}/`);
+      setConnections(prev => prev.filter(c => c.id !== id));
+    } catch {
+      setError('Failed to remove connection.');
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  async function triggerSync(conn) {
+    if (syncing === conn.id) return;
+    setSyncing(conn.id);
+    setError(null);
+    try {
+      await api.post(`/ota-connections/${conn.id}/sync/`);
+      const { data } = await api.get(`/ota-connections/${conn.id}/`);
+      setConnections(prev => prev.map(c => c.id === conn.id ? data : c));
+    } catch {
+      setError('Sync failed.');
+    } finally {
+      setSyncing(null);
+    }
+  }
+
+  if (loading) return <div style={{ padding: '12px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {error && <div style={{ fontSize: 12, color: '#c0392b', padding: '4px 0' }}>{error}</div>}
+      {connections.length === 0 && !error && (
+        <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 0' }}>No OTA connections yet.</div>
+      )}
+      {connections.map(conn => (
+        <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
+            <button
+              className="btn btn-danger btn-sm"
+              disabled={removing === conn.id}
+              onClick={() => deleteConnection(conn.id)}
+            >
+              {removing === conn.id ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+          {conn.inbound_ical_url && (
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+              Inbound: <span style={{ fontFamily: 'monospace' }}>{conn.inbound_ical_url.length > 50 ? conn.inbound_ical_url.slice(0, 50) + '…' : conn.inbound_ical_url}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+              Outbound iCal:
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ marginLeft: 6, fontSize: 10 }}
+                onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`)}
+              >
+                Copy URL
+              </button>
+            </div>
+            {conn.inbound_ical_url && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11 }}
+                disabled={syncing === conn.id}
+                onClick={() => triggerSync(conn)}
+              >
+                {syncing === conn.id ? 'Syncing…' : `Sync now${conn.last_synced ? ` · ${new Date(conn.last_synced).toLocaleTimeString()}` : ''}`}
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {form ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+          <input
+            placeholder="Connection name (e.g. mySea)"
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            style={{ fontSize: 13 }}
+          />
+          <input
+            placeholder="Inbound iCal URL (optional)"
+            value={form.inbound_ical_url}
+            onChange={e => setForm(f => ({ ...f, inbound_ical_url: e.target.value }))}
+            style={{ fontSize: 13 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setForm(null)}>Cancel</button>
+            <button className="btn btn-primary btn-sm" disabled={saving || !form.name.trim()} onClick={addConnection}>
+              {saving ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setForm({ name: '', inbound_ical_url: '' })}>
+          + Add connection
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function Settings() {
   const [tab, setTab] = useState('marina');
+
+  // ── Billing ────────────────────────────────────────────────────────────
+  const [billing, setBilling] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState(null);
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [changePlanModal, setChangePlanModal] = useState(false);
+  const [changePlanLoading, setChangePlanLoading] = useState(false);
+  const [changePlanSelected, setChangePlanSelected] = useState(null);
+
+  useEffect(() => {
+    if (tab !== 'billing') return;
+    setBillingLoading(true);
+    setBillingError(null);
+    api.get('/billing/subscription/')
+      .then(r => setBilling(r.data))
+      .catch(() => setBillingError('Could not load billing information.'))
+      .finally(() => setBillingLoading(false));
+  }, [tab]);
+
+  async function cancelSubscription() {
+    setCancelLoading(true);
+    try {
+      await api.post('/billing/subscription/cancel/');
+      setBilling(b => ({ ...b, cancel_at_period_end: true }));
+      setCancelModal(false);
+    } catch {
+      alert('Could not cancel subscription. Please try again.');
+    } finally {
+      setCancelLoading(false);
+    }
+  }
+
+  async function changePlan() {
+    if (!changePlanSelected) return;
+    setChangePlanLoading(true);
+    try {
+      await api.post('/billing/subscription/change-plan/', { plan: changePlanSelected.key });
+      setBilling(b => ({ ...b, plan: changePlanSelected.key, monthly_price: changePlanSelected.monthlyPrice }));
+      setChangePlanModal(false);
+      setChangePlanSelected(null);
+    } catch {
+      alert('Could not change plan. Please try again.');
+    } finally {
+      setChangePlanLoading(false);
+    }
+  }
   const { marina, loading: marinaLoading, updateMarina } = useMarina();
   const initialized = useRef(false);
 
@@ -152,12 +348,6 @@ export default function Settings() {
       ais:         marina.features?.ais         ?? false,
       multimarina: marina.features?.multimarina ?? false,
     });
-    setCs({
-      auto_allocate_inventory: marina.auto_allocate_inventory ?? false,
-      mysea_target_pct:        marina.mysea_target_pct        ?? 20,
-      mysea_ical_url:          marina.mysea_ical_url          ?? '',
-    });
-    setCsLastSynced(marina.mysea_last_synced ?? null);
   }, [marina]);
 
   function fm(field) { return mf?.[field] ?? ''; }
@@ -241,39 +431,6 @@ export default function Settings() {
     }
   }
 
-  // ── Channel management ─────────────────────────────────────────────────
-
-  const [cs, setCs] = useState({ auto_allocate_inventory: false, mysea_target_pct: 20, mysea_ical_url: '' });
-  const [csSaving, setCsSaving] = useState(false);
-  const [csSyncing, setCsSyncing] = useState(false);
-  const [csLastSynced, setCsLastSynced] = useState(null);
-
-  async function saveChannelSettings() {
-    setCsSaving(true);
-    try {
-      const { data } = await api.patch('/auth/marina/channel-settings/', {
-        auto_allocate_inventory: cs.auto_allocate_inventory,
-        mysea_target_pct: cs.mysea_target_pct,
-        mysea_ical_url: cs.mysea_ical_url,
-      });
-      setCsLastSynced(data.mysea_last_synced);
-    } finally {
-      setCsSaving(false);
-    }
-  }
-
-  async function triggerMySeaSync() {
-    setCsSyncing(true);
-    try {
-      const { data } = await api.post('/berths/sync-mysea/');
-      setCsLastSynced(data.last_synced);
-    } catch {
-      // sync failed — last_synced won't update
-    } finally {
-      setCsSyncing(false);
-    }
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -283,6 +440,7 @@ export default function Settings() {
         {[
           ['marina',        'Marina Profile',   false],
           ['users',         'Users & Roles',    false],
+          ['billing',       'Billing',          false],
           ['notifications', 'Notifications',    true],
           ['system',        'System',           false],
         ].map(([v, l, cs]) => (
@@ -576,6 +734,143 @@ export default function Settings() {
         </>
       )}
 
+      {/* ── BILLING ─────────────────────────────────────────────────── */}
+      {tab === 'billing' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            <div className="card">
+              <div className="card-header"><div className="card-header-title">Subscription</div></div>
+              <div className="card-body">
+                {billingLoading ? (
+                  <div style={{ color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
+                ) : billingError ? (
+                  <div style={{ color: '#c0392b', fontSize: 13 }}>{billingError}</div>
+                ) : billing ? (
+                  <>
+                    <div style={{ background: 'var(--navy)', borderRadius: 8, padding: '16px 20px', color: '#fff', marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 6 }}>Current Plan</div>
+                      <div style={{ fontSize: 22, fontWeight: 700 }}>{capitalize(billing.plan)}</div>
+                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>€{billing.monthly_price}/mo</div>
+                      {billing.cancel_at_period_end && (
+                        <div style={{ marginTop: 10, background: 'rgba(255,100,100,0.15)', borderRadius: 5, padding: '6px 10px', fontSize: 11, color: 'rgba(255,200,200,0.9)' }}>
+                          Cancels at end of billing period
+                        </div>
+                      )}
+                    </div>
+                    {[
+                      ['Status',     capitalize(billing.status)],
+                      billing.status === 'trial'
+                        ? ['Trial ends', formatDate(billing.trial_ends)]
+                        : ['Next renewal', formatDate(billing.next_renewal)],
+                    ].map(([k, v]) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
+                        <span style={{ color: 'rgba(0,0,0,0.45)' }}>{k}</span>
+                        <span style={{ fontWeight: 600 }}>{v}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setChangePlanSelected(null); setChangePlanModal(true); }}>
+                        Change Plan
+                      </button>
+                      {!billing.cancel_at_period_end && (
+                        <button className="btn btn-danger btn-sm" onClick={() => setCancelModal(true)}>
+                          Cancel Subscription
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            <div className="card">
+              <div className="card-header"><div className="card-header-title">Payment Method</div></div>
+              <div className="card-body">
+                {billingLoading ? (
+                  <div style={{ color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
+                ) : billing?.card_last4 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+                    <div style={{ fontSize: 22 }}>💳</div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{billing.card_brand} •••• {billing.card_last4}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>Card on file for subscription billing</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.38)' }}>No card on file</div>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Cancel confirmation modal */}
+      {cancelModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setCancelModal(false)}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Cancel subscription?</div>
+            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 24, lineHeight: 1.6 }}>
+              Your account stays active until the end of the current billing period. After that it will be suspended and you will lose access.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setCancelModal(false)}>Keep subscription</button>
+              <button className="btn btn-danger" disabled={cancelLoading} onClick={cancelSubscription}>
+                {cancelLoading ? 'Cancelling…' : 'Yes, cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change plan modal */}
+      {changePlanModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setChangePlanModal(false)}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 520, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Change Plan</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>Changes take effect immediately and are prorated.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {PLAN_OPTIONS.map(plan => (
+                <button key={plan.key} type="button"
+                  onClick={() => setChangePlanSelected(plan)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 16px', borderRadius: 8, border: `2px solid ${changePlanSelected?.key === plan.key ? 'var(--navy)' : 'rgba(0,0,0,0.1)'}`,
+                    background: changePlanSelected?.key === plan.key ? 'rgba(12,31,61,0.04)' : '#fff',
+                    cursor: plan.key === billing?.plan ? 'default' : 'pointer',
+                    opacity: plan.key === billing?.plan ? 0.45 : 1,
+                  }}
+                  disabled={plan.key === billing?.plan}
+                >
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                      {plan.name}
+                      {plan.badge && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, background: 'var(--gold, #c9a84c)', color: 'var(--navy)', borderRadius: 3, padding: '1px 5px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{plan.badge}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>{plan.tagline}</div>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', flexShrink: 0, marginLeft: 16 }}>€{plan.monthlyPrice}/mo</div>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setChangePlanModal(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={!changePlanSelected || changePlanLoading} onClick={changePlan}>
+                {changePlanLoading ? 'Updating…' : 'Confirm Change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── NOTIFICATIONS (Coming Soon) ──────────────────────────────── */}
       {tab === 'notifications' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -691,74 +986,13 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Channel Management — mySea integration */}
+            {/* OTA Connections */}
             <div className="card">
               <div className="card-header">
-                <div className="card-header-title">Channel Management</div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>mySea OTA inventory allocation</div>
+                <div className="card-header-title">OTA Connections</div>
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Channel distribution partners</div>
               </div>
-              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                  <div>
-                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>Automatic allocation</div>
-                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>
-                      Automatically assign freed berths to mySea based on target %
-                    </div>
-                  </div>
-                  <Toggle
-                    on={cs.auto_allocate_inventory}
-                    onChange={v => setCs(c => ({ ...c, auto_allocate_inventory: v }))}
-                  />
-                </div>
-
-                {cs.auto_allocate_inventory && (
-                  <FieldRow
-                    label="mySea target %"
-                    hint={`Direct: ${100 - cs.mysea_target_pct}% · mySea: ${cs.mysea_target_pct}%`}
-                  >
-                    <input
-                      type="range" min={0} max={50} step={5}
-                      value={cs.mysea_target_pct}
-                      onChange={e => setCs(c => ({ ...c, mysea_target_pct: Number(e.target.value) }))}
-                      style={{ width: '100%' }}
-                    />
-                  </FieldRow>
-                )}
-
-                <FieldRow label="mySea iCal feed URL" hint="Paste the iCal URL from your mySea extranet">
-                  <input
-                    type="url"
-                    value={cs.mysea_ical_url}
-                    onChange={e => setCs(c => ({ ...c, mysea_ical_url: e.target.value }))}
-                    placeholder="https://www.mysea.app/calendar/..."
-                  />
-                </FieldRow>
-
-                {csLastSynced && (
-                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
-                    Last synced: {new Date(csLastSynced).toLocaleString()}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={csSaving || marinaLoading}
-                    onClick={saveChannelSettings}
-                  >
-                    {csSaving ? 'Saving…' : 'Save'}
-                  </button>
-                  {cs.mysea_ical_url && (
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      disabled={csSyncing}
-                      onClick={triggerMySeaSync}
-                    >
-                      {csSyncing ? 'Syncing…' : 'Sync now'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              <OTAConnectionsCard />
             </div>
 
           </div>

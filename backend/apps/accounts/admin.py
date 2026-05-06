@@ -5,7 +5,9 @@ from .models import Marina, User
 
 @admin.register(Marina)
 class MarinaAdmin(admin.ModelAdmin):
-    list_display = ['name', 'plan', 'created_at']
+    list_display = ['name', 'plan', 'status', 'trial_ends', 'stripe_customer_id', 'created_at']
+    list_filter = ['status', 'plan']
+    search_fields = ['name', 'contact_email', 'stripe_customer_id']
 
 
 @admin.register(User)

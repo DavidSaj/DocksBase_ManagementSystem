@@ -154,43 +154,30 @@ class ChannelFilterTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
         self.user = make_user(self.marina)
+        from apps.berths.models import OTAConnection
+        self.conn = OTAConnection.objects.create(
+            marina=self.marina, name='mySea', slug='mysea', target_pct=20
+        )
         self.berth = make_berth(self.marina)
         self.check_in = datetime.date(2030, 7, 1)
         self.check_out = datetime.date(2030, 7, 5)
 
-    def test_mysea_berth_excluded_from_direct_search(self):
+    def test_ota_berth_excluded_from_direct_search(self):
         from apps.reservations.booking_engine import compatible_available_berths
-        self.berth.sales_channel = 'mysea'
-        self.berth.save(update_fields=['sales_channel'])
+        self.berth.ota_connection = self.conn
+        self.berth.save(update_fields=['ota_connection'])
         qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
         self.assertNotIn(self.berth, qs)
 
     def test_direct_berth_included_in_search(self):
         from apps.reservations.booking_engine import compatible_available_berths
-        self.berth.sales_channel = 'direct'
-        self.berth.save(update_fields=['sales_channel'])
         qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
         self.assertIn(self.berth, qs)
 
-    def test_cooldown_berth_excluded(self):
+    def test_null_ota_berth_included(self):
         from apps.reservations.booking_engine import compatible_available_berths
-        self.berth.sales_channel = 'direct'
-        self.berth.channel_cooldown_until = timezone.now() + datetime.timedelta(minutes=20)
-        self.berth.save(update_fields=['sales_channel', 'channel_cooldown_until'])
-        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
-        self.assertNotIn(self.berth, qs)
-
-    def test_expired_cooldown_berth_included(self):
-        from apps.reservations.booking_engine import compatible_available_berths
-        self.berth.sales_channel = 'direct'
-        self.berth.channel_cooldown_until = timezone.now() - datetime.timedelta(minutes=1)
-        self.berth.save(update_fields=['sales_channel', 'channel_cooldown_until'])
-        qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
-        self.assertIn(self.berth, qs)
-
-    def test_null_cooldown_berth_included(self):
-        from apps.reservations.booking_engine import compatible_available_berths
-        self.assertIsNone(self.berth.channel_cooldown_until)
+        self.berth.ota_connection = None
+        self.berth.save(update_fields=['ota_connection'])
         qs = compatible_available_berths(self.marina, self.check_in, self.check_out)
         self.assertIn(self.berth, qs)
 
@@ -489,6 +476,8 @@ class AvailableBerthsEndpointTest(TestCase):
 class BookingEngineRequestEndpointTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
+        self.marina.stripe_account_id = 'acct_test'
+        self.marina.save()
         self.user = make_user(self.marina)
         self.b = make_berth_with_dims(self.marina, 'R1', loa=20.0, beam=6.0, price=100)
         self.client = APIClient()
@@ -571,6 +560,8 @@ class BookingEngineRequestEndpointTest(TestCase):
 class AssignBerthEndpointTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
+        self.marina.stripe_account_id = 'acct_test'
+        self.marina.save()
         self.user = make_user(self.marina)
         self.berth = make_berth_with_dims(self.marina, 'AS1', loa=20.0, beam=6.0, price=75)
         self.booking = Booking.objects.create(

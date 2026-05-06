@@ -26,6 +26,7 @@ export const NAV = [
   ]},
   { group: 'Management & Data', items: [
     { id: 'infrastructure',  icon: 'layers',     label: 'Harbor Infrastructure' },
+    { id: 'channels',        icon: 'share-2',    label: 'Channels' },
     { id: 'staff',           icon: 'user-check', label: 'Staff' },
     { id: 'reports',         icon: 'chart',      label: 'Reports' },
   ]},
@@ -66,6 +67,7 @@ function canAccess(user, moduleId) {
   if (!user || user.role === 'owner' || user.role === 'manager') return true;
   if (user.role !== 'staff') return false;
   if (moduleId === 'settings') return false; // settings always owner/manager only
+  if (moduleId === 'channels') return false; // channels owner/manager only
   const perms = user.module_permissions ?? {};
   if (Object.keys(perms).length === 0) return true; // no restrictions set — allow all
   return perms[moduleId] !== false;

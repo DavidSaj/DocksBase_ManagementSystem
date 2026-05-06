@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
-from apps.berths.models import Berth, Pier
+from apps.berths.models import Berth, Pier, OTAConnection
 from apps.billing.models import ChargeableItem
 
 
@@ -11,55 +11,68 @@ def make_marina(**kwargs):
     return Marina.objects.create(name='Test Marina', **kwargs)
 
 
-def make_berth(marina, code, channel='direct'):
+def make_berth(marina, code, ota_connection=None, locked=False):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='A', defaults={'label': 'A'})
     tier, _ = ChargeableItem.objects.get_or_create(
-        marina=marina, name='Night', defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50}
+        marina=marina, name='Night',
+        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50}
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code, pricing_tier=tier,
-        status='available', sales_channel=channel
+        status='available', ota_connection=ota_connection, channel_locked=locked,
+    )
+
+
+def make_conn(marina, slug, target_pct=20, auto_allocate=False):
+    return OTAConnection.objects.create(
+        marina=marina, name=slug.title(), slug=slug,
+        target_pct=target_pct, auto_allocate=auto_allocate,
     )
 
 
 class RunSmartAllocatorTest(TestCase):
     def setUp(self):
-        self.marina = make_marina(auto_allocate_inventory=True, mysea_target_pct=20)
-        # 10 berths all direct
-        self.berths = [make_berth(self.marina, f'B{i}', channel='direct') for i in range(10)]
+        self.marina = make_marina()
+        self.conn = make_conn(self.marina, 'mysea', target_pct=20)
+        self.berths = [make_berth(self.marina, f'B{i}') for i in range(10)]
 
-    def test_freed_berth_assigned_mysea_when_under_target(self):
+    def test_freed_berth_assigned_to_connection_when_under_target(self):
         from apps.berths.allocator import run_smart_allocator
-        # target=20% of 10 = 2 mysea. currently 0 mysea → freed berth should go to mysea
         freed = self.berths[0]
         run_smart_allocator(self.marina, freed)
         freed.refresh_from_db()
-        self.assertEqual(freed.sales_channel, 'mysea')
+        self.assertEqual(freed.ota_connection, self.conn)
 
     def test_freed_berth_stays_direct_when_at_target(self):
         from apps.berths.allocator import run_smart_allocator
         # Set 2 berths to mysea (20% of 10 = target met)
-        self.berths[1].sales_channel = 'mysea'
-        self.berths[1].save(update_fields=['sales_channel'])
-        self.berths[2].sales_channel = 'mysea'
-        self.berths[2].save(update_fields=['sales_channel'])
+        self.berths[1].ota_connection = self.conn
+        self.berths[1].save(update_fields=['ota_connection'])
+        self.berths[2].ota_connection = self.conn
+        self.berths[2].save(update_fields=['ota_connection'])
         freed = self.berths[0]
         run_smart_allocator(self.marina, freed)
         freed.refresh_from_db()
-        self.assertEqual(freed.sales_channel, 'direct')
+        self.assertIsNone(freed.ota_connection)
 
-    def test_noop_when_auto_allocate_disabled(self):
+    def test_locked_berth_not_reassigned(self):
         from apps.berths.allocator import run_smart_allocator
-        self.marina.auto_allocate_inventory = False
-        self.marina.save(update_fields=['auto_allocate_inventory'])
+        freed = make_berth(self.marina, 'LOCKED', ota_connection=self.conn, locked=True)
+        run_smart_allocator(self.marina, freed)
+        freed.refresh_from_db()
+        # locked — allocator should not touch it
+        self.assertEqual(freed.ota_connection, self.conn)
+
+    def test_noop_when_no_connections(self):
+        from apps.berths.allocator import run_smart_allocator
+        self.conn.delete()
         freed = self.berths[0]
         run_smart_allocator(self.marina, freed)
         freed.refresh_from_db()
-        self.assertEqual(freed.sales_channel, 'direct')  # unchanged
+        self.assertIsNone(freed.ota_connection)
 
     def test_maintenance_berths_excluded_from_pool(self):
         from apps.berths.allocator import run_smart_allocator
-        # 2 berths in maintenance → pool=8, target=20% of 8=2 mysea, current=0 → should allocate
         self.berths[8].status = 'maintenance'
         self.berths[8].save(update_fields=['status'])
         self.berths[9].status = 'maintenance'
@@ -67,76 +80,98 @@ class RunSmartAllocatorTest(TestCase):
         freed = self.berths[0]
         run_smart_allocator(self.marina, freed)
         freed.refresh_from_db()
-        self.assertEqual(freed.sales_channel, 'mysea')
+        self.assertEqual(freed.ota_connection, self.conn)
 
-    def test_freed_mysea_berth_stays_mysea_when_at_target(self):
+    def test_freed_ota_berth_not_counted_against_itself(self):
         from apps.berths.allocator import run_smart_allocator
-        # Set exactly 2 berths to mysea (20% of 10 = 2 = target met).
-        # One of them is freed (e.g. booking checked out). It should stay mysea,
-        # not get flipped to direct — the freed berth itself must not be counted
-        # in current_mysea when deciding its own destination.
-        self.berths[1].sales_channel = 'mysea'
-        self.berths[1].save(update_fields=['sales_channel'])
+        # Assign all target slots already (2 of 10 = 20%)
+        # Then free one of those mysea berths — it should NOT count itself,
+        # so the allocator sees 1 < 2 target and re-assigns it back to mysea
+        self.berths[1].ota_connection = self.conn
+        self.berths[1].save(update_fields=['ota_connection'])
+        self.berths[2].ota_connection = self.conn
+        self.berths[2].save(update_fields=['ota_connection'])
+        # Now free berths[2] — if freed berth counted itself, current=2 = target, so it would go direct
+        # If excluded from count: current=1 < target=2, so it gets re-assigned to conn
         freed = self.berths[2]
-        freed.sales_channel = 'mysea'
-        freed.save(update_fields=['sales_channel'])
+        freed.ota_connection = None
+        freed.save(update_fields=['ota_connection'])
         run_smart_allocator(self.marina, freed)
         freed.refresh_from_db()
-        self.assertEqual(freed.sales_channel, 'mysea')
+        self.assertEqual(freed.ota_connection, self.conn)
 
 
 class RebalanceDownTest(TestCase):
     def setUp(self):
-        self.marina = make_marina(auto_allocate_inventory=True, mysea_target_pct=10)
-        # 10 berths, 5 already mysea (but target is only 10% = 1)
-        self.direct = [make_berth(self.marina, f'D{i}', channel='direct') for i in range(5)]
-        self.mysea = [make_berth(self.marina, f'M{i}', channel='mysea') for i in range(5)]
+        self.marina = make_marina()
+        self.conn = make_conn(self.marina, 'mysea', target_pct=10)
+        self.direct = [make_berth(self.marina, f'D{i}') for i in range(5)]
+        self.ota = [make_berth(self.marina, f'M{i}', ota_connection=self.conn) for i in range(5)]
 
-    def test_rebalance_flips_excess_unoccupied_mysea_to_direct(self):
+    def test_rebalance_flips_excess_unoccupied_to_direct(self):
         from apps.berths.allocator import rebalance_down
-        rebalance_down(self.marina)
-        mysea_count = Berth.objects.filter(marina=self.marina, sales_channel='mysea').count()
-        self.assertEqual(mysea_count, 1)  # 10% of 10 = 1
+        rebalance_down(self.conn)
+        count = Berth.objects.filter(marina=self.marina, ota_connection=self.conn).count()
+        self.assertEqual(count, 1)  # 10% of 10 = 1
 
-    def test_rebalance_leaves_occupied_mysea_berths_alone(self):
+    def test_rebalance_leaves_occupied_berths_alone(self):
         from apps.berths.allocator import rebalance_down
         from apps.reservations.models import Booking
-        # Occupy 3 of the 5 mysea berths with active bookings
-        for berth in self.mysea[:3]:
+        for berth in self.ota[:3]:
             Booking.objects.create(
                 marina=self.marina, berth=berth,
                 check_in=datetime.date(2030, 1, 1), check_out=datetime.date(2030, 1, 5),
                 nights=4, status='checked_in',
             )
-        rebalance_down(self.marina)
-        # Target=1, but 3 are occupied → can only free 2 unoccupied ones → mysea still has 3
-        mysea_count = Berth.objects.filter(marina=self.marina, sales_channel='mysea').count()
-        self.assertEqual(mysea_count, 3)
+        rebalance_down(self.conn)
+        count = Berth.objects.filter(marina=self.marina, ota_connection=self.conn).count()
+        self.assertEqual(count, 3)
+
+    def test_rebalance_leaves_locked_berths_alone(self):
+        from apps.berths.allocator import rebalance_down
+        self.ota[0].channel_locked = True
+        self.ota[0].save(update_fields=['channel_locked'])
+        rebalance_down(self.conn)
+        self.ota[0].refresh_from_db()
+        self.assertEqual(self.ota[0].ota_connection, self.conn)
 
 
-class BerthCooldownTest(TestCase):
+class BerthChannelLockTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
+        self.conn = make_conn(self.marina, 'mysea')
         self.user = User.objects.create_user(
-            email='staff@test.com', password='pass', marina=self.marina, role='manager'
+            email='mgr@test.com', password='pass', marina=self.marina, role='manager'
         )
-        self.berth = make_berth(self.marina, 'C1', channel='direct')
+        self.berth = make_berth(self.marina, 'C1')
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_channel_change_sets_cooldown(self):
+    def test_channel_change_sets_lock(self):
         resp = self.client.patch(
             f'/api/v1/berths/{self.berth.pk}/',
-            {'sales_channel': 'mysea'},
+            {'ota_connection': self.conn.pk},
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
         self.berth.refresh_from_db()
-        self.assertEqual(self.berth.sales_channel, 'mysea')
-        self.assertIsNotNone(self.berth.channel_cooldown_until)
-        self.assertGreater(self.berth.channel_cooldown_until, timezone.now())
+        self.assertEqual(self.berth.ota_connection, self.conn)
+        self.assertTrue(self.berth.channel_locked)
 
-    def test_non_channel_update_does_not_set_cooldown(self):
+    def test_explicit_unlock_clears_lock(self):
+        self.berth.channel_locked = True
+        self.berth.ota_connection = self.conn
+        self.berth.save(update_fields=['channel_locked', 'ota_connection'])
+        resp = self.client.patch(
+            f'/api/v1/berths/{self.berth.pk}/',
+            {'channel_locked': False},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.berth.refresh_from_db()
+        self.assertFalse(self.berth.channel_locked)
+
+    def test_non_channel_update_does_not_set_lock(self):
         resp = self.client.patch(
             f'/api/v1/berths/{self.berth.pk}/',
             {'status': 'maintenance'},
@@ -144,14 +179,4 @@ class BerthCooldownTest(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.berth.refresh_from_db()
-        self.assertIsNone(self.berth.channel_cooldown_until)
-
-    def test_same_channel_does_not_set_cooldown(self):
-        resp = self.client.patch(
-            f'/api/v1/berths/{self.berth.pk}/',
-            {'sales_channel': 'direct'},
-            format='json',
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.berth.refresh_from_db()
-        self.assertIsNone(self.berth.channel_cooldown_until)
+        self.assertFalse(self.berth.channel_locked)

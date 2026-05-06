@@ -11,3 +11,24 @@
   color: var(--navy); letter-spacing: -0.5px; margin-bottom: 8px;
 }
 .sub { font-size: 15px; color: var(--text-sec); }
+
+/* Step transition wrapper — clips the sliding content */
+.stepWrap {
+  overflow: hidden;
+}
+
+@keyframes slideInForward {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInBack {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.slideIn {
+  animation: slideInForward 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+.slideInBack {
+  animation: slideInBack 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}

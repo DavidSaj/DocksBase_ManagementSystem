@@ -14,8 +14,7 @@ class MarinaSerializer(serializers.ModelSerializer):
             'name', 'address', 'lat', 'lng', 'timezone', 'contact_email', 'phone',
             'currency', 'vat_rate', 'vat_number', 'payment_terms', 'booking_mode',
             'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft', 'fuel_berths',
-            # channel management
-            'auto_allocate_inventory', 'mysea_target_pct', 'mysea_ical_url', 'mysea_last_synced',
+            'operations_paused',
             # read-only: owner can see but not change
             'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',
@@ -24,7 +23,7 @@ class MarinaSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'onboarding',
-            'created_at', 'mysea_last_synced',
+            'created_at',
         ]
 
 
@@ -69,12 +68,18 @@ class DocksBaseTokenSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         email = attrs.get('email', '')
+        password = attrs.get('password', '')
         try:
             user = User.objects.get(email=email)
-            if not user.is_active:
+            if not user.is_active and user.check_password(password):
+                from .models import EmailVerification
+                from .emails import send_verification_email
+                EmailVerification.objects.filter(user=user).delete()
+                ev = EmailVerification.objects.create(user=user)
+                send_verification_email(user, ev.token)
                 raise AuthenticationFailed({
                     'code': 'email_not_verified',
-                    'detail': 'Please verify your email before logging in.',
+                    'detail': 'Please verify your email before logging in. We\'ve sent a fresh verification link.',
                 })
         except User.DoesNotExist:
             pass
@@ -106,6 +111,7 @@ class SignupSerializer(serializers.Serializer):
 
 class DraftAccountSerializer(serializers.Serializer):
     plan_price_id  = serializers.CharField()
+    marina_count   = serializers.IntegerField(min_value=1, max_value=20, default=1)
     marina_name    = serializers.CharField(max_length=200)
     address        = serializers.CharField()
     lat            = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)

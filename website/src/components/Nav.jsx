@@ -114,7 +114,7 @@ export default function Nav() {
             )}
           </div>
           <button className={styles.ghost}>{t.nav.signIn}</button>
-          <button className={styles.cta}>{t.nav.getStarted}</button>
+          <a href="/signup" className={styles.cta}>{t.nav.getStarted}</a>
         </div>
 
         <button
@@ -155,7 +155,7 @@ export default function Nav() {
             ))}
           </div>
           <button className={styles.ghost} style={{ width: '100%', padding: '12px' }}>{t.nav.signIn}</button>
-          <button className={styles.cta}   style={{ width: '100%', padding: '12px' }}>{t.nav.getStarted}</button>
+          <a href="/signup" className={styles.cta} style={{ width: '100%', padding: '12px', display: 'block', textAlign: 'center' }}>{t.nav.getStarted}</a>
         </div>
       </div>
 

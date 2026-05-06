@@ -148,7 +148,7 @@ class VerifyEmailViewTest(TestCase):
         self.ev = EmailVerification.objects.create(user=self.user)
 
     def test_verify_activates_user_and_returns_jwt(self):
-        resp = self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
+        resp = self.client.post('/api/v1/auth/verify-email/', {'token': str(self.ev.token)}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertIn('access', resp.data)
         self.assertIn('refresh', resp.data)
@@ -157,11 +157,11 @@ class VerifyEmailViewTest(TestCase):
         self.assertTrue(self.user.is_active)
 
     def test_verify_deletes_token_after_use(self):
-        self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
+        self.client.post('/api/v1/auth/verify-email/', {'token': str(self.ev.token)}, format='json')
         self.assertFalse(EmailVerification.objects.filter(pk=self.ev.pk).exists())
 
     def test_verify_invalid_token_returns_400(self):
-        resp = self.client.get('/api/v1/auth/verify-email/?token=00000000-0000-0000-0000-000000000000')
+        resp = self.client.post('/api/v1/auth/verify-email/', {'token': '00000000-0000-0000-0000-000000000000'}, format='json')
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.data['detail'], 'Invalid or expired link.')
 
@@ -170,7 +170,7 @@ class VerifyEmailViewTest(TestCase):
         EmailVerification.objects.filter(pk=self.ev.pk).update(
             created_at=tz.now() - datetime.timedelta(hours=25)
         )
-        resp = self.client.get(f'/api/v1/auth/verify-email/?token={self.ev.token}')
+        resp = self.client.post('/api/v1/auth/verify-email/', {'token': str(self.ev.token)}, format='json')
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.data['detail'], 'Invalid or expired link.')
 
@@ -202,7 +202,9 @@ class ResendVerificationViewTest(TestCase):
     def test_resend_rate_limit_60s(self):
         self.client.post('/api/v1/auth/resend-verification/', {'email': 'resend@test.com'}, format='json')
         resp = self.client.post('/api/v1/auth/resend-verification/', {'email': 'resend@test.com'}, format='json')
-        self.assertEqual(resp.status_code, 429)
+        # Returns 200 (not 429) intentionally — same response for rate-limited and unknown
+        # emails to prevent enumeration attacks
+        self.assertEqual(resp.status_code, 200)
 
     def test_resend_unknown_email_returns_200(self):
         resp = self.client.post('/api/v1/auth/resend-verification/', {
@@ -316,10 +318,10 @@ class LoginUnverifiedTest(TestCase):
         self.assertEqual(resp.status_code, 401)
         self.assertNotEqual(resp.data.get('code'), 'email_not_verified')
 
-    def test_unverified_user_wrong_password_still_returns_email_not_verified(self):
+    def test_unverified_user_wrong_password_returns_standard_auth_error(self):
         resp = self.client.post('/api/v1/auth/token/', {
             'email': 'unverified@test.com',
             'password': 'wrongpass',
         }, format='json')
         self.assertEqual(resp.status_code, 401)
-        self.assertEqual(resp.data.get('code'), 'email_not_verified')
+        self.assertNotEqual(resp.data.get('code'), 'email_not_verified')

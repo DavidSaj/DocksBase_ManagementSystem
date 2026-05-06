@@ -1,31 +1,28 @@
 from django.utils import timezone
 from icalendar import Calendar, Event
 
+from apps.reservations.booking_engine import ACTIVE_STATUSES
 
-def generate_mysea_ical(marina) -> bytes:
+
+def generate_ota_ical(connection) -> bytes:
     """
-    Generate an RFC 5545 iCalendar feed of all blocked dates on mySea-allocated berths.
-    Includes:
-    - Active bookings on mysea berths
-    - Cooldown blocking events for berths in transition
+    Generate an RFC 5545 iCalendar feed of all active bookings on berths
+    assigned to the given OTAConnection. Used for outbound feed to the OTA partner.
     Returns bytes (UTF-8 encoded .ics content).
     """
-    from apps.berths.models import Berth
     from apps.reservations.models import Booking
-    from apps.reservations.booking_engine import ACTIVE_STATUSES
 
     now = timezone.now()
     cal = Calendar()
-    cal.add('prodid', '-//DocksBase//mySea Channel Feed//EN')
+    cal.add('prodid', '-//DocksBase//OTA Channel Feed//EN')
     cal.add('version', '2.0')
     cal.add('calscale', 'GREGORIAN')
     cal.add('method', 'PUBLISH')
 
-    # Active bookings on mySea-allocated berths
     bookings = (
         Booking.objects.filter(
-            marina=marina,
-            berth__sales_channel='mysea',
+            marina=connection.marina,
+            berth__ota_connection=connection,
             status__in=ACTIVE_STATUSES,
         )
         .select_related('berth')
@@ -39,21 +36,6 @@ def generate_mysea_ical(marina) -> bytes:
         event.add('dtend', booking.check_out)
         summary = booking.guest_name or (f'LOA {booking.boat_loa}m' if booking.boat_loa else 'Reserved')
         event.add('summary', summary)
-        cal.add_component(event)
-
-    # Cooldown blocking events (berths in 30-min transition limbo)
-    cooling_berths = Berth.objects.filter(
-        marina=marina,
-        channel_cooldown_until__gt=now,
-    )
-    for berth in cooling_berths:
-        event = Event()
-        event.add('uid', f'cooldown-{berth.pk}@docksbase')
-        event.add('dtstamp', now)
-        # Block from now until cooldown expires (datetime span, not all-day)
-        event.add('dtstart', now)
-        event.add('dtend', berth.channel_cooldown_until)
-        event.add('summary', f'Cooldown — Berth {berth.code}')
         cal.add_component(event)
 
     return cal.to_ical()
