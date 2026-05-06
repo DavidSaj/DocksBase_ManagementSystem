@@ -21,6 +21,48 @@ from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, Chargeabl
 from .signals import invoice_paid
 from apps.reservations.emails import send_booking_confirmed_email
 from apps.reservations.models import Booking as BookingModel
+import datetime as _dt
+from apps.accounts.models import Marina as _Marina, EmailVerification as _EmailVerification
+from apps.accounts.emails import send_verification_email as _send_verification_email
+from apps.accounts.emails import send_payment_failed_email as _send_payment_failed_email
+
+
+def _handle_marina_subscription_event(event_type, obj):
+    customer_id = obj.get('customer')
+    try:
+        marina = _Marina.objects.get(stripe_customer_id=customer_id)
+    except _Marina.DoesNotExist:
+        return
+
+    if event_type == 'customer.subscription.updated' and obj.get('status') == 'active':
+        trial_end_ts = obj.get('trial_end')
+        if trial_end_ts:
+            trial_ends = _dt.date.fromtimestamp(trial_end_ts)
+        else:
+            trial_ends = (_dt.datetime.utcnow() + _dt.timedelta(days=30)).date()
+        marina.status = 'trial'
+        marina.trial_ends = trial_ends
+        marina.save(update_fields=['status', 'trial_ends'])
+
+        user = marina.users.filter(role='owner').first()
+        if user and not user.is_active:
+            token, _ = _EmailVerification.objects.get_or_create(user=user)
+            _send_verification_email(user, str(token.token))
+
+    elif event_type == 'customer.subscription.deleted':
+        marina.status = 'suspended'
+        marina.save(update_fields=['status'])
+
+
+def _handle_marina_payment_failed(obj):
+    customer_id = obj.get('customer')
+    try:
+        marina = _Marina.objects.get(stripe_customer_id=customer_id)
+    except _Marina.DoesNotExist:
+        return
+    user = marina.users.filter(role='owner').first()
+    if user:
+        _send_payment_failed_email(user)
 
 
 def _post_payment_tasks(invoice_id):
@@ -51,6 +93,15 @@ class StripeWebhookView(APIView):
 
         event_type = event['type']
         obj = event['data']['object']
+
+        # Handle marina subscription lifecycle events BEFORE the invoice_id check
+        if event_type in ('customer.subscription.updated', 'customer.subscription.deleted'):
+            _handle_marina_subscription_event(event_type, obj)
+            return HttpResponse(status=200)
+        if event_type == 'invoice.payment_failed':
+            _handle_marina_payment_failed(obj)
+            return HttpResponse(status=200)
+
         invoice_id = obj.get('metadata', {}).get('invoice_id')
         if not invoice_id:
             return HttpResponse(status=200)

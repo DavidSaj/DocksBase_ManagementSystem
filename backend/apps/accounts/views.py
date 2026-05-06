@@ -1,5 +1,7 @@
 import datetime
+import stripe
 from django.conf import settings
+from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.core.cache import cache
@@ -14,9 +16,12 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Marina, User, MagicToken, EmailVerification
-from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer
+from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer, DraftAccountSerializer
 from .emails import send_verification_email, send_welcome_email
 from apps.members.models import Member
+from config.plans import PRICE_ID_TO_PLAN, ENTERPRISE_ADDON_MARINA_PRICE_ID
+
+stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
 
 
 class SignupView(APIView):
@@ -410,54 +415,156 @@ class ExchangeMagicTokenView(APIView):
         })
 
 
-class ChannelSettingsView(APIView):
-    """
-    PATCH /auth/marina/channel-settings/
-    Update auto_allocate_inventory, mysea_target_pct, mysea_ical_url.
-    If mysea_target_pct is lowered, immediately rebalances unoccupied mySea berths.
-    """
+class ConnectOnboardView(APIView):
+    """Start (or restart) Stripe Express onboarding for a marina."""
     permission_classes = [IsMarinaStaff]
 
-    def patch(self, request):
+    def post(self, request):
         marina = request.user.marina
-        old_target = marina.mysea_target_pct
 
-        allowed = {'auto_allocate_inventory', 'mysea_target_pct', 'mysea_ical_url'}
-        data = {k: v for k, v in request.data.items() if k in allowed}
+        if not marina.stripe_account_id:
+            account = stripe.Account.create(
+                type='express',
+                email=marina.contact_email or request.user.email,
+                capabilities={
+                    'card_payments': {'requested': True},
+                    'transfers': {'requested': True},
+                },
+                metadata={'marina_id': str(marina.id)},
+            )
+            marina.stripe_account_id = account.id
+            marina.save(update_fields=['stripe_account_id'])
 
-        if not data:
-            return Response({'detail': 'No valid fields provided.'}, status=400)
+        link = stripe.AccountLink.create(
+            account=marina.stripe_account_id,
+            refresh_url=f'{settings.FRONTEND_URL}/settings/payments?connect=refresh',
+            return_url=f'{settings.FRONTEND_URL}/settings/payments?connect=done',
+            type='account_onboarding',
+        )
+        return Response({'url': link.url})
 
-        if 'mysea_target_pct' in data:
-            pct = data['mysea_target_pct']
-            # bool is a subclass of int in Python — reject it explicitly
-            if isinstance(pct, bool) or not isinstance(pct, int) or not (0 <= pct <= 100):
-                return Response(
-                    {'mysea_target_pct': 'Must be an integer between 0 and 100.'},
-                    status=400,
-                )
 
-        if 'mysea_ical_url' in data and data['mysea_ical_url']:
-            from django.core.validators import URLValidator
-            from django.core.exceptions import ValidationError as DjangoValidationError
-            try:
-                URLValidator()(data['mysea_ical_url'])
-            except DjangoValidationError:
-                return Response({'mysea_ical_url': 'Enter a valid URL.'}, status=400)
+class ConnectStatusView(APIView):
+    """Return Stripe Connect status and Express dashboard link for the marina."""
+    permission_classes = [IsMarinaStaff]
 
-        for field, value in data.items():
-            setattr(marina, field, value)
-        marina.save(update_fields=list(data.keys()))
+    def get(self, request):
+        marina = request.user.marina
 
-        # Rebalance immediately if target was lowered
-        new_target = marina.mysea_target_pct
-        if 'mysea_target_pct' in data and new_target < old_target:
-            from apps.berths.allocator import rebalance_down
-            rebalance_down(marina)
+        if not marina.stripe_account_id:
+            return Response({'connected': False, 'charges_enabled': False, 'dashboard_url': None})
+
+        account = stripe.Account.retrieve(marina.stripe_account_id)
+        dashboard_url = None
+        if account.get('charges_enabled'):
+            login_link = stripe.Account.create_login_link(marina.stripe_account_id)
+            dashboard_url = login_link.url
 
         return Response({
-            'auto_allocate_inventory': marina.auto_allocate_inventory,
-            'mysea_target_pct': marina.mysea_target_pct,
-            'mysea_ical_url': marina.mysea_ical_url,
-            'mysea_last_synced': marina.mysea_last_synced,
+            'connected': account.get('details_submitted', False),
+            'charges_enabled': account.get('charges_enabled', False),
+            'dashboard_url': dashboard_url,
+        })
+
+
+class DraftAccountView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        ser = DraftAccountSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        d = ser.validated_data
+        email = d['email']
+
+        # Idempotency: return existing client_secret for pending_payment accounts
+        existing_user = User.objects.filter(email=email).select_related('marina').first()
+        if existing_user and existing_user.marina and existing_user.marina.status == 'pending_payment':
+            sub = stripe.Subscription.retrieve(
+                existing_user.marina.stripe_subscription_id,
+                expand=['pending_setup_intent'],
+            )
+            return Response(
+                {'client_secret': sub.pending_setup_intent.client_secret},
+                status=status.HTTP_201_CREATED,
+            )
+
+        with transaction.atomic():
+            marina = Marina.objects.create(
+                name=d['marina_name'],
+                address=d['address'],
+                lat=d.get('lat'),
+                lng=d.get('lng'),
+                phone=d['phone'],
+                contact_email=d['contact_email'],
+                vat_number=d.get('vat_number', ''),
+                currency=d['currency'],
+                status='pending_payment',
+            )
+
+            User.objects.create_user(
+                email=email,
+                password=d['password'],
+                first_name=d['first_name'],
+                last_name=d['last_name'],
+                role='owner',
+                marina=marina,
+                is_active=False,
+            )
+
+            customer = stripe.Customer.create(
+                email=email,
+                name=d['marina_name'],
+                metadata={'marina_id': str(marina.id)},
+            )
+            marina.stripe_customer_id = customer.id
+
+            items = [{'price': d['plan_price_id']}]
+            extra_marinas = d.get('marina_count', 1) - 1
+            if extra_marinas > 0 and ENTERPRISE_ADDON_MARINA_PRICE_ID:
+                items.append({'price': ENTERPRISE_ADDON_MARINA_PRICE_ID, 'quantity': extra_marinas})
+
+            subscription = stripe.Subscription.create(
+                customer=customer.id,
+                items=items,
+                payment_behavior='default_incomplete',
+                trial_period_days=30,
+                expand=['pending_setup_intent'],
+                metadata={'marina_id': str(marina.id)},
+            )
+            marina.stripe_subscription_id = subscription.id
+            marina.plan = PRICE_ID_TO_PLAN.get(d['plan_price_id'], 'professional')
+            marina.save(update_fields=['stripe_customer_id', 'stripe_subscription_id', 'plan'])
+
+        return Response(
+            {'client_secret': subscription.pending_setup_intent.client_secret},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ResumeView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token', '')
+        signer = TimestampSigner()
+        try:
+            marina_id = signer.unsign(token, max_age=172800)  # 48 hours
+        except (SignatureExpired, BadSignature):
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            marina = Marina.objects.get(pk=marina_id, status='pending_payment')
+        except Marina.DoesNotExist:
+            return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        sub = stripe.Subscription.retrieve(
+            marina.stripe_subscription_id,
+            expand=['pending_setup_intent'],
+        )
+        return Response({
+            'client_secret': sub.pending_setup_intent.client_secret,
+            'marina_name':   marina.name,
+            'plan':          marina.plan,
         })

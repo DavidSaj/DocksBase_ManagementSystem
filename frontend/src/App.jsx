@@ -53,6 +53,7 @@ import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
 import BoaterPortal from './screens/BoaterPortal.jsx';
+import Channels from './screens/Channels.jsx';
 
 
 const SCREEN_MAP = {
@@ -63,6 +64,7 @@ const SCREEN_MAP = {
   documents: Documents, sales: Sales, operations: Operations,
   infrastructure: Infrastructure,
   'service-catalog': ServiceCatalogScreen,
+  channels: Channels,
 };
 
 function ComingSoon() {

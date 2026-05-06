@@ -1,3 +1,6 @@
+import uuid
+
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
@@ -10,6 +13,24 @@ PIER_TYPE_CHOICES = [
     ('gangway',   'Gangway'),
     ('ramp',      'Launch Ramp'),
 ]
+
+
+class OTAConnection(models.Model):
+    marina           = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='ota_connections')
+    name             = models.CharField(max_length=100)
+    slug             = models.SlugField(max_length=100)
+    inbound_ical_url = models.URLField(blank=True, default='')
+    outbound_token   = models.UUIDField(default=uuid.uuid4, unique=True)
+    target_pct       = models.IntegerField(default=20, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    auto_allocate    = models.BooleanField(default=False)
+    last_synced      = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('marina', 'slug')
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.marina})'
 
 
 class Pier(models.Model):
@@ -97,14 +118,11 @@ class Berth(models.Model):
     position_on_parent = models.JSONField(null=True, blank=True)
     # position_on_parent format: {"side": "port"|"starboard", "slot_index": int}
 
-    CHANNEL_CHOICES = [
-        ('direct', 'Direct'),
-        ('mysea',  'mySea'),
-    ]
-    sales_channel = models.CharField(
-        max_length=20, choices=CHANNEL_CHOICES, default='direct'
+    ota_connection = models.ForeignKey(
+        OTAConnection, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='berths'
     )
-    channel_cooldown_until = models.DateTimeField(null=True, blank=True)
+    channel_locked = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('marina', 'code')

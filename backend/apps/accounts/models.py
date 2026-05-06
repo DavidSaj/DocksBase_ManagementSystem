@@ -2,7 +2,6 @@ import uuid as _uuid
 from decimal import Decimal
 from django.db import models, IntegrityError as _IntegrityError, transaction as _transaction
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.text import slugify
 
 
@@ -40,10 +39,14 @@ class Marina(models.Model):
     booking_mode = models.CharField(max_length=20, choices=BOOKING_MODE_CHOICES, default='manual_approval')
     vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     stripe_account_id = models.CharField(max_length=255, blank=True)
+    stripe_customer_id     = models.CharField(max_length=64, blank=True, null=True)
+    stripe_subscription_id = models.CharField(max_length=64, blank=True, null=True)
+    abandon_email_sent     = models.BooleanField(default=False)
     MARINA_STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('trial', 'Trial'),
-        ('suspended', 'Suspended'),
+        ('pending_payment', 'Pending Payment'),
+        ('trial',           'Trial'),
+        ('active',          'Active'),
+        ('suspended',       'Suspended'),
     ]
     status = models.CharField(max_length=20, choices=MARINA_STATUS_CHOICES, default='active')
     trial_ends = models.DateField(null=True, blank=True)
@@ -63,12 +66,6 @@ class Marina(models.Model):
     wallet_vhf_channel = models.CharField(max_length=10, null=True, blank=True)
     wallet_office_hours = models.CharField(max_length=100, null=True, blank=True)
     waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
-
-    # mySea channel management
-    auto_allocate_inventory = models.BooleanField(default=False)
-    mysea_target_pct = models.IntegerField(default=20, validators=[MinValueValidator(0), MaxValueValidator(100)])
-    mysea_ical_url = models.URLField(blank=True, default='')
-    mysea_last_synced = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.slug:

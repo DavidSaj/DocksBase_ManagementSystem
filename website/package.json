@@ -10,8 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.4.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "react-google-autocomplete": "^2.7.5",
+    "react-router-dom": "^7.15.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

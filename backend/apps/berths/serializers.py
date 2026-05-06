@@ -1,6 +1,37 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig, Amenity
+from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection
 from apps.billing.models import ChargeableItem
+
+
+class OTAConnectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OTAConnection
+        fields = ['id', 'name', 'slug', 'inbound_ical_url', 'outbound_token',
+                  'target_pct', 'auto_allocate', 'last_synced']
+        read_only_fields = ['id', 'slug', 'outbound_token', 'last_synced']
+
+    def validate_name(self, value):
+        from django.utils.text import slugify
+        marina = self.context['request'].user.marina
+        slug = slugify(value)
+        qs = OTAConnection.objects.filter(marina=marina, slug=slug)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('An OTA connection with this name already exists.')
+        return value
+
+    def create(self, validated_data):
+        from django.utils.text import slugify
+        validated_data['slug'] = slugify(validated_data['name'])
+        validated_data['marina'] = self.context['request'].user.marina
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        from django.utils.text import slugify
+        if 'name' in validated_data:
+            validated_data['slug'] = slugify(validated_data['name'])
+        return super().update(instance, validated_data)
 
 
 _GHOST_SLOT_KEYS = {'x', 'y', 'rotation', 'width_m', 'height_m'}
@@ -64,11 +95,10 @@ class BerthSerializer(serializers.ModelSerializer):
             'pricing_tier', 'pricing_tier_name', 'pricing_tier_unit_price',
             'status', 'effective_status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
-            'sales_channel', 'channel_cooldown_until',
+            'ota_connection', 'channel_locked',
         ]
         read_only_fields = [
             'id', 'pier_code', 'vessel_name', 'is_placed', 'effective_status',
-            'channel_cooldown_until',
         ]
 
     def get_is_placed(self, obj):
