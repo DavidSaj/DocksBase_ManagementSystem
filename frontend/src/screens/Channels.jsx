@@ -50,7 +50,7 @@ function BookingPipelineCard({ marina, updateMarina }) {
           return (
             <div
               key={mode}
-              onClick={() => !saving && updateMarina({ booking_mode: mode })}
+              onClick={() => !saving && !active && updateMarina({ booking_mode: mode })}
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 12,
                 padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
@@ -97,8 +97,14 @@ function AllocationCard({ conn, berths, onUpdate }) {
   }
 
   async function handleAutoToggle(val) {
-    const { data } = await api.patch(`/ota-connections/${conn.id}/`, { auto_allocate: val });
-    onUpdate(data);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const { data } = await api.patch(`/ota-connections/${conn.id}/`, { auto_allocate: val });
+      onUpdate(data);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRebalance() {
