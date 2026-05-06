@@ -19,7 +19,7 @@ from .models import Marina, User, MagicToken, EmailVerification
 from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer, DraftAccountSerializer
 from .emails import send_verification_email, send_welcome_email
 from apps.members.models import Member
-from config.plans import PRICE_ID_TO_PLAN
+from config.plans import PRICE_ID_TO_PLAN, ENTERPRISE_ADDON_MARINA_PRICE_ID
 
 stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
 
@@ -457,14 +457,68 @@ class ChannelSettingsView(APIView):
         # Rebalance immediately if target was lowered
         new_target = marina.mysea_target_pct
         if 'mysea_target_pct' in data and new_target < old_target:
+            from apps.berths.models import OTAConnection
             from apps.berths.allocator import rebalance_down
-            rebalance_down(marina)
+            for conn in OTAConnection.objects.filter(marina=marina):
+                rebalance_down(conn)
 
         return Response({
             'auto_allocate_inventory': marina.auto_allocate_inventory,
             'mysea_target_pct': marina.mysea_target_pct,
             'mysea_ical_url': marina.mysea_ical_url,
             'mysea_last_synced': marina.mysea_last_synced,
+        })
+
+
+class ConnectOnboardView(APIView):
+    """Start (or restart) Stripe Express onboarding for a marina."""
+    permission_classes = [IsMarinaStaff]
+
+    def post(self, request):
+        marina = request.user.marina
+
+        if not marina.stripe_account_id:
+            account = stripe.Account.create(
+                type='express',
+                email=marina.contact_email or request.user.email,
+                capabilities={
+                    'card_payments': {'requested': True},
+                    'transfers': {'requested': True},
+                },
+                metadata={'marina_id': str(marina.id)},
+            )
+            marina.stripe_account_id = account.id
+            marina.save(update_fields=['stripe_account_id'])
+
+        link = stripe.AccountLink.create(
+            account=marina.stripe_account_id,
+            refresh_url=f'{settings.FRONTEND_URL}/settings/payments?connect=refresh',
+            return_url=f'{settings.FRONTEND_URL}/settings/payments?connect=done',
+            type='account_onboarding',
+        )
+        return Response({'url': link.url})
+
+
+class ConnectStatusView(APIView):
+    """Return Stripe Connect status and Express dashboard link for the marina."""
+    permission_classes = [IsMarinaStaff]
+
+    def get(self, request):
+        marina = request.user.marina
+
+        if not marina.stripe_account_id:
+            return Response({'connected': False, 'charges_enabled': False, 'dashboard_url': None})
+
+        account = stripe.Account.retrieve(marina.stripe_account_id)
+        dashboard_url = None
+        if account.get('charges_enabled'):
+            login_link = stripe.Account.create_login_link(marina.stripe_account_id)
+            dashboard_url = login_link.url
+
+        return Response({
+            'connected': account.get('details_submitted', False),
+            'charges_enabled': account.get('charges_enabled', False),
+            'dashboard_url': dashboard_url,
         })
 
 
@@ -521,9 +575,14 @@ class DraftAccountView(APIView):
             )
             marina.stripe_customer_id = customer.id
 
+            items = [{'price': d['plan_price_id']}]
+            extra_marinas = d.get('marina_count', 1) - 1
+            if extra_marinas > 0 and ENTERPRISE_ADDON_MARINA_PRICE_ID:
+                items.append({'price': ENTERPRISE_ADDON_MARINA_PRICE_ID, 'quantity': extra_marinas})
+
             subscription = stripe.Subscription.create(
                 customer=customer.id,
-                items=[{'price': d['plan_price_id']}],
+                items=items,
                 payment_behavior='default_incomplete',
                 trial_period_days=30,
                 expand=['pending_setup_intent'],

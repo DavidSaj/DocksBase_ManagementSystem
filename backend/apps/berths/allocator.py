@@ -37,7 +37,7 @@ def run_smart_allocator(marina, freed_berth):
             .exclude(pk=freed_berth.pk)
             .count()
         )
-        target = round(total_pool * _effective_target(conn, connections, total_pool) / 100)
+        target = round(total_pool * _effective_target(conn, connections) / 100)
         shortfall = target - current
         if shortfall > best_shortfall:
             best_shortfall = shortfall
@@ -67,7 +67,7 @@ def rebalance_down(connection):
     if total_pool == 0:
         return
 
-    target = round(total_pool * _effective_target(connection, connections, total_pool) / 100)
+    target = round(total_pool * _effective_target(connection, connections) / 100)
 
     occupied_ids = (
         Booking.objects.filter(marina=marina, status__in=ACTIVE_STATUSES)
@@ -96,7 +96,7 @@ def rebalance_down(connection):
         Berth.objects.filter(pk__in=ids_to_flip).update(ota_connection=None)
 
 
-def _effective_target(connection, all_connections, total_pool):
+def _effective_target(connection, all_connections):
     """
     Returns the effective target_pct for a connection.
     If auto_allocate=True, divides remaining % evenly among all auto connections.

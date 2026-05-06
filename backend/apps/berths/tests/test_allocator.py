@@ -82,6 +82,24 @@ class RunSmartAllocatorTest(TestCase):
         freed.refresh_from_db()
         self.assertEqual(freed.ota_connection, self.conn)
 
+    def test_freed_ota_berth_not_counted_against_itself(self):
+        from apps.berths.allocator import run_smart_allocator
+        # Assign all target slots already (2 of 10 = 20%)
+        # Then free one of those mysea berths — it should NOT count itself,
+        # so the allocator sees 1 < 2 target and re-assigns it back to mysea
+        self.berths[1].ota_connection = self.conn
+        self.berths[1].save(update_fields=['ota_connection'])
+        self.berths[2].ota_connection = self.conn
+        self.berths[2].save(update_fields=['ota_connection'])
+        # Now free berths[2] — if freed berth counted itself, current=2 = target, so it would go direct
+        # If excluded from count: current=1 < target=2, so it gets re-assigned to conn
+        freed = self.berths[2]
+        freed.ota_connection = None
+        freed.save(update_fields=['ota_connection'])
+        run_smart_allocator(self.marina, freed)
+        freed.refresh_from_db()
+        self.assertEqual(freed.ota_connection, self.conn)
+
 
 class RebalanceDownTest(TestCase):
     def setUp(self):
