@@ -1,4 +1,3 @@
-from datetime import timedelta
 from django.utils import timezone
 from icalendar import Calendar, Event
 

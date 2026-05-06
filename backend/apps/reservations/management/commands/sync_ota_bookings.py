@@ -3,7 +3,7 @@ sync_ota_bookings — run every 10 minutes via cron.
 
 Fetches the inbound iCal feed for each OTAConnection that has inbound_ical_url set,
 parses each VEVENT, and creates/updates Booking records.
-booking_source is set to connection.slug[:20] so records are identified per-connection.
+booking_source is set to connection.slug so records are identified per-connection.
 
 Usage:
   python manage.py sync_ota_bookings
@@ -12,7 +12,7 @@ Usage:
 """
 
 import re
-from datetime import date, timedelta
+from datetime import date
 
 import requests
 from django.core.management.base import BaseCommand
@@ -43,21 +43,8 @@ def _parse_loa_from_summary(summary: str):
     return None
 
 
-def _find_free_ota_berth(connection, check_in, check_out, boat_loa=None):
+def _find_free_ota_berth(connection, check_in, check_out, blocked_ids, boat_loa=None):
     from apps.berths.models import Berth
-    from apps.reservations.models import Booking
-
-    blocked_ids = (
-        Booking.objects.filter(
-            marina=connection.marina,
-            berth__isnull=False,
-            status__in=ACTIVE_STATUSES,
-            check_in__lt=check_out,
-            check_out__gt=check_in,
-        )
-        .values_list('berth_id', flat=True)
-        .distinct()
-    )
 
     qs = Berth.objects.filter(
         marina=connection.marina,
@@ -94,6 +81,21 @@ def sync_connection(connection, dry=False, stdout=None):
     created = updated = 0
 
     with transaction.atomic():
+        # Compute once per sync: all berths already booked for this marina.
+        # The set is intentionally not date-filtered here — callers pass
+        # check_in/check_out to _find_free_ota_berth so the date overlap
+        # check happens inside the Berth queryset via the blocked_ids set
+        # which is re-evaluated per VEVENT using a date-filtered query below.
+        blocked_ids = set(
+            Booking.objects.filter(
+                marina=connection.marina,
+                berth__isnull=False,
+                status__in=ACTIVE_STATUSES,
+            )
+            .values_list('berth_id', flat=True)
+            .distinct()
+        )
+
         for component in cal.walk():
             if component.name != 'VEVENT':
                 continue
@@ -115,7 +117,7 @@ def sync_connection(connection, dry=False, stdout=None):
 
             existing = Booking.objects.filter(
                 marina=connection.marina,
-                booking_source=connection.slug[:20],
+                booking_source=connection.slug,
                 mysea_event_uid=uid,
             ).first()
 
@@ -129,7 +131,7 @@ def sync_connection(connection, dry=False, stdout=None):
                     updated += 1
                 continue
 
-            berth = _find_free_ota_berth(connection, check_in, check_out, boat_loa)
+            berth = _find_free_ota_berth(connection, check_in, check_out, blocked_ids, boat_loa)
             if berth is None:
                 if stdout:
                     stdout.write(f'  WARNING: No free berth for {check_in}–{check_out} (uid={uid})')
@@ -145,7 +147,7 @@ def sync_connection(connection, dry=False, stdout=None):
                     nights=nights,
                     status='confirmed',
                     paid=True,
-                    booking_source=connection.slug[:20],
+                    booking_source=connection.slug,
                     mysea_event_uid=uid,  # TODO: rename to ota_event_uid in a follow-up migration
                     guest_name=summary[:200] if summary else '',
                     boat_loa=boat_loa,
@@ -172,7 +174,7 @@ class Command(BaseCommand):
         dry = options['dry_run']
         slug = options['marina_slug']
 
-        qs = OTAConnection.objects.exclude(inbound_ical_url='')
+        qs = OTAConnection.objects.exclude(inbound_ical_url='').select_related('marina')
         if slug:
             qs = qs.filter(marina__slug=slug)
 

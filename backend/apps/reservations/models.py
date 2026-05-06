@@ -52,13 +52,7 @@ class Booking(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    SOURCE_CHOICES = [
-        ('direct', 'Direct'),
-        ('mysea',  'mySea'),
-    ]
-    booking_source = models.CharField(
-        max_length=20, choices=SOURCE_CHOICES, default='direct'
-    )
+    booking_source = models.CharField(max_length=100, default='direct', blank=True)
     mysea_event_uid = models.CharField(max_length=255, blank=True, default='')
 
     class Meta:

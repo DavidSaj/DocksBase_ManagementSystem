@@ -39,7 +39,7 @@ class OutboundIcalTest(TestCase):
             marina=self.marina, berth=self.berth,
             check_in=datetime.date(2030, 7, 1),
             check_out=datetime.date(2030, 7, 5),
-            nights=4, status='confirmed', booking_source='mysea',
+            nights=4, status='confirmed', booking_source=self.conn.slug,
             guest_name='J. Smith',
         )
         cal_str = generate_ota_ical(self.conn)
