@@ -322,6 +322,5 @@ class OTAConnectionViewSet(viewsets.ModelViewSet):
     def rebalance(self, request, pk=None):
         conn = self.get_object()
         from apps.berths.allocator import rebalance_down
-        # Task 4 will change rebalance_down signature from (marina) to (connection)
-        rebalance_down(conn.marina)
+        rebalance_down(conn)
         return Response({'detail': 'Rebalance complete.'})
