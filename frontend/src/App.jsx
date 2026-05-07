@@ -54,7 +54,6 @@ import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
-import BoaterPortal from './screens/BoaterPortal.jsx';
 import Channels from './screens/Channels.jsx';
 
 
@@ -127,7 +126,6 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
-        <Route path="/portal" element={<ProtectedRoute element={<BoaterPortal />} allowedRoles={['boater']} />} />
         <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />
       </Routes>
     </AuthProvider>

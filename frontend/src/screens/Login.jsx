@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login, resendVerification } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const ROLE_HOME = { boater: '/portal', staff: '/field', owner: '/', manager: '/' };
+const ROLE_HOME = { staff: '/field', owner: '/', manager: '/' };
 
 export default function Login() {
   const [email, setEmail]       = useState('');
@@ -23,6 +23,10 @@ export default function Login() {
     try {
       const user = await login(email, password);
       signIn(user);
+      if (user.role === 'boater') {
+        window.location.href = import.meta.env.VITE_PORTAL_URL || 'https://booking.docksbase.com';
+        return;
+      }
       navigate(ROLE_HOME[user.role] ?? '/', { replace: true });
     } catch (err) {
       const data = err.response?.data;
