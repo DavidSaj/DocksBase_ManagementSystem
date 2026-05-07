@@ -190,7 +190,7 @@ export function snapBerthToPier(mouseGx, mouseGy, piers, berth = null) {
 
     if (components?.length > 0) {
       // Compound pier — snap to individual component edges
-      const θ = (pier.rotation * Math.PI) / 180
+      const θ = ((pier.rotation ?? 0) * Math.PI) / 180
       const cosθ = Math.cos(θ)
       const sinθ = Math.sin(θ)
 
