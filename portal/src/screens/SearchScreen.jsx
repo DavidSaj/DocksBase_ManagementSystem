@@ -91,9 +91,9 @@ export default function SearchScreen({ state, navigate, marina }) {
                 onChange={({ checkIn, checkOut }) => setForm(f => ({ ...f, checkIn, checkOut }))}
               />
               <div className="p-field" style={{ marginBottom: 0 }}>
-                <label className="p-label">Vessel length (m)</label>
+                <label className="p-label">Vessel length (m) *</label>
                 <input className="p-input" type="number" step="0.1" min="1" placeholder="e.g. 12"
-                  value={form.boatLoa} onChange={e => set('boatLoa', e.target.value)} />
+                  required value={form.boatLoa} onChange={e => set('boatLoa', e.target.value)} />
               </div>
             </div>
 
@@ -108,7 +108,7 @@ export default function SearchScreen({ state, navigate, marina }) {
                 <input className="p-input" type="number" step="0.1" min="0" placeholder="e.g. 1.8"
                   value={form.boatDraft} onChange={e => set('boatDraft', e.target.value)} />
               </div>
-              <button type="submit" className="p-btn-gold" disabled={busy || !form.checkIn || !form.checkOut}
+              <button type="submit" className="p-btn-gold" disabled={busy || !form.checkIn || !form.checkOut || !form.boatLoa}
                 style={{ whiteSpace: 'nowrap', height: 41 }}>
                 {busy ? 'Checking…' : 'Check availability →'}
               </button>

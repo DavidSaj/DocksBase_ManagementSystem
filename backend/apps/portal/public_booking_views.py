@@ -185,7 +185,7 @@ class PublicEngineRequestSerializer(serializers.Serializer):
     guest_name        = serializers.CharField(max_length=200)
     guest_email       = serializers.EmailField()
     guest_phone       = serializers.CharField(max_length=30, required=False, allow_blank=True)
-    boat_loa          = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    boat_loa          = serializers.DecimalField(max_digits=6, decimal_places=2)
     boat_beam         = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     boat_draft        = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     vessel_name        = serializers.CharField(max_length=200, required=False, allow_blank=True)
@@ -436,9 +436,10 @@ class PublicBerthCategoriesView(APIView):
         ).select_related('pricing_tier').order_by('sort_order')
 
         if not boat_loa:
-            # No LOA supplied — show every category that has free berths
-            result = [e for cat in all_active if (e := _build_entry(cat, None))]
-            return Response(result)
+            return Response(
+                {'detail': 'boat_loa is required to find compatible berth categories.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Tier-aware allocation when boat_loa is known
         # Compatible = has at least one berth that physically fits the boat
