@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
-import { useState, Component, useContext } from 'react';
+import { useState, Component } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import WelcomeScreen from './components/WelcomeScreen.jsx';
 
@@ -78,8 +78,9 @@ function DesktopApp() {
   const [screen, setScreenRaw] = useState(
     () => localStorage.getItem('db_app_screen') || 'overview'
   );
+  const welcomeKey = user?.id ? `db_welcomed_${user.id}` : null;
   const [showWelcome, setShowWelcome] = useState(
-    () => !sessionStorage.getItem('db_welcomed')
+    () => welcomeKey ? !localStorage.getItem(welcomeKey) : false
   );
 
   function setScreen(s) {
@@ -88,7 +89,7 @@ function DesktopApp() {
   }
 
   function dismissWelcome() {
-    sessionStorage.setItem('db_welcomed', '1');
+    if (welcomeKey) localStorage.setItem(welcomeKey, '1');
     setShowWelcome(false);
   }
 
