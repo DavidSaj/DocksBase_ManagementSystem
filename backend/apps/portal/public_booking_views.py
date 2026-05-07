@@ -244,6 +244,7 @@ class PublicEngineRequestView(APIView):
                     guest_name=d['guest_name'],
                     guest_email=d['guest_email'],
                     guest_phone=d.get('guest_phone', ''),
+                    berth_category=cat,
                 )
                 if cat:
                     booking.notes = (booking.notes or '') + f'\nCategory: {cat.name}'
