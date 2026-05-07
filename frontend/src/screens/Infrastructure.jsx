@@ -461,8 +461,12 @@ function LogicalPiersTable() {
 
   async function handleDelete(id) {
     if (!window.confirm('Delete this pier? Dock shapes assigned to it will be unassigned.')) return
-    await api.delete(`/logical-piers/${id}/`)
-    refetch()
+    try {
+      await api.delete(`/logical-piers/${id}/`)
+      refetch()
+    } catch (e) {
+      window.alert('Failed to delete pier. Please try again.')
+    }
   }
 
   if (loading) return <div className="empty"><div className="empty-title">Loading…</div></div>
