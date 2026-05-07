@@ -197,3 +197,89 @@ class StripeConnectPaymentIntentWebhookTest(TestCase):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.status, 'paid')
         mock_signal.send.assert_not_called()
+
+
+class StripeConnectCheckoutSessionWebhookTest(TestCase):
+    """
+    Tests for checkout.session.completed / expired on the Connect webhook.
+    This is the path taken by the FallbackQuoteForm (no-category flow) which
+    creates a Stripe Checkout Session on the marina's Connect account.
+    The correct URL is /api/v1/billing/stripe/connect-webhook/ — NOT the
+    standard /api/v1/billing/stripe/webhook/ which uses a different secret.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.marina, self.booking, self.invoice, self.berth = _setup()
+        self.marina.stripe_account_id = 'acct_test'
+        self.marina.save(update_fields=['stripe_account_id'])
+        self.booking.status = 'pending_payment'
+        self.booking.save(update_fields=['status'])
+
+    def _make_checkout_event(self, event_type, invoice_id):
+        return {
+            'type': event_type,
+            'data': {
+                'object': {
+                    'payment_intent': 'pi_test_checkout',
+                    'metadata': {'invoice_id': str(invoice_id)},
+                }
+            }
+        }
+
+    @patch('apps.billing.views.send_booking_confirmed_email')
+    @patch('apps.billing.views._generate_store_and_email_pdf')
+    @patch('apps.billing.stripe_service.stripe')
+    def test_checkout_completed_confirms_booking(self, mock_stripe, mock_pdf, mock_email):
+        mock_stripe.Webhook.construct_event.return_value = self._make_checkout_event(
+            'checkout.session.completed', self.invoice.id
+        )
+        with patch('apps.billing.views.threading', _sync_thread_mock()):
+            resp = self.client.post(
+                '/api/v1/billing/stripe/connect-webhook/',
+                data=json.dumps({}),
+                content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='sig',
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, 'paid')
+        self.assertEqual(self.invoice.stripe_payment_intent_id, 'pi_test_checkout')
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, 'confirmed')
+        mock_email.assert_called_once()
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_checkout_expired_cancels_booking_and_releases_berth(self, mock_stripe):
+        mock_stripe.Webhook.construct_event.return_value = self._make_checkout_event(
+            'checkout.session.expired', self.invoice.id
+        )
+        resp = self.client.post(
+            '/api/v1/billing/stripe/connect-webhook/',
+            data=json.dumps({}),
+            content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='sig',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, 'cancelled')
+        self.assertIsNone(self.booking.berth)
+
+    @patch('apps.billing.views.invoice_paid')
+    @patch('apps.billing.stripe_service.stripe')
+    def test_checkout_completed_is_idempotent(self, mock_stripe, mock_signal):
+        self.invoice.status = 'paid'
+        self.invoice.save(update_fields=['status'])
+        mock_stripe.Webhook.construct_event.return_value = self._make_checkout_event(
+            'checkout.session.completed', self.invoice.id
+        )
+        resp = self.client.post(
+            '/api/v1/billing/stripe/connect-webhook/',
+            data=json.dumps({}),
+            content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='sig',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, 'paid')
+        mock_signal.send.assert_not_called()
