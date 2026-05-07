@@ -16,6 +16,22 @@ describe('snapToGrid', () => {
     expect(snapToGrid(-10, -10, rect)).toEqual({ gx: 0, gy: 0 })
     expect(snapToGrid(9999, 9999, rect)).toEqual({ gx: COLS - 1, gy: ROWS - 1 })
   })
+
+  describe('snapToGrid adaptive zoom', () => {
+    it('snaps to 1 GU at normal zoom (0.15+)', () => {
+      // zoom=1, GRID=32: mouse at 48px → gx = round(48/1/32) = round(1.5) = 2
+      expect(snapToGrid(48, 48, rect, 1)).toEqual({ gx: 2, gy: 2 })
+    })
+    it('snaps to 2 GU at zoom 0.1 (between 0.07 and 0.15)', () => {
+      // zoom=0.1: gx = round(64 / 0.1 / 32 / 2) * 2 = round(10) * 2 = 20
+      expect(snapToGrid(64, 64, rect, 0.1).gx % 2).toBe(0)
+    })
+    it('snaps to 5 GU at zoom 0.05 (below 0.07)', () => {
+      const result = snapToGrid(100, 100, rect, 0.05)
+      expect(result.gx % 5).toBe(0)
+      expect(result.gy % 5).toBe(0)
+    })
+  })
 })
 
 describe('snapRotation', () => {

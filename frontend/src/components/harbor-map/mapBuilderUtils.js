@@ -9,8 +9,9 @@ export const CH = ROWS * GRID   // 11200
 // Convert mouse client coords + canvas DOMRect → snapped grid position.
 // Pass zoom so that CSS-scaled canvas coords map correctly to grid units.
 export function snapToGrid(clientX, clientY, canvasRect, zoom = 1) {
-  const gx = Math.round((clientX - canvasRect.left) / zoom / GRID)
-  const gy = Math.round((clientY - canvasRect.top) / zoom / GRID)
+  const snapGrid = zoom < 0.07 ? 5 : zoom < 0.15 ? 2 : 1
+  const gx = Math.round((clientX - canvasRect.left) / zoom / GRID / snapGrid) * snapGrid
+  const gy = Math.round((clientY - canvasRect.top)  / zoom / GRID / snapGrid) * snapGrid
   return {
     gx: Math.max(0, Math.min(COLS - 1, gx)),
     gy: Math.max(0, Math.min(ROWS - 1, gy)),

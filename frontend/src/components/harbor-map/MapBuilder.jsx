@@ -616,10 +616,7 @@ export default function MapBuilder() {
   function handleCanvasPointerMove(e) {
     if (drawTool) {
       const rect = e.currentTarget.getBoundingClientRect()
-      setDrawCursor({
-        gx: Math.max(0, Math.min(COLS - 1, Math.round((e.clientX - rect.left) / zoom / GRID))),
-        gy: Math.max(0, Math.min(ROWS - 1, Math.round((e.clientY - rect.top)  / zoom / GRID))),
-      })
+      setDrawCursor(snapToGrid(e.clientX, e.clientY, rect, viewRef.current.zoom))
       return
     }
 
@@ -856,7 +853,7 @@ export default function MapBuilder() {
         {/* Pan/zoom viewport */}
         <div
           ref={containerRef}
-          style={{ flex: 1, overflow: isDrawMode ? 'visible' : 'hidden', position: 'relative', cursor: isDrawMode ? 'crosshair' : 'grab' }}
+          style={{ flex: 1, overflow: 'hidden', position: 'relative', cursor: isDrawMode ? 'crosshair' : 'grab' }}
           onPointerDown={e => {
             if (isDrawMode) return
             if (e.button !== 0 && e.button !== 1) return
