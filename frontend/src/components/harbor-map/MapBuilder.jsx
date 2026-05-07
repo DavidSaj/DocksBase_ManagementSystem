@@ -630,7 +630,7 @@ export default function MapBuilder() {
           components: componentsWithIds,
         })
         pushUndo({ type: 'pier', id: created.id })
-        setSelectedIds(new Set([`pier-${created.id}`]))
+        setSelectedIds(new Set(componentsWithIds.map(c => `pier-${created.id}-comp-${c.id}`)))
       } else if (DOCKING_TYPES.has(p.type) || p.type.startsWith('custom-')) {
         const pier_type = p.material ?? PREFAB_TO_PIER_TYPE[p.type] ?? 'pontoon'
         const created = await createPier({
