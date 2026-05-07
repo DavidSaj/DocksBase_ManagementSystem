@@ -51,7 +51,7 @@ export default function SearchScreen({ state, navigate, marina }) {
   return (
     <div>
       {/* Dark hero */}
-      <div className="p-hero" style={{ minHeight: 320 }}>
+      <div className="p-hero" style={{ minHeight: 360 }}>
         <nav style={{
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
           display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1,
@@ -71,7 +71,7 @@ export default function SearchScreen({ state, navigate, marina }) {
       </div>
 
       {/* White background section — wave lines sit here, behind the card */}
-      <div style={{ position: 'relative', background: '#fff' }}>
+      <div style={{ position: 'relative', background: 'linear-gradient(to bottom, #0c1f3d 0, #0c1f3d 40px, #fff 40px)' }}>
         <WaveLines />
 
       {/* White form card — overlaps hero bottom */}

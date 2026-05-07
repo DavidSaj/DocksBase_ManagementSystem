@@ -33,7 +33,7 @@ export default function OptionsScreen({ state, navigate, marina }) {
   return (
     <div>
       {/* Dark hero */}
-      <div className="p-hero" style={{ minHeight: 320 }}>
+      <div className="p-hero" style={{ minHeight: 360 }}>
         <nav style={{
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
           display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1,
@@ -60,7 +60,7 @@ export default function OptionsScreen({ state, navigate, marina }) {
       </div>
 
       {/* White section */}
-      <div style={{ position: 'relative', background: '#fff' }}>
+      <div style={{ position: 'relative', background: 'linear-gradient(to bottom, #0c1f3d 0, #0c1f3d 40px, #fff 40px)' }}>
         <WaveLines />
 
         <div style={{ maxWidth: 880, margin: '-36px auto 0', padding: '0 32px 48px', position: 'relative', zIndex: 2 }}>
