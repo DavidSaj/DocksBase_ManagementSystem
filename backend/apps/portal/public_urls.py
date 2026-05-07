@@ -6,6 +6,7 @@ from apps.portal.public_booking_views import (
     PublicAvailabilityAlternativesView,
     PublicEngineRequestView,
     PublicBerthCategoriesView,
+    PublicBerthIntentView,
 )
 
 urlpatterns = [
@@ -14,5 +15,6 @@ urlpatterns = [
     path('bookings/available-berths/',          PublicAvailableBerthsView.as_view(),           name='public-available-berths'),
     path('bookings/availability-alternatives/', PublicAvailabilityAlternativesView.as_view(),  name='public-availability-alternatives'),
     path('bookings/berth-categories/',           PublicBerthCategoriesView.as_view(),           name='public-berth-categories'),
+    path('bookings/intent/',                    PublicBerthIntentView.as_view(),               name='public-berth-intent'),
     path('bookings/engine-request/',            PublicEngineRequestView.as_view(),             name='public-engine-request'),
 ]

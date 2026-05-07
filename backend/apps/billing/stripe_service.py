@@ -28,3 +28,15 @@ def _create_checkout_session(invoice):
     invoice.stripe_checkout_session_id = session.id
     invoice.save(update_fields=['stripe_checkout_session_id'])
     return session.url
+
+
+def create_payment_intent(marina, amount_cents, currency, metadata=None):
+    """Creates a PaymentIntent on the marina's Connect account. Returns client_secret."""
+    intent = stripe.PaymentIntent.create(
+        amount=amount_cents,
+        currency=currency.lower(),
+        payment_method_types=['card'],
+        metadata=metadata or {},
+        stripe_account=marina.stripe_account_id or None,
+    )
+    return intent.client_secret

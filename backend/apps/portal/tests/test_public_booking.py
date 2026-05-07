@@ -372,3 +372,56 @@ class PublicBerthCategoriesViewTest(TestCase):
     def test_requires_marina_slug(self):
         res = self.client.get(self.url + '?check_in=2026-08-01&check_out=2026-08-05')
         self.assertEqual(res.status_code, 404)
+
+
+class PublicBerthIntentViewTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(
+            name='Intent Marina', slug='intent-marina',
+            booking_mode='auto_tetris', stripe_account_id='acct_test123',
+        )
+        self.tier = ChargeableItem.objects.create(
+            marina=self.marina, name='Night', category='berth',
+            pricing_model='per_night', unit_price=55,
+        )
+        self.cat = BerthCategory.objects.create(
+            marina=self.marina, name='Premium', amenities=['power_30a'],
+            pricing_tier=self.tier, is_active=True,
+        )
+        self.client = APIClient()
+        self.url = '/api/v1/public/bookings/intent/'
+
+    @patch('apps.portal.public_booking_views.billing_service.create_payment_intent',
+           return_value='pi_test_secret_xyz')
+    def test_returns_client_secret(self, mock_pi):
+        res = self.client.post(self.url, {
+            'berth_category_id': self.cat.id,
+            'check_in': '2026-09-01',
+            'check_out': '2026-09-05',
+        }, format='json', HTTP_X_MARINA_SLUG='intent-marina')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['client_secret'], 'pi_test_secret_xyz')
+        self.assertEqual(res.data['nights'], 4)
+        self.assertEqual(res.data['price_per_night'], '55.00')
+        self.assertEqual(res.data['total'], '220.00')
+
+    def test_rejects_inactive_category(self):
+        self.cat.is_active = False
+        self.cat.save()
+        res = self.client.post(self.url, {
+            'berth_category_id': self.cat.id,
+            'check_in': '2026-09-01',
+            'check_out': '2026-09-05',
+        }, format='json', HTTP_X_MARINA_SLUG='intent-marina')
+        self.assertEqual(res.status_code, 400)
+
+    def test_rejects_category_without_pricing_tier(self):
+        cat2 = BerthCategory.objects.create(
+            marina=self.marina, name='No Tier', pricing_tier=None, is_active=True,
+        )
+        res = self.client.post(self.url, {
+            'berth_category_id': cat2.id,
+            'check_in': '2026-09-01',
+            'check_out': '2026-09-05',
+        }, format='json', HTTP_X_MARINA_SLUG='intent-marina')
+        self.assertEqual(res.status_code, 400)

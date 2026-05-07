@@ -179,14 +179,17 @@ class PublicAvailabilityAlternativesView(APIView):
 
 
 class PublicEngineRequestSerializer(serializers.Serializer):
-    check_in    = serializers.DateField()
-    check_out   = serializers.DateField()
-    guest_name  = serializers.CharField(max_length=200)
-    guest_email = serializers.EmailField()
-    guest_phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
-    boat_loa    = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
-    boat_beam   = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
-    boat_draft  = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    check_in          = serializers.DateField()
+    check_out         = serializers.DateField()
+    guest_name        = serializers.CharField(max_length=200)
+    guest_email       = serializers.EmailField()
+    guest_phone       = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    boat_loa          = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    boat_beam         = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    boat_draft        = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    vessel_name       = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    eta               = serializers.TimeField(required=False, allow_null=True)
+    berth_category_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate(self, data):
         if data['check_in'] >= data['check_out']:
@@ -214,6 +217,14 @@ class PublicEngineRequestView(APIView):
             return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
         d = ser.validated_data
+        category_id = d.get('berth_category_id')
+        cat = None
+        if category_id:
+            try:
+                cat = BerthCategory.objects.get(pk=category_id, marina=marina, is_active=True)
+            except BerthCategory.DoesNotExist:
+                return Response({'detail': 'Berth category not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             with transaction.atomic():
                 booking = run_tetris(
@@ -227,6 +238,9 @@ class PublicEngineRequestView(APIView):
                     guest_email=d['guest_email'],
                     guest_phone=d.get('guest_phone', ''),
                 )
+                if cat:
+                    booking.notes = (booking.notes or '') + f'\nCategory: {cat.name}'
+                    booking.save(update_fields=['notes'])
                 booking.berth = Berth.objects.select_related('pricing_tier').get(pk=booking.berth_id)
                 nights_label = f'{booking.nights} night{"s" if booking.nights != 1 else ""}'
                 due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
@@ -264,6 +278,74 @@ class PublicEngineRequestView(APIView):
             {'booking': BookingSerializer(booking).data, 'checkout_url': checkout_url},
             status=status.HTTP_201_CREATED,
         )
+
+
+class PublicBerthIntentSerializer(serializers.Serializer):
+    berth_category_id = serializers.IntegerField()
+    check_in          = serializers.DateField()
+    check_out         = serializers.DateField()
+
+    def validate(self, data):
+        if data['check_in'] >= data['check_out']:
+            raise serializers.ValidationError({'check_out': 'check_out must be after check_in.'})
+        return data
+
+
+class PublicBerthIntentView(APIView):
+    """POST /api/v1/public/bookings/intent/ — creates Stripe PaymentIntent for a category."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Marina not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        ser = PublicBerthIntentSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        d = ser.validated_data
+        marina = request.tenant
+
+        try:
+            cat = BerthCategory.objects.select_related('pricing_tier').get(
+                pk=d['berth_category_id'],
+                marina=marina,
+                is_active=True,
+            )
+        except BerthCategory.DoesNotExist:
+            return Response({'detail': 'Berth category not found or inactive.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if cat.pricing_tier is None:
+            return Response({'detail': 'This category has no price configured.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        nights = (d['check_out'] - d['check_in']).days
+        price_per_night = cat.pricing_tier.unit_price
+        total = price_per_night * nights
+        amount_cents = int(round(float(total) * 100))
+
+        try:
+            client_secret = billing_service.create_payment_intent(
+                marina=marina,
+                amount_cents=amount_cents,
+                currency=marina.currency,
+                metadata={
+                    'berth_category_id': str(cat.id),
+                    'check_in': str(d['check_in']),
+                    'check_out': str(d['check_out']),
+                    'marina_id': str(marina.id),
+                },
+            )
+        except Exception:
+            logger.exception('PublicBerthIntentView: Stripe error')
+            return Response({'detail': 'Payment provider error.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        return Response({
+            'client_secret': client_secret,
+            'nights': nights,
+            'price_per_night': f'{price_per_night:.2f}',
+            'total': f'{total:.2f}',
+        })
 
 
 class PublicBerthCategoriesView(APIView):

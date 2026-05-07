@@ -170,3 +170,9 @@ def create_stripe_checkout_session(invoice):
         raise ValueError('This marina has not connected a payment account yet.')
     from .stripe_service import _create_checkout_session
     return _create_checkout_session(invoice)
+
+
+def create_payment_intent(marina, amount_cents, currency, metadata=None):
+    """Creates a Stripe PaymentIntent on the marina's Connect account. Returns client_secret."""
+    from .stripe_service import create_payment_intent as _create_payment_intent
+    return _create_payment_intent(marina, amount_cents, currency, metadata)
