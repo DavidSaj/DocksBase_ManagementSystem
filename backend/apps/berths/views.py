@@ -182,6 +182,36 @@ class BulkUpdateBerthPricingView(APIView):
         return Response({'updated': updated})
 
 
+class BulkUpdateBerthCategoryView(APIView):
+    """
+    PATCH /api/v1/berths/bulk-category/
+    Body: { berth_ids: [1,2,3], category_id: 7 | null }
+    Updates category on the given berths (null to unassign).
+    """
+
+    def patch(self, request):
+        marina      = request.user.marina
+        berth_ids   = request.data.get('berth_ids', [])
+        category_id = request.data.get('category_id')
+
+        if not berth_ids or not isinstance(berth_ids, list):
+            return Response({'detail': 'berth_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if category_id is not None:
+            try:
+                category_id = int(category_id)
+                BerthCategory.objects.get(pk=category_id, marina=marina, is_active=True)
+            except (ValueError, BerthCategory.DoesNotExist):
+                return Response({'detail': 'Berth category not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = Berth.objects.filter(
+            id__in=berth_ids,
+            marina=marina,
+        ).update(category_id=category_id)
+
+        return Response({'updated': updated})
+
+
 class BroadcastSMSView(APIView):
     """
     POST /api/v1/berths/broadcast/
