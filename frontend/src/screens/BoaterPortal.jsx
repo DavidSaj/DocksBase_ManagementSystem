@@ -361,10 +361,6 @@ export default function BoaterPortal() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handlePaid(invoiceId) {
-    markPaid(invoiceId);
-  }
-
   return (
     <div className="portal-shell">
       <div className="portal-header">
@@ -427,7 +423,7 @@ export default function BoaterPortal() {
         <PaymentModal
           invoice={payingInvoice}
           onClose={() => setPayingInvoice(null)}
-          onPaid={handlePaid}
+          onPaid={markPaid}
         />
       )}
     </div>

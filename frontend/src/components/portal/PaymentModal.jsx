@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import api from '../../api.js';
@@ -30,6 +30,8 @@ function CheckoutForm({ invoice, currency, onPaid, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
   const [succeeded, setSucceeded]   = useState(false);
+  const timerRef = useRef(null);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -48,7 +50,7 @@ function CheckoutForm({ invoice, currency, onPaid, onClose }) {
       setSubmitting(false);
     } else {
       setSucceeded(true);
-      setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         onPaid(invoice.id);
         onClose();
       }, 2000);

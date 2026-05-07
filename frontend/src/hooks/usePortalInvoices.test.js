@@ -12,7 +12,7 @@ import usePortalInvoices from './usePortalInvoices.js';
 
 const SAMPLE_INVOICES = [
   { id: 1, invoice_number: 'INV-001', status: 'open', total: '150.00' },
-  { id: 2, invoice_number: 'INV-002', status: 'paid', total: '80.00' },
+  { id: 2, invoice_number: 'INV-002', status: 'open', total: '80.00' },
 ];
 
 describe('usePortalInvoices', () => {
@@ -35,7 +35,7 @@ describe('usePortalInvoices', () => {
     const updated = result.current.invoices.find(inv => inv.id === 1);
     expect(updated.status).toBe('paid');
     // other invoice unchanged
-    expect(result.current.invoices.find(inv => inv.id === 2).status).toBe('paid');
+    expect(result.current.invoices.find(inv => inv.id === 2).status).toBe('open');
   });
 
   it('refetch calls the API again', async () => {
