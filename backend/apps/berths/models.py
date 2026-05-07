@@ -15,6 +15,20 @@ PIER_TYPE_CHOICES = [
 ]
 
 
+class LogicalPier(models.Model):
+    marina     = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='logical_piers')
+    name       = models.CharField(max_length=100)
+    pier_type  = models.CharField(max_length=20, choices=PIER_TYPE_CHOICES, default='pontoon')
+    notes      = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('marina', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.marina})'
+
+
 class OTAConnection(models.Model):
     marina           = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='ota_connections')
     name             = models.CharField(max_length=100)
@@ -87,6 +101,14 @@ class Pier(models.Model):
     canvas_w = models.FloatField(default=2)
     canvas_h = models.FloatField(default=10)
     rotation = models.IntegerField(default=0)
+    display_name  = models.CharField(max_length=100, blank=True, default='')
+    logical_pier  = models.ForeignKey(
+        LogicalPier, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='dock_shapes'
+    )
+    components    = models.JSONField(default=list)
+    # components format: [{"id": "c_9f8a2", "type": "spine"|"finger", "ox": 0, "oy": 0, "w": 10, "h": 2}]
+    # ox/oy = offset from pier canvas_x/canvas_y at rotation=0 (grid units, center-based)
 
     class Meta:
         unique_together = ('marina', 'code')
@@ -154,8 +176,9 @@ class Berth(models.Model):
     # Canvas layout fields (local to parent pier, grid units, center-based)
     local_x            = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     local_y            = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    position_on_parent = models.JSONField(null=True, blank=True)
-    # position_on_parent format: {"side": "port"|"starboard", "slot_index": int}
+    position_on_parent = models.CharField(max_length=50, blank=True, default='')
+    # For compound piers: stores component UUID (e.g. "c_1b3e7")
+    # For simple piers: empty string
 
     ota_connection = models.ForeignKey(
         OTAConnection, on_delete=models.SET_NULL,
