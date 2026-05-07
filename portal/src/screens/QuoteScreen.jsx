@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import api from '../api';
-import { HarbourScene } from '../components/portal/HarbourScene';
+import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
@@ -20,7 +20,6 @@ function PayForm({ state, navigate, onSuccess }) {
   const [error, setError] = useState('');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const nights = Math.round((new Date(state.checkOut) - new Date(state.checkIn)) / 86400000);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -30,9 +29,7 @@ function PayForm({ state, navigate, onSuccess }) {
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       redirect: 'if_required',
-      confirmParams: {
-        return_url: `${window.location.origin}${window.location.pathname}`,
-      },
+      confirmParams: { return_url: `${window.location.origin}${window.location.pathname}` },
     });
 
     if (stripeError) {
@@ -41,7 +38,6 @@ function PayForm({ state, navigate, onSuccess }) {
       return;
     }
 
-    // Payment succeeded — create the booking (confirmed, no checkout redirect)
     try {
       const { data } = await api.post('/public/bookings/engine-request/', {
         check_in:  state.checkIn,
@@ -78,7 +74,7 @@ function PayForm({ state, navigate, onSuccess }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="p-section-title">Your details</div>
+      <div className="p-section-title" style={{ color: 'var(--navy)', opacity: 0.6 }}>Your details</div>
       <div className="p-grid-2">
         {field('Full name', 'guestName')}
         {field('Email', 'guestEmail', 'email')}
@@ -92,17 +88,17 @@ function PayForm({ state, navigate, onSuccess }) {
         <input className="p-input" type="time" value={form.eta} onChange={e => set('eta', e.target.value)} />
       </div>
 
-      <div className="p-section-title" style={{ marginTop: 24 }}>Payment</div>
-      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 8, padding: 20, marginBottom: 20 }}>
+      <div className="p-section-title" style={{ marginTop: 24, color: 'var(--navy)', opacity: 0.6 }}>Payment</div>
+      <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, padding: 20, marginBottom: 20 }}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </div>
 
-      {error && <p className="p-error">{error}</p>}
+      {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{error}</p>}
 
       <button type="submit" className="p-btn-gold" disabled={busy || !stripe} style={{ width: '100%' }}>
         {busy ? 'Processing…' : `Confirm & Pay €${state.quotedTotal?.toFixed(2)}`}
       </button>
-      <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 10 }}>
+      <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', textAlign: 'center', marginTop: 10 }}>
         Your card will be charged on confirmation. The harbor master assigns your exact slip on arrival.
       </p>
     </form>
@@ -133,55 +129,88 @@ export default function QuoteScreen({ state, navigate, marina }) {
   const stripeOptions = {
     clientSecret,
     appearance: {
-      theme: 'night',
-      variables: { colorPrimary: '#b8965a', colorBackground: '#162d52', fontFamily: 'IBM Plex Sans, system-ui, sans-serif' },
+      theme: 'stripe',
+      variables: { colorPrimary: '#b8965a', fontFamily: 'IBM Plex Sans, system-ui, sans-serif' },
     },
   };
 
   return (
-    <div className="p-shell" style={{ position: 'relative', overflow: 'hidden' }}>
-      <HarbourScene opacity={0.35} />
-      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 1 }}>
-        <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
-          {marina?.name || 'DocksBase'}
-        </span>
-      </nav>
-      <div className="p-shell-inner p-dark" style={{ position: 'relative', zIndex: 1 }}>
-        <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : 'search')} style={{ marginBottom: 28 }}>
-          ← Back
-        </button>
+    <div>
+      {/* Dark hero */}
+      <div className="p-hero" style={{ minHeight: 320 }}>
+        <nav style={{
+          maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
+          display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1,
+        }}>
+          <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : 'search')}
+            style={{ fontSize: 11, padding: '6px 14px', marginRight: 16 }}>
+            ← Back
+          </button>
+          <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: 'var(--cream)', flex: 1 }}>
+            {marina?.name || 'Your Marina'}
+          </span>
+        </nav>
 
-        <div className="p-summary">
-          <div>
-            <div className="p-summary-label">Category</div>
-            <div className="p-summary-val">{state.selectedCategory?.name ?? 'Best available berth'}</div>
-          </div>
-          <div>
-            <div className="p-summary-label">Dates</div>
-            <div className="p-summary-val">{formatDate(state.checkIn)} – {formatDate(state.checkOut)}</div>
-          </div>
-          <div>
-            <div className="p-summary-label">Nights</div>
-            <div className="p-summary-val">{nights}</div>
-          </div>
-          <div className="p-summary-total">€{state.quotedTotal?.toFixed(2)}</div>
+        <div className="p-hero-inner" style={{ paddingBottom: 64 }}>
+          <div className="p-eyebrow">Complete your booking</div>
+          <h1 className="p-title">Review & Pay.</h1>
+          <p className="p-sub">
+            {formatDate(state.checkIn)} → {formatDate(state.checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
+            {state.selectedCategory ? ` · ${state.selectedCategory.name}` : ''}
+          </p>
         </div>
 
-        {intentError && <p className="p-error">{intentError}</p>}
+        <HarbourScene />
+      </div>
 
-        {state.selectedCategory && clientSecret && (
-          <Elements stripe={stripePromise} options={stripeOptions}>
-            <PayForm state={state} navigate={navigate} onSuccess={handleSuccess} />
-          </Elements>
-        )}
+      {/* White section */}
+      <div style={{ position: 'relative', background: 'linear-gradient(to bottom, #0c1f3d 0, #0c1f3d 40px, #fff 40px)' }}>
+        <WaveLines />
+        <div className="p-form-card">
+          <div className="p-form-card-inner">
 
-        {state.selectedCategory && !clientSecret && !intentError && (
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>Preparing payment…</p>
-        )}
+            {/* Summary bar */}
+            <div style={{
+              background: '#f7f7f7', border: '1px solid #ebebeb', borderRadius: 8,
+              padding: '14px 20px', marginBottom: 24,
+              display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+            }}>
+              <div>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Category</div>
+                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{state.selectedCategory?.name ?? 'Best available berth'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Dates</div>
+                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{formatDate(state.checkIn)} – {formatDate(state.checkOut)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Nights</div>
+                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{nights}</div>
+              </div>
+              <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--gold)' }}>
+                €{state.quotedTotal?.toFixed(2)}
+              </div>
+            </div>
 
-        {!state.selectedCategory && (
-          <FallbackQuoteForm state={state} navigate={navigate} nights={nights} />
-        )}
+            {intentError && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{intentError}</p>}
+
+            {state.selectedCategory && clientSecret && (
+              <Elements stripe={stripePromise} options={stripeOptions}>
+                <PayForm state={state} navigate={navigate} onSuccess={handleSuccess} />
+              </Elements>
+            )}
+
+            {state.selectedCategory && !clientSecret && !intentError && (
+              <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13 }}>Preparing payment…</p>
+            )}
+
+            {!state.selectedCategory && (
+              <FallbackQuoteForm state={state} navigate={navigate} nights={nights} />
+            )}
+          </div>
+        </div>
+
+        <p className="p-powered">Powered by DocksBase</p>
       </div>
     </div>
   );
@@ -216,11 +245,11 @@ function FallbackQuoteForm({ state, navigate, nights }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="p-section-title">Your details</div>
+      <div className="p-section-title" style={{ color: 'var(--navy)', opacity: 0.6 }}>Your details</div>
       <div className="p-field"><label className="p-label">Full name *</label><input className="p-input" required value={form.guestName} onChange={e => set('guestName', e.target.value)} /></div>
       <div className="p-field"><label className="p-label">Email *</label><input className="p-input" type="email" required value={form.guestEmail} onChange={e => set('guestEmail', e.target.value)} /></div>
       <div className="p-field"><label className="p-label">Phone</label><input className="p-input" type="tel" value={form.guestPhone} onChange={e => set('guestPhone', e.target.value)} /></div>
-      {error && <p className="p-error">{error}</p>}
+      {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{error}</p>}
       <button type="submit" className="p-btn-gold" disabled={busy} style={{ width: '100%' }}>
         {busy ? 'Processing…' : `Book & Pay €${state.quotedTotal?.toFixed(2)}`}
       </button>
