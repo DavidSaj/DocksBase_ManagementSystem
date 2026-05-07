@@ -46,6 +46,8 @@ class BerthCategory(models.Model):
 **Amenity slug vocabulary** (fixed, not user-defined):
 `power_30a`, `power_50a`, `water`, `wifi`, `fuel_nearby`, `pump_out`
 
+**Validation:** Add a `clean()` method on `BerthCategory` and a DRF serializer `validate_amenities()` that rejects any slug not in the vocabulary above. This prevents typos (`"Wifi "`, `"power_30"`) from reaching the portal where they would silently fail to match icon mappings.
+
 ### Modified: `Berth` model
 
 Add one nullable FK:
@@ -66,11 +68,11 @@ Query params: `check_in`, `check_out`, `boat_loa`, `boat_beam` (optional), `boat
 
 Logic:
 1. Resolve marina from `X-Marina-Slug` header.
-2. Find all berths where `category` is not null and `berth_class='standard'`.
-3. Filter by boat dimensions (length_m, max_beam_m, max_draft_m).
-4. Filter out berths occupied/reserved for the requested dates.
-5. Group by category, count available berths per group.
-6. Exclude categories with `available_count = 0`.
+2. Start from `BerthCategory` — filter `is_active=True` and `pricing_tier__isnull=False`. This strict filter prevents categories missing a pricing tier from reaching the Stripe payment step (which would receive `0.00` and be rejected).
+3. For each active category, find its berths where `berth_class='standard'` and dimensions fit the boat.
+4. Use a Django `Exists` subquery to exclude berths with overlapping confirmed/pending bookings for the requested dates. Index `Booking.check_in` and `Booking.check_out` to keep this fast at scale.
+5. Annotate each category with `available_count` of berths passing steps 3–4.
+6. Exclude categories where `available_count = 0`.
 7. Return ordered by `sort_order`.
 
 Response shape:
@@ -97,9 +99,23 @@ Response shape:
 ]
 ```
 
+### New endpoint: `POST /public/bookings/intent/`
+
+Called the moment the boater clicks "Select →" on a category card (Step 2), before Step 3 mounts. This is required because the Stripe `PaymentElement` needs a `client_secret` to render — it cannot be generated earlier since the total is unknown until a category is chosen.
+
+Request body: `{ berth_category_id, check_in, check_out, boat_loa, boat_beam, boat_draft }`
+
+Logic:
+1. Validate the category exists, is active, has a pricing tier.
+2. Calculate `total = price_per_night × nights`.
+3. Create a Stripe `PaymentIntent` for `total` (marina's Connect account, application fee deducted).
+4. Return `{ client_secret, total, price_per_night, nights }`.
+
+Step 3 receives this payload as props and mounts `<PaymentElement>` with the `client_secret`. The `PaymentIntent` ID is stored in component state for the final booking creation call.
+
 ### Modified: `POST /public/bookings/request/`
 
-Add optional field `berth_category_id: int`. When provided, the auto-tetris assignment is constrained to berths in that category only.
+Add optional field `berth_category_id: int`. When provided, the auto-tetris assignment is constrained to berths in that category only. Also accepts `payment_intent_id` so the backend can confirm the intent was paid before creating the booking.
 
 ### Fallback behaviour
 
@@ -207,6 +223,18 @@ A "Berth Categories" section added to `ServiceCatalogScreen.jsx` above the exist
 - Save / Delete buttons
 
 API: REST endpoints on `/api/v1/berths/categories/` (list, create, update, delete) — marina-scoped, requires manager/owner auth.
+
+---
+
+## 6. Database Indexes
+
+Add to a migration's `AlterField` / `AddIndex` block:
+
+```python
+models.Index(fields=['check_in', 'check_out'], name='booking_dates_idx')
+```
+
+on the `Reservation` / `Booking` model (whichever holds check-in/check-out). This ensures the `Exists` subquery in the berth-categories endpoint does not do a full-table scan as booking volume grows.
 
 ---
 
