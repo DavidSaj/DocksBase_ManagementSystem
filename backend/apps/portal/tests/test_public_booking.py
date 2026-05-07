@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina
 from apps.reservations.models import Booking
-from apps.berths.models import Pier, Berth
+from apps.berths.models import Pier, Berth, BerthCategory
 from apps.billing.models import ChargeableItem, Invoice
 
 
@@ -318,9 +318,6 @@ class PublicEngineRequestTest(TestCase):
         make_test_berth(manual_marina, code='M1')
         resp = self._post(slug='manual-m')
         self.assertEqual(resp.status_code, 400)
-
-
-from apps.berths.models import BerthCategory
 
 
 class PublicBerthCategoriesViewTest(TestCase):

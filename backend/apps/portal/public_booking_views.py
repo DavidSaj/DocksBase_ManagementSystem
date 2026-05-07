@@ -291,13 +291,16 @@ class PublicBerthCategoriesView(APIView):
         )
 
         # Available berths: standard class, fits boat, no conflict, has a category
-        dim_filter = Q()
-        if boat_loa:
-            dim_filter &= Q(length_m__gte=float(boat_loa))
-        if boat_beam:
-            dim_filter &= Q(max_beam_m__gte=float(boat_beam))
-        if boat_draft:
-            dim_filter &= Q(max_draft_m__gte=float(boat_draft))
+        try:
+            dim_filter = Q()
+            if boat_loa:
+                dim_filter &= Q(length_m__gte=float(boat_loa))
+            if boat_beam:
+                dim_filter &= Q(max_beam_m__gte=float(boat_beam))
+            if boat_draft:
+                dim_filter &= Q(max_draft_m__gte=float(boat_draft))
+        except ValueError:
+            return Response({'detail': 'Boat dimensions must be numeric.'}, status=status.HTTP_400_BAD_REQUEST)
 
         available_berths = Berth.objects.filter(
             marina=request.tenant,
