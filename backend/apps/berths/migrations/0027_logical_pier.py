@@ -9,6 +9,11 @@ def reset_position_on_parent(apps, schema_editor):
     Berth.objects.update(position_on_parent='')
 
 
+def restore_position_on_parent(apps, schema_editor):
+    Berth = apps.get_model('berths', 'Berth')
+    Berth.objects.update(position_on_parent=None)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -27,7 +32,8 @@ class Migration(migrations.Migration):
             name='display_name',
             field=models.CharField(blank=True, default='', max_length=100),
         ),
-        migrations.RunPython(reset_position_on_parent, migrations.RunPython.noop),
+        # Must run before AlterField below — clears JSON values so CharField cast succeeds
+        migrations.RunPython(reset_position_on_parent, restore_position_on_parent),
         migrations.AlterField(
             model_name='berth',
             name='position_on_parent',
