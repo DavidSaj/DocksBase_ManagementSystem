@@ -213,7 +213,7 @@ class StripeConnectWebhookView(APIView):
 
         elif event_type == 'payment_intent.succeeded':
             updated = Invoice.objects.filter(pk=invoice.pk, status='open').update(
-                stripe_payment_intent_id=obj['id'],
+                stripe_payment_intent_id=obj.get('id', ''),
                 status='paid',
                 paid_at=timezone.now(),
             )

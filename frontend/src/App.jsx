@@ -1,8 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
-import { useState, Component } from 'react';
+import { useState, Component, useContext } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import WelcomeScreen from './components/WelcomeScreen.jsx';
 
 class ScreenErrorBoundary extends Component {
   constructor(props) {
@@ -72,26 +74,47 @@ function ComingSoon() {
 }
 
 function DesktopApp() {
+  const { user } = useAuth();
   const [screen, setScreenRaw] = useState(
     () => localStorage.getItem('db_app_screen') || 'overview'
   );
+  const [showWelcome, setShowWelcome] = useState(
+    () => !sessionStorage.getItem('db_welcomed')
+  );
+
   function setScreen(s) {
     setScreenRaw(s);
     localStorage.setItem('db_app_screen', s);
   }
+
+  function dismissWelcome() {
+    sessionStorage.setItem('db_welcomed', '1');
+    setShowWelcome(false);
+  }
+
   const Screen = SCREEN_MAP[screen] || ComingSoon;
   return (
-    <div className="app">
-      <Sidebar screen={screen} setScreen={setScreen} />
-      <div className="main">
-        <Topbar screen={screen} />
-        <div className="content">
-          <ScreenErrorBoundary key={screen} setScreen={setScreen}>
-            <Screen setScreen={setScreen} />
-          </ScreenErrorBoundary>
+    <>
+      <AnimatePresence>
+        {showWelcome && (
+          <WelcomeScreen
+            name={user?.first_name}
+            onDone={dismissWelcome}
+          />
+        )}
+      </AnimatePresence>
+      <div className="app">
+        <Sidebar screen={screen} setScreen={setScreen} />
+        <div className="main">
+          <Topbar screen={screen} />
+          <div className="content">
+            <ScreenErrorBoundary key={screen} setScreen={setScreen}>
+              <Screen setScreen={setScreen} />
+            </ScreenErrorBoundary>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

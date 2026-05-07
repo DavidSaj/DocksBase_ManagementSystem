@@ -4,7 +4,8 @@ import axios from 'axios';
 const TenantContext = createContext(null);
 
 const BOOKING_HOSTNAME = 'booking.docksbase.com';
-const APP_HOSTNAMES = new Set(['app.docksbase.com', 'www.docksbase.com', 'docksbase.com', 'localhost', '127.0.0.1']);
+const DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
+const APP_HOSTNAMES = new Set(['app.docksbase.com', 'www.docksbase.com', 'docksbase.com']);
 
 // Returns { slug, customDomain, prefill } or null (= not a portal host)
 export function detectTenant() {
@@ -18,8 +19,8 @@ export function detectTenant() {
   if (params.get('departure')) prefill.departure = params.get('departure');
   if (params.get('category'))  prefill.category  = params.get('category');
 
-  // Options 1 & 2: booking.docksbase.com/:slug
-  if (hostname === BOOKING_HOSTNAME) {
+  // booking.docksbase.com/:slug  OR  localhost/:slug (dev)
+  if (hostname === BOOKING_HOSTNAME || DEV_HOSTNAMES.has(hostname)) {
     const slug = pathname.split('/').filter(Boolean)[0] ?? null;
     return slug ? { slug, customDomain: null, prefill } : null;
   }

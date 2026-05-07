@@ -76,7 +76,91 @@ function BookingPipelineCard({ marina, updateMarina }) {
   );
 }
 
-// ── Section 2: OTA Allocation ──────────────────────────────────────────────
+// ── Section 2: Booking Portal ──────────────────────────────────────────────
+
+const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://portal.docksbase.com';
+
+function BookingPortalCard({ marina }) {
+  const slug = marina?.slug;
+  const portalUrl = slug ? `${PORTAL_URL}/${slug}` : null;
+  const embedSnippet = portalUrl
+    ? `<iframe src="${portalUrl}" width="100%" height="700" frameborder="0" allow="payment"></iframe>`
+    : '';
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+
+  function copy(text, setCopied) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">Booking Portal</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Share your marina's booking page</div>
+      </div>
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {portalUrl ? (
+          <>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
+                Direct link
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <a
+                  href={portalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 13, color: 'var(--teal)', wordBreak: 'break-all', flex: 1 }}
+                >
+                  {portalUrl}
+                </a>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ flexShrink: 0 }}
+                  onClick={() => copy(portalUrl, setCopiedUrl)}
+                >
+                  {copiedUrl ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
+                Embed on your website
+              </div>
+              <div style={{ position: 'relative' }}>
+                <pre style={{
+                  fontSize: 11, background: 'var(--bg)', borderRadius: 6, padding: '10px 12px',
+                  margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'monospace',
+                  border: 'var(--border)',
+                }}>
+                  {embedSnippet}
+                </pre>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ position: 'absolute', top: 6, right: 6, fontSize: 11 }}
+                  onClick={() => copy(embedSnippet, setCopiedEmbed)}
+                >
+                  {copiedEmbed ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 6 }}>
+                Paste this into any page on your website. Contact us if you want a custom domain (e.g. book.yourmarina.com).
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>Portal URL not available yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Section 3: OTA Allocation ──────────────────────────────────────────────
 
 function AllocationCard({ conn, berths, onUpdate }) {
   const total = berths.filter(b => b.status !== 'maintenance').length;
@@ -154,7 +238,7 @@ function AllocationCard({ conn, berths, onUpdate }) {
   );
 }
 
-// ── Section 3: Berth Assignment Grid ──────────────────────────────────────
+// ── Section 4: Berth Assignment Grid ──────────────────────────────────────
 
 function BerthGrid({ berths, setBerths, connections, piersFilter, setPiersFilter }) {
   const piers = [...new Set(berths.map(b => b.pier_code).filter(Boolean))].sort();
@@ -266,6 +350,7 @@ export default function Channels() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <BookingPipelineCard marina={marina} updateMarina={updateMarina} />
+        <BookingPortalCard marina={marina} />
         {connections.length === 0 && (
           <div className="card">
             <div className="card-body" style={{ color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>

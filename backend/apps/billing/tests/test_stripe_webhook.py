@@ -179,8 +179,9 @@ class StripeConnectPaymentIntentWebhookTest(TestCase):
         self.assertEqual(self.invoice.stripe_payment_intent_id, 'pi_test_connect')
         self.assertIsNotNone(self.invoice.paid_at)
 
+    @patch('apps.billing.views.invoice_paid')
     @patch('apps.billing.stripe_service.stripe')
-    def test_payment_intent_succeeded_is_idempotent(self, mock_stripe):
+    def test_payment_intent_succeeded_is_idempotent(self, mock_stripe, mock_signal):
         self.invoice.status = 'paid'
         self.invoice.save(update_fields=['status'])
         mock_stripe.Webhook.construct_event.return_value = self._make_pi_event(
@@ -195,3 +196,4 @@ class StripeConnectPaymentIntentWebhookTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.status, 'paid')
+        mock_signal.send.assert_not_called()

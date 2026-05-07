@@ -311,6 +311,7 @@ svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
 .ais-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; animation: ais-pulse 1.5s infinite; }
 .ais-off { display: inline-flex; align-items: center; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 9999px; background: #f0efed; color: rgba(0,0,0,0.4); }
 @keyframes ais-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── CERT STATUS ────────────────────────────────────────────────────────── */
 .cert-valid    { color: var(--green); font-weight: 600; font-size: 11px; }

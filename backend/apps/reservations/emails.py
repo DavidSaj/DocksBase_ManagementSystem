@@ -88,21 +88,47 @@ def send_reject_email(booking, reason):
 
 
 def send_booking_confirmed_email(booking):
-    marina = booking.marina
+    from apps.accounts.emails import _base, _h1, _p, _btn, _divider, _small, _NAVY, _MUTED, _TEXT
+    marina    = booking.marina
     magic_url = make_magic_url(booking)
+    guest     = booking.guest_name or 'there'
+    berth     = booking.berth.code if booking.berth else '—'
+    check_in  = booking.check_in.strftime('%d %B %Y')
+    check_out = booking.check_out.strftime('%d %B %Y')
+
+    html = _base(
+        preheader=f"Your berth at {marina.name} is confirmed — see you on {check_in}.",
+        body_html=(
+            _h1("Your booking is confirmed") +
+            _p(f"Hi {guest},") +
+            _p(f"Great news — your berth at <strong>{marina.name}</strong> is confirmed and payment has been received.") +
+            f"""<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 24px;border:1px solid rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
+              <tr style="background:#f8f8f8;"><td style="padding:10px 16px;font-size:12px;font-weight:600;color:{_MUTED};text-transform:uppercase;letter-spacing:0.5px;">Booking details</td></tr>
+              <tr><td style="padding:12px 16px;font-size:14px;color:{_TEXT};border-top:1px solid rgba(0,0,0,0.06);">
+                <strong>Marina:</strong> {marina.name}<br/>
+                <strong>Berth:</strong> {berth}<br/>
+                <strong>Arrival:</strong> {check_in}<br/>
+                <strong>Departure:</strong> {check_out}
+              </td></tr>
+            </table>""" +
+            _p("Use the button below to access your digital boarding pass, complete pre-arrival checks, and find your berth on arrival.") +
+            _btn(magic_url, "Open Boarding Pass →") +
+            _divider() +
+            _small("This link is personal — please don't share it. It expires after 72 hours but you can request a new one at any time.")
+        ),
+    )
     send_mail(
-        subject=f'Booking confirmed — {marina.name}',
+        subject=f"Booking confirmed — {marina.name}, {check_in}",
         message=(
-            f'Hi {booking.guest_name or "there"},\n\n'
-            f'Your booking at {marina.name} is confirmed!\n\n'
-            f'Dates: {booking.check_in} – {booking.check_out}\n'
-            f'Berth: {booking.berth.code if booking.berth else "—"}\n\n'
-            f'Click the link below to access your pre-arrival checklist and check in:\n\n'
-            f'{magic_url}\n\n'
-            f'This link is personal to you and expires in 72 hours.\n\n'
-            f'— {marina.name}'
+            f"Hi {guest},\n\n"
+            f"Your booking at {marina.name} is confirmed.\n\n"
+            f"Berth: {berth}\nArrival: {check_in}\nDeparture: {check_out}\n\n"
+            f"Open your boarding pass: {magic_url}\n\n"
+            "This link expires in 72 hours.\n\n"
+            f"— {marina.name}"
         ),
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[booking.guest_email],
+        html_message=html,
         fail_silently=True,
     )

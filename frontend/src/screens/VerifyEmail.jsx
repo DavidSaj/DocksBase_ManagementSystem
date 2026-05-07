@@ -46,10 +46,10 @@ export default function VerifyEmail() {
           <>
             <h2 className="login-title">Link expired</h2>
             <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 20, lineHeight: 1.5, textAlign: 'center' }}>
-              This verification link has expired or is invalid.
+              This verification link has expired or has already been used. Go back to sign in and use the resend option to get a fresh link.
             </p>
-            <Link to="/signup" className="abtn abtn-primary login-submit" style={{ textAlign: 'center', display: 'block' }}>
-              Back to sign up
+            <Link to="/login" className="abtn abtn-primary login-submit" style={{ textAlign: 'center', display: 'block' }}>
+              Back to sign in
             </Link>
           </>
         )}
