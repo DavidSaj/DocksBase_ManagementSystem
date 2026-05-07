@@ -307,7 +307,6 @@ class OTAConnectionViewSet(viewsets.ModelViewSet):
 
 class BerthCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = BerthCategorySerializer
-    permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
 
     def get_queryset(self):

@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
     PierListCreateView, PierDetailView,
@@ -15,9 +15,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'ota-connections', OTAConnectionViewSet, basename='ota-connection')
-
-berths_router = DefaultRouter()
-berths_router.register(r'berth-categories', BerthCategoryViewSet, basename='berth-category')
+router.register(r'berths/berth-categories', BerthCategoryViewSet, basename='berth-category')
 
 urlpatterns = [
     path('piers/', PierListCreateView.as_view(), name='pier_list'),
@@ -27,7 +25,6 @@ urlpatterns = [
     path('berths/ical/<uuid:token>.ics', IcalFeedView.as_view(), name='berths_ical_ota'),
     path('berths/', BerthListCreateView.as_view(), name='berth_list'),
     path('berths/<int:pk>/', BerthDetailView.as_view(), name='berth_detail'),
-    path('berths/', include(berths_router.urls)),
     path('map/config/', MapConfigView.as_view(), name='map_config'),
     path('broadcast/', BroadcastSMSView.as_view(), name='broadcast_sms'),
     path('amenities/', AmenityListCreateView.as_view(), name='amenity_list'),
