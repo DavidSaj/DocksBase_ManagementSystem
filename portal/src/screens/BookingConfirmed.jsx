@@ -76,8 +76,9 @@ export default function BookingConfirmed({ marina, bookingId, cancelled }) {
               borderRadius: 8, padding: '16px 20px',
               fontSize: 13, color: 'rgba(0,0,0,0.55)', lineHeight: 1.7,
             }}>
-              Your booking is confirmed and visible to the marina team. Your berth details and arrival
-              information will be available in your client portal.
+              A confirmation email is on its way — it includes your berth assignment,
+              arrival details, and a personal boarding pass link for digital check-in.
+              If you don't see it within a few minutes, check your spam folder or contact the marina directly.
             </div>
           )}
         </div>
