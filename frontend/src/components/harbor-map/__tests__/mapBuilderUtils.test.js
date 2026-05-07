@@ -181,7 +181,7 @@ describe('snapBerthToPier', () => {
     const result = snapBerthToPier(8, 5, [pier])
     expect(result).not.toBeNull()
     expect(result.pierId).toBe(1)
-    expect(result.position_on_parent.side).toBe('port')
+    expect(result.position_on_parent).toBe('')
     expect(result.berthW).toBe(1)
     expect(result.berthH).toBe(2)
   })
@@ -190,7 +190,7 @@ describe('snapBerthToPier', () => {
     // Pier right edge absX = canvas_x + canvas_w/2 = 10 + 1 = 11
     const result = snapBerthToPier(12, 5, [pier])
     expect(result).not.toBeNull()
-    expect(result.position_on_parent.side).toBe('starboard')
+    expect(result.position_on_parent).toBe('')
   })
 
   it('slot_index is 0 for the topmost berth position', () => {
@@ -198,7 +198,7 @@ describe('snapBerthToPier', () => {
     // berthH=2, top slot center clamps to cy - halfH + berthH/2 = 1 + 1 = 2
     const result = snapBerthToPier(8, 1, [pier])
     expect(result).not.toBeNull()
-    expect(result.position_on_parent.slot_index).toBe(0)
+    expect(result.position_on_parent).toBe('')
   })
 
   it('snaps horizontal pier to top or bottom edge', () => {
@@ -207,8 +207,53 @@ describe('snapBerthToPier', () => {
     // Top edge = 5 - 1 = 4, mouse at (10, 3) is SNAP_RADIUS=2 away → within range
     const result = snapBerthToPier(10, 3, [hPier])
     expect(result).not.toBeNull()
-    expect(result.position_on_parent.side).toBe('port')
+    expect(result.position_on_parent).toBe('')
     expect(result.berthW).toBe(2)
     expect(result.berthH).toBe(1)
+  })
+})
+
+describe('snapBerthToPier compound piers', () => {
+  // Compound pier: center at (20,20), rotation=0
+  // Component c_f1: ox=-5, oy=3, w=2, h=6 → absX=15, absY=23
+  const compoundPier = {
+    id: 99,
+    canvas_x: 20, canvas_y: 20,
+    canvas_w: 12, canvas_h: 8,
+    rotation: 0,
+    components: [
+      { id: 'c_f1', type: 'finger', ox: -5, oy: 3, w: 2, h: 6 },
+      { id: 'c_f2', type: 'finger', ox:  5, oy: 3, w: 2, h: 6 },
+    ],
+  }
+
+  it('returns null when mouse is far from all components', () => {
+    expect(snapBerthToPier(0, 0, [compoundPier])).toBeNull()
+  })
+
+  it('snaps to component left edge and returns component UUID as position_on_parent', () => {
+    // c_f1 absX=15, absY=23, w=2, h=6 → left edge = 15-1=14
+    const result = snapBerthToPier(13, 23, [compoundPier])
+    expect(result).not.toBeNull()
+    expect(result.pierId).toBe(99)
+    expect(result.position_on_parent).toBe('c_f1')
+  })
+
+  it('local_x/y are relative to pier origin, not component', () => {
+    const result = snapBerthToPier(13, 23, [compoundPier])
+    expect(result).not.toBeNull()
+    // local coords are relative to pier origin (20,20)
+    expect(result.local_x).toBeCloseTo(result.absX - 20, 1)
+    expect(result.local_y).toBeCloseTo(result.absY - 20, 1)
+  })
+
+  it('applies rotation when pier is rotated 90°', () => {
+    // At 90°: c_f1 ox=-5,oy=3 → rotated: ox' = -5*cos90 - 3*sin90 = -3
+    //                                      oy' = -5*sin90 + 3*cos90 = -5
+    // compAbsX = 20 + (-3) = 17, compAbsY = 20 + (-5) = 15
+    const rotatedPier = { ...compoundPier, rotation: 90 }
+    const result = snapBerthToPier(16, 15, [rotatedPier])
+    expect(result).not.toBeNull()
+    expect(result.pierId).toBe(99)
   })
 })
