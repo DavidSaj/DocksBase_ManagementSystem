@@ -538,18 +538,26 @@ export default function MapBuilder() {
       if (p.compound && p.components) {
         const suffix   = newId().slice(0, 3).toUpperCase()
         const pierType = p.material ?? 'pontoon'
-        const created = await Promise.all(p.components.map((comp, i) =>
-          createPier({
-            code:      `${suffix}-${i}`,
-            pier_type: pierType,
-            canvas_x:  (gx + comp.ox).toFixed(2),
-            canvas_y:  (gy + comp.oy).toFixed(2),
-            canvas_w:  comp.canvas_w,
-            canvas_h:  comp.canvas_h,
-            rotation:  0,
-          })
-        ))
-        pushUndo({ type: 'piers', ids: created.map(c => c.id) })
+        const componentsWithIds = p.components.map(comp => ({
+          id:   `c_${newId()}`,
+          type: comp.pier_type === 'pontoon' ? 'spine' : 'finger',
+          ox:   comp.ox - p.w / 2,   // convert from top-left-relative to pier-center-relative
+          oy:   comp.oy - p.h / 2,
+          w:    comp.canvas_w,
+          h:    comp.canvas_h,
+        }))
+        const created = await createPier({
+          code:       suffix,
+          pier_type:  pierType,
+          canvas_x:   (gx + p.w / 2).toFixed(2),
+          canvas_y:   (gy + p.h / 2).toFixed(2),
+          canvas_w:   p.w,
+          canvas_h:   p.h,
+          rotation:   0,
+          components: componentsWithIds,
+        })
+        pushUndo({ type: 'pier', id: created.id })
+        setSelectedIds(new Set([`pier-${created.id}`]))
       } else if (DOCKING_TYPES.has(p.type) || p.type.startsWith('custom-')) {
         const pier_type = p.material ?? PREFAB_TO_PIER_TYPE[p.type] ?? 'pontoon'
         const created = await createPier({
@@ -562,6 +570,7 @@ export default function MapBuilder() {
           rotation:  0,
         })
         pushUndo({ type: 'pier', id: created.id })
+        setSelectedIds(new Set([`pier-${created.id}`]))
       } else {
         const newItem = {
           id: newId(), type: p.type, shape: 'rect',
