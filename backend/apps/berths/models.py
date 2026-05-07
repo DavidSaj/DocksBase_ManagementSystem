@@ -33,6 +33,45 @@ class OTAConnection(models.Model):
         return f'{self.name} ({self.marina})'
 
 
+AMENITY_SLUGS = {'power_30a', 'power_50a', 'water', 'wifi', 'fuel_nearby', 'pump_out'}
+
+
+class BerthCategory(models.Model):
+    MOORING_CHOICES = [
+        ('finger',       'Finger Pontoon'),
+        ('alongside',    'Alongside'),
+        ('stern_to',     'Stern-to'),
+        ('mooring_ball', 'Mooring Ball'),
+    ]
+    marina       = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='berth_categories')
+    name         = models.CharField(max_length=100)
+    description  = models.TextField(blank=True)
+    mooring_type = models.CharField(max_length=20, choices=MOORING_CHOICES, default='finger')
+    amenities    = models.JSONField(default=list)
+    pricing_tier = models.ForeignKey(
+        'billing.ChargeableItem',
+        on_delete=models.PROTECT,
+        limit_choices_to={'category': 'berth'},
+        null=True, blank=True,
+        related_name='berth_categories',
+    )
+    sort_order = models.IntegerField(default=0)
+    is_active  = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        unique_together = ('marina', 'name')
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        bad = [s for s in (self.amenities or []) if s not in AMENITY_SLUGS]
+        if bad:
+            raise ValidationError({'amenities': f'Unknown amenity slug(s): {bad}. Allowed: {sorted(AMENITY_SLUGS)}'})
+
+    def __str__(self):
+        return f'{self.name} ({self.marina})'
+
+
 class Pier(models.Model):
     marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='piers')
     code           = models.CharField(max_length=50)
@@ -123,6 +162,12 @@ class Berth(models.Model):
         null=True, blank=True, related_name='berths'
     )
     channel_locked = models.BooleanField(default=False)
+    category = models.ForeignKey(
+        BerthCategory,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='berths',
+    )
 
     class Meta:
         unique_together = ('marina', 'code')
