@@ -38,3 +38,13 @@ class LogicalPierSerializerTest(TestCase):
         self.assertEqual(resp.data['display_name'], 'North Dock')
         self.assertEqual(len(resp.data['components']), 1)
         self.assertEqual(resp.data['components'][0]['id'], 'c_abc')
+
+    def test_components_non_numeric_rejected(self):
+        resp = self.client.post('/api/v1/piers/', {
+            'code': 'P3',
+            'pier_type': 'pontoon',
+            'canvas_x': 0,
+            'canvas_y': 0,
+            'components': [{'id': 'c_1', 'type': 'spine', 'ox': 'bad', 'oy': 0, 'w': 10, 'h': 2}],
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)

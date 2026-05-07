@@ -89,6 +89,9 @@ class PierSerializer(serializers.ModelSerializer):
             missing = required - comp.keys()
             if missing:
                 raise serializers.ValidationError(f'Component missing keys: {missing}.')
+            for key in ('ox', 'oy', 'w', 'h'):
+                if not isinstance(comp[key], (int, float)):
+                    raise serializers.ValidationError(f'Component field "{key}" must be numeric.')
         return value
 
 
