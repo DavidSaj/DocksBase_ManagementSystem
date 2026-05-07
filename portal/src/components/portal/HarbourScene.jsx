@@ -7,7 +7,7 @@ const PILINGS = [72, 136, 200, 264];
 export function HarbourScene({ opacity = 1 }) {
   return (
     <svg
-      style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 180, pointerEvents: 'none', opacity }}
+      style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 200, pointerEvents: 'none', opacity }}
       viewBox="0 0 1440 180"
       preserveAspectRatio="xMidYMax slice"
       fill="none"
