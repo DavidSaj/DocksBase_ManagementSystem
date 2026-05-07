@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection
+from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection, BerthCategory, AMENITY_SLUGS
 from apps.billing.models import ChargeableItem
 
 
@@ -95,7 +95,7 @@ class BerthSerializer(serializers.ModelSerializer):
             'pricing_tier', 'pricing_tier_name', 'pricing_tier_unit_price',
             'status', 'effective_status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
-            'ota_connection', 'channel_locked',
+            'ota_connection', 'channel_locked', 'category',
         ]
         read_only_fields = [
             'id', 'pier_code', 'vessel_name', 'is_placed', 'effective_status',
@@ -135,3 +135,18 @@ class MarinaMapConfigSerializer(serializers.ModelSerializer):
         model = MarinaMapConfig
         fields = ['config', 'updated_at']
         read_only_fields = ['updated_at']
+
+
+class BerthCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BerthCategory
+        fields = ['id', 'name', 'description', 'mooring_type', 'amenities',
+                  'pricing_tier', 'sort_order', 'is_active']
+
+    def validate_amenities(self, value):
+        bad = [s for s in value if s not in AMENITY_SLUGS]
+        if bad:
+            raise serializers.ValidationError(
+                f'Unknown amenity slug(s): {bad}. Allowed: {sorted(AMENITY_SLUGS)}'
+            )
+        return value
