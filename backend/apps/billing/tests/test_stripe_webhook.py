@@ -137,3 +137,61 @@ class StripeWebhookBookingTest(TestCase):
         invoice_no_booking.refresh_from_db()
         self.assertEqual(invoice_no_booking.status, 'paid')
         mock_email.assert_not_called()
+
+
+class StripeConnectPaymentIntentWebhookTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina, self.booking, self.invoice, self.berth = _setup()
+        self.marina.stripe_account_id = 'acct_test'
+        self.marina.save(update_fields=['stripe_account_id'])
+
+    def _make_pi_event(self, invoice_id):
+        return {
+            'type': 'payment_intent.succeeded',
+            'data': {
+                'object': {
+                    'id': 'pi_test_connect',
+                    'metadata': {'invoice_id': str(invoice_id)},
+                }
+            }
+        }
+
+    @patch('apps.billing.views.send_booking_confirmed_email')
+    @patch('apps.billing.views._generate_store_and_email_pdf')
+    @patch('apps.billing.stripe_service.stripe')
+    def test_payment_intent_succeeded_marks_invoice_paid(
+        self, mock_stripe, mock_pdf, mock_email
+    ):
+        mock_stripe.Webhook.construct_event.return_value = self._make_pi_event(
+            self.invoice.id
+        )
+        with patch('apps.billing.views.threading', _sync_thread_mock()):
+            resp = self.client.post(
+                '/api/v1/billing/stripe/connect-webhook/',
+                data=json.dumps({}),
+                content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='sig',
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, 'paid')
+        self.assertEqual(self.invoice.stripe_payment_intent_id, 'pi_test_connect')
+        self.assertIsNotNone(self.invoice.paid_at)
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_payment_intent_succeeded_is_idempotent(self, mock_stripe):
+        self.invoice.status = 'paid'
+        self.invoice.save(update_fields=['status'])
+        mock_stripe.Webhook.construct_event.return_value = self._make_pi_event(
+            self.invoice.id
+        )
+        resp = self.client.post(
+            '/api/v1/billing/stripe/connect-webhook/',
+            data=json.dumps({}),
+            content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='sig',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, 'paid')

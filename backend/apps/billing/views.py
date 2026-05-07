@@ -211,6 +211,21 @@ class StripeConnectWebhookView(APIView):
                 except Exception:
                     pass
 
+        elif event_type == 'payment_intent.succeeded':
+            updated = Invoice.objects.filter(pk=invoice.pk, status='open').update(
+                stripe_payment_intent_id=obj['id'],
+                status='paid',
+                paid_at=timezone.now(),
+            )
+            if updated:
+                invoice.refresh_from_db()
+                invoice_paid.send(sender=Invoice, invoice=invoice)
+                threading.Thread(
+                    target=_post_payment_tasks,
+                    args=(invoice.id,),
+                    daemon=True,
+                ).start()
+
         return HttpResponse(status=200)
 
 
@@ -582,20 +597,20 @@ class SubscriptionBillingView(APIView):
         )
 
         card_brand = card_last4 = None
-        pm = sub.get('default_payment_method')
-        if pm and isinstance(pm, dict):
-            card_brand = pm.get('card', {}).get('brand')
-            card_last4 = pm.get('card', {}).get('last4')
+        pm = sub.default_payment_method
+        if pm:
+            card_brand = pm.card.brand if pm.card else None
+            card_last4 = pm.card.last4 if pm.card else None
 
         if not card_last4 and marina.stripe_customer_id:
             customer = _stripe.Customer.retrieve(
                 marina.stripe_customer_id,
                 expand=['invoice_settings.default_payment_method'],
             )
-            pm = (customer.get('invoice_settings') or {}).get('default_payment_method')
-            if pm and isinstance(pm, dict):
-                card_brand = pm.get('card', {}).get('brand')
-                card_last4 = pm.get('card', {}).get('last4')
+            pm = customer.invoice_settings.default_payment_method if customer.invoice_settings else None
+            if pm:
+                card_brand = pm.card.brand if pm.card else None
+                card_last4 = pm.card.last4 if pm.card else None
 
         return Response({
             'plan':          marina.plan,
@@ -605,7 +620,7 @@ class SubscriptionBillingView(APIView):
             'next_renewal':  marina.next_renewal,
             'card_brand':    card_brand,
             'card_last4':    card_last4,
-            'cancel_at_period_end': sub.get('cancel_at_period_end', False),
+            'cancel_at_period_end': bool(sub.cancel_at_period_end),
         })
 
 
