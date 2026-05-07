@@ -1,8 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
 import { useState, Component } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import WelcomeScreen from './components/WelcomeScreen.jsx';
 
 class ScreenErrorBoundary extends Component {
   constructor(props) {
@@ -52,7 +54,6 @@ import Login        from './screens/Login.jsx';
 import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
-import BoaterPortal from './screens/BoaterPortal.jsx';
 import Channels from './screens/Channels.jsx';
 
 
@@ -72,26 +73,48 @@ function ComingSoon() {
 }
 
 function DesktopApp() {
+  const { user } = useAuth();
   const [screen, setScreenRaw] = useState(
     () => localStorage.getItem('db_app_screen') || 'overview'
   );
+  const welcomeKey = user?.id ? `db_welcomed_${user.id}` : null;
+  const [showWelcome, setShowWelcome] = useState(
+    () => welcomeKey ? !localStorage.getItem(welcomeKey) : false
+  );
+
   function setScreen(s) {
     setScreenRaw(s);
     localStorage.setItem('db_app_screen', s);
   }
+
+  function dismissWelcome() {
+    if (welcomeKey) localStorage.setItem(welcomeKey, '1');
+    setShowWelcome(false);
+  }
+
   const Screen = SCREEN_MAP[screen] || ComingSoon;
   return (
-    <div className="app">
-      <Sidebar screen={screen} setScreen={setScreen} />
-      <div className="main">
-        <Topbar screen={screen} />
-        <div className="content">
-          <ScreenErrorBoundary key={screen} setScreen={setScreen}>
-            <Screen setScreen={setScreen} />
-          </ScreenErrorBoundary>
+    <>
+      <AnimatePresence>
+        {showWelcome && (
+          <WelcomeScreen
+            name={user?.first_name}
+            onDone={dismissWelcome}
+          />
+        )}
+      </AnimatePresence>
+      <div className="app">
+        <Sidebar screen={screen} setScreen={setScreen} />
+        <div className="main">
+          <Topbar screen={screen} />
+          <div className="content">
+            <ScreenErrorBoundary key={screen} setScreen={setScreen}>
+              <Screen setScreen={setScreen} />
+            </ScreenErrorBoundary>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -103,7 +126,6 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
-        <Route path="/portal" element={<ProtectedRoute element={<BoaterPortal />} allowedRoles={['boater']} />} />
         <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />
       </Routes>
     </AuthProvider>

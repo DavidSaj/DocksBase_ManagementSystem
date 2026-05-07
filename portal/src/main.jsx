@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import './styles/portal.css';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

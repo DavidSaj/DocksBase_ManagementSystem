@@ -1,10 +1,11 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status as http_status
 from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
+from apps.billing import stripe_service as _stripe_svc
 from apps.reservations.models import Booking
 from apps.vessels.models import Vessel
 from .models import AbsenceReport, CraneRequest
@@ -130,3 +131,71 @@ class PortalVesselView(generics.RetrieveAPIView):
         if vessel is None:
             raise NotFound('No vessel on file.')
         return vessel
+
+
+class PortalInvoicePayView(APIView):
+    permission_classes = [IsBoater]
+
+    def post(self, request, pk):
+        member = request.user.member_profile
+        try:
+            invoice = Invoice.objects.select_related('marina').get(
+                pk=pk,
+                member=member,
+                marina=request.user.marina,
+                status__in=['unpaid', 'open'],
+            )
+        except Invoice.DoesNotExist:
+            return Response(
+                {'detail': 'Invoice not found or not payable.'},
+                status=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        if not invoice.marina.stripe_account_id:
+            return Response(
+                {'detail': 'Payments not configured for this marina.'},
+                status=http_status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
+        amount_cents = int(invoice.total * 100)
+        currency = invoice.marina.currency.lower()
+        stripe_account = invoice.marina.stripe_account_id
+
+        if invoice.stripe_payment_intent_id:
+            try:
+                intent = _stripe_svc.stripe.PaymentIntent.retrieve(
+                    invoice.stripe_payment_intent_id,
+                    stripe_account=stripe_account,
+                )
+                if intent['status'] == 'requires_payment_method':
+                    if intent['amount'] != amount_cents:
+                        intent = _stripe_svc.stripe.PaymentIntent.modify(
+                            intent['id'],
+                            amount=amount_cents,
+                            stripe_account=stripe_account,
+                        )
+                    return Response({
+                        'client_secret': intent['client_secret'],
+                        'amount': str(invoice.total),
+                        'currency': currency,
+                        'stripe_account_id': stripe_account,
+                    })
+            except _stripe_svc.stripe.error.InvalidRequestError as e:
+                if e.code != 'resource_missing':
+                    raise
+
+        intent = _stripe_svc.stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency=currency,
+            metadata={'invoice_id': str(invoice.pk)},
+            stripe_account=stripe_account,
+        )
+        invoice.stripe_payment_intent_id = intent['id']
+        invoice.save(update_fields=['stripe_payment_intent_id'])
+
+        return Response({
+            'client_secret': intent['client_secret'],
+            'amount': str(invoice.total),
+            'currency': currency,
+            'stripe_account_id': stripe_account,
+        }, status=http_status.HTTP_201_CREATED)

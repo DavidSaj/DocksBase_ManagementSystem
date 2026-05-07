@@ -9,8 +9,9 @@ export const CH = ROWS * GRID   // 11200
 // Convert mouse client coords + canvas DOMRect → snapped grid position.
 // Pass zoom so that CSS-scaled canvas coords map correctly to grid units.
 export function snapToGrid(clientX, clientY, canvasRect, zoom = 1) {
-  const gx = Math.round((clientX - canvasRect.left) / zoom / GRID)
-  const gy = Math.round((clientY - canvasRect.top) / zoom / GRID)
+  const snapGrid = zoom < 0.07 ? 5 : zoom < 0.15 ? 2 : 1
+  const gx = Math.round((clientX - canvasRect.left) / zoom / GRID / snapGrid) * snapGrid
+  const gy = Math.round((clientY - canvasRect.top)  / zoom / GRID / snapGrid) * snapGrid
   return {
     gx: Math.max(0, Math.min(COLS - 1, gx)),
     gy: Math.max(0, Math.min(ROWS - 1, gy)),
@@ -185,74 +186,101 @@ export function berthDimsForPier(pier) {
  */
 export function snapBerthToPier(mouseGx, mouseGy, piers, berth = null) {
   for (const pier of piers) {
-    const { canvas_x: cx, canvas_y: cy, canvas_w: pw, canvas_h: ph } = pier
-    const halfW = pw / 2
-    const halfH = ph / 2
-    const { berthW, berthH } = berth ? berthCanvasDims(berth, pier) : berthDimsForPier(pier)
+    const { canvas_x: cx, canvas_y: cy, components } = pier
 
-    if (ph >= pw) {
-      // Vertical pier — snap to left or right edge
-      const leftEdgeX  = cx - halfW
-      const rightEdgeX = cx + halfW
-      const withinHeight = mouseGy >= cy - halfH - SNAP_RADIUS && mouseGy <= cy + halfH + SNAP_RADIUS
+    if (components?.length > 0) {
+      // Compound pier — snap to individual component edges
+      const θ = ((pier.rotation ?? 0) * Math.PI) / 180
+      const cosθ = Math.cos(θ)
+      const sinθ = Math.sin(θ)
 
-      if (withinHeight) {
-        if (Math.abs(mouseGx - leftEdgeX) <= SNAP_RADIUS) {
-          const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
+      for (const comp of components) {
+        const rotOx = comp.ox * cosθ - comp.oy * sinθ
+        const rotOy = comp.ox * sinθ + comp.oy * cosθ
+
+        const compAbsX = cx + rotOx
+        const compAbsY = cy + rotOy
+        const halfW = comp.w / 2
+        const halfH = comp.h / 2
+        const { berthW, berthH } = berth
+          ? berthCanvasDims(berth, { canvas_w: comp.w, canvas_h: comp.h })
+          : berthDimsForPier({ canvas_w: comp.w, canvas_h: comp.h })
+
+        const snap = _snapToEdge(
+          mouseGx, mouseGy, compAbsX, compAbsY, halfW, halfH, berthW, berthH
+        )
+        if (snap) {
           return {
             pierId: pier.id,
-            local_x: leftEdgeX - berthW / 2 - cx,
-            local_y: clampedY - cy,
-            absX: leftEdgeX - berthW / 2,
-            absY: clampedY,
-            berthW, berthH,
-            position_on_parent: { side: 'port', slot_index: Math.floor((clampedY - (cy - halfH)) / berthH) },
-          }
-        }
-        if (Math.abs(mouseGx - rightEdgeX) <= SNAP_RADIUS) {
-          const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
-          return {
-            pierId: pier.id,
-            local_x: rightEdgeX + berthW / 2 - cx,
-            local_y: clampedY - cy,
-            absX: rightEdgeX + berthW / 2,
-            absY: clampedY,
-            berthW, berthH,
-            position_on_parent: { side: 'starboard', slot_index: Math.floor((clampedY - (cy - halfH)) / berthH) },
+            position_on_parent: comp.id,
+            local_x:  snap.absX - cx,
+            local_y:  snap.absY - cy,
+            absX:     snap.absX,
+            absY:     snap.absY,
+            berthW,
+            berthH,
           }
         }
       }
     } else {
-      // Horizontal pier — snap to top or bottom edge
-      const topEdgeY    = cy - halfH
-      const bottomEdgeY = cy + halfH
-      const withinWidth = mouseGx >= cx - halfW - SNAP_RADIUS && mouseGx <= cx + halfW + SNAP_RADIUS
+      // Simple pier — existing behaviour
+      const halfW = pier.canvas_w / 2
+      const halfH = pier.canvas_h / 2
+      const { berthW, berthH } = berth
+        ? berthCanvasDims(berth, pier)
+        : berthDimsForPier(pier)
 
-      if (withinWidth) {
-        if (Math.abs(mouseGy - topEdgeY) <= SNAP_RADIUS) {
-          const clampedX = Math.max(cx - halfW + berthW / 2, Math.min(cx + halfW - berthW / 2, mouseGx))
-          return {
-            pierId: pier.id,
-            local_x: clampedX - cx,
-            local_y: topEdgeY - berthH / 2 - cy,
-            absX: clampedX,
-            absY: topEdgeY - berthH / 2,
-            berthW, berthH,
-            position_on_parent: { side: 'port', slot_index: Math.floor((clampedX - (cx - halfW)) / berthW) },
-          }
+      const snap = _snapToEdge(
+        mouseGx, mouseGy, cx, cy, halfW, halfH, berthW, berthH
+      )
+      if (snap) {
+        return {
+          pierId: pier.id,
+          position_on_parent: '',
+          local_x:  snap.absX - cx,
+          local_y:  snap.absY - cy,
+          absX:     snap.absX,
+          absY:     snap.absY,
+          berthW,
+          berthH,
         }
-        if (Math.abs(mouseGy - bottomEdgeY) <= SNAP_RADIUS) {
-          const clampedX = Math.max(cx - halfW + berthW / 2, Math.min(cx + halfW - berthW / 2, mouseGx))
-          return {
-            pierId: pier.id,
-            local_x: clampedX - cx,
-            local_y: bottomEdgeY + berthH / 2 - cy,
-            absX: clampedX,
-            absY: bottomEdgeY + berthH / 2,
-            berthW, berthH,
-            position_on_parent: { side: 'starboard', slot_index: Math.floor((clampedX - (cx - halfW)) / berthW) },
-          }
-        }
+      }
+    }
+  }
+  return null
+}
+
+function _snapToEdge(mouseGx, mouseGy, cx, cy, halfW, halfH, berthW, berthH) {
+  if (halfH >= halfW) {
+    // Vertical element — snap to left (port) or right (starboard) edge
+    const leftEdgeX  = cx - halfW
+    const rightEdgeX = cx + halfW
+    const withinHeight = mouseGy >= cy - halfH - SNAP_RADIUS && mouseGy <= cy + halfH + SNAP_RADIUS
+
+    if (withinHeight) {
+      if (Math.abs(mouseGx - leftEdgeX) <= SNAP_RADIUS) {
+        const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
+        return { absX: leftEdgeX - berthW / 2, absY: clampedY }
+      }
+      if (Math.abs(mouseGx - rightEdgeX) <= SNAP_RADIUS) {
+        const clampedY = Math.max(cy - halfH + berthH / 2, Math.min(cy + halfH - berthH / 2, mouseGy))
+        return { absX: rightEdgeX + berthW / 2, absY: clampedY }
+      }
+    }
+  } else {
+    // Horizontal element — snap to top or bottom edge
+    const topEdgeY    = cy - halfH
+    const bottomEdgeY = cy + halfH
+    const withinWidth = mouseGx >= cx - halfW - SNAP_RADIUS && mouseGx <= cx + halfW + SNAP_RADIUS
+
+    if (withinWidth) {
+      if (Math.abs(mouseGy - topEdgeY) <= SNAP_RADIUS) {
+        const clampedX = Math.max(cx - halfW + berthW / 2, Math.min(cx + halfW - berthW / 2, mouseGx))
+        return { absX: clampedX, absY: topEdgeY - berthH / 2 }
+      }
+      if (Math.abs(mouseGy - bottomEdgeY) <= SNAP_RADIUS) {
+        const clampedX = Math.max(cx - halfW + berthW / 2, Math.min(cx + halfW - berthW / 2, mouseGx))
+        return { absX: clampedX, absY: bottomEdgeY + berthH / 2 }
       }
     }
   }

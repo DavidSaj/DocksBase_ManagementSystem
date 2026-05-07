@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import useBerths from '../hooks/useBerths.js';
-import usePiers from '../hooks/usePiers.js';
+import useLogicalPiers from '../hooks/useLogicalPiers.js';
 import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import MapBuilder from '../components/harbor-map/MapBuilder.jsx';
 import Ic from '../components/ui/Icon.jsx';
@@ -442,47 +442,106 @@ function BerthsTable() {
   );
 }
 
-function PiersTable() {
-  const { piers, loading } = usePiers();
+function LogicalPiersTable() {
+  const { logicalPiers, loading, refetch, createLogicalPier } = useLogicalPiers()
+  const [showForm,  setShowForm]  = useState(false)
+  const [formName,  setFormName]  = useState('')
+  const [formType,  setFormType]  = useState('pontoon')
+  const [formNotes, setFormNotes] = useState('')
+  const [saving,    setSaving]    = useState(false)
 
-  if (loading) return <div className="empty"><div className="empty-title">Loading…</div></div>;
+  async function handleCreate() {
+    if (!formName.trim()) return
+    setSaving(true)
+    try {
+      await createLogicalPier({ name: formName.trim(), pier_type: formType, notes: formNotes })
+      setShowForm(false); setFormName(''); setFormType('pontoon'); setFormNotes('')
+    } finally { setSaving(false) }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this pier? Dock shapes assigned to it will be unassigned.')) return
+    try {
+      await api.delete(`/logical-piers/${id}/`)
+      refetch()
+    } catch (e) {
+      window.alert('Failed to delete pier. Please try again.')
+    }
+  }
+
+  if (loading) return <div className="empty"><div className="empty-title">Loading…</div></div>
 
   return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ borderBottom: 'var(--border)', background: 'var(--bg)' }}>
-            {['Code', 'Label', 'Type', 'On Map'].map(h => (
-              <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {piers.map((p, i) => (
-            <tr key={p.id} style={{ borderBottom: i < piers.length - 1 ? 'var(--border)' : 'none' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <td style={{ padding: '10px 14px', fontWeight: 600 }}>{p.code}</td>
-              <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{p.label || '—'}</td>
-              <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)', textTransform: 'capitalize' }}>{p.pier_type?.replace('_', ' ') || '—'}</td>
-              <td style={{ padding: '10px 14px' }}>
-                <span className={`badge ${p.canvas_x != null ? 'badge-green' : 'badge-gray'}`}>
-                  {p.canvas_x != null ? 'Placed' : 'Unplaced'}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {piers.length === 0 && (
-        <div className="empty">
-          <div className="empty-title">No piers yet</div>
-          <div className="empty-sub">Add piers using the Map Editor tab.</div>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
+          {showForm ? 'Cancel' : '+ New Pier'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="card" style={{ padding: 16, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 2 }}>
+            <div className="field-label">Name</div>
+            <input className="field-input" placeholder="e.g. Pier A" value={formName} onChange={e => setFormName(e.target.value)} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="field-label">Type</div>
+            <select className="field-input" value={formType} onChange={e => setFormType(e.target.value)}>
+              <option value="pontoon">Pontoon</option>
+              <option value="concrete">Concrete</option>
+              <option value="steel">Steel</option>
+            </select>
+          </div>
+          <div style={{ flex: 2 }}>
+            <div className="field-label">Notes (optional)</div>
+            <input className="field-input" value={formNotes} onChange={e => setFormNotes(e.target.value)} />
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={handleCreate} disabled={saving || !formName.trim()}>
+            {saving ? 'Saving…' : 'Create'}
+          </button>
         </div>
       )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: 'var(--border)', background: 'var(--bg)' }}>
+              {['Name', 'Type', 'Dock Shapes', 'Berths', 'Notes', ''].map(h => (
+                <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {logicalPiers.map((lp, i) => (
+              <tr key={lp.id} style={{ borderBottom: i < logicalPiers.length - 1 ? 'var(--border)' : 'none' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <td style={{ padding: '10px 14px', fontWeight: 600 }}>{lp.name}</td>
+                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)', textTransform: 'capitalize' }}>{lp.pier_type}</td>
+                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{lp.dock_shapes_count}</td>
+                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{lp.berths_count}</td>
+                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.4)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lp.notes || '—'}</td>
+                <td style={{ padding: '10px 14px' }}>
+                  <button
+                    onClick={() => handleDelete(lp.id)}
+                    style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(192,57,43,0.35)', background: 'rgba(192,57,43,0.05)', color: '#c0392b', cursor: 'pointer' }}
+                  >Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {logicalPiers.length === 0 && (
+          <div className="empty">
+            <div className="empty-title">No named piers yet</div>
+            <div className="empty-sub">Create a pier here, then assign dock shapes to it from the Map Editor.</div>
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }
 
 const TABS = [
@@ -503,7 +562,7 @@ export default function Infrastructure() {
       </div>
 
       {tab === 'berths' && <BerthsTable />}
-      {tab === 'piers'  && <PiersTable />}
+      {tab === 'piers'  && <LogicalPiersTable />}
       {tab === 'map'    && (
         <div style={{ flex: 1, minHeight: 0 }}>
           <MapBuilder />

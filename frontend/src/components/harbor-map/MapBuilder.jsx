@@ -12,6 +12,8 @@ import {
 } from './mapBuilderUtils.js'
 import { TERRAIN_TOOLS, MATERIALS, buildComboDockLayout, PREFAB_TO_PIER_TYPE } from './mapBuilderPrefabs.js'
 import api from '../../api.js'
+import useLogicalPiers from '../../hooks/useLogicalPiers.js'
+import LogicalPierDropdown from './LogicalPierDropdown.jsx'
 
 // All prefab types that become Pier DB records when dropped
 const DOCKING_TYPES = new Set([
@@ -185,18 +187,21 @@ function BuildFingerPierModal({ onClose, onBuild }) {
 
 // ── Selected item panel ───────────────────────────────────────────────────────
 
-function SelectedItemPanel({ shape, pier, onRotate, onDelete, onResize, onClose }) {
+function SelectedItemPanel({ shape, pier, logicalPiers, onRotate, onDelete, onResize, onClose, onNameBlur, onAssignPier }) {
   const [w, setW] = useState(Math.round(shape.w * 10) / 10)
   const [h, setH] = useState(Math.round(shape.h * 10) / 10)
+  const [name, setName] = useState(pier?.display_name ?? '')
   useEffect(() => {
     setW(Math.round(shape.w * 10) / 10)
     setH(Math.round(shape.h * 10) / 10)
-  }, [shape.id, shape.w, shape.h])
+    setName(pier?.display_name ?? '')
+  }, [shape.id, shape.w, shape.h, pier?.display_name])
 
-  const rot = shape.rotation ?? 0
+  const rot      = shape.rotation ?? 0
   const pierType = pier?.pier_type ?? shape.type
+  const isCompound = pier?.components?.length > 0
 
-  const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }
+  const row   = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }
   const label = { fontSize: 10, color: 'rgba(0,0,0,0.4)', fontWeight: 600, letterSpacing: '0.5px' }
   const rotBtn = {
     width: 32, height: 32, borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)',
@@ -208,13 +213,15 @@ function SelectedItemPanel({ shape, pier, onRotate, onDelete, onResize, onClose 
     <div style={{
       position: 'absolute', top: 12, right: 12, zIndex: 20,
       background: '#fff', borderRadius: 10, padding: '14px 16px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.18)', width: 210,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.18)', width: 220,
       border: '1px solid rgba(0,0,0,0.09)', fontSize: 12,
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'rgba(0,0,0,0.85)' }}>{shape.label || 'Pier'}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'rgba(0,0,0,0.85)' }}>
+            {pier?.display_name || pier?.logical_pier_name || pier?.code || 'Dock'}
+          </div>
           <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 2, textTransform: 'capitalize' }}>
             {pierType.replace(/-/g, ' ')}
           </div>
@@ -223,6 +230,32 @@ function SelectedItemPanel({ shape, pier, onRotate, onDelete, onResize, onClose 
           background: 'none', border: 'none', cursor: 'pointer', fontSize: 18,
           color: 'rgba(0,0,0,0.3)', lineHeight: 1, padding: '0 2px',
         }}>×</button>
+      </div>
+
+      {/* Name */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={label}>NAME</div>
+        <input
+          className="field-input"
+          style={{ fontSize: 12, marginTop: 4, width: '100%', boxSizing: 'border-box' }}
+          placeholder="e.g. North Dock"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onBlur={() => onNameBlur(name)}
+        />
+      </div>
+
+      {/* Assign Pier */}
+      <div style={{ marginBottom: 10 }}>
+        <LogicalPierDropdown
+          value={pier?.logical_pier ?? null}
+          logicalPiers={logicalPiers}
+          onSelect={lp => onAssignPier(lp?.id ?? null)}
+          onCreate={async attrs => {
+            const created = await onAssignPier.__createPier(attrs)
+            return created
+          }}
+        />
       </div>
 
       {/* Rotation */}
@@ -235,28 +268,30 @@ function SelectedItemPanel({ shape, pier, onRotate, onDelete, onResize, onClose 
         </div>
       </div>
 
-      {/* Size */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={label}>SIZE (grid units)</div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', marginBottom: 2 }}>W</div>
-            <input type="number" value={w} min={0.5} step={0.5}
-              onChange={e => setW(parseFloat(e.target.value) || 1)}
-              style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12 }} />
+      {/* Size — disabled for compound piers */}
+      {!isCompound && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={label}>SIZE (grid units)</div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', marginBottom: 2 }}>W</div>
+              <input type="number" value={w} min={0.5} step={0.5}
+                onChange={e => setW(parseFloat(e.target.value) || 1)}
+                style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', marginBottom: 2 }}>H</div>
+              <input type="number" value={h} min={0.5} step={0.5}
+                onChange={e => setH(parseFloat(e.target.value) || 1)}
+                style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12 }} />
+            </div>
+            <button
+              onClick={() => onResize(w, h)}
+              style={{ padding: '5px 8px', borderRadius: 5, border: 'none', background: 'var(--navy,#1a3a5c)', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}
+            >Apply</button>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', marginBottom: 2 }}>H</div>
-            <input type="number" value={h} min={0.5} step={0.5}
-              onChange={e => setH(parseFloat(e.target.value) || 1)}
-              style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12 }} />
-          </div>
-          <button
-            onClick={() => onResize(w, h)}
-            style={{ padding: '5px 8px', borderRadius: 5, border: 'none', background: 'var(--navy,#1a3a5c)', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}
-          >Apply</button>
         </div>
-      </div>
+      )}
 
       {/* Delete */}
       <button onClick={onDelete} style={{
@@ -275,19 +310,56 @@ function SelectedItemPanel({ shape, pier, onRotate, onDelete, onResize, onClose 
 function buildShapes(piers, berths, envItems, dragOverride) {
   const pierById = Object.fromEntries(piers.map(p => [p.id, p]))
 
-  const pierShapes = piers
-    .filter(p => p.canvas_x != null && p.canvas_y != null)
-    .map(p => {
-      const ov = dragOverride?.pierId === p.id ? dragOverride : null
-      const { fill, stroke } = pierColors(p)
-      return {
-        id: `pier-${p.id}`, _pierId: p.id, type: 'pier',
-        absX: ov ? ov.absX : parseFloat(p.canvas_x),
-        absY: ov ? ov.absY : parseFloat(p.canvas_y),
-        w: ov?.w ?? p.canvas_w, h: ov?.h ?? p.canvas_h, rotation: p.rotation,
-        fill, stroke, label: p.code,
+  const pierShapes = []
+  for (const p of piers) {
+    if (p.canvas_x == null || p.canvas_y == null) continue
+    const ov = dragOverride?.pierId === p.id ? dragOverride : null
+    const { fill, stroke } = pierColors(p)
+    const cx = ov ? ov.absX : parseFloat(p.canvas_x)
+    const cy = ov ? ov.absY : parseFloat(p.canvas_y)
+    const rot = p.rotation ?? 0
+    const label = p.display_name || p.logical_pier_name || p.code
+
+    if (p.components?.length > 0) {
+      // Compound pier — one shape per component, each inheriting pier rotation
+      const θ = (rot * Math.PI) / 180
+      const cosθ = Math.cos(θ)
+      const sinθ = Math.sin(θ)
+      for (const comp of p.components) {
+        const rotOx = comp.ox * cosθ - comp.oy * sinθ
+        const rotOy = comp.ox * sinθ + comp.oy * cosθ
+        pierShapes.push({
+          id:       `pier-${p.id}-comp-${comp.id}`,
+          _pierId:  p.id,
+          _compId:  comp.id,
+          type:     'pier',
+          absX:     cx + rotOx,
+          absY:     cy + rotOy,
+          w:        comp.w,
+          h:        comp.h,
+          rotation: rot,
+          fill,
+          stroke,
+          label:    comp.type === 'spine' ? label : '',
+        })
       }
-    })
+    } else {
+      // Simple pier — single shape as before
+      pierShapes.push({
+        id:      `pier-${p.id}`,
+        _pierId: p.id,
+        type:    'pier',
+        absX:    cx,
+        absY:    cy,
+        w:       ov?.w ?? p.canvas_w,
+        h:       ov?.h ?? p.canvas_h,
+        rotation: rot,
+        fill,
+        stroke,
+        label,
+      })
+    }
+  }
 
   const berthShapes = berths
     .filter(b => b.pier && b.local_x != null && pierById[b.pier])
@@ -319,6 +391,7 @@ export default function MapBuilder() {
   const { config, loading: cfgLoading, saveConfig } = useMapConfig()
   const { berths, loading: berthsLoading, refetch: refetchBerths } = useBerths()
   const { piers, loading: piersLoading, createPier, updatePierCanvas, patchPier, deletePier } = usePiers()
+  const { logicalPiers, createLogicalPier } = useLogicalPiers()
 
   const [envItems,      setEnvItems]      = useState([])
   const [customPrefabs, setCustomPrefabs] = useState([])
@@ -538,18 +611,26 @@ export default function MapBuilder() {
       if (p.compound && p.components) {
         const suffix   = newId().slice(0, 3).toUpperCase()
         const pierType = p.material ?? 'pontoon'
-        const created = await Promise.all(p.components.map((comp, i) =>
-          createPier({
-            code:      `${suffix}-${i}`,
-            pier_type: pierType,
-            canvas_x:  (gx + comp.ox).toFixed(2),
-            canvas_y:  (gy + comp.oy).toFixed(2),
-            canvas_w:  comp.canvas_w,
-            canvas_h:  comp.canvas_h,
-            rotation:  0,
-          })
-        ))
-        pushUndo({ type: 'piers', ids: created.map(c => c.id) })
+        const componentsWithIds = p.components.map(comp => ({
+          id:   `c_${newId()}`,
+          type: comp.role ?? 'finger',
+          ox:   comp.ox - p.w / 2,   // convert from top-left-relative to pier-center-relative
+          oy:   comp.oy - p.h / 2,
+          w:    comp.canvas_w,
+          h:    comp.canvas_h,
+        }))
+        const created = await createPier({
+          code:       suffix,
+          pier_type:  pierType,
+          canvas_x:   (gx + p.w / 2).toFixed(2),
+          canvas_y:   (gy + p.h / 2).toFixed(2),
+          canvas_w:   p.w,
+          canvas_h:   p.h,
+          rotation:   0,
+          components: componentsWithIds,
+        })
+        pushUndo({ type: 'pier', id: created.id })
+        setSelectedIds(new Set(componentsWithIds.map(c => `pier-${created.id}-comp-${c.id}`)))
       } else if (DOCKING_TYPES.has(p.type) || p.type.startsWith('custom-')) {
         const pier_type = p.material ?? PREFAB_TO_PIER_TYPE[p.type] ?? 'pontoon'
         const created = await createPier({
@@ -562,6 +643,7 @@ export default function MapBuilder() {
           rotation:  0,
         })
         pushUndo({ type: 'pier', id: created.id })
+        setSelectedIds(new Set([`pier-${created.id}`]))
       } else {
         const newItem = {
           id: newId(), type: p.type, shape: 'rect',
@@ -589,12 +671,18 @@ export default function MapBuilder() {
     if (!item._pierId) return
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
-    setSelectedIds(new Set([item.id]))
+
+    // Select all shapes belonging to the same pier (compound group)
+    const groupIds = shapes.filter(s => s._pierId === item._pierId).map(s => s.id)
+    setSelectedIds(new Set(groupIds))
+
     moveRef.current = {
-      pierId: item._pierId,
-      startAbsX: item.absX, startAbsY: item.absY,
-      startClientX: e.clientX, startClientY: e.clientY,
-      moved: false,
+      pierId:       item._pierId,
+      startAbsX:    item.absX,
+      startAbsY:    item.absY,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      moved:        false,
     }
   }
 
@@ -616,10 +704,7 @@ export default function MapBuilder() {
   function handleCanvasPointerMove(e) {
     if (drawTool) {
       const rect = e.currentTarget.getBoundingClientRect()
-      setDrawCursor({
-        gx: Math.max(0, Math.min(COLS - 1, Math.round((e.clientX - rect.left) / zoom / GRID))),
-        gy: Math.max(0, Math.min(ROWS - 1, Math.round((e.clientY - rect.top)  / zoom / GRID))),
-      })
+      setDrawCursor(snapToGrid(e.clientX, e.clientY, rect, viewRef.current.zoom))
       return
     }
 
@@ -693,7 +778,7 @@ export default function MapBuilder() {
 
   // ── Selected item actions ─────────────────────────────────────────────────
 
-  const selectedShape = selectedIds.size === 1
+  const selectedShape = selectedIds.size > 0
     ? shapes.find(s => selectedIds.has(s.id))
     : null
   const selectedPier = selectedShape?._pierId
@@ -717,6 +802,17 @@ export default function MapBuilder() {
     setSelectedIds(new Set())
     refetchBerths()
   }
+
+  async function handleNameBlur(name) {
+    if (!selectedPier) return
+    await patchPier(selectedPier.id, { display_name: name.trim() })
+  }
+
+  async function handleAssignPier(logicalPierId) {
+    if (!selectedPier) return
+    await patchPier(selectedPier.id, { logical_pier: logicalPierId })
+  }
+  handleAssignPier.__createPier = createLogicalPier
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
 
@@ -856,7 +952,7 @@ export default function MapBuilder() {
         {/* Pan/zoom viewport */}
         <div
           ref={containerRef}
-          style={{ flex: 1, overflow: isDrawMode ? 'visible' : 'hidden', position: 'relative', cursor: isDrawMode ? 'crosshair' : 'grab' }}
+          style={{ flex: 1, overflow: 'hidden', position: 'relative', cursor: isDrawMode ? 'crosshair' : 'grab' }}
           onPointerDown={e => {
             if (isDrawMode) return
             if (e.button !== 0 && e.button !== 1) return
@@ -901,10 +997,13 @@ export default function MapBuilder() {
             <SelectedItemPanel
               shape={selectedShape}
               pier={selectedPier}
+              logicalPiers={logicalPiers}
               onRotate={handleRotateSelected}
               onResize={handleResizeSelected}
               onDelete={handleDeleteSelected}
               onClose={() => setSelectedIds(new Set())}
+              onNameBlur={handleNameBlur}
+              onAssignPier={handleAssignPier}
             />
           )}
 

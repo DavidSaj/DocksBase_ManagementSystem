@@ -17,9 +17,10 @@ DATABASES = {
 
 # Allow both localhost:517x origins and any *.lvh.me origins for local subdomain dev
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
+    'http://localhost:5173',  # management frontend
+    'http://localhost:5174',  # website
+    'http://localhost:5175',  # field app
+    'http://localhost:5176',  # portal
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

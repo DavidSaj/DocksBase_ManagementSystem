@@ -120,6 +120,81 @@ const NOTIF_GROUPS = [
   ]},
 ];
 
+// ── Stripe Connect card ────────────────────────────────────────────────────
+
+function StripeConnectCard({ marina }) {
+  const connected = Boolean(marina?.stripe_account_id);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    if (!connected) return;
+    api.get('/auth/connect/status/')
+      .then(r => setStatus(r.data))
+      .catch(() => {});
+  }, [connected]);
+
+  async function handleConnect() {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/connect/onboard/');
+      window.location.href = data.url;
+    } catch {
+      alert('Could not start Stripe Connect onboarding. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const chargesEnabled = status?.charges_enabled;
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">Stripe Payments</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Accept card payments from boaters</div>
+      </div>
+      <div className="card-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>
+            {!connected && 'Connect your Stripe account to accept booking payments.'}
+            {connected && !status && 'Checking account status…'}
+            {connected && status && chargesEnabled && 'Your Stripe account is connected and ready to accept payments.'}
+            {connected && status && !chargesEnabled && 'Account connected but onboarding is incomplete. Finish setup to accept payments.'}
+          </div>
+          {connected && status?.dashboard_url && (
+            <a
+              href={status.dashboard_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 12, color: 'var(--teal)', marginTop: 4, display: 'inline-block' }}
+            >
+              Open Stripe dashboard →
+            </a>
+          )}
+        </div>
+        <div style={{ flexShrink: 0 }}>
+          {!connected && (
+            <button className="btn btn-primary btn-sm" disabled={loading} onClick={handleConnect} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {loading && <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+              {loading ? 'Connecting…' : 'Connect Stripe'}
+            </button>
+          )}
+          {connected && chargesEnabled && (
+            <span className="badge badge-teal">Connected</span>
+          )}
+          {connected && !chargesEnabled && (
+            <button className="btn btn-ghost btn-sm" disabled={loading} onClick={handleConnect} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {loading && <span style={{ width: 12, height: 12, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: 'rgba(0,0,0,0.6)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+              {loading ? 'Connecting…' : 'Finish setup'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── OTA Connections card ───────────────────────────────────────────────────
 
 function OTAConnectionsCard() {
@@ -935,6 +1010,9 @@ export default function Settings() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+            {/* Stripe Connect — live */}
+            <StripeConnectCard marina={marina} />
+
             {/* Integrations — Coming Soon */}
             <div className="card">
               <div className="card-header"><div className="card-header-title">Integrations</div></div>
@@ -943,7 +1021,6 @@ export default function Settings() {
               </div>
               <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
                 {[
-                  { name: 'Stripe Payments',    desc: 'Card payments and invoicing' },
                   { name: 'Xero Accounting',    desc: 'Invoice and payment sync' },
                   { name: 'AIS Vessel Tracking',desc: 'MarineTraffic API' },
                   { name: 'OpenWeatherMap',     desc: 'Live weather conditions' },

@@ -16,12 +16,12 @@ class MarinaSerializer(serializers.ModelSerializer):
             'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft', 'fuel_berths',
             'operations_paused',
             # read-only: owner can see but not change
-            'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
+            'id', 'slug', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',
             'created_at',
         ]
         read_only_fields = [
-            'id', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
+            'id', 'slug', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'onboarding',
             'created_at',
         ]
@@ -72,14 +72,9 @@ class DocksBaseTokenSerializer(TokenObtainPairSerializer):
         try:
             user = User.objects.get(email=email)
             if not user.is_active and user.check_password(password):
-                from .models import EmailVerification
-                from .emails import send_verification_email
-                EmailVerification.objects.filter(user=user).delete()
-                ev = EmailVerification.objects.create(user=user)
-                send_verification_email(user, ev.token)
                 raise AuthenticationFailed({
                     'code': 'email_not_verified',
-                    'detail': 'Please verify your email before logging in. We\'ve sent a fresh verification link.',
+                    'detail': 'Please verify your email. Use the resend link if you need a new verification email.',
                 })
         except User.DoesNotExist:
             pass

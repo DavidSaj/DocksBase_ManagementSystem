@@ -58,7 +58,7 @@ export const TERRAIN_TOOLS = [
  * @param {string} border      — stroke colour
  */
 export function buildComboDockLayout({ numFingers, fingerLen, berthBeamGU, bg, border }) {
-  const fingerW       = 2                            // 2 GU wide — visible at typical zoom levels
+  const fingerW       = Math.max(1, berthBeamGU)     // scale finger width with berth beam
   const fingerSpacing = fingerW + 2 * berthBeamGU   // exact room for one berth each side
   const totalW        = (numFingers - 1) * fingerSpacing + 2  // 1 unit margin each side
   const spineH        = 2                            // whole number — spine is the access walkway
@@ -66,9 +66,10 @@ export function buildComboDockLayout({ numFingers, fingerLen, berthBeamGU, bg, b
 
   const components = [
     // Main access pontoon spanning the full width
-    { pier_type: 'pontoon', ox: totalW / 2, oy: spineH / 2, canvas_w: totalW, canvas_h: spineH, bg, border },
+    { role: 'spine', pier_type: 'pontoon', ox: totalW / 2, oy: spineH / 2, canvas_w: totalW, canvas_h: spineH, bg, border },
     // Finger piers
     ...Array.from({ length: numFingers }, (_, i) => ({
+      role: 'finger',
       pier_type: 'pontoon',
       ox: 1 + i * fingerSpacing,
       oy: spineH + fingerLen / 2,

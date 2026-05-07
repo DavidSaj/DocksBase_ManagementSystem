@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 
 export default function usePortalInvoices() {
@@ -6,12 +6,21 @@ export default function usePortalInvoices() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     api.get('/portal/invoices/')
       .then(r => setInvoices(r.data))
       .catch(() => setError('Could not load invoices.'))
       .finally(() => setLoading(false));
   }, []);
 
-  return { invoices, loading, error };
+  useEffect(() => { load(); }, [load]);
+
+  function markPaid(invoiceId) {
+    setInvoices(prev =>
+      prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'paid' } : inv)
+    );
+  }
+
+  return { invoices, loading, error, markPaid, refetch: load };
 }

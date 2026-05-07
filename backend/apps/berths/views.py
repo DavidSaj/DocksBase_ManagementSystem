@@ -5,8 +5,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection
-from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer, OTAConnectionSerializer
+from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection, BerthCategory, LogicalPier
+from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer, OTAConnectionSerializer, BerthCategorySerializer, LogicalPierSerializer
 from .sms_service import send_sms
 
 
@@ -33,6 +33,35 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Pier.objects.filter(marina=self.request.user.marina)
+
+    def update(self, request, *args, **kwargs):
+        from django.db import transaction
+        instance = self.get_object()
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        new_components = serializer.validated_data.get('components')
+        if new_components is not None:
+            old_ids = {c['id'] for c in (instance.components or [])}
+            new_ids = {c['id'] for c in new_components}
+            removed_ids = old_ids - new_ids
+            if removed_ids:
+                with transaction.atomic():
+                    Berth.objects.filter(
+                        pier=instance,
+                        position_on_parent__in=removed_ids,
+                    ).update(
+                        pier=None,
+                        position_on_parent='',
+                        local_x=None,
+                        local_y=None,
+                    )
+                    serializer.save()
+                return Response(serializer.data)
+
+        serializer.save()
+        return Response(serializer.data)
 
 
 class BerthListCreateView(generics.ListCreateAPIView):
@@ -182,6 +211,53 @@ class BulkUpdateBerthPricingView(APIView):
         return Response({'updated': updated})
 
 
+class BulkUpdateBerthCategoryView(APIView):
+    """
+    PATCH /api/v1/berths/bulk-category/
+    Body: { berth_ids: [1,2,3], category_id: 7 | null }
+    Updates category on the given berths (null to unassign).
+    """
+
+    def patch(self, request):
+        marina      = request.user.marina
+        berth_ids   = request.data.get('berth_ids', [])
+        category_id = request.data.get('category_id')
+
+        if not berth_ids or not isinstance(berth_ids, list):
+            return Response({'detail': 'berth_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if category_id is not None:
+            try:
+                category_id = int(category_id)
+                BerthCategory.objects.get(pk=category_id, marina=marina, is_active=True)
+            except (ValueError, BerthCategory.DoesNotExist):
+                return Response({'detail': 'Berth category not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = Berth.objects.filter(
+            id__in=berth_ids,
+            marina=marina,
+        ).update(category_id=category_id)
+
+        return Response({'updated': updated})
+
+
+class LogicalPierListCreateView(generics.ListCreateAPIView):
+    serializer_class = LogicalPierSerializer
+
+    def get_queryset(self):
+        return LogicalPier.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
+
+
+class LogicalPierDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = LogicalPierSerializer
+
+    def get_queryset(self):
+        return LogicalPier.objects.filter(marina=self.request.user.marina)
+
+
 class BroadcastSMSView(APIView):
     """
     POST /api/v1/berths/broadcast/
@@ -303,3 +379,14 @@ class OTAConnectionViewSet(viewsets.ModelViewSet):
         from apps.berths.allocator import rebalance_down
         rebalance_down(conn)
         return Response({'detail': 'Rebalance complete.'})
+
+
+class BerthCategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = BerthCategorySerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return BerthCategory.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)

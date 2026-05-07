@@ -6,6 +6,10 @@ import BookingDashboard from './screens/BookingDashboard';
 import BookingRequest from './screens/BookingRequest';
 import BookingRequestSent from './screens/BookingRequestSent';
 import BookingWizard from './screens/BookingWizard';
+import BookingConfirmed from './screens/BookingConfirmed';
+
+// Matches /{slug}/booking/{id}/confirmed  or  /{slug}/booking/{id}/cancelled
+const BOOKING_RESULT = /\/booking\/(\d+)\/(confirmed|cancelled)$/;
 
 export default function App() {
   const [params] = useSearchParams();
@@ -13,6 +17,12 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
 
   if (params.get('token')) return <Magic />;
+
+  const resultMatch = window.location.pathname.match(BOOKING_RESULT);
+  if (resultMatch) {
+    const cancelled = resultMatch[2] === 'cancelled';
+    return <BookingConfirmed marina={marina} bookingId={resultMatch[1]} cancelled={cancelled} />;
+  }
 
   const hasSession = Boolean(localStorage.getItem('portal_session_token'));
   if (hasSession) return <BookingDashboard />;

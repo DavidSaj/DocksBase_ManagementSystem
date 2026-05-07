@@ -13,11 +13,13 @@ from apps.reservations.models import Booking
 from apps.reservations.emails import (
     send_booking_request_boater_email,
     send_booking_request_manager_email,
+    send_booking_confirmed_email,
 )
 from django.db import transaction
 
 from apps.reservations.booking_engine import compatible_available_berths, find_date_alternatives, run_tetris, NoAvailableBerthError
-from apps.berths.models import Berth
+from apps.berths.models import Berth, BerthCategory
+from django.db.models import Q, Exists, OuterRef
 from apps.reservations.serializers import BookingSerializer
 from apps.berths.serializers import BerthSerializer
 from apps.billing import service as billing_service
@@ -178,14 +180,18 @@ class PublicAvailabilityAlternativesView(APIView):
 
 
 class PublicEngineRequestSerializer(serializers.Serializer):
-    check_in    = serializers.DateField()
-    check_out   = serializers.DateField()
-    guest_name  = serializers.CharField(max_length=200)
-    guest_email = serializers.EmailField()
-    guest_phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
-    boat_loa    = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
-    boat_beam   = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
-    boat_draft  = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    check_in          = serializers.DateField()
+    check_out         = serializers.DateField()
+    guest_name        = serializers.CharField(max_length=200)
+    guest_email       = serializers.EmailField()
+    guest_phone       = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    boat_loa          = serializers.DecimalField(max_digits=6, decimal_places=2)
+    boat_beam         = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    boat_draft        = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    vessel_name        = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    eta                = serializers.TimeField(required=False, allow_null=True)
+    berth_category_id  = serializers.IntegerField(required=False, allow_null=True)
+    payment_intent_id  = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
     def validate(self, data):
         if data['check_in'] >= data['check_out']:
@@ -213,6 +219,19 @@ class PublicEngineRequestView(APIView):
             return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
         d = ser.validated_data
+        category_id = d.get('berth_category_id')
+        payment_intent_id = d.get('payment_intent_id', '')
+        cat = None
+        if category_id:
+            try:
+                cat = BerthCategory.objects.get(pk=category_id, marina=marina, is_active=True)
+            except BerthCategory.DoesNotExist:
+                return Response({'detail': 'Berth category not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Category flow: payment already collected via PaymentIntent before this call.
+        # Skip invoice/checkout creation — booking goes straight to confirmed.
+        pre_paid = bool(cat and payment_intent_id)
+
         try:
             with transaction.atomic():
                 booking = run_tetris(
@@ -225,29 +244,47 @@ class PublicEngineRequestView(APIView):
                     guest_name=d['guest_name'],
                     guest_email=d['guest_email'],
                     guest_phone=d.get('guest_phone', ''),
+                    vessel_name=d.get('vessel_name', ''),
+                    eta=d.get('eta'),
+                    berth_category=cat,
                 )
-                booking.berth = Berth.objects.select_related('pricing_tier').get(pk=booking.berth_id)
-                nights_label = f'{booking.nights} night{"s" if booking.nights != 1 else ""}'
-                due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
-                inv = billing_service.create_invoice(
-                    marina,
-                    member=None,
-                    source_type='berth_booking',
-                    source_id=str(booking.id),
-                    due_date=due_date,
-                )
-                if not booking.amount:
-                    raise RuntimeError('Berth has no price set — cannot create invoice.')
-                billing_service.add_line_item(
-                    inv,
-                    description=f'Berth — {nights_label} @ {booking.berth.pricing_tier.unit_price}/night',
-                    quantity=1,
-                    unit_price=booking.amount,
-                )
-                billing_service.finalize_invoice(inv)
-                inv.booking = booking
-                inv.save(update_fields=['booking'])
-                checkout_url = billing_service.create_stripe_checkout_session(inv)
+                if cat:
+                    booking.notes = (booking.notes or '') + f'\nCategory: {cat.name}'
+                    booking.save(update_fields=['notes'])
+
+                if pre_paid:
+                    # Mark booking confirmed immediately; record the PaymentIntent ID in notes.
+                    booking.status = 'confirmed'
+                    booking.notes = (booking.notes or '') + f'\nPaymentIntent: {payment_intent_id}'
+                    booking.save(update_fields=['status', 'notes'])
+                    try:
+                        send_booking_confirmed_email(booking)
+                    except Exception:
+                        logger.exception('PublicEngineRequestView: failed to send booking confirmed email')
+                    checkout_url = None
+                else:
+                    booking.berth = Berth.objects.select_related('pricing_tier').get(pk=booking.berth_id)
+                    nights_label = f'{booking.nights} night{"s" if booking.nights != 1 else ""}'
+                    due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
+                    inv = billing_service.create_invoice(
+                        marina,
+                        member=None,
+                        source_type='berth_booking',
+                        source_id=str(booking.id),
+                        due_date=due_date,
+                    )
+                    if not booking.amount:
+                        raise RuntimeError('Berth has no price set — cannot create invoice.')
+                    billing_service.add_line_item(
+                        inv,
+                        description=f'Berth — {nights_label} @ {booking.berth.pricing_tier.unit_price}/night',
+                        quantity=1,
+                        unit_price=booking.amount,
+                    )
+                    billing_service.finalize_invoice(inv)
+                    inv.booking = booking
+                    inv.save(update_fields=['booking'])
+                    checkout_url = billing_service.create_stripe_checkout_session(inv)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=status.HTTP_409_CONFLICT)
         except ValueError as e:
@@ -263,3 +300,178 @@ class PublicEngineRequestView(APIView):
             {'booking': BookingSerializer(booking).data, 'checkout_url': checkout_url},
             status=status.HTTP_201_CREATED,
         )
+
+
+class PublicBerthIntentSerializer(serializers.Serializer):
+    berth_category_id = serializers.IntegerField()
+    check_in          = serializers.DateField()
+    check_out         = serializers.DateField()
+
+    def validate(self, data):
+        if data['check_in'] >= data['check_out']:
+            raise serializers.ValidationError({'check_out': 'check_out must be after check_in.'})
+        return data
+
+
+class PublicBerthIntentView(APIView):
+    """POST /api/v1/public/bookings/intent/ — creates Stripe PaymentIntent for a category."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Marina not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        ser = PublicBerthIntentSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        d = ser.validated_data
+        marina = request.tenant
+
+        try:
+            cat = BerthCategory.objects.select_related('pricing_tier').get(
+                pk=d['berth_category_id'],
+                marina=marina,
+                is_active=True,
+            )
+        except BerthCategory.DoesNotExist:
+            return Response({'detail': 'Berth category not found or inactive.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if cat.pricing_tier is None:
+            return Response({'detail': 'This category has no price configured.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        nights = (d['check_out'] - d['check_in']).days
+        price_per_night = cat.pricing_tier.unit_price
+        total = price_per_night * nights
+        amount_cents = int(round(float(total) * 100))
+
+        try:
+            client_secret = billing_service.create_payment_intent(
+                marina=marina,
+                amount_cents=amount_cents,
+                currency=marina.currency,
+                metadata={
+                    'berth_category_id': str(cat.id),
+                    'check_in': str(d['check_in']),
+                    'check_out': str(d['check_out']),
+                    'marina_id': str(marina.id),
+                },
+            )
+        except Exception:
+            logger.exception('PublicBerthIntentView: Stripe error')
+            return Response({'detail': 'Payment provider error.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        return Response({
+            'client_secret': client_secret,
+            'nights': nights,
+            'price_per_night': f'{price_per_night:.2f}',
+            'total': f'{total:.2f}',
+        })
+
+
+class PublicBerthCategoriesView(APIView):
+    """GET /api/v1/public/bookings/berth-categories/"""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Marina not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            ci, co, boat_loa, boat_beam, boat_draft = _parse_availability_params(request)
+        except KeyError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Berths occupied during the requested window
+        conflicting_bookings = Booking.objects.filter(
+            berth=OuterRef('pk'),
+            status__in=['pending_payment', 'confirmed', 'checked_in'],
+            check_in__lt=co,
+            check_out__gt=ci,
+        )
+
+        try:
+            dim_filter = Q()
+            if boat_loa:
+                dim_filter &= Q(length_m__gte=float(boat_loa))
+            if boat_beam:
+                dim_filter &= Q(max_beam_m__gte=float(boat_beam))
+            if boat_draft:
+                dim_filter &= Q(max_draft_m__gte=float(boat_draft))
+        except ValueError:
+            return Response({'detail': 'Boat dimensions must be numeric.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        base_berths = Berth.objects.filter(
+            marina=request.tenant,
+            berth_class='standard',
+            status__in=['available', 'reserved'],
+            category__isnull=False,
+        )
+        # Berths that fit the boat and are free
+        available_berths = base_berths.filter(dim_filter).exclude(Exists(conflicting_bookings))
+
+        def _build_entry(cat, tier_note):
+            count = available_berths.filter(category=cat).count()
+            if count == 0:
+                return None
+            return {
+                'id': cat.id,
+                'name': cat.name,
+                'description': cat.description,
+                'mooring_type': cat.mooring_type,
+                'amenities': cat.amenities,
+                'price_per_night': f'{cat.pricing_tier.unit_price:.2f}',
+                'available_count': count,
+                'tier_note': tier_note,
+            }
+
+        all_active = BerthCategory.objects.filter(
+            marina=request.tenant,
+            is_active=True,
+            pricing_tier__isnull=False,
+        ).select_related('pricing_tier').order_by('sort_order')
+
+        if not boat_loa:
+            return Response(
+                {'detail': 'boat_loa is required to find compatible berth categories.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Tier-aware allocation when boat_loa is known
+        # Compatible = has at least one berth that physically fits the boat
+        compatible_cat_ids = set(
+            base_berths.filter(dim_filter).values_list('category_id', flat=True)
+        )
+        compatible = [c for c in all_active if c.id in compatible_cat_ids]
+
+        if not compatible:
+            return Response([])
+
+        # Natural tier = lowest sort_order that physically fits the boat
+        natural = compatible[0]
+        natural_count = available_berths.filter(category=natural).count()
+        natural_sold_out = (natural_count == 0)
+
+        # Show at most: natural tier + one tier above (no two-tier jumps)
+        tiers_to_show = compatible[:2]
+
+        result = []
+        for i, cat in enumerate(tiers_to_show):
+            is_above_natural = (i > 0)
+            if is_above_natural:
+                note = (
+                    f'{natural.name} berths are fully booked — only larger berths are available.'
+                    if natural_sold_out
+                    else 'Larger berth available as an optional upgrade.'
+                )
+            else:
+                note = None
+            entry = _build_entry(cat, note)
+            if entry:
+                result.append(entry)
+
+        return Response(result)

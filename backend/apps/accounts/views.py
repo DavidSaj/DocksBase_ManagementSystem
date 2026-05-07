@@ -116,8 +116,12 @@ class ResendVerificationView(APIView):
         if user.is_active:
             return Response({'detail': 'Verification email resent.'})
 
-        EmailVerification.objects.filter(user=user).delete()
-        ev = EmailVerification.objects.create(user=user)
+        ev = EmailVerification.objects.filter(user=user).first()
+        if ev and timezone.now() - ev.created_at > datetime.timedelta(hours=24):
+            ev.delete()
+            ev = None
+        if ev is None:
+            ev = EmailVerification.objects.create(user=user)
         send_verification_email(user, ev.token)
 
         return Response({'detail': 'Verification email resent.'})
@@ -456,13 +460,16 @@ class ConnectStatusView(APIView):
 
         account = stripe.Account.retrieve(marina.stripe_account_id)
         dashboard_url = None
-        if account.get('charges_enabled'):
-            login_link = stripe.Account.create_login_link(marina.stripe_account_id)
-            dashboard_url = login_link.url
+        if account.charges_enabled and account.type == 'express':
+            try:
+                login_link = stripe.Account.create_login_link(marina.stripe_account_id)
+                dashboard_url = login_link.url
+            except stripe.error.StripeError:
+                pass
 
         return Response({
-            'connected': account.get('details_submitted', False),
-            'charges_enabled': account.get('charges_enabled', False),
+            'connected': bool(account.details_submitted),
+            'charges_enabled': bool(account.charges_enabled),
             'dashboard_url': dashboard_url,
         })
 

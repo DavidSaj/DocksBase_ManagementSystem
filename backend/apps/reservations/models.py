@@ -36,6 +36,8 @@ class Booking(models.Model):
     guest_name = models.CharField(max_length=200, blank=True)
     guest_email = models.EmailField(blank=True)
     guest_phone = models.CharField(max_length=50, blank=True)
+    vessel_name = models.CharField(max_length=200, blank=True)
+    eta = models.TimeField(null=True, blank=True)
 
     # Boat dimensions for berth compatibility check
     boat_loa = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)

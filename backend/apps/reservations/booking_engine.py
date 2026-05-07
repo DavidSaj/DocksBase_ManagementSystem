@@ -131,11 +131,15 @@ def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, boa
 
 
 def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None,
-               guest_name='', guest_email='', guest_phone=''):
+               guest_name='', guest_email='', guest_phone='',
+               vessel_name='', eta=None, berth_category=None):
     """
     Mode B: run gap-minimisation, assign berth immediately, return Booking
     with status=pending_payment.
     Raises NoAvailableBerthError if no compatible berth is free.
+
+    If berth_category is given, only berths in that category are considered —
+    ensuring a guest who paid for a specific category gets a berth in it.
 
     Uses select_for_update() + collision re-check inside a transaction to guard
     against TOCTOU races: if a concurrent request steals the top-ranked berth
@@ -151,6 +155,8 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None
     candidates = compatible_available_berths(
         marina, check_in, check_out, boat_loa, boat_beam, boat_draft,
     )
+    if berth_category is not None:
+        candidates = candidates.filter(category=berth_category)
     scored = _score_berths(candidates, check_in, check_out)
     if not scored:
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
@@ -189,6 +195,8 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None
                 guest_name=guest_name,
                 guest_email=guest_email,
                 guest_phone=guest_phone,
+                vessel_name=vessel_name,
+                eta=eta,
             )
 
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
