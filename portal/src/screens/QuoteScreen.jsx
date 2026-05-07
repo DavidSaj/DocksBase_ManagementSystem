@@ -138,12 +138,13 @@ export default function QuoteScreen({ state, navigate, marina }) {
   };
 
   return (
-    <>
-      <nav className="p-nav">
-        <span className="p-nav-brand">DocksBase</span>
-        {marina && <span className="p-nav-marina">— {marina.name}</span>}
+    <div className="p-shell">
+      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
+          {marina?.name || 'DocksBase'}
+        </span>
       </nav>
-      <div className="p-shell">
+      <div className="p-shell-inner p-dark">
         <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : 'search')} style={{ marginBottom: 28 }}>
           ← Back
         </button>
@@ -180,7 +181,7 @@ export default function QuoteScreen({ state, navigate, marina }) {
           <FallbackQuoteForm state={state} navigate={navigate} nights={nights} />
         )}
       </div>
-    </>
+    </div>
   );
 }
 

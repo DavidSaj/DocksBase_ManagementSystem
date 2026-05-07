@@ -14,7 +14,7 @@ const MOORING_LABELS = {
   mooring_ball: 'Mooring Ball',
 };
 
-export default function OptionsScreen({ state, navigate }) {
+export default function OptionsScreen({ state, navigate, marina }) {
   const nights = Math.round(
     (new Date(state.checkOut) - new Date(state.checkIn)) / 86400000
   );
@@ -29,11 +29,13 @@ export default function OptionsScreen({ state, navigate }) {
   }
 
   return (
-    <>
-      <nav className="p-nav">
-        <span className="p-nav-brand">DocksBase</span>
+    <div className="p-shell">
+      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
+          {marina?.name || 'DocksBase'}
+        </span>
       </nav>
-      <div className="p-shell">
+      <div className="p-shell-inner">
         <button className="p-btn-outline" onClick={() => navigate('search')} style={{ marginBottom: 28 }}>
           ← Change search
         </button>
@@ -41,11 +43,11 @@ export default function OptionsScreen({ state, navigate }) {
         <div className="p-eyebrow">Available options</div>
         <h1 className="p-title">Choose your berth.</h1>
         <p className="p-sub">
-          {state.checkIn} → {state.checkOut} · {nights} night{nights !== 1 ? 's' : ''} ·
-          Vessel {state.boatLoa}m
+          {state.checkIn} → {state.checkOut} · {nights} night{nights !== 1 ? 's' : ''}
+          {state.boatLoa ? ` · Vessel ${state.boatLoa}m` : ''}
         </p>
 
-        <div className="p-options-grid">
+        <div className="p-options-grid" style={{ marginTop: 32 }}>
           {state.categories.map(cat => (
             <div key={cat.id} className="p-cat-card">
               <div className="p-cat-name">{cat.name}</div>
@@ -61,14 +63,10 @@ export default function OptionsScreen({ state, navigate }) {
               <div className="p-cat-price">
                 €{cat.price_per_night}<span>/night</span>
               </div>
-              {nights > 1 && (
-                <div className="p-cat-avail">
-                  €{(parseFloat(cat.price_per_night) * nights).toFixed(2)} total · {cat.available_count} available
-                </div>
-              )}
-              {nights <= 1 && (
-                <div className="p-cat-avail">{cat.available_count} available</div>
-              )}
+              <div className="p-cat-avail">
+                {nights > 1 && `€${(parseFloat(cat.price_per_night) * nights).toFixed(2)} total · `}
+                {cat.available_count} available
+              </div>
               <button className="p-btn-gold" onClick={() => handleSelect(cat)} style={{ marginTop: 4 }}>
                 Select →
               </button>
@@ -76,6 +74,6 @@ export default function OptionsScreen({ state, navigate }) {
           ))}
         </div>
       </div>
-    </>
+    </div>
   );
 }

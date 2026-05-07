@@ -15,7 +15,7 @@
 
 /* ── Reset ───────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font); background: var(--navy); color: var(--cream); min-height: 100vh; }
+body { font-family: var(--font); background: #fff; color: #1a1a1a; min-height: 100vh; }
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; color: inherit; }
 input, select, textarea { font-family: inherit; }
@@ -27,53 +27,101 @@ input, select, textarea { font-family: inherit; }
   background: var(--navy);
 }
 
-/* ── Nav ─────────────────────────────────────────────────────────────── */
+/* ── Nav (dark, inside hero) ─────────────────────────────────────────── */
 .p-nav {
-  background: var(--navy);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 24px; height: 56px;
+  background: transparent;
+  display: flex; align-items: center;
+  padding: 0 32px; height: 56px;
+  max-width: 880px; margin: 0 auto;
 }
 .p-nav-brand {
   font-family: var(--font-brand);
-  font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
-  color: var(--cream);
+  font-size: 15px; font-weight: 700;
+  color: var(--cream); flex: 1;
+  display: flex; align-items: center; gap: 10px;
 }
-.p-nav-marina {
-  font-size: 13px; color: var(--muted);
+.p-nav-brand-icon {
+  width: 28px; height: 28px; opacity: 0.85;
 }
+.p-nav-marina { display: none; } /* marina name is in the nav-brand now */
+.p-nav-links {
+  display: flex; gap: 24px;
+}
+.p-nav-link {
+  font-size: 13px; color: rgba(245,240,230,0.65);
+  transition: color 0.15s;
+}
+.p-nav-link:hover { color: var(--cream); }
 
-/* ── Page shell ──────────────────────────────────────────────────────── */
-.p-shell {
-  max-width: 860px; margin: 0 auto; padding: 48px 24px 80px;
+/* ── Hero section (dark navy) ────────────────────────────────────────── */
+.p-hero {
+  background: var(--navy);
+  padding: 0 0 56px;
+}
+.p-hero-inner {
+  max-width: 880px; margin: 0 auto; padding: 40px 32px 0;
 }
 .p-eyebrow {
   font-family: var(--font-brand); font-size: 10px; letter-spacing: 3px;
-  text-transform: uppercase; color: var(--gold); margin-bottom: 10px;
+  text-transform: uppercase; color: var(--gold); margin-bottom: 14px;
 }
 .p-title {
-  font-family: var(--font-serif); font-size: 40px; font-weight: 600;
-  color: var(--cream); line-height: 1.1; margin-bottom: 8px;
+  font-family: var(--font-serif); font-size: 44px; font-weight: 600;
+  color: var(--cream); line-height: 1.1; margin-bottom: 10px;
 }
-.p-sub { font-size: 14px; color: var(--muted); margin-bottom: 36px; }
+.p-sub { font-size: 15px; color: rgba(245,240,230,0.55); }
 
-/* ── Form inputs ─────────────────────────────────────────────────────── */
+/* ── Form card (white, overlaps hero bottom) ─────────────────────────── */
+.p-form-card {
+  max-width: 880px; margin: -28px auto 0; padding: 0 32px 48px;
+  position: relative; z-index: 1;
+}
+.p-form-card-inner {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+}
+
+/* ── Form inputs (light background) ─────────────────────────────────── */
 .p-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
 .p-label {
-  font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
-  color: var(--muted);
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: rgba(0,0,0,0.45);
 }
 .p-input {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 5px; padding: 9px 12px;
-  font-size: 14px; color: var(--cream); outline: none;
+  background: #fff;
+  border: 1px solid #d4d4d4;
+  border-radius: 5px; padding: 10px 12px;
+  font-size: 14px; color: #1a1a1a; outline: none;
   transition: border-color 0.15s;
 }
-.p-input::placeholder { color: rgba(245,240,230,0.25); }
-.p-input:focus { border-color: rgba(184,150,90,0.5); }
+.p-input::placeholder { color: rgba(0,0,0,0.25); }
+.p-input:focus { border-color: var(--gold); }
+
+/* Dark-context inputs (QuoteScreen, OptionsScreen) */
+.p-dark .p-input {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.14);
+  color: var(--cream);
+}
+.p-dark .p-input::placeholder { color: rgba(245,240,230,0.25); }
+.p-dark .p-input:focus { border-color: rgba(184,150,90,0.5); }
+.p-dark .p-label { color: var(--muted); }
+.p-dark .p-field { margin-bottom: 16px; }
+
 .p-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .p-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ── Page shell (dark, for inner screens) ────────────────────────────── */
+.p-shell {
+  background: var(--navy); min-height: 100vh;
+  color: var(--cream);
+}
+.p-shell-inner {
+  max-width: 860px; margin: 0 auto; padding: 40px 24px 80px;
+}
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 .p-btn-gold {
@@ -92,6 +140,12 @@ input, select, textarea { font-family: inherit; }
   transition: border-color 0.15s, color 0.15s;
 }
 .p-btn-outline:hover { border-color: rgba(255,255,255,0.4); color: var(--cream); }
+
+/* ── Powered-by footer ────────────────────────────────────────────────── */
+.p-powered {
+  font-size: 11px; color: rgba(0,0,0,0.28); text-align: right;
+  padding: 16px 32px; max-width: 880px; margin: 0 auto;
+}
 
 /* ── Category cards ──────────────────────────────────────────────────── */
 .p-options-grid {
@@ -139,6 +193,7 @@ input, select, textarea { font-family: inherit; }
   font-family: var(--font-brand); font-size: 10px; letter-spacing: 2px;
   text-transform: uppercase; color: var(--gold); margin-bottom: 14px;
 }
+.p-nights-note { font-size: 12px; color: rgba(0,0,0,0.45); margin-bottom: 0; }
 
 /* ── Confirmation box ─────────────────────────────────────────────────── */
 .p-confirmed-box {
