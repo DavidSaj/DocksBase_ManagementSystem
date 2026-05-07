@@ -143,7 +143,7 @@ class PortalInvoicePayView(APIView):
                 pk=pk,
                 member=member,
                 marina=request.user.marina,
-                status='open',
+                status__in=['unpaid', 'open'],
             )
         except Invoice.DoesNotExist:
             return Response(

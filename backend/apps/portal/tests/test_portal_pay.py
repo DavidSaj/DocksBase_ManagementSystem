@@ -97,6 +97,17 @@ class PortalInvoicePayViewTest(TestCase):
             stripe_account='acct_test123',
         )
 
+    @patch('apps.billing.stripe_service.stripe')
+    def test_creates_payment_intent_for_unpaid_invoice(self, mock_stripe):
+        self.invoice.status = 'unpaid'
+        self.invoice.save(update_fields=['status'])
+        mock_stripe.PaymentIntent.create.return_value = {
+            'id': 'pi_new2',
+            'client_secret': 'pi_new2_secret_test',
+        }
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, 201)
+
     def test_returns_404_for_paid_invoice(self):
         self.invoice.status = 'paid'
         self.invoice.save(update_fields=['status'])
