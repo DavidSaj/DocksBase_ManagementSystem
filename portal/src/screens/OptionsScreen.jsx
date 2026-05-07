@@ -33,7 +33,7 @@ export default function OptionsScreen({ state, navigate, marina }) {
   return (
     <div>
       {/* Dark hero */}
-      <div className="p-hero" style={{ minHeight: 260 }}>
+      <div className="p-hero" style={{ minHeight: 380 }}>
         <nav style={{
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
           display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1,

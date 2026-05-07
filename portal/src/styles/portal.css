@@ -76,7 +76,7 @@ input, select, textarea { font-family: inherit; }
 
 /* ── Form card (white, overlaps hero bottom) ─────────────────────────── */
 .p-form-card {
-  max-width: 880px; margin: -48px auto 0; padding: 0 32px 48px;
+  max-width: 880px; margin: -56px auto 0; padding: 0 32px 48px;
   position: relative; z-index: 2;
 }
 .p-form-card-inner {
