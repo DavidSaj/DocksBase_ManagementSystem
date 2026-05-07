@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import api from '../api';
+import { HarbourScene } from '../components/portal/HarbourScene';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
@@ -138,13 +139,14 @@ export default function QuoteScreen({ state, navigate, marina }) {
   };
 
   return (
-    <div className="p-shell">
-      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+    <div className="p-shell" style={{ position: 'relative', overflow: 'hidden' }}>
+      <HarbourScene opacity={0.35} />
+      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 1 }}>
         <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
           {marina?.name || 'DocksBase'}
         </span>
       </nav>
-      <div className="p-shell-inner p-dark">
+      <div className="p-shell-inner p-dark" style={{ position: 'relative', zIndex: 1 }}>
         <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : 'search')} style={{ marginBottom: 28 }}>
           ← Back
         </button>

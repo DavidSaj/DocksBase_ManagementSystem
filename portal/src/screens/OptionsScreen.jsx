@@ -1,3 +1,5 @@
+import { HarbourScene } from '../components/portal/HarbourScene';
+
 const AMENITY_LABELS = {
   power_30a: '⚡ 30A Power',
   power_50a: '⚡ 50A Power',
@@ -29,13 +31,14 @@ export default function OptionsScreen({ state, navigate, marina }) {
   }
 
   return (
-    <div className="p-shell">
-      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+    <div className="p-shell" style={{ position: 'relative', overflow: 'hidden' }}>
+      <HarbourScene opacity={0.45} />
+      <nav style={{ maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', position: 'relative', zIndex: 1 }}>
         <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
           {marina?.name || 'DocksBase'}
         </span>
       </nav>
-      <div className="p-shell-inner">
+      <div className="p-shell-inner" style={{ position: 'relative', zIndex: 1 }}>
         <button className="p-btn-outline" onClick={() => navigate('search')} style={{ marginBottom: 28 }}>
           ← Change search
         </button>

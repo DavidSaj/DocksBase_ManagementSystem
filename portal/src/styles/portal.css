@@ -74,9 +74,10 @@ input, select, textarea { font-family: inherit; }
 }
 .p-sub { font-size: 15px; color: rgba(245,240,230,0.55); }
 
-/* ── Form card (white, sits below wave) ──────────────────────────────── */
+/* ── Form card (white, overlaps hero bottom) ─────────────────────────── */
 .p-form-card {
-  max-width: 880px; margin: 0 auto; padding: 32px 32px 48px;
+  max-width: 880px; margin: -56px auto 0; padding: 0 32px 48px;
+  position: relative; z-index: 2;
 }
 .p-form-card-inner {
   background: #fff;
@@ -120,9 +121,10 @@ input, select, textarea { font-family: inherit; }
 .p-shell {
   background: var(--navy); min-height: 100vh;
   color: var(--cream);
+  display: flex; flex-direction: column;
 }
 .p-shell-inner {
-  max-width: 860px; margin: 0 auto; padding: 40px 24px 80px;
+  max-width: 860px; margin: 0 auto; padding: 40px 24px 220px; width: 100%;
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
