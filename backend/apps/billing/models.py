@@ -6,6 +6,7 @@ from apps.fuel_dock.models import FuelDockEntry
 class Invoice(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
+        ('unpaid', 'Unpaid'),
         ('open', 'Open'),
         ('paid', 'Paid'),
         ('void', 'Void'),

@@ -157,7 +157,7 @@ class PortalInvoicePayView(APIView):
                 status=http_status.HTTP_402_PAYMENT_REQUIRED,
             )
 
-        amount_cents = int(round(float(invoice.total) * 100))
+        amount_cents = int(invoice.total * 100)
         currency = invoice.marina.currency.lower()
         stripe_account = invoice.marina.stripe_account_id
 
@@ -180,8 +180,9 @@ class PortalInvoicePayView(APIView):
                         'currency': currency,
                         'stripe_account_id': stripe_account,
                     })
-            except Exception:
-                pass
+            except _stripe_svc.stripe.error.InvalidRequestError as e:
+                if e.code != 'resource_missing':
+                    raise
 
         intent = _stripe_svc.stripe.PaymentIntent.create(
             amount=amount_cents,

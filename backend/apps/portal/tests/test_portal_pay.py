@@ -96,6 +96,9 @@ class PortalInvoicePayViewTest(TestCase):
             amount=20000,
             stripe_account='acct_test123',
         )
+        data = json.loads(resp.content)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data['client_secret'], 'pi_modified_secret')
 
     @patch('apps.billing.stripe_service.stripe')
     def test_creates_payment_intent_for_unpaid_invoice(self, mock_stripe):
@@ -128,3 +131,26 @@ class PortalInvoicePayViewTest(TestCase):
         self.client.force_authenticate(user=staff_user)
         resp = self.client.post(self.url)
         self.assertEqual(resp.status_code, 403)
+
+    def test_returns_404_for_another_boaters_invoice(self):
+        other_user = User.objects.create_user(
+            email='other@test.com',
+            password='pass',
+            role='boater',
+            marina=self.marina,
+        )
+        other_member = Member.objects.create(
+            marina=self.marina,
+            name='Other Boater',
+            boater_user=other_user,
+        )
+        other_invoice = Invoice.objects.create(
+            marina=self.marina,
+            member=other_member,
+            invoice_number='INV-2026-0002',
+            status='open',
+            total=Decimal('75.00'),
+        )
+        url = f'/api/v1/portal/invoices/{other_invoice.pk}/pay/'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 404)
