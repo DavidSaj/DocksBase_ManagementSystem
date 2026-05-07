@@ -102,18 +102,19 @@ export function HarbourScene({ opacity = 1 }) {
 export function WaveLines() {
   return (
     <svg
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', borderRadius: 'inherit' }}
+      viewBox="0 0 880 160"
       preserveAspectRatio="none"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
       fill="none"
     >
-      <path d="M 0,18 C 120,13 240,23 360,18 C 480,13 600,23 720,18 C 840,13 960,23 1080,18 C 1200,13 1320,23 1440,18"
-        stroke="#0c1f3d" strokeWidth="0.7" strokeOpacity="0.04" />
-      <path d="M 0,52 C 100,46 220,58 360,52 C 500,46 620,58 760,52 C 900,46 1020,58 1160,52 C 1300,46 1380,58 1440,52"
-        stroke="#0c1f3d" strokeWidth="0.6" strokeOpacity="0.035" />
-      <path d="M 0,88 C 140,83 280,93 420,88 C 560,83 700,93 840,88 C 980,83 1120,93 1260,88 C 1360,83 1400,93 1440,88"
-        stroke="#b8965a" strokeWidth="0.5" strokeOpacity="0.045" />
-      <path d="M 0,124 C 160,119 320,129 480,124 C 640,119 800,129 960,124 C 1120,119 1280,129 1440,124"
-        stroke="#0c1f3d" strokeWidth="0.5" strokeOpacity="0.030" />
+      <path d="M 0,20 C 110,13 220,27 330,20 C 440,13 550,27 660,20 C 770,13 880,27 880,20"
+        stroke="#0c1f3d" strokeWidth="1.2" strokeOpacity="0.07" />
+      <path d="M 0,55 C 90,48 200,62 330,55 C 460,48 580,62 700,55 C 800,48 880,62 880,55"
+        stroke="#0c1f3d" strokeWidth="1.0" strokeOpacity="0.055" />
+      <path d="M 0,92 C 120,86 250,98 400,92 C 550,86 680,98 820,92 C 855,89 880,93 880,92"
+        stroke="#b8965a" strokeWidth="0.9" strokeOpacity="0.09" />
+      <path d="M 0,128 C 140,122 290,134 440,128 C 590,122 740,134 880,128"
+        stroke="#0c1f3d" strokeWidth="0.8" strokeOpacity="0.05" />
     </svg>
   );
 }

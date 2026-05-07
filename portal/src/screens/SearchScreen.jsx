@@ -72,7 +72,7 @@ export default function SearchScreen({ state, navigate, marina }) {
 
       {/* White form card — overlaps hero bottom */}
       <div className="p-form-card">
-        <div className="p-form-card-inner" style={{ position: 'relative', overflow: 'hidden' }}>
+        <div className="p-form-card-inner" style={{ position: 'relative' }}>
           <WaveLines />
 
           {state.errorBanner && (
