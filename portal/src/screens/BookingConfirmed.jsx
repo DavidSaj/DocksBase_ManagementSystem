@@ -3,6 +3,8 @@ import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
 export default function BookingConfirmed({ marina, bookingId, cancelled }) {
   const slug = window.location.pathname.split('/').filter(Boolean)[0] ?? '';
   const marinaName = marina?.name || 'Your Marina';
+  const contactEmail = marina?.contact_email || '';
+  const contactPhone = marina?.phone || '';
 
   return (
     <div>
@@ -71,15 +73,36 @@ export default function BookingConfirmed({ marina, bookingId, cancelled }) {
               </div>
             </>
           ) : (
-            <div style={{
-              background: '#f7f7f7', border: '1px solid #ebebeb',
-              borderRadius: 8, padding: '16px 20px',
-              fontSize: 13, color: 'rgba(0,0,0,0.55)', lineHeight: 1.7,
-            }}>
-              A confirmation email is on its way — it includes your berth assignment,
-              arrival details, and a personal boarding pass link for digital check-in.
-              If you don't see it within a few minutes, check your spam folder or contact the marina directly.
-            </div>
+            <>
+              <div style={{
+                background: '#f7f7f7', border: '1px solid #ebebeb',
+                borderRadius: 8, padding: '16px 20px',
+                fontSize: 13, color: 'rgba(0,0,0,0.55)', lineHeight: 1.7,
+                marginBottom: 12,
+              }}>
+                A confirmation email is on its way — it includes your berth assignment,
+                arrival details, and a personal boarding pass link for digital check-in.
+                If you don't see it within a few minutes, check your spam folder or contact the marina directly.
+              </div>
+
+              {(contactEmail || contactPhone) && (
+                <div style={{
+                  border: '1px solid #e8e8e8', borderRadius: 8, padding: '14px 20px',
+                  fontSize: 13, color: 'rgba(0,0,0,0.55)', lineHeight: 1.7,
+                }}>
+                  <span style={{ fontWeight: 600, color: '#1a1a1a' }}>Need to cancel or change your booking?</span>{' '}
+                  Contact {marinaName} directly
+                  {contactEmail && (
+                    <> at <a href={`mailto:${contactEmail}`} style={{ color: '#1a1a1a' }}>{contactEmail}</a></>
+                  )}
+                  {contactEmail && contactPhone && ' or '}
+                  {contactPhone && (
+                    <><a href={`tel:${contactPhone}`} style={{ color: '#1a1a1a' }}>{contactPhone}</a></>
+                  )}
+                  .
+                </div>
+              )}
+            </>
           )}
         </div>
 
