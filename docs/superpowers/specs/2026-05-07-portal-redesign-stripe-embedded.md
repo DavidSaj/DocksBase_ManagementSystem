@@ -72,7 +72,8 @@ Each invoice card:
 - Permission: `IsAuthenticated`, boater role, invoice belongs to the boater's marina.
 - Validates invoice status is `unpaid` or `overdue` (not `paid`).
 - Creates a Stripe `PaymentIntent` via `stripe.PaymentIntent.create(...)` with `stripe_account=marina.stripe_account_id`.
-- Idempotent: if `invoice.stripe_payment_intent_id` is set and the intent status is still `requires_payment_method`, retrieve and return that intent's `client_secret` instead of creating a new one.
+- Idempotent with amount verification: if `invoice.stripe_payment_intent_id` is set and the intent status is still `requires_payment_method`, retrieve the existing PaymentIntent. If its `amount` differs from the current invoice total (in cents), call `stripe.PaymentIntent.modify(...)` to update it before returning. This prevents the amount-mismatch trap where an invoice is edited between two payment attempts.
+- Passes `metadata={'invoice_id': str(invoice.id)}` when creating the PaymentIntent — required for the webhook to look up the invoice.
 - Stores `stripe_payment_intent_id` on the invoice.
 - Response: `{ client_secret, amount, currency, stripe_account_id }`.
   - `stripe_account_id` is the marina's `stripe_account_id` (needed by the frontend to initialise Stripe for the connected account).
@@ -109,14 +110,32 @@ New file: `frontend/src/components/portal/PaymentModal.jsx`
    }
    ```
 5. Shows `<PaymentElement />` inside the modal.
-6. Submit calls `stripe.confirmPayment({ elements, confirmParams: { return_url: window.location.href } })`.
-   - Uses `redirect: 'if_required'` so card payments complete inline without a redirect.
+6. Submit calls `stripe.confirmPayment({ elements, confirmParams: { return_url: window.location.href }, redirect: 'if_required' })`.
+   - `redirect: 'if_required'` keeps simple card payments inline. However, under PSD2/SCA (Europe), many cards and local methods (TWINT, iDEAL, Bancontact) will still trigger a bank redirect. After the bank redirects back, the React app reloads and modal state is gone — handled separately (see BoaterPortal redirect-return handler below).
 7. **States:**
    - `loading`: spinner while fetching client_secret.
    - `ready`: form shown.
    - `submitting`: button disabled, "Processing…" text.
    - `success`: checkmark icon, "Payment received" in gold, auto-closes after 2s, calls `onPaid(invoiceId)`.
    - `error`: Stripe error message shown inline below the form.
+
+### Frontend — redirect-return handler (SCA/3DS)
+
+In `BoaterPortal.jsx`, a `useEffect` on mount checks URL params left by Stripe after a 3DS redirect:
+
+```js
+const params = new URLSearchParams(window.location.search);
+const redirectStatus = params.get('redirect_status');
+if (redirectStatus === 'succeeded') {
+  // show success toast, refetch invoices
+  window.history.replaceState({}, '', window.location.pathname); // clear params
+} else if (redirectStatus === 'failed') {
+  // show error toast
+  window.history.replaceState({}, '', window.location.pathname);
+}
+```
+
+This ensures the `paid` state is reflected even when the user is bounced through a bank auth page and back.
 
 **Modal shell:**
 - Full-screen dark overlay (`rgba(0,0,0,0.6)`).
@@ -126,6 +145,27 @@ New file: `frontend/src/components/portal/PaymentModal.jsx`
 - "Pay CHF X.XX" gold full-width submit button.
 - Small "Cancel" ghost link underneath.
 - Card entrance: fade-in + scale from 0.97 → 1, 250ms.
+
+### Backend — webhook (StripeConnectWebhookView)
+
+The existing `StripeConnectWebhookView` only handles `checkout.session.completed/expired`. The embedded PaymentIntent flow fires `payment_intent.succeeded` on the connected account instead.
+
+Add a new branch to `StripeConnectWebhookView`:
+
+```python
+elif event_type == 'payment_intent.succeeded':
+    updated = Invoice.objects.filter(pk=invoice.pk, status='open').update(
+        stripe_payment_intent_id=obj['id'],
+        status='paid',
+        paid_at=timezone.now(),
+    )
+    if updated:
+        invoice.refresh_from_db()
+        invoice_paid.send(sender=Invoice, invoice=invoice)
+        threading.Thread(target=_post_payment_tasks, args=(invoice.id,), daemon=True).start()
+```
+
+The `invoice_id` is found via `obj['metadata']['invoice_id']` — same pattern as the existing Checkout Session handler. The metadata is set when creating the PaymentIntent in `PortalInvoicePayView`.
 
 ### Frontend — hook update
 
@@ -156,3 +196,4 @@ New file: `frontend/src/components/portal/PaymentModal.jsx`
 | `backend/apps/portal/urls.py` | Add `portal/invoices/<pk>/pay/` |
 | `backend/apps/portal/views.py` | Add `PortalInvoicePayView` |
 | `backend/apps/billing/models.py` | No change — `stripe_payment_intent_id` already exists |
+| `backend/apps/billing/views.py` | Add `payment_intent.succeeded` handler to `StripeConnectWebhookView` |
