@@ -71,7 +71,7 @@ export default function SearchScreen({ state, navigate, marina }) {
       </div>
 
       {/* White background section — wave lines sit here, behind the card */}
-      <div style={{ position: 'relative', background: '#fff', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', background: '#fff' }}>
         <WaveLines />
 
       {/* White form card — overlaps hero bottom */}
