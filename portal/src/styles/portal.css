@@ -53,13 +53,36 @@ input, select, textarea { font-family: inherit; }
 }
 .p-nav-link:hover { color: var(--cream); }
 
-/* ── Hero section (dark navy) ────────────────────────────────────────── */
+/* ── Hero section (dark navy, animated gradient) ─────────────────────── */
 .p-hero {
-  background: var(--navy);
-  padding: 0 0 56px;
+  background: linear-gradient(-45deg, #0c1f3d, #0f2647, #162d52, #1a3560, #0c1f3d);
+  background-size: 300% 300%;
+  animation: heroGradient 14s ease infinite;
+  position: relative;
+  padding: 0 0 0;
+}
+@keyframes heroGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 .p-hero-inner {
-  max-width: 880px; margin: 0 auto; padding: 40px 32px 0;
+  max-width: 880px; margin: 0 auto; padding: 40px 32px 52px;
+}
+
+/* ── Wave divider ────────────────────────────────────────────────────── */
+.p-wave {
+  position: relative; height: 60px; overflow: hidden;
+  background: var(--navy); /* matches hero bottom edge */
+}
+.p-wave svg {
+  position: absolute; bottom: 0;
+  width: 200%; height: 100%;
+  animation: waveSlide 9s linear infinite;
+}
+@keyframes waveSlide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .p-eyebrow {
   font-family: var(--font-brand); font-size: 10px; letter-spacing: 3px;
@@ -71,10 +94,9 @@ input, select, textarea { font-family: inherit; }
 }
 .p-sub { font-size: 15px; color: rgba(245,240,230,0.55); }
 
-/* ── Form card (white, overlaps hero bottom) ─────────────────────────── */
+/* ── Form card (white, sits below wave) ──────────────────────────────── */
 .p-form-card {
-  max-width: 880px; margin: -28px auto 0; padding: 0 32px 48px;
-  position: relative; z-index: 1;
+  max-width: 880px; margin: 0 auto; padding: 32px 32px 48px;
 }
 .p-form-card-inner {
   background: #fff;

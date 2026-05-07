@@ -65,7 +65,17 @@ export default function SearchScreen({ state, navigate, marina }) {
         </div>
       </div>
 
-      {/* White form card overlapping the hero bottom */}
+      {/* Animated wave divider */}
+      <div className="p-wave">
+        <svg viewBox="0 0 2880 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M0,30 C240,58 480,2 720,30 C960,58 1200,2 1440,30 C1680,58 1920,2 2160,30 C2400,58 2640,2 2880,30 L2880,60 L0,60 Z"
+            fill="#ffffff"
+          />
+        </svg>
+      </div>
+
+      {/* White form card */}
       <div className="p-form-card">
         <div className="p-form-card-inner">
           {state.errorBanner && (
