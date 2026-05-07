@@ -70,10 +70,13 @@ export default function SearchScreen({ state, navigate, marina }) {
         <HarbourScene />
       </div>
 
+      {/* White background section — wave lines sit here, behind the card */}
+      <div style={{ position: 'relative', background: '#fff', overflow: 'hidden' }}>
+        <WaveLines />
+
       {/* White form card — overlaps hero bottom */}
       <div className="p-form-card">
         <div className="p-form-card-inner" style={{ position: 'relative' }}>
-          <WaveLines />
 
           {state.errorBanner && (
             <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 16, position: 'relative' }}>{state.errorBanner}</p>
@@ -122,6 +125,7 @@ export default function SearchScreen({ state, navigate, marina }) {
       </div>
 
       <p className="p-powered">Powered by DocksBase</p>
+      </div> {/* end white section */}
     </div>
   );
 }
