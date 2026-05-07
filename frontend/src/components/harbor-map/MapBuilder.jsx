@@ -275,19 +275,56 @@ function SelectedItemPanel({ shape, pier, onRotate, onDelete, onResize, onClose 
 function buildShapes(piers, berths, envItems, dragOverride) {
   const pierById = Object.fromEntries(piers.map(p => [p.id, p]))
 
-  const pierShapes = piers
-    .filter(p => p.canvas_x != null && p.canvas_y != null)
-    .map(p => {
-      const ov = dragOverride?.pierId === p.id ? dragOverride : null
-      const { fill, stroke } = pierColors(p)
-      return {
-        id: `pier-${p.id}`, _pierId: p.id, type: 'pier',
-        absX: ov ? ov.absX : parseFloat(p.canvas_x),
-        absY: ov ? ov.absY : parseFloat(p.canvas_y),
-        w: ov?.w ?? p.canvas_w, h: ov?.h ?? p.canvas_h, rotation: p.rotation,
-        fill, stroke, label: p.code,
+  const pierShapes = []
+  for (const p of piers) {
+    if (p.canvas_x == null || p.canvas_y == null) continue
+    const ov = dragOverride?.pierId === p.id ? dragOverride : null
+    const { fill, stroke } = pierColors(p)
+    const cx = ov ? ov.absX : parseFloat(p.canvas_x)
+    const cy = ov ? ov.absY : parseFloat(p.canvas_y)
+    const rot = p.rotation ?? 0
+    const label = p.display_name || p.logical_pier_name || p.code
+
+    if (p.components?.length > 0) {
+      // Compound pier — one shape per component, each inheriting pier rotation
+      const θ = (rot * Math.PI) / 180
+      const cosθ = Math.cos(θ)
+      const sinθ = Math.sin(θ)
+      for (const comp of p.components) {
+        const rotOx = comp.ox * cosθ - comp.oy * sinθ
+        const rotOy = comp.ox * sinθ + comp.oy * cosθ
+        pierShapes.push({
+          id:       `pier-${p.id}-comp-${comp.id}`,
+          _pierId:  p.id,
+          _compId:  comp.id,
+          type:     'pier',
+          absX:     cx + rotOx,
+          absY:     cy + rotOy,
+          w:        comp.w,
+          h:        comp.h,
+          rotation: rot,
+          fill,
+          stroke,
+          label:    comp.type === 'spine' ? label : '',
+        })
       }
-    })
+    } else {
+      // Simple pier — single shape as before
+      pierShapes.push({
+        id:      `pier-${p.id}`,
+        _pierId: p.id,
+        type:    'pier',
+        absX:    cx,
+        absY:    cy,
+        w:       ov?.w ?? p.canvas_w,
+        h:       ov?.h ?? p.canvas_h,
+        rotation: rot,
+        fill,
+        stroke,
+        label,
+      })
+    }
+  }
 
   const berthShapes = berths
     .filter(b => b.pier && b.local_x != null && pierById[b.pier])
@@ -598,12 +635,18 @@ export default function MapBuilder() {
     if (!item._pierId) return
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
-    setSelectedIds(new Set([item.id]))
+
+    // Select all shapes belonging to the same pier (compound group)
+    const groupIds = shapes.filter(s => s._pierId === item._pierId).map(s => s.id)
+    setSelectedIds(new Set(groupIds))
+
     moveRef.current = {
-      pierId: item._pierId,
-      startAbsX: item.absX, startAbsY: item.absY,
-      startClientX: e.clientX, startClientY: e.clientY,
-      moved: false,
+      pierId:       item._pierId,
+      startAbsX:    item.absX,
+      startAbsY:    item.absY,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      moved:        false,
     }
   }
 
@@ -699,7 +742,7 @@ export default function MapBuilder() {
 
   // ── Selected item actions ─────────────────────────────────────────────────
 
-  const selectedShape = selectedIds.size === 1
+  const selectedShape = selectedIds.size > 0
     ? shapes.find(s => selectedIds.has(s.id))
     : null
   const selectedPier = selectedShape?._pierId
