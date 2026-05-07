@@ -19,8 +19,9 @@ export default function MagicLink() {
     exchangeMagicToken(token)
       .then(user => {
         signIn(user);
-        // replace: true strips the dead token from the URL bar immediately
-        navigate('/portal', { replace: true });
+        // Redirect boaters to external portal URL
+        window.location.href = import.meta.env.VITE_PORTAL_URL || 'https://booking.docksbase.com';
+        return;
       })
       .catch(() => {
         setError('This link is invalid or has expired. Ask the marina to send a new one.');

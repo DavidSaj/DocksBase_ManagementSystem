@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 
-const ROLE_HOME = { boater: '/portal', staff: '/field', owner: '/', manager: '/' };
+const ROLE_HOME = { staff: '/field', owner: '/', manager: '/' };
 
 export default function ProtectedRoute({ element, allowedRoles }) {
   const { user, isLoading } = useAuth();
