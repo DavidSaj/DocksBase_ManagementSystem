@@ -67,6 +67,11 @@ export default function OptionsScreen({ state, navigate, marina }) {
           <div className="p-options-grid">
             {state.categories.map(cat => (
               <div key={cat.id} className="p-cat-card-light">
+                {cat.tier_note && (
+                  <div style={{ fontSize: 11, color: '#b8965a', fontWeight: 600, letterSpacing: '0.3px', paddingBottom: 6, borderBottom: '1px solid #f0ebe0', marginBottom: 4 }}>
+                    ↑ {cat.tier_note}
+                  </div>
+                )}
                 <div className="p-cat-name" style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600 }}>{cat.name}</div>
                 <div className="p-cat-mooring">{MOORING_LABELS[cat.mooring_type] ?? cat.mooring_type}</div>
                 {cat.description && <p className="p-cat-desc">{cat.description}</p>}

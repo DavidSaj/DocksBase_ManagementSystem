@@ -391,7 +391,6 @@ class PublicBerthCategoriesView(APIView):
             check_out__gt=ci,
         )
 
-        # Available berths: standard class, fits boat, no conflict, has a category
         try:
             dim_filter = Q()
             if boat_loa:
@@ -403,26 +402,20 @@ class PublicBerthCategoriesView(APIView):
         except ValueError:
             return Response({'detail': 'Boat dimensions must be numeric.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        available_berths = Berth.objects.filter(
+        base_berths = Berth.objects.filter(
             marina=request.tenant,
             berth_class='standard',
             status__in=['available', 'reserved'],
             category__isnull=False,
-        ).filter(dim_filter).exclude(Exists(conflicting_bookings))
+        )
+        # Berths that fit the boat and are free
+        available_berths = base_berths.filter(dim_filter).exclude(Exists(conflicting_bookings))
 
-        # Group by category — only active categories with a pricing tier
-        categories = BerthCategory.objects.filter(
-            marina=request.tenant,
-            is_active=True,
-            pricing_tier__isnull=False,
-        ).select_related('pricing_tier')
-
-        result = []
-        for cat in categories:
+        def _build_entry(cat, tier_note):
             count = available_berths.filter(category=cat).count()
             if count == 0:
-                continue
-            result.append({
+                return None
+            return {
                 'id': cat.id,
                 'name': cat.name,
                 'description': cat.description,
@@ -430,6 +423,51 @@ class PublicBerthCategoriesView(APIView):
                 'amenities': cat.amenities,
                 'price_per_night': f'{cat.pricing_tier.unit_price:.2f}',
                 'available_count': count,
-            })
+                'tier_note': tier_note,
+            }
+
+        all_active = BerthCategory.objects.filter(
+            marina=request.tenant,
+            is_active=True,
+            pricing_tier__isnull=False,
+        ).select_related('pricing_tier').order_by('sort_order')
+
+        if not boat_loa:
+            # No LOA supplied — show every category that has free berths
+            result = [e for cat in all_active if (e := _build_entry(cat, None))]
+            return Response(result)
+
+        # Tier-aware allocation when boat_loa is known
+        # Compatible = has at least one berth that physically fits the boat
+        compatible_cat_ids = set(
+            base_berths.filter(dim_filter).values_list('category_id', flat=True)
+        )
+        compatible = [c for c in all_active if c.id in compatible_cat_ids]
+
+        if not compatible:
+            return Response([])
+
+        # Natural tier = lowest sort_order that physically fits the boat
+        natural = compatible[0]
+        natural_count = available_berths.filter(category=natural).count()
+        natural_sold_out = (natural_count == 0)
+
+        # Show at most: natural tier + one tier above (no two-tier jumps)
+        tiers_to_show = compatible[:2]
+
+        result = []
+        for i, cat in enumerate(tiers_to_show):
+            is_above_natural = (i > 0)
+            if is_above_natural:
+                note = (
+                    f'{natural.name} berths are fully booked — only larger berths are available.'
+                    if natural_sold_out
+                    else 'Larger berth available as an optional upgrade.'
+                )
+            else:
+                note = None
+            entry = _build_entry(cat, note)
+            if entry:
+                result.append(entry)
 
         return Response(result)
