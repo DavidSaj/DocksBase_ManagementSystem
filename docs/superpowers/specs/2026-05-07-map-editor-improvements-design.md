@@ -171,25 +171,43 @@ Panel can be dismissed at any time without assigning — both fields are optiona
 
 ### Feature — Compound pier move/rotate
 
-No code change required. Because compound docks are now one Pier record, the existing `handleItemPointerDown` / `handleRotateSelected` / `handleResizeSelected` move the whole structure as one unit automatically.
+Because compound docks are now one Pier record, `handleRotateSelected` / `handleResizeSelected` work on the whole structure automatically.
+
+**Bounding box hit-area trap:** `canvas_w/h` stores the bounding box of a compound pier. Clicking empty water inside an L-shaped dock's bounding box must not select the dock. `CanvasCore.jsx` must not use the bounding box rect for pointer hit detection on compound piers. Instead, `onPointerDown` on a pier shape with `components.length > 0` must iterate each component's rotated rect and only fire if the pointer lands inside at least one component. For simple piers (`components = []`), the existing bounding-box `<rect>` hit area is fine.
 
 ### Feature — Berth snapping to components
 
-`snapBerthToPier` in `mapBuilderUtils.js` is extended:
+`snapBerthToPier` in `mapBuilderUtils.js` is extended. Three math rules apply:
+
+**Rule 1 — Compound component absolute position requires rotation.**
+`comp.ox/oy` are offsets relative to the pier anchor at `rotation=0`. When the pier is rotated, they must be rotated first:
 
 ```js
-// If pier has components, iterate them instead of pier body
-if (pier.components?.length > 0) {
-  for (const comp of pier.components) {
-    const compAbsX = pier.canvas_x + comp.ox
-    const compAbsY = pier.canvas_y + comp.oy
-    // ... same edge-snap logic as today, using comp.w/h and compAbsX/Y
-    // returned snap includes position_on_parent: comp.id
-  }
-  return null
-}
-// Simple pier — existing logic unchanged
+const θ = (pier.rotation * Math.PI) / 180
+const rotOx = comp.ox * Math.cos(θ) - comp.oy * Math.sin(θ)
+const rotOy = comp.ox * Math.sin(θ) + comp.oy * Math.cos(θ)
+const compAbsX = pier.canvas_x + rotOx
+const compAbsY = pier.canvas_y + rotOy
 ```
+
+**Rule 2 — Berth `local_x/local_y` are always relative to the Pier's main origin (canvas_x/canvas_y), not the component.**
+`position_on_parent` records which component the berth belongs to (for deletion cascade), but the stored `local_x/local_y` are the berth's offset from the Pier anchor. This means rendering always uses `computeAbsPosition(pier, berth)` unchanged — no double-math needed.
+
+When snapping to a component edge, the returned snap values must convert back to Pier-origin coordinates:
+
+```js
+return {
+  pierId: pier.id,
+  position_on_parent: comp.id,
+  local_x: snapAbsX - pier.canvas_x,   // relative to Pier origin, not comp
+  local_y: snapAbsY - pier.canvas_y,
+  absX: snapAbsX,
+  absY: snapAbsY,
+  berthW, berthH,
+}
+```
+
+**Rule 3 — For simple piers, behaviour is unchanged.** If `pier.components.length === 0`, the existing snap-to-pier-body logic runs as before, returning `position_on_parent: ''`.
 
 ---
 
@@ -213,6 +231,18 @@ The canvas renders a pier's label in this priority order:
 1. `display_name` (user-set on the dock shape)
 2. `logical_pier.name` (resolved from FK, returned by serializer)
 3. `code` (auto-generated fallback)
+
+---
+
+## Canvas Math Reference
+
+Three rotation/coordinate rules that must be applied consistently throughout implementation:
+
+| Rule | Where it applies | Formula |
+|------|-----------------|---------|
+| Rotate component offset by pier angle | `snapBerthToPier`, `CanvasCore` hit-test | `rotOx = ox·cos θ − oy·sin θ`, `rotOy = ox·sin θ + oy·cos θ` |
+| Berth local coords relative to Pier origin | `snapBerthToPier` return value, `computeAbsPosition` | `local_x = snapAbsX − pier.canvas_x` (not minus compAbsX) |
+| Hit-test compound pier by components, not bounding box | `CanvasCore` pointer events | Iterate `components`, skip bounding box |
 
 ---
 
