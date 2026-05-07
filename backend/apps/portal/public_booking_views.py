@@ -17,7 +17,8 @@ from apps.reservations.emails import (
 from django.db import transaction
 
 from apps.reservations.booking_engine import compatible_available_berths, find_date_alternatives, run_tetris, NoAvailableBerthError
-from apps.berths.models import Berth
+from apps.berths.models import Berth, BerthCategory
+from django.db.models import Q, Exists, OuterRef
 from apps.reservations.serializers import BookingSerializer
 from apps.berths.serializers import BerthSerializer
 from apps.billing import service as billing_service
@@ -263,3 +264,68 @@ class PublicEngineRequestView(APIView):
             {'booking': BookingSerializer(booking).data, 'checkout_url': checkout_url},
             status=status.HTTP_201_CREATED,
         )
+
+
+class PublicBerthCategoriesView(APIView):
+    """GET /api/v1/public/bookings/berth-categories/"""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Marina not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            ci, co, boat_loa, boat_beam, boat_draft = _parse_availability_params(request)
+        except KeyError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Berths occupied during the requested window
+        conflicting_bookings = Booking.objects.filter(
+            berth=OuterRef('pk'),
+            status__in=['pending_payment', 'confirmed', 'checked_in'],
+            check_in__lt=co,
+            check_out__gt=ci,
+        )
+
+        # Available berths: standard class, fits boat, no conflict, has a category
+        dim_filter = Q()
+        if boat_loa:
+            dim_filter &= Q(length_m__gte=float(boat_loa))
+        if boat_beam:
+            dim_filter &= Q(max_beam_m__gte=float(boat_beam))
+        if boat_draft:
+            dim_filter &= Q(max_draft_m__gte=float(boat_draft))
+
+        available_berths = Berth.objects.filter(
+            marina=request.tenant,
+            berth_class='standard',
+            status__in=['available', 'reserved'],
+            category__isnull=False,
+        ).filter(dim_filter).exclude(Exists(conflicting_bookings))
+
+        # Group by category — only active categories with a pricing tier
+        categories = BerthCategory.objects.filter(
+            marina=request.tenant,
+            is_active=True,
+            pricing_tier__isnull=False,
+        ).select_related('pricing_tier')
+
+        result = []
+        for cat in categories:
+            count = available_berths.filter(category=cat).count()
+            if count == 0:
+                continue
+            result.append({
+                'id': cat.id,
+                'name': cat.name,
+                'description': cat.description,
+                'mooring_type': cat.mooring_type,
+                'amenities': cat.amenities,
+                'price_per_night': f'{cat.pricing_tier.unit_price:.2f}',
+                'available_count': count,
+            })
+
+        return Response(result)

@@ -318,3 +318,60 @@ class PublicEngineRequestTest(TestCase):
         make_test_berth(manual_marina, code='M1')
         resp = self._post(slug='manual-m')
         self.assertEqual(resp.status_code, 400)
+
+
+from apps.berths.models import BerthCategory
+
+
+class PublicBerthCategoriesViewTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Cat Marina', slug='cat-marina', booking_mode='auto_tetris')
+        self.tier = ChargeableItem.objects.create(
+            marina=self.marina, name='Night', category='berth',
+            pricing_model='per_night', unit_price=50,
+        )
+        self.cat = BerthCategory.objects.create(
+            marina=self.marina, name='Standard', amenities=['water'],
+            pricing_tier=self.tier, is_active=True,
+        )
+        pier = Pier.objects.create(marina=self.marina, code='A')
+        self.berth = Berth.objects.create(
+            marina=self.marina, pier=pier, code='A1',
+            length_m=12, max_beam_m=4, max_draft_m=2,
+            status='available', berth_class='standard',
+            pricing_tier=self.tier, category=self.cat,
+        )
+        self.client = APIClient()
+        self.url = '/api/v1/public/bookings/berth-categories/'
+
+    def _get(self, check_in='2026-08-01', check_out='2026-08-05', loa='10', beam='3', draft='1.5'):
+        qs = f'check_in={check_in}&check_out={check_out}&boat_loa={loa}&boat_beam={beam}&boat_draft={draft}'
+        return self.client.get(
+            f'{self.url}?{qs}',
+            HTTP_X_MARINA_SLUG='cat-marina',
+        )
+
+    def test_returns_available_categories(self):
+        res = self._get()
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['name'], 'Standard')
+        self.assertEqual(res.data[0]['available_count'], 1)
+        self.assertEqual(res.data[0]['price_per_night'], '50.00')
+
+    def test_excludes_category_without_pricing_tier(self):
+        BerthCategory.objects.create(
+            marina=self.marina, name='No Tier', is_active=True,
+            pricing_tier=None,
+        )
+        res = self._get()
+        names = [c['name'] for c in res.data]
+        self.assertNotIn('No Tier', names)
+
+    def test_excludes_category_when_boat_too_large(self):
+        res = self._get(loa='20')  # berth max is 12m
+        self.assertEqual(res.data, [])
+
+    def test_requires_marina_slug(self):
+        res = self.client.get(self.url + '?check_in=2026-08-01&check_out=2026-08-05')
+        self.assertEqual(res.status_code, 404)
