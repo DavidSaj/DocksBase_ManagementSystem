@@ -13,6 +13,7 @@ from apps.reservations.models import Booking
 from apps.reservations.emails import (
     send_booking_request_boater_email,
     send_booking_request_manager_email,
+    send_booking_confirmed_email,
 )
 from django.db import transaction
 
@@ -187,9 +188,10 @@ class PublicEngineRequestSerializer(serializers.Serializer):
     boat_loa          = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
     boat_beam         = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     boat_draft        = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
-    vessel_name       = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    eta               = serializers.TimeField(required=False, allow_null=True)
-    berth_category_id = serializers.IntegerField(required=False, allow_null=True)
+    vessel_name        = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    eta                = serializers.TimeField(required=False, allow_null=True)
+    berth_category_id  = serializers.IntegerField(required=False, allow_null=True)
+    payment_intent_id  = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
     def validate(self, data):
         if data['check_in'] >= data['check_out']:
@@ -218,12 +220,17 @@ class PublicEngineRequestView(APIView):
 
         d = ser.validated_data
         category_id = d.get('berth_category_id')
+        payment_intent_id = d.get('payment_intent_id', '')
         cat = None
         if category_id:
             try:
                 cat = BerthCategory.objects.get(pk=category_id, marina=marina, is_active=True)
             except BerthCategory.DoesNotExist:
                 return Response({'detail': 'Berth category not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Category flow: payment already collected via PaymentIntent before this call.
+        # Skip invoice/checkout creation — booking goes straight to confirmed.
+        pre_paid = bool(cat and payment_intent_id)
 
         try:
             with transaction.atomic():
@@ -241,28 +248,40 @@ class PublicEngineRequestView(APIView):
                 if cat:
                     booking.notes = (booking.notes or '') + f'\nCategory: {cat.name}'
                     booking.save(update_fields=['notes'])
-                booking.berth = Berth.objects.select_related('pricing_tier').get(pk=booking.berth_id)
-                nights_label = f'{booking.nights} night{"s" if booking.nights != 1 else ""}'
-                due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
-                inv = billing_service.create_invoice(
-                    marina,
-                    member=None,
-                    source_type='berth_booking',
-                    source_id=str(booking.id),
-                    due_date=due_date,
-                )
-                if not booking.amount:
-                    raise RuntimeError('Berth has no price set — cannot create invoice.')
-                billing_service.add_line_item(
-                    inv,
-                    description=f'Berth — {nights_label} @ {booking.berth.pricing_tier.unit_price}/night',
-                    quantity=1,
-                    unit_price=booking.amount,
-                )
-                billing_service.finalize_invoice(inv)
-                inv.booking = booking
-                inv.save(update_fields=['booking'])
-                checkout_url = billing_service.create_stripe_checkout_session(inv)
+
+                if pre_paid:
+                    # Mark booking confirmed immediately; record the PaymentIntent ID in notes.
+                    booking.status = 'confirmed'
+                    booking.notes = (booking.notes or '') + f'\nPaymentIntent: {payment_intent_id}'
+                    booking.save(update_fields=['status', 'notes'])
+                    try:
+                        send_booking_confirmed_email(booking)
+                    except Exception:
+                        logger.exception('PublicEngineRequestView: failed to send booking confirmed email')
+                    checkout_url = None
+                else:
+                    booking.berth = Berth.objects.select_related('pricing_tier').get(pk=booking.berth_id)
+                    nights_label = f'{booking.nights} night{"s" if booking.nights != 1 else ""}'
+                    due_date = datetime.date.today() + datetime.timedelta(days=marina.payment_terms)
+                    inv = billing_service.create_invoice(
+                        marina,
+                        member=None,
+                        source_type='berth_booking',
+                        source_id=str(booking.id),
+                        due_date=due_date,
+                    )
+                    if not booking.amount:
+                        raise RuntimeError('Berth has no price set — cannot create invoice.')
+                    billing_service.add_line_item(
+                        inv,
+                        description=f'Berth — {nights_label} @ {booking.berth.pricing_tier.unit_price}/night',
+                        quantity=1,
+                        unit_price=booking.amount,
+                    )
+                    billing_service.finalize_invoice(inv)
+                    inv.booking = booking
+                    inv.save(update_fields=['booking'])
+                    checkout_url = billing_service.create_stripe_checkout_session(inv)
         except NoAvailableBerthError as e:
             return Response({'detail': str(e)}, status=status.HTTP_409_CONFLICT)
         except ValueError as e:

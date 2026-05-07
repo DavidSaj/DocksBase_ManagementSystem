@@ -26,7 +26,7 @@ function PayForm({ state, navigate, onSuccess }) {
     if (!stripe || !elements) return;
     setBusy(true); setError('');
 
-    const { error: stripeError } = await stripe.confirmPayment({
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       redirect: 'if_required',
       confirmParams: {
@@ -40,7 +40,7 @@ function PayForm({ state, navigate, onSuccess }) {
       return;
     }
 
-    // Payment succeeded — create the booking
+    // Payment succeeded — create the booking (confirmed, no checkout redirect)
     try {
       const { data } = await api.post('/public/bookings/engine-request/', {
         check_in:  state.checkIn,
@@ -53,7 +53,8 @@ function PayForm({ state, navigate, onSuccess }) {
         guest_phone: form.guestPhone,
         vessel_name: form.vesselName,
         eta:         form.eta || null,
-        berth_category_id: state.selectedCategory?.id ?? null,
+        berth_category_id:  state.selectedCategory?.id ?? null,
+        payment_intent_id:  paymentIntent?.id ?? '',
       });
       onSuccess(data.booking?.id);
     } catch (err) {

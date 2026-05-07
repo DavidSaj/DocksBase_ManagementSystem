@@ -30,7 +30,7 @@ export default function BookingConfirmed({ marina, bookingId, cancelled }) {
         ) : (
           <>
             <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', fontSize: 13, color: 'var(--muted)', lineHeight: 1.7 }}>
-              Your booking is confirmed and visible to the marina team. The harbour master will assign your exact berth on the morning of arrival and contact you via VHF radio or the phone number you provided.
+              Your booking is confirmed and visible to the marina team. Your berth details and arrival information will be available in your client portal.
             </div>
           </>
         )}
