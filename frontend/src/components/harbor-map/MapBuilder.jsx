@@ -540,7 +540,7 @@ export default function MapBuilder() {
         const pierType = p.material ?? 'pontoon'
         const componentsWithIds = p.components.map(comp => ({
           id:   `c_${newId()}`,
-          type: comp.pier_type === 'pontoon' ? 'spine' : 'finger',
+          type: comp.role ?? 'finger',
           ox:   comp.ox - p.w / 2,   // convert from top-left-relative to pier-center-relative
           oy:   comp.oy - p.h / 2,
           w:    comp.canvas_w,

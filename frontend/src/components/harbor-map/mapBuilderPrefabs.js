@@ -66,9 +66,10 @@ export function buildComboDockLayout({ numFingers, fingerLen, berthBeamGU, bg, b
 
   const components = [
     // Main access pontoon spanning the full width
-    { pier_type: 'pontoon', ox: totalW / 2, oy: spineH / 2, canvas_w: totalW, canvas_h: spineH, bg, border },
+    { role: 'spine', pier_type: 'pontoon', ox: totalW / 2, oy: spineH / 2, canvas_w: totalW, canvas_h: spineH, bg, border },
     // Finger piers
     ...Array.from({ length: numFingers }, (_, i) => ({
+      role: 'finger',
       pier_type: 'pontoon',
       ox: 1 + i * fingerSpacing,
       oy: spineH + fingerLen / 2,
