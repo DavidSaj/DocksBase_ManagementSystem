@@ -95,6 +95,18 @@ def send_booking_confirmed_email(booking):
     berth     = booking.berth.code if booking.berth else '—'
     check_in  = booking.check_in.strftime('%d %B %Y')
     check_out = booking.check_out.strftime('%d %B %Y')
+    nights    = booking.nights
+    amount    = f'€{booking.amount:.2f}' if booking.amount is not None else '—'
+
+    vessel_row = f'<strong>Vessel:</strong> {booking.vessel_name}<br/>' if booking.vessel_name else ''
+    eta_row    = f'<strong>ETA:</strong> {booking.eta.strftime("%H:%M")}<br/>' if booking.eta else ''
+
+    contact_parts = []
+    if getattr(marina, 'contact_email', None):
+        contact_parts.append(marina.contact_email)
+    if getattr(marina, 'phone', None):
+        contact_parts.append(marina.phone)
+    contact_line = ' · '.join(contact_parts) if contact_parts else ''
 
     html = _base(
         preheader=f"Your berth at {marina.name} is confirmed — see you on {check_in}.",
@@ -105,24 +117,43 @@ def send_booking_confirmed_email(booking):
             f"""<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 24px;border:1px solid rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
               <tr style="background:#f8f8f8;"><td style="padding:10px 16px;font-size:12px;font-weight:600;color:{_MUTED};text-transform:uppercase;letter-spacing:0.5px;">Booking details</td></tr>
               <tr><td style="padding:12px 16px;font-size:14px;color:{_TEXT};border-top:1px solid rgba(0,0,0,0.06);">
+                <strong>Booking ID:</strong> BK-{booking.pk}<br/>
                 <strong>Marina:</strong> {marina.name}<br/>
                 <strong>Berth:</strong> {berth}<br/>
-                <strong>Arrival:</strong> {check_in}<br/>
-                <strong>Departure:</strong> {check_out}
+                {vessel_row}
+                <strong>Arrival:</strong> {check_in}{(' at ' + booking.eta.strftime('%H:%M')) if booking.eta else ''}<br/>
+                <strong>Departure:</strong> {check_out}<br/>
+                <strong>Nights:</strong> {nights}<br/>
+                <strong>Amount paid:</strong> {amount}
               </td></tr>
             </table>""" +
+            (f'<p style="font-size:14px;color:{_MUTED};margin:0 0 24px;">Need help? Contact the marina: <a href="mailto:{marina.contact_email}" style="color:{_NAVY};">{contact_line}</a></p>' if contact_line else '') +
             _p("Use the button below to access your digital boarding pass, complete pre-arrival checks, and find your berth on arrival.") +
             _btn(magic_url, "Open Boarding Pass →") +
             _divider() +
             _small("This link is personal — please don't share it. It expires after 72 hours but you can request a new one at any time.")
         ),
     )
+
+    vessel_txt = f'Vessel: {booking.vessel_name}\n' if booking.vessel_name else ''
+    eta_txt    = f'ETA: {booking.eta.strftime("%H:%M")}\n' if booking.eta else ''
+    contact_txt = f'Questions? Contact the marina: {contact_line}\n\n' if contact_line else ''
+
     send_mail(
         subject=f"Booking confirmed — {marina.name}, {check_in}",
         message=(
             f"Hi {guest},\n\n"
             f"Your booking at {marina.name} is confirmed.\n\n"
-            f"Berth: {berth}\nArrival: {check_in}\nDeparture: {check_out}\n\n"
+            f"Booking ID: BK-{booking.pk}\n"
+            f"Berth: {berth}\n"
+            f"{vessel_txt}"
+            f"Arrival: {check_in}"
+            f"{(' at ' + booking.eta.strftime('%H:%M')) if booking.eta else ''}\n"
+            f"Departure: {check_out}\n"
+            f"{eta_txt}"
+            f"Nights: {nights}\n"
+            f"Amount paid: {amount}\n\n"
+            f"{contact_txt}"
             f"Open your boarding pass: {magic_url}\n\n"
             "This link expires in 72 hours.\n\n"
             f"— {marina.name}"

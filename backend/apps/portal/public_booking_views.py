@@ -244,6 +244,8 @@ class PublicEngineRequestView(APIView):
                     guest_name=d['guest_name'],
                     guest_email=d['guest_email'],
                     guest_phone=d.get('guest_phone', ''),
+                    vessel_name=d.get('vessel_name', ''),
+                    eta=d.get('eta'),
                     berth_category=cat,
                 )
                 if cat:

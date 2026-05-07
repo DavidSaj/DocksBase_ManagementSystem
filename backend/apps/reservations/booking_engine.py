@@ -131,7 +131,8 @@ def create_manual_approval(marina, check_in, check_out, boat_loa, boat_beam, boa
 
 
 def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None,
-               guest_name='', guest_email='', guest_phone='', berth_category=None):
+               guest_name='', guest_email='', guest_phone='',
+               vessel_name='', eta=None, berth_category=None):
     """
     Mode B: run gap-minimisation, assign berth immediately, return Booking
     with status=pending_payment.
@@ -194,6 +195,8 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None
                 guest_name=guest_name,
                 guest_email=guest_email,
                 guest_phone=guest_phone,
+                vessel_name=vessel_name,
+                eta=eta,
             )
 
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
