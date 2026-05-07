@@ -1,25 +1,40 @@
 export default function BookingConfirmed({ marina, bookingId, cancelled }) {
+  const slug = window.location.pathname.split('/').filter(Boolean)[0] ?? '';
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4f6f8' }}>
-      <div style={{ textAlign: 'center', maxWidth: 420, padding: 32 }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>{cancelled ? '❌' : '✅'}</div>
-        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
-          {cancelled ? 'Payment cancelled' : 'Booking confirmed!'}
+    <>
+      <nav className="p-nav">
+        <span className="p-nav-brand">DocksBase</span>
+        {marina && <span className="p-nav-marina">— {marina.name}</span>}
+      </nav>
+      <div className="p-shell" style={{ maxWidth: 560 }}>
+        <div className="p-confirmed-box">
+          <div className="p-confirmed-check">{cancelled ? '✕' : '✓'}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+            {cancelled ? 'Payment cancelled' : 'Booking confirmed'}
+          </div>
+          {!cancelled && bookingId && (
+            <div className="p-confirmed-id">#{bookingId}</div>
+          )}
         </div>
-        <div style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginBottom: 24 }}>
-          {cancelled
-            ? 'Your payment was not completed. Your spot has not been reserved.'
-            : `Your berth at ${marina?.name ?? 'the marina'} is booked. Check your email for details and your check-in link.`}
-        </div>
-        {cancelled && (
-          <a
-            href={window.location.pathname.replace('/cancelled', '')}
-            style={{ fontSize: 14, color: 'var(--teal, #0d9488)', textDecoration: 'underline' }}
-          >
-            Try again
-          </a>
+
+        {cancelled ? (
+          <>
+            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 24, textAlign: 'center' }}>
+              Your payment was not completed and no charge was made.
+            </p>
+            <div style={{ textAlign: 'center' }}>
+              <a href={`/${slug}`} className="p-btn-gold">Try again</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', fontSize: 13, color: 'var(--muted)', lineHeight: 1.7 }}>
+              Your booking is confirmed and visible to the marina team. The harbour master will assign your exact berth on the morning of arrival and contact you via VHF radio or the phone number you provided.
+            </div>
+          </>
         )}
       </div>
-    </div>
+    </>
   );
 }
