@@ -34,6 +34,35 @@ class PierDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return Pier.objects.filter(marina=self.request.user.marina)
 
+    def update(self, request, *args, **kwargs):
+        from django.db import transaction
+        instance = self.get_object()
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        new_components = serializer.validated_data.get('components')
+        if new_components is not None:
+            old_ids = {c['id'] for c in (instance.components or [])}
+            new_ids = {c['id'] for c in new_components}
+            removed_ids = old_ids - new_ids
+            if removed_ids:
+                with transaction.atomic():
+                    Berth.objects.filter(
+                        pier=instance,
+                        position_on_parent__in=removed_ids,
+                    ).update(
+                        pier=None,
+                        position_on_parent='',
+                        local_x=None,
+                        local_y=None,
+                    )
+                    serializer.save()
+                return Response(serializer.data)
+
+        serializer.save()
+        return Response(serializer.data)
+
 
 class BerthListCreateView(generics.ListCreateAPIView):
     serializer_class = BerthSerializer
