@@ -121,7 +121,7 @@ function AbsenceTab() {
           <form onSubmit={handleSubmit} className="portal-form">
             <div className="portal-field">
               <label className="portal-label">Absence type</label>
-              <select className="login-input" value={form.absence_type} onChange={e => set('absence_type', e.target.value)}>
+              <select className="portal-input" value={form.absence_type} onChange={e => set('absence_type', e.target.value)}>
                 <option value="day_trip">Day trip</option>
                 <option value="overnight">Overnight</option>
                 <option value="extended">Extended</option>
@@ -130,16 +130,16 @@ function AbsenceTab() {
             <div className="portal-field-row">
               <div className="portal-field">
                 <label className="portal-label">Departure</label>
-                <input type="date" className="login-input" value={form.departure} onChange={e => set('departure', e.target.value)} required />
+                <input type="date" className="portal-input" value={form.departure} onChange={e => set('departure', e.target.value)} required />
               </div>
               <div className="portal-field">
                 <label className="portal-label">Return</label>
-                <input type="date" className="login-input" value={form.return_date} onChange={e => set('return_date', e.target.value)} required />
+                <input type="date" className="portal-input" value={form.return_date} onChange={e => set('return_date', e.target.value)} required />
               </div>
             </div>
             <div className="portal-field">
               <label className="portal-label">Notes <span className="portal-optional">(optional)</span></label>
-              <textarea className="login-input" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any details for the harbour master…" />
+              <textarea className="portal-input" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any details for the harbour master…" />
             </div>
             {error && <p className="login-error">{error}</p>}
             <button type="submit" className="abtn abtn-gold portal-full-btn" disabled={submitting}>
@@ -183,7 +183,7 @@ function CraneTab() {
         <form onSubmit={handleSubmit} className="portal-form">
           <div className="portal-field">
             <label className="portal-label">Service</label>
-            <select className="login-input" value={form.service_type} onChange={e => set('service_type', e.target.value)}>
+            <select className="portal-input" value={form.service_type} onChange={e => set('service_type', e.target.value)}>
               <option value="launch">Launch</option>
               <option value="haul_out">Haul-out</option>
               <option value="both">Launch & Haul-out</option>
@@ -191,11 +191,11 @@ function CraneTab() {
           </div>
           <div className="portal-field">
             <label className="portal-label">Requested date</label>
-            <input type="date" className="login-input" value={form.requested_date} onChange={e => set('requested_date', e.target.value)} required />
+            <input type="date" className="portal-input" value={form.requested_date} onChange={e => set('requested_date', e.target.value)} required />
           </div>
           <div className="portal-field">
             <label className="portal-label">Notes <span className="portal-optional">(optional)</span></label>
-            <textarea className="login-input" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Vessel condition, timing requirements…" />
+            <textarea className="portal-input" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Vessel condition, timing requirements…" />
           </div>
           {error && <p className="login-error">{error}</p>}
           <button type="submit" className="abtn abtn-gold portal-full-btn" disabled={submitting}>

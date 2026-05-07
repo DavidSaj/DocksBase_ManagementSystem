@@ -356,54 +356,47 @@ svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
 .abtn-gold:hover { background: #d4b07a; }
 
 /* ── Login ─────────────────────────────────────────────────────────────── */
-@keyframes loginCardIn {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 .login-shell {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(155deg, var(--navy) 55%, #1a3d52 100%);
+  background: var(--bg-alt, #f6f5f4);
   padding: 24px;
 }
 
 .login-card {
-  background: var(--navy2);
-  border: 1px solid rgba(184,150,90,0.18);
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.1);
   border-radius: 12px;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.45);
+  box-shadow: var(--shadow-card);
   padding: 40px 36px;
   width: 100%;
   max-width: 380px;
-  animation: loginCardIn 350ms ease-out both;
 }
 
 .login-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 28px;
 }
 
 .login-brand {
-  font-family: var(--font-brand);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 2.5px;
-  text-transform: uppercase;
-  color: var(--cream);
+  font-family: var(--font-primary, 'Jost', sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #0c1f3d;
 }
 
 .login-title {
-  font-family: var(--font-serif);
-  font-size: 32px;
+  font-family: var(--font-app, 'IBM Plex Sans', sans-serif);
+  font-size: 20px;
   font-weight: 600;
-  color: var(--cream);
+  color: rgba(0,0,0,0.95);
   margin-bottom: 24px;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
 
 .login-form { display: flex; flex-direction: column; gap: 16px; }
@@ -411,42 +404,40 @@ svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
 .login-field { display: flex; flex-direction: column; gap: 5px; }
 
 .login-label {
-  font-family: var(--font);
-  font-size: 11px;
+  font-family: var(--font-app, 'IBM Plex Sans', sans-serif);
+  font-size: 13px;
   font-weight: 600;
-  color: rgba(245,240,230,0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: rgba(0,0,0,0.95);
 }
 
 .login-input {
-  font-family: var(--font);
-  font-size: 14px;
+  font-family: var(--font-app, 'IBM Plex Sans', sans-serif);
+  font-size: 15px;
   font-weight: 400;
-  background: var(--navy);
-  color: var(--cream);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 6px;
-  padding: 9px 12px;
+  background: #fff;
+  color: rgba(0,0,0,0.9);
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  padding: 7px 10px;
   width: 100%;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.login-input::placeholder { color: rgba(245,240,230,0.3); }
+.login-input::placeholder { color: #a39e98; }
 
 .login-input:focus {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(184,150,90,0.18);
+  border-color: #097fe8;
+  box-shadow: 0 0 0 3px rgba(9,127,232,0.12);
 }
 
 .login-error {
-  font-size: 12px;
-  color: #f08080;
+  font-size: 13px;
+  color: #cc2222;
   margin: 0;
 }
 
-.login-submit { width: 100%; justify-content: center; padding: 11px 0; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+.login-submit { width: 100%; justify-content: center; padding: 10px 0; font-size: 14px; }
 
 /* ── Boater Portal ──────────────────────────────── */
 @keyframes fadeSlideUp {
@@ -722,6 +713,25 @@ svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
   text-align: center;
   max-width: 260px;
   line-height: 1.5;
+}
+
+.portal-input {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 400;
+  background: var(--navy);
+  color: var(--cream);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 9px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.portal-input::placeholder { color: rgba(245,240,230,0.3); }
+.portal-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(184,150,90,0.18);
 }
 
 /* Dark status badges for portal */
