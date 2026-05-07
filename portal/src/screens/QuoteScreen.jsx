@@ -142,7 +142,7 @@ export default function QuoteScreen({ state, navigate, marina }) {
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
           display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1,
         }}>
-          <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : 'search')}
+          <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : (state.fromScreen ?? 'search'))}
             style={{ fontSize: 11, padding: '6px 14px', marginRight: 16 }}>
             ← Back
           </button>
