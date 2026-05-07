@@ -5,10 +5,11 @@ import Ic from '../components/ui/Icon.jsx';
 import CatalogList from './CatalogList.jsx';
 import CatalogFormDrawer from './CatalogFormDrawer.jsx';
 import BerthPricingAssigner from './BerthPricingAssigner.jsx';
+import BerthCategoryAssigner from './BerthCategoryAssigner.jsx';
 
 const TABS = [
-  { value: 'berth-categories', label: 'Berth Categories', addLabel: 'Add Category'    },
   { value: 'berth',            label: 'Berth Rates',      addLabel: 'Add Berth Rate'  },
+  { value: 'berth-categories', label: 'Berth Categories', addLabel: 'Add Category'    },
   { value: 'utility',          label: 'Utilities',        addLabel: 'Add Utility'     },
   { value: 'service',          label: 'Services',         addLabel: 'Add Service'     },
   { value: 'retail',           label: 'Retail & Fuel',    addLabel: 'Add Retail Item' },
@@ -165,14 +166,17 @@ function BerthCategoryPanel({ item, berthRates, onSave, onDelete, onClose }) {
 
           {/* Pricing tier */}
           <div style={{ marginBottom: 14 }}>
-            <label style={lbl}>Pricing Tier *</label>
+            <label style={lbl}>Berth type *</label>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>
+              The existing berth rate this category is based on
+            </div>
             <select
               required
               style={inputSt}
               value={form.pricing_tier}
               onChange={e => set('pricing_tier', e.target.value ? Number(e.target.value) : '')}
             >
-              <option value="">— select a berth rate —</option>
+              <option value="">— select berth type —</option>
               {berthRates.map(r => (
                 <option key={r.id} value={r.id}>{r.name} (€{r.unit_price}/night)</option>
               ))}
@@ -248,9 +252,10 @@ function BerthCategoryPanel({ item, berthRates, onSave, onDelete, onClose }) {
 }
 
 export default function ServiceCatalogScreen() {
-  const [tab, setTab]                   = useState('berth-categories');
+  const [tab, setTab]                   = useState('berth');
   const [drawerOpen, setDrawerOpen]     = useState(false);
   const [assignerOpen, setAssignerOpen] = useState(false);
+  const [catAssignerOpen, setCatAssignerOpen] = useState(false);
   const [editItem, setEditItem]         = useState(null);
 
   // Berth categories state
@@ -321,6 +326,15 @@ export default function ServiceCatalogScreen() {
               style={{ fontSize: 12 }}
             >
               Assign Rates
+            </button>
+          )}
+          {tab === 'berth-categories' && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setCatAssignerOpen(true)}
+              style={{ fontSize: 12 }}
+            >
+              Assign Categories
             </button>
           )}
           <button className="btn btn-primary btn-sm" onClick={openCreate}>
@@ -427,6 +441,13 @@ export default function ServiceCatalogScreen() {
         onClose={() => setAssignerOpen(false)}
         onNewRate={openCreateFromAssigner}
         berthRates={items}
+      />
+
+      {/* Berth category assigner (berth-categories tab only) */}
+      <BerthCategoryAssigner
+        open={catAssignerOpen}
+        onClose={() => setCatAssignerOpen(false)}
+        categories={categories}
       />
     </div>
   );
