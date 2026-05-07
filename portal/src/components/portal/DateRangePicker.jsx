@@ -12,7 +12,7 @@ function localIso(date) {
 function fmt(iso) {
   if (!iso) return null;
   return new Date(iso + 'T12:00:00')
-    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function CalendarGrid({ year, month, startDate, endDate, hoverDate, onDayClick, onDayHover }) {
@@ -61,7 +61,7 @@ function CalendarGrid({ year, month, startDate, endDate, hoverDate, onDayClick, 
               onMouseLeave={() => onDayHover(null)}
               style={{ position: 'relative', height: 40, cursor: isPast ? 'default' : 'pointer' }}
             >
-              {/* Range stripe — half on start, full on in-range, half on end */}
+              {/* Range stripe — right-half on start, full on in-range, left-half on end */}
               {hasRange && isStart && (
                 <div style={{ position: 'absolute', top: 4, bottom: 4, left: '50%', right: 0, background: 'rgba(184,150,90,0.13)', zIndex: 0 }} />
               )}
@@ -72,7 +72,7 @@ function CalendarGrid({ year, month, startDate, endDate, hoverDate, onDayClick, 
                 <div style={{ position: 'absolute', top: 4, bottom: 4, left: 0, right: '50%', background: 'rgba(184,150,90,0.13)', zIndex: 0 }} />
               )}
 
-              {/* Day number */}
+              {/* Day number circle */}
               <div style={{
                 position: 'absolute', top: '50%', left: '50%',
                 transform: 'translate(-50%, -50%)',
@@ -118,6 +118,15 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
     return () => document.removeEventListener('mousedown', outside);
   }, []);
 
+  function openCalendar(anchorIso) {
+    if (anchorIso) {
+      const d = new Date(anchorIso + 'T12:00:00');
+      setViewYear(d.getFullYear());
+      setViewMonth(d.getMonth());
+    }
+    setOpen(o => !o);
+  }
+
   function handleDayClick(ds) {
     if (!checkIn || (checkIn && checkOut)) {
       onChange({ checkIn: ds, checkOut: '' });
@@ -146,67 +155,71 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
 
   const step = !checkIn ? 'arrival' : !checkOut ? 'departure' : 'done';
 
+  const calendarIcon = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ color: 'rgba(0,0,0,0.3)', flexShrink: 0 }}>
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8"  y1="2" x2="8"  y2="6"/>
+      <line x1="3"  y1="10" x2="21" y2="10"/>
+    </svg>
+  );
+
   return (
     <div ref={wrapRef} style={{ position: 'relative', gridColumn: 'span 2' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
-      {/* Merged bar */}
-      <div
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'stretch',
-          border: `1px solid ${open ? '#b8965a' : '#d4d4d4'}`,
-          borderRadius: 6, background: '#fff', cursor: 'pointer',
-          boxShadow: open ? '0 0 0 3px rgba(184,150,90,0.12)' : 'none',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Arrival */}
-        <div style={{ flex: 1, padding: '9px 14px' }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)', marginBottom: 3 }}>Arrival</div>
-          <div style={{ fontSize: 13.5, color: checkIn ? '#1a1a1a' : 'rgba(0,0,0,0.28)', fontWeight: checkIn ? 500 : 400 }}>
-            {fmt(checkIn) || 'Add date'}
+        {/* Arrival — identical styling to p-input/p-label */}
+        <div className="p-field" style={{ marginBottom: 0 }}>
+          <label className="p-label">Arrival</label>
+          <div
+            className="p-input"
+            onClick={() => openCalendar(checkIn)}
+            style={{
+              cursor: 'pointer', userSelect: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              borderColor: open ? '#b8965a' : undefined,
+            }}
+          >
+            <span style={{ color: checkIn ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontSize: 14 }}>
+              {fmt(checkIn) || 'Select date'}
+            </span>
+            {calendarIcon}
           </div>
         </div>
 
-        {/* Divider with arrow */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px', borderLeft: '1px solid #ebebeb', borderRight: '1px solid #ebebeb' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </div>
-
-        {/* Departure */}
-        <div style={{ flex: 1, padding: '9px 14px' }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)', marginBottom: 3 }}>Departure</div>
-          <div style={{ fontSize: 13.5, color: checkOut ? '#1a1a1a' : 'rgba(0,0,0,0.28)', fontWeight: checkOut ? 500 : 400 }}>
-            {fmt(checkOut) || 'Add date'}
+        {/* Departure — identical styling to p-input/p-label */}
+        <div className="p-field" style={{ marginBottom: 0 }}>
+          <label className="p-label">Departure</label>
+          <div
+            className="p-input"
+            onClick={() => openCalendar(checkOut || checkIn)}
+            style={{
+              cursor: 'pointer', userSelect: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              borderColor: open ? '#b8965a' : undefined,
+            }}
+          >
+            <span style={{ color: checkOut ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontSize: 14 }}>
+              {fmt(checkOut) || 'Select date'}
+            </span>
+            {calendarIcon}
           </div>
-        </div>
-
-        {/* Calendar icon */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 14px 0 8px', color: 'rgba(0,0,0,0.22)' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8"  y1="2" x2="8"  y2="6"/>
-            <line x1="3"  y1="10" x2="21" y2="10"/>
-          </svg>
         </div>
       </div>
 
-      {/* Dropdown calendar */}
+      {/* Single calendar dropdown — spans full width of both fields */}
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
           background: '#fff', border: '1px solid #e5e5e5',
-          borderRadius: 12, padding: '18px 20px 16px',
+          borderRadius: 10, padding: '18px 20px 14px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
           zIndex: 300,
         }}>
           {/* Month nav */}
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
             <button type="button" onClick={e => { e.stopPropagation(); prevMonth(); }}
               style={{
                 background: 'none', border: '1px solid #e8e8e8', borderRadius: 6,
@@ -214,11 +227,11 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'rgba(0,0,0,0.4)', flexShrink: 0,
               }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6"/>
               </svg>
             </button>
-            <span style={{ flex: 1, textAlign: 'center', fontSize: 13.5, fontWeight: 600, color: '#1a1a1a' }}>
+            <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
               {monthLabel}
             </span>
             <button type="button" onClick={e => { e.stopPropagation(); nextMonth(); }}
@@ -228,7 +241,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'rgba(0,0,0,0.4)', flexShrink: 0,
               }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </button>
@@ -243,7 +256,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
           />
 
           {step !== 'done' && (
-            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.32)', textAlign: 'center', marginTop: 14, fontStyle: 'italic' }}>
+            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.32)', textAlign: 'center', marginTop: 12, fontStyle: 'italic' }}>
               {step === 'arrival' ? 'Select your arrival date' : 'Now select your departure date'}
             </p>
           )}
