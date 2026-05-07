@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection, BerthCategory, AMENITY_SLUGS
+from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection, BerthCategory, LogicalPier, AMENITY_SLUGS
 from apps.billing.models import ChargeableItem
 
 
@@ -37,13 +37,33 @@ class OTAConnectionSerializer(serializers.ModelSerializer):
 _GHOST_SLOT_KEYS = {'x', 'y', 'rotation', 'width_m', 'height_m'}
 
 
+class LogicalPierSerializer(serializers.ModelSerializer):
+    dock_shapes_count = serializers.SerializerMethodField()
+    berths_count      = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = LogicalPier
+        fields = ['id', 'name', 'pier_type', 'notes', 'dock_shapes_count', 'berths_count']
+        read_only_fields = ['id', 'dock_shapes_count', 'berths_count']
+
+    def get_dock_shapes_count(self, obj):
+        return obj.dock_shapes.count()
+
+    def get_berths_count(self, obj):
+        return Berth.objects.filter(pier__logical_pier=obj).count()
+
+
 class PierSerializer(serializers.ModelSerializer):
+    logical_pier_name = serializers.CharField(source='logical_pier.name', read_only=True, default=None)
+
     class Meta:
         model = Pier
         fields = [
-            'id', 'code', 'label', 'polygon_points', 'pier_type', 'ghost_slots',
+            'id', 'code', 'label', 'display_name', 'polygon_points', 'pier_type', 'ghost_slots',
             'canvas_x', 'canvas_y', 'canvas_w', 'canvas_h', 'rotation',
+            'logical_pier', 'logical_pier_name', 'components',
         ]
+        read_only_fields = ['id', 'logical_pier_name']
 
     def validate_ghost_slots(self, value):
         if not isinstance(value, list):
@@ -57,6 +77,18 @@ class PierSerializer(serializers.ModelSerializer):
             for key in _GHOST_SLOT_KEYS:
                 if not isinstance(slot[key], (int, float)):
                     raise serializers.ValidationError(f'Ghost slot field "{key}" must be numeric.')
+        return value
+
+    def validate_components(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError('components must be a list.')
+        for comp in value:
+            if not isinstance(comp, dict):
+                raise serializers.ValidationError('Each component must be an object.')
+            required = {'id', 'type', 'ox', 'oy', 'w', 'h'}
+            missing = required - comp.keys()
+            if missing:
+                raise serializers.ValidationError(f'Component missing keys: {missing}.')
         return value
 
 
