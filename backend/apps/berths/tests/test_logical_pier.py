@@ -48,3 +48,42 @@ class LogicalPierSerializerTest(TestCase):
             'components': [{'id': 'c_1', 'type': 'spine', 'ox': 'bad', 'oy': 0, 'w': 10, 'h': 2}],
         }, format='json')
         self.assertEqual(resp.status_code, 400)
+
+
+class LogicalPierViewTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Test Marina')
+        self.user = User.objects.create_user(
+            email='mgr@example.com', password='pass', marina=self.marina
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_create_logical_pier(self):
+        resp = self.client.post('/api/v1/logical-piers/', {
+            'name': 'North Dock', 'pier_type': 'pontoon', 'notes': ''
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['name'], 'North Dock')
+        self.assertEqual(LogicalPier.objects.filter(marina=self.marina).count(), 1)
+
+    def test_list_logical_piers_scoped_to_marina(self):
+        other_marina = Marina.objects.create(name='Other Marina')
+        LogicalPier.objects.create(marina=self.marina, name='My Pier', pier_type='concrete')
+        LogicalPier.objects.create(marina=other_marina, name='Other Pier', pier_type='concrete')
+        resp = self.client.get('/api/v1/logical-piers/')
+        self.assertEqual(resp.status_code, 200)
+        names = [lp['name'] for lp in (resp.data.get('results') or resp.data)]
+        self.assertIn('My Pier', names)
+        self.assertNotIn('Other Pier', names)
+
+    def test_delete_logical_pier_unassigns_dock_shapes(self):
+        lp = LogicalPier.objects.create(marina=self.marina, name='Pier A', pier_type='pontoon')
+        pier = Pier.objects.create(
+            marina=self.marina, code='P1', pier_type='pontoon',
+            canvas_x=10, canvas_y=10, logical_pier=lp,
+        )
+        resp = self.client.delete(f'/api/v1/logical-piers/{lp.id}/')
+        self.assertEqual(resp.status_code, 204)
+        pier.refresh_from_db()
+        self.assertIsNone(pier.logical_pier)

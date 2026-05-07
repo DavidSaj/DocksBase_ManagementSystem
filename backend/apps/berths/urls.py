@@ -12,6 +12,7 @@ from .views import (
     IcalFeedView,
     OTAConnectionViewSet,
     BerthCategoryViewSet,
+    LogicalPierListCreateView, LogicalPierDetailView,
 )
 
 router = DefaultRouter()
@@ -21,6 +22,8 @@ router.register(r'berths/berth-categories', BerthCategoryViewSet, basename='bert
 urlpatterns = [
     path('piers/', PierListCreateView.as_view(), name='pier_list'),
     path('piers/<int:pk>/', PierDetailView.as_view(), name='pier_detail'),
+    path('logical-piers/', LogicalPierListCreateView.as_view(), name='logical_pier_list'),
+    path('logical-piers/<int:pk>/', LogicalPierDetailView.as_view(), name='logical_pier_detail'),
     path('berths/bulk-create/', BulkCreateBerthsView.as_view(), name='berths_bulk_create'),
     path('berths/bulk-pricing/', BulkUpdateBerthPricingView.as_view(), name='berths_bulk_pricing'),
     path('berths/bulk-category/', BulkUpdateBerthCategoryView.as_view(), name='berths_bulk_category'),

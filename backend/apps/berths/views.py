@@ -5,8 +5,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection, BerthCategory
-from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer, OTAConnectionSerializer, BerthCategorySerializer
+from .models import Pier, Berth, MarinaMapConfig, Amenity, OTAConnection, BerthCategory, LogicalPier
+from .serializers import PierSerializer, BerthSerializer, MarinaMapConfigSerializer, AmenitySerializer, OTAConnectionSerializer, BerthCategorySerializer, LogicalPierSerializer
 from .sms_service import send_sms
 
 
@@ -210,6 +210,23 @@ class BulkUpdateBerthCategoryView(APIView):
         ).update(category_id=category_id)
 
         return Response({'updated': updated})
+
+
+class LogicalPierListCreateView(generics.ListCreateAPIView):
+    serializer_class = LogicalPierSerializer
+
+    def get_queryset(self):
+        return LogicalPier.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina)
+
+
+class LogicalPierDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = LogicalPierSerializer
+
+    def get_queryset(self):
+        return LogicalPier.objects.filter(marina=self.request.user.marina)
 
 
 class BroadcastSMSView(APIView):
