@@ -864,165 +864,7 @@ function CampaignsTab() {
   );
 }
 
-// ─── Tab 5: Waitlist ─────────────────────────────────────────────────────────
-
-const WAITLIST_DEFAULTS = {
-  email: '', vessel_length_m: '', desired_from: '', desired_to: '', booking_tier: '', is_active: true,
-};
-
-function WaitlistModal({ tiers, onClose, onSaved }) {
-  const [form, setForm] = useState({ ...WAITLIST_DEFAULTS });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  async function save() {
-    if (!form.email.trim()) { setError('Email is required.'); return; }
-    if (!form.vessel_length_m) { setError('Vessel length is required.'); return; }
-    setSaving(true);
-    setError('');
-    const payload = { ...form };
-    if (payload.booking_tier === '') payload.booking_tier = null;
-    if (payload.desired_from === '') payload.desired_from = null;
-    if (payload.desired_to === '') payload.desired_to = null;
-    try {
-      const { data } = await api.post('/revenue/waitlist/', payload);
-      onSaved(data);
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Save failed.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="Add to Waitlist" onClose={onClose}>
-      {error && <div style={{ color: '#c0392b', fontSize: 12, marginBottom: 12 }}>{error}</div>}
-      <Field label="Email">
-        <Input type="email" value={form.email} onChange={v => set('email', v)} placeholder="boater@example.com" />
-      </Field>
-      <Field label="Vessel Length (m)">
-        <Input type="number" value={form.vessel_length_m} onChange={v => set('vessel_length_m', v)} placeholder="e.g. 12.5" />
-      </Field>
-      <Field label="Desired From">
-        <Input type="date" value={form.desired_from} onChange={v => set('desired_from', v)} />
-      </Field>
-      <Field label="Desired To">
-        <Input type="date" value={form.desired_to} onChange={v => set('desired_to', v)} />
-      </Field>
-      <Field label="Preferred Tier (optional)">
-        <Select value={form.booking_tier} onChange={v => set('booking_tier', v)}>
-          <option value="">Any Tier</option>
-          {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </Select>
-      </Field>
-      <ModalActions onClose={onClose} onSave={save} saving={saving} saveLabel="Add to Waitlist" />
-    </Modal>
-  );
-}
-
-function WaitlistTab() {
-  const [entries, setEntries] = useState([]);
-  const [tiers, setTiers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [removing, setRemoving] = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [w, t] = await Promise.all([
-        api.get('/revenue/waitlist/'),
-        api.get('/revenue/booking-tiers/'),
-      ]);
-      setEntries(w.data.results ?? w.data);
-      setTiers(t.data.results ?? t.data);
-    } catch {
-      setEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function remove(id) {
-    setRemoving(id);
-    try {
-      await api.delete(`/revenue/waitlist/${id}/`);
-      setEntries(prev => prev.filter(e => e.id !== id));
-    } catch {
-      // silent
-    } finally {
-      setRemoving(null);
-    }
-  }
-
-  return (
-    <div>
-      <SecHdr>
-        <div style={{ fontWeight: 600, fontSize: 14 }}>Waitlist Entries</div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Add to Waitlist</button>
-      </SecHdr>
-      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginBottom: 12 }}>
-        When a gap-fill or last-minute rule fires, waitlist boaters matching the berth criteria are notified first via a 2-hour Stripe Checkout link.
-      </div>
-      <div className="card">
-        {loading ? <LoadingState /> : entries.length === 0 ? (
-          <EmptyState message="No waitlist entries. Boaters can be added here or via the public booking flow." />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Vessel (m)</th>
-                  <th>Desired From</th>
-                  <th>Desired To</th>
-                  <th>Tier</th>
-                  <th>Status</th>
-                  <th>Added</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map(e => (
-                  <tr key={e.id}>
-                    <td>{e.email}</td>
-                    <td>{e.vessel_length_m}m</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(e.desired_from)}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(e.desired_to)}</td>
-                    <td style={{ fontSize: 12 }}>{tiers.find(t => t.id === e.booking_tier)?.name ?? '—'}</td>
-                    <td><StatusBadge value={e.is_active} /></td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(e.created_at)}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        style={{ color: '#c0392b' }}
-                        disabled={removing === e.id}
-                        onClick={() => remove(e.id)}
-                      >{removing === e.id ? '…' : 'Remove'}</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      {showModal && (
-        <WaitlistModal
-          tiers={tiers}
-          onClose={() => setShowModal(false)}
-          onSaved={saved => { setEntries(prev => [saved, ...prev]); setShowModal(false); }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── Tab 6: Competitors ──────────────────────────────────────────────────────
+// ─── Tab 5: Competitors ──────────────────────────────────────────────────────
 
 const COMPETITOR_DEFAULTS = {
   competitor_name: '', competitor_url: '', vessel_length_m: '10.00',
@@ -1203,7 +1045,6 @@ const TABS = [
   ['yield-rules',   'Yield Rules'],
   ['hourly-config', 'Hourly Config'],
   ['campaigns',     'Campaigns'],
-  ['waitlist',      'Waitlist'],
   ['competitors',   'Competitors'],
 ];
 
@@ -1223,7 +1064,6 @@ export default function RevenueIntelligence() {
         {tab === 'yield-rules'   && <YieldRulesTab />}
         {tab === 'hourly-config' && <HourlyConfigTab />}
         {tab === 'campaigns'     && <CampaignsTab />}
-        {tab === 'waitlist'      && <WaitlistTab />}
         {tab === 'competitors'   && <CompetitorsTab />}
       </div>
     </div>

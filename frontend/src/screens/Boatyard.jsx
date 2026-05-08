@@ -494,51 +494,6 @@ function PaintRecordModal({ vessels, onClose, onCreate }) {
   );
 }
 
-// ── Parts Inventory Modal ─────────────────────────────────────────────────────
-
-function PartsInventoryModal({ onClose, onCreate }) {
-  const [name, setName] = useState('');
-  const [sku, setSku] = useState('');
-  const [category, setCategory] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [unitCost, setUnitCost] = useState('');
-  const [qty, setQty] = useState(0);
-  const [reorderPoint, setReorderPoint] = useState(0);
-  const [location, setLocation] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState(null);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true); setErr(null);
-    try {
-      await onCreate({ name, sku, category, supplier, unit_cost: unitCost || null, quantity: qty, reorder_point: reorderPoint, location });
-      onClose();
-    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
-  }
-
-  return (
-    <Modal title="Add Parts Inventory Item" onClose={onClose}>
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <FieldGroup label="Part Name"><input required value={name} onChange={e => setName(e.target.value)} /></FieldGroup>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <FieldGroup label="SKU / Part No."><input value={sku} onChange={e => setSku(e.target.value)} /></FieldGroup>
-            <FieldGroup label="Category"><input value={category} onChange={e => setCategory(e.target.value)} /></FieldGroup>
-            <FieldGroup label="Supplier"><input value={supplier} onChange={e => setSupplier(e.target.value)} /></FieldGroup>
-            <FieldGroup label="Unit Cost"><input type="number" step="0.01" value={unitCost} onChange={e => setUnitCost(e.target.value)} /></FieldGroup>
-            <FieldGroup label="Qty in Stock"><input type="number" value={qty} onChange={e => setQty(parseInt(e.target.value))} /></FieldGroup>
-            <FieldGroup label="Reorder Point"><input type="number" value={reorderPoint} onChange={e => setReorderPoint(parseInt(e.target.value))} /></FieldGroup>
-          </div>
-          <FieldGroup label="Storage Location"><input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Shelf A3" /></FieldGroup>
-          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
-        </div>
-        <FormActions onClose={onClose} saving={saving} saveLabel="Add Item" />
-      </form>
-    </Modal>
-  );
-}
-
 // ── Warranty Claim Modal ──────────────────────────────────────────────────────
 
 function WarrantyClaimModal({ onClose, onCreate }) {
@@ -683,7 +638,6 @@ export default function Boatyard() {
   const { items: serviceBays,      loading: baysLoading,      createItem: createBay,      deleteItem: deleteBay }      = useApiList('/service-bays/');
   const { items: liftOps,          loading: liftOpsLoading,   createItem: createLiftOp,   updateItem: updateLiftOp }   = useApiList('/lift-operations/');
   const { items: paintRecords,     loading: paintLoading,     createItem: createPaintRec, deleteItem: deletePaintRec } = useApiList('/paint-records/');
-  const { items: partsInventory,   loading: partsInvLoading,  createItem: createInvPart,  deleteItem: deleteInvPart }  = useApiList('/parts-inventory/');
   const { items: warrantyClaims,   loading: warrantyLoading,  createItem: createClaim,    updateItem: updateClaim }    = useApiList('/warranty-claims/');
   const { items: subcontractors,   loading: subconLoading,    createItem: createSubcon,   deleteItem: deleteSubcon }   = useApiList('/subcontractors/');
 
@@ -691,7 +645,6 @@ export default function Boatyard() {
   const [showAddBay, setShowAddBay]           = useState(false);
   const [showAddLiftOp, setShowAddLiftOp]     = useState(false);
   const [showAddPaintRec, setShowAddPaintRec] = useState(false);
-  const [showAddInvPart, setShowAddInvPart]   = useState(false);
   const [showAddClaim, setShowAddClaim]       = useState(false);
   const [showAddSubcon, setShowAddSubcon]     = useState(false);
 
@@ -721,7 +674,6 @@ export default function Boatyard() {
       {showAddBay     && <ServiceBayModal onClose={() => setShowAddBay(false)} onCreate={createBay} />}
       {showAddLiftOp  && <LiftOperationModal vessels={vessels} onClose={() => setShowAddLiftOp(false)} onCreate={createLiftOp} />}
       {showAddPaintRec && <PaintRecordModal vessels={vessels} onClose={() => setShowAddPaintRec(false)} onCreate={createPaintRec} />}
-      {showAddInvPart && <PartsInventoryModal onClose={() => setShowAddInvPart(false)} onCreate={createInvPart} />}
       {showAddClaim   && <WarrantyClaimModal onClose={() => setShowAddClaim(false)} onCreate={createClaim} />}
       {showAddSubcon  && <SubcontractorModal onClose={() => setShowAddSubcon(false)} onCreate={createSubcon} />}
 
@@ -731,8 +683,7 @@ export default function Boatyard() {
           ['workorders','Work Orders'],['parts','Parts & Inventory'],['tools','Tools'],
           ['contractors','Contractors'],['facility','Facility Log'],
           ['servicebays','Service Bays'],['liftops','Lift Operations'],
-          ['paint','Paint Records'],['partsinv','Parts Inventory'],
-          ['warranty','Warranty Claims'],['subcontractors','Subcontractors'],
+          ['paint','Paint Records'],['warranty','Warranty Claims'],
         ].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
@@ -1019,31 +970,49 @@ export default function Boatyard() {
         </div>
       )}
 
-      {tab === 'contractors' && (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div className="card-header">
-            <div className="card-header-title">Contractors On-Site</div>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAddContractor(true)}><Ic n="plus" s={11} />Add</button>
+      {tab === 'contractors' && (() => {
+        const allContractors = [
+          ...contractors.map(c => ({ ...c, _type: 'direct', _displayName: c.name })),
+          ...subcontractors.map(s => ({ ...s, _type: 'sub', _displayName: s.company || s.name || '—' })),
+        ].sort((a, b) => (a._displayName || '').localeCompare(b._displayName || ''));
+        const combinedLoading = contractorsLoading || subconLoading;
+        return (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div className="card-header">
+              <div className="card-header-title">Contractors On-Site</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowAddSubcon(true)}><Ic n="plus" s={11} />Add Subcontractor</button>
+                <button className="btn btn-primary btn-sm" onClick={() => setShowAddContractor(true)}><Ic n="plus" s={11} />Add Direct</button>
+              </div>
+            </div>
+            <table className="tbl">
+              <thead><tr><th>Contractor</th><th>Type</th><th>Trade</th><th>Working On</th><th>Access Period</th><th>Vessel Owner</th><th></th></tr></thead>
+              <tbody>
+                {combinedLoading ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : allContractors.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No contractors on-site.</td></tr>
+                ) : allContractors.map(c => (
+                  <tr key={`${c._type}-${c.id}`}>
+                    <td className="tbl-name">{c._displayName}</td>
+                    <td><span className={`badge ${c._type === 'direct' ? 'badge-blue' : 'badge-teal'}`}>{c._type === 'direct' ? 'Direct' : 'Sub'}</span></td>
+                    <td><span className="badge badge-teal">{c.trade || '—'}</span></td>
+                    <td style={{ fontWeight: 500 }}>{c.working_on || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{c.access_start}{c.access_end ? ` – ${c.access_end}` : ''}</td>
+                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{c.vessel_owner || '—'}</td>
+                    <td>
+                      {c._type === 'direct'
+                        ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => deleteContractor(c.id)}>Remove</button>
+                        : <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Remove this subcontractor?')) deleteSubcon(c.id); }}>Remove</button>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <table className="tbl">
-            <thead><tr><th>Contractor</th><th>Trade</th><th>Working On</th><th>Access Period</th><th>Vessel Owner</th><th></th></tr></thead>
-            <tbody>
-              {contractorsLoading ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
-              ) : contractors.map(c => (
-                <tr key={c.id}>
-                  <td className="tbl-name">{c.name}</td>
-                  <td><span className="badge badge-teal">{c.trade || '—'}</span></td>
-                  <td style={{ fontWeight: 500 }}>{c.working_on || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{c.access_start}{c.access_end ? ` – ${c.access_end}` : ''}</td>
-                  <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{c.vessel_owner || '—'}</td>
-                  <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => deleteContractor(c.id)}>Remove</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+        );
+      })()}
 
       {tab === 'facility' && (
         <div className="card" style={{ overflow: 'hidden' }}>
@@ -1179,46 +1148,6 @@ export default function Boatyard() {
         </div>
       )}
 
-      {/* ── Parts Inventory ───────────────────────────────────────────────────── */}
-      {tab === 'partsinv' && (
-        <div>
-          <div className="sec-hdr">
-            <div className="sec-hdr-title">Parts Inventory</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <span className="badge badge-red">{partsInventory.filter(p => p.quantity <= p.reorder_point).length} Low Stock</span>
-              <button className="btn btn-primary btn-sm" onClick={() => setShowAddInvPart(true)}><Ic n="plus" s={11} />Add Item</button>
-            </div>
-          </div>
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <table className="tbl">
-              <thead><tr><th>Part</th><th>SKU</th><th>Category</th><th>Supplier</th><th>Unit Cost</th><th>Qty</th><th>Reorder At</th><th>Location</th><th></th></tr></thead>
-              <tbody>
-                {partsInvLoading ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
-                ) : partsInventory.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No inventory items found.</td></tr>
-                ) : partsInventory.map(p => {
-                  const lowStock = p.quantity <= p.reorder_point;
-                  return (
-                    <tr key={p.id}>
-                      <td className="tbl-name">{p.name}</td>
-                      <td style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(0,0,0,0.45)' }}>{p.sku || '—'}</td>
-                      <td><span className="badge badge-navy">{p.category || '—'}</span></td>
-                      <td style={{ fontSize: 12 }}>{p.supplier || '—'}</td>
-                      <td style={{ fontSize: 12 }}>{p.unit_cost != null ? `€${Number(p.unit_cost).toFixed(2)}` : '—'}</td>
-                      <td style={{ fontWeight: 700, color: lowStock ? 'var(--red)' : 'var(--green)', fontSize: 13 }}>{p.quantity}</td>
-                      <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{p.reorder_point ?? '—'}</td>
-                      <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{p.location || '—'}</td>
-                      <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Remove this item?')) deleteInvPart(p.id); }}>Remove</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* ── Warranty Claims ───────────────────────────────────────────────────── */}
       {tab === 'warranty' && (
         <div>
@@ -1265,48 +1194,6 @@ export default function Boatyard() {
         </div>
       )}
 
-      {/* ── Subcontractors ────────────────────────────────────────────────────── */}
-      {tab === 'subcontractors' && (
-        <div>
-          <div className="sec-hdr">
-            <div className="sec-hdr-title">Subcontractors</div>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubcon(true)}><Ic n="plus" s={11} />Add Subcontractor</button>
-          </div>
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <table className="tbl">
-              <thead><tr><th>Company</th><th>Contact</th><th>Trade</th><th>Email</th><th>Phone</th><th>Hourly Rate</th><th>Insurance Expiry</th><th>Status</th><th></th></tr></thead>
-              <tbody>
-                {subconLoading ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
-                ) : subcontractors.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No subcontractors registered.</td></tr>
-                ) : subcontractors.map(s => {
-                  const expiry = s.insurance_expiry ? new Date(s.insurance_expiry) : null;
-                  const today = new Date();
-                  const expiryStatus = !expiry ? null : expiry < today ? 'badge-red' : expiry < new Date(today.getTime() + 30 * 86400000) ? 'badge-orange' : 'badge-green';
-                  return (
-                    <tr key={s.id}>
-                      <td className="tbl-name">{s.company || s.name || '—'}</td>
-                      <td style={{ fontSize: 12 }}>{s.contact_name || '—'}</td>
-                      <td><span className="badge badge-teal">{s.trade || '—'}</span></td>
-                      <td style={{ fontSize: 12 }}><a href={`mailto:${s.email}`} style={{ color: 'var(--navy)' }}>{s.email || '—'}</a></td>
-                      <td style={{ fontSize: 12 }}>{s.phone || '—'}</td>
-                      <td style={{ fontSize: 12, fontWeight: 600 }}>{s.hourly_rate != null ? `€${Number(s.hourly_rate).toFixed(2)}/hr` : '—'}</td>
-                      <td>
-                        {expiry ? (
-                          <span className={`badge ${expiryStatus}`}>{expiry.toLocaleDateString()}</span>
-                        ) : <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>—</span>}
-                      </td>
-                      <td><span className={`badge ${s.is_active !== false ? 'badge-green' : 'badge-gray'}`}>{s.is_active !== false ? 'Active' : 'Inactive'}</span></td>
-                      <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Remove this subcontractor?')) deleteSubcon(s.id); }}>Remove</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -688,130 +688,7 @@ function SuppliersTab() {
   );
 }
 
-// ── 6. Payment Plans tab ──────────────────────────────────────────────────
-
-function PaymentPlansTab() {
-  const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = statusFilter ? { status: statusFilter } : {};
-      const { data } = await api.get('/payment-plans/', { params });
-      setPlans(data.results ?? data);
-    } catch {
-      setPlans([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
-
-  useEffect(() => { load(); }, [load]);
-
-  function instalmentProgress(plan) {
-    const total = plan.instalment_count ?? plan.instalments?.length ?? 0;
-    const paid = plan.paid_instalment_count ?? plan.instalments?.filter(i => i.status === 'paid').length ?? 0;
-    return { total, paid };
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Status filters */}
-      <div className="filter-row">
-        {['', 'active', 'completed', 'paused', 'cancelled'].map(s => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`btn btn-sm${statusFilter === s ? ' btn-primary' : ''}`}
-          >
-            {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
-          </button>
-        ))}
-      </div>
-
-      <div className="card">
-        <div className="card-header">
-          <div className="card-header-title">Payment Plans</div>
-          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Scheduled instalment plans</span>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Plan Name</th>
-                <th>Member</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Auto-Issue</th>
-                <th>DD Mandate</th>
-                <th>Progress</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <LoadingRow cols={8} />
-              ) : plans.length === 0 ? (
-                <EmptyRow cols={8} message="No payment plans found." />
-              ) : plans.map(plan => {
-                const { total, paid } = instalmentProgress(plan);
-                const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
-                return (
-                  <tr key={plan.id}>
-                    <td style={{ fontWeight: 600, fontSize: 13 }}>{plan.name}</td>
-                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
-                      {plan.member_name ?? plan.member ?? '—'}
-                    </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
-                      {fmt(plan.total_amount)}
-                    </td>
-                    <td><Badge value={plan.status} /></td>
-                    <td style={{ fontSize: 12 }}>
-                      {plan.auto_issue ? (
-                        <span style={{ color: '#2e7d32', fontWeight: 600 }}>Yes</span>
-                      ) : (
-                        <span style={{ color: 'rgba(0,0,0,0.4)' }}>No</span>
-                      )}
-                    </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
-                      {plan.dd_mandate_ref || '—'}
-                    </td>
-                    <td style={{ minWidth: 120 }}>
-                      {total > 0 ? (
-                        <div>
-                          <div style={{
-                            height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.08)',
-                            overflow: 'hidden', marginBottom: 3,
-                          }}>
-                            <div style={{
-                              height: '100%', width: `${pct}%`,
-                              background: pct === 100 ? '#2e7d32' : 'var(--navy, #1a2d4a)',
-                              borderRadius: 3, transition: 'width 0.3s',
-                            }} />
-                          </div>
-                          <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)' }}>
-                            {paid}/{total} instalments
-                          </div>
-                        </div>
-                      ) : '—'}
-                    </td>
-                    <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
-                      {fmtDate(plan.created_at)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 7. Sync tab ───────────────────────────────────────────────────────────
+// ── 6. Sync tab ───────────────────────────────────────────────────────────
 
 function SyncTab() {
   const [syncRecords, setSyncRecords] = useState([]);
@@ -984,13 +861,12 @@ function SurchargeRulesSummary() {
 // ── Main screen ────────────────────────────────────────────────────────────
 
 const TABS = [
-  ['journal',       'Journal'],
-  ['accounts',      'Accounts'],
-  ['cost-centres',  'Cost Centres'],
-  ['payables',      'Payables'],
-  ['suppliers',     'Suppliers'],
-  ['payment-plans', 'Payment Plans'],
-  ['sync',          'Sync'],
+  ['journal',      'Journal'],
+  ['accounts',     'Accounts'],
+  ['cost-centres', 'Cost Centres'],
+  ['payables',     'Payables'],
+  ['suppliers',    'Suppliers'],
+  ['sync',         'Sync'],
 ];
 
 export default function Accounting() {
@@ -1018,9 +894,8 @@ export default function Accounting() {
       {tab === 'accounts'      && <AccountsTab />}
       {tab === 'cost-centres'  && <CostCentresTab />}
       {tab === 'payables'      && <PayablesTab />}
-      {tab === 'suppliers'     && <SuppliersTab />}
-      {tab === 'payment-plans' && <PaymentPlansTab />}
-      {tab === 'sync'          && <SyncTab />}
+      {tab === 'suppliers' && <SuppliersTab />}
+      {tab === 'sync'      && <SyncTab />}
     </div>
   );
 }

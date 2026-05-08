@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useFuelQueue from '../hooks/useFuelQueue.js';
 import useBerths from '../hooks/useBerths.js';
 import useVessels from '../hooks/useVessels.js';
+import useFuelEntries from '../hooks/useFuelEntries.js';
+import usePOSCatalog from '../hooks/usePOSCatalog.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
+import api from '../api.js';
 
 const FUEL_DOCK_FILTER = { operational_type: 'fuel_dock' };
 
@@ -314,17 +317,252 @@ function FuelDockTab() {
   );
 }
 
+const FUEL_COLORS = { diesel: '#0075de', petrol: '#dd5b00', pump_out: '#2a9d99' };
+
 export default function Operations() {
   const [tab, setTab] = useState('fueldock');
+
+  // Fuel Dock POS state
+  const { entries: fuelEntries, loading: fuelLoading, refetch: refetchFuelEntries } = useFuelEntries({ limit: 20 });
+  const { items: posCatalog, loading: posLoading } = usePOSCatalog();
+  const [selectedPOSItem, setSelectedPOSItem] = useState(null);
+  const [posLitres,       setPosLitres]       = useState('');
+  const [posQuery,        setPosQuery]        = useState('');
+  const [posSuggestions,  setPosSuggestions]  = useState([]);
+  const [posResolved,     setPosResolved]     = useState(null);
+  const [posSubmitting,   setPosSubmitting]   = useState(false);
+  const [posError,        setPosError]        = useState('');
+  const debounceRef = useRef(null);
+
+  function posTotal() {
+    if (!selectedPOSItem) return 0;
+    if (selectedPOSItem.pricing_model === 'per_litre') {
+      const l = parseFloat(posLitres);
+      return (isNaN(l) || l <= 0) ? 0 : +(l * parseFloat(selectedPOSItem.unit_price)).toFixed(2);
+    }
+    return parseFloat(selectedPOSItem.unit_price);
+  }
+
+  function posPriceLabel(item) {
+    return item.pricing_model === 'per_litre'
+      ? `€${Number(item.unit_price).toFixed(2)}/L`
+      : `€${Number(item.unit_price).toFixed(2)} flat`;
+  }
+
+  function handlePosQueryChange(e) {
+    const val = e.target.value;
+    setPosQuery(val);
+    setPosResolved(null);
+    clearTimeout(debounceRef.current);
+    if (val.length < 2) { setPosSuggestions([]); return; }
+    debounceRef.current = setTimeout(() => {
+      api.get('/members/', { params: { search: val } })
+        .then(r => setPosSuggestions((r.data.results ?? r.data).slice(0, 5)))
+        .catch(() => {});
+    }, 300);
+  }
+
+  function handlePosSuggestionSelect(member) {
+    const vessel = member.vessels?.[0] ?? null;
+    setPosResolved({ id: member.id, vesselId: vessel?.id ?? null });
+    setPosQuery(vessel ? `${member.name} — ${vessel.name}` : member.name);
+    setPosSuggestions([]);
+  }
+
+  function clearPosForm() {
+    clearTimeout(debounceRef.current);
+    setSelectedPOSItem(null);
+    setPosLitres('');
+    setPosQuery('');
+    setPosSuggestions([]);
+    setPosResolved(null);
+    setPosSubmitting(false);
+    setPosError('');
+  }
+
+  async function handleProcessSale() {
+    const total = posTotal();
+    if (total <= 0) return;
+    setPosSubmitting(true);
+    setPosError('');
+    try {
+      const isPerLitre = selectedPOSItem.pricing_model === 'per_litre';
+      await api.post('/fuel-dock/queue/', {
+        status:          'completed',
+        fuel_type:       selectedPOSItem.fuel_dock_type,
+        actual_litres:   isPerLitre ? posLitres : null,
+        price_per_litre: isPerLitre ? selectedPOSItem.unit_price : null,
+        total_amount:    isPerLitre ? null : String(parseFloat(selectedPOSItem.unit_price).toFixed(2)),
+        ...(posResolved
+          ? { member: posResolved.id, ...(posResolved.vesselId ? { vessel: posResolved.vesselId } : {}) }
+          : { guest_description: posQuery || 'Walk-up' }),
+      });
+      clearPosForm();
+      refetchFuelEntries();
+    } catch {
+      setPosError('Sale failed — please try again.');
+    } finally {
+      setPosSubmitting(false);
+    }
+  }
+
+  const posTotalAmount = posTotal();
 
   return (
     <div>
       <div className="tabs">
-        {[['fueldock', 'Fuel Dock']].map(([v, l]) => (
+        {[['fueldock', 'Fuel Dock'], ['pos', 'Fuel Dock POS']].map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
       {tab === 'fueldock' && <FuelDockTab />}
+
+      {tab === 'pos' && (
+        <div className="grid-2" style={{ alignItems: 'start' }}>
+          <div className="card">
+            <div className="card-header"><div className="card-header-title">Fuel Dock — Quick Sale</div></div>
+            <div className="card-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                {posLoading ? (
+                  <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: 8 }}>Loading catalog…</div>
+                ) : posCatalog.length === 0 ? (
+                  <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: 8 }}>
+                    No POS items configured. Add items in Settings → Service Catalog and enable "Show in POS".
+                  </div>
+                ) : posCatalog.map(item => (
+                  <div key={item.id}
+                    onClick={() => { setPosLitres(''); setPosError(''); setPosSubmitting(false); setSelectedPOSItem(item); }}
+                    style={{
+                      background: selectedPOSItem?.id === item.id ? 'var(--bg-active, #eef4ff)' : 'var(--bg)',
+                      borderRadius: 8, padding: '14px', cursor: 'pointer',
+                      border: selectedPOSItem?.id === item.id ? '1.5px solid var(--blue, #0075de)' : 'var(--border)',
+                      transition: 'box-shadow 0.1s',
+                    }}
+                    onMouseOver={e => e.currentTarget.style.boxShadow = 'var(--shadow2)'}
+                    onMouseOut={e  => e.currentTarget.style.boxShadow = ''}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.8)' }}>{item.name}</div>
+                    <div style={{ fontSize: 12, color: FUEL_COLORS[item.fuel_dock_type] ?? '#888', fontWeight: 600, marginTop: 4 }}>
+                      {posPriceLabel(item)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedPOSItem && (
+                <div style={{ marginTop: 12, padding: '12px 0 4px', borderTop: 'var(--border)' }}>
+
+                  {/* Member / Guest combobox */}
+                  <div style={{ position: 'relative', marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 3 }}>
+                      Vessel / Member <span style={{ fontWeight: 400 }}>(optional)</span>
+                    </div>
+                    <input
+                      value={posQuery}
+                      onChange={handlePosQueryChange}
+                      onBlur={() => setTimeout(() => setPosSuggestions([]), 200)}
+                      placeholder="Search member or type guest name…"
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '7px 10px',
+                        border: 'var(--border)', borderRadius: 6, outline: 'none',
+                        borderColor: posResolved ? 'var(--green, #2a9d50)' : undefined }}
+                    />
+                    {posResolved && (
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-2px)',
+                        color: 'var(--green, #2a9d50)', fontSize: 13, fontWeight: 700 }}>✓</span>
+                    )}
+                    {posSuggestions.length > 0 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                        background: '#fff', border: 'var(--border)', borderRadius: 6,
+                        boxShadow: 'var(--shadow2)', marginTop: 2 }}>
+                        {posSuggestions.map(m => (
+                          <div key={m.id}
+                            onMouseDown={() => handlePosSuggestionSelect(m)}
+                            style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}
+                            onMouseOver={e => e.currentTarget.style.boxShadow = 'var(--shadow2)'}
+                            onMouseOut={e  => e.currentTarget.style.boxShadow = ''}>
+                            <span style={{ fontWeight: 600 }}>{m.name}</span>
+                            {m.vessels?.[0] && <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>— {m.vessels[0].name}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Litres input (per_litre items only) */}
+                  {selectedPOSItem.pricing_model === 'per_litre' && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 3 }}>Litres</div>
+                      <input
+                        type="number" min="0" step="0.1"
+                        value={posLitres}
+                        onChange={e => setPosLitres(e.target.value)}
+                        placeholder="0.0"
+                        style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '7px 10px',
+                          border: 'var(--border)', borderRadius: 6, outline: 'none' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  {posTotalAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      marginBottom: 10, fontSize: 13 }}>
+                      <span style={{ color: 'rgba(0,0,0,0.5)' }}>Total</span>
+                      <span style={{ fontWeight: 700 }}>€{posTotalAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {posError && (
+                    <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{posError}</div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={clearPosForm} style={{ flex: 1 }}>Cancel</button>
+                    <button
+                      className="btn btn-gold"
+                      onClick={handleProcessSale}
+                      disabled={posSubmitting || posTotalAmount <= 0}
+                      style={{ flex: 2, justifyContent: 'center', fontSize: 13, padding: '10px' }}>
+                      {posSubmitting ? 'Processing…' : 'Process Sale'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!selectedPOSItem && (
+                <button className="btn btn-gold" style={{ width: '100%', justifyContent: 'center', fontSize: 13, padding: '10px', marginTop: 12 }} disabled>
+                  Select item above
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><div className="card-header-title">Recent Fuel Sales</div></div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {fuelLoading ? (
+                <div style={{ padding: '16px 18px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+              ) : fuelEntries.length === 0 ? (
+                <div style={{ padding: '16px 18px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No completed sales yet.</div>
+              ) : fuelEntries.map(e => {
+                const name = e.vessel_name ?? e.guest_description ?? '—';
+                const litres = e.actual_litres ? `${e.actual_litres}L` : '—';
+                const fuelLabel = e.fuel_type === 'pump_out' ? 'Pump-out' : (e.fuel_type ?? '—').charAt(0).toUpperCase() + (e.fuel_type ?? '').slice(1);
+                const amount = e.total_amount != null ? `€${Number(e.total_amount).toFixed(2)}` : '—';
+                const when = e.completed_at ? new Date(e.completed_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+                return (
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px', borderBottom: 'var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{name}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>{fuelLabel} · {litres} · {when}</div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{amount}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
