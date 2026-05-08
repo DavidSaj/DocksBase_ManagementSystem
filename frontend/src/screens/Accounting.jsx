@@ -166,7 +166,7 @@ function JournalTab() {
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>General ledger — double-entry</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter table-hover card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Reference</th>
@@ -316,7 +316,7 @@ function AccountsTab() {
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{accounts.length} accounts</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter table-hover card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Code</th>
@@ -433,7 +433,7 @@ function CostCentresTab() {
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>P&L department groupings</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter table-hover card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Code</th>
@@ -526,7 +526,7 @@ function PayablesTab() {
               <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Supplier invoices — three-way match</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table className="table table-vcenter table-hover card-table">
+              <table className="tbl">
                 <thead>
                   <tr>
                     <th>Invoice #</th>
@@ -587,7 +587,7 @@ function PayablesTab() {
             <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Three-way match source documents</span>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table className="table table-vcenter table-hover card-table">
+            <table className="tbl">
               <thead>
                 <tr>
                   <th>PO Number</th>
@@ -650,7 +650,7 @@ function SuppliersTab() {
         <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{suppliers.length} suppliers</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table className="table table-vcenter table-hover card-table">
+        <table className="tbl">
           <thead>
             <tr>
               <th>Name</th>
@@ -737,7 +737,7 @@ function PaymentPlansTab() {
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Scheduled instalment plans</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter table-hover card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Plan Name</th>
@@ -846,7 +846,7 @@ function SyncTab() {
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Latest daily FX snapshots</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Pair</th>
@@ -886,7 +886,7 @@ function SyncTab() {
           </span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter table-hover card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Time</th>

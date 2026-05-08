@@ -235,7 +235,7 @@ function CharterFleetTab() {
 
       <div className="card">
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Vessel</th>
@@ -560,7 +560,7 @@ function CharterBookingsTab() {
 
       <div className="card">
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>#</th>
@@ -724,7 +724,7 @@ function HarbourDuesTab() {
 
       <div className="card">
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Vessel</th>
@@ -886,7 +886,7 @@ function ShippingAgentsTab() {
 
       <div className="card">
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Agency</th>
@@ -1160,7 +1160,7 @@ function VesselCallsTab() {
 
       <div className="card">
         <div style={{ overflowX: 'auto' }}>
-          <table className="table table-vcenter card-table">
+          <table className="tbl">
             <thead>
               <tr>
                 <th>Vessel</th>

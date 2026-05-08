@@ -480,7 +480,7 @@ function TiersTab({ toast }) {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="table table-vcenter card-table">
+            <table className="tbl">
               <thead>
                 <tr>
                   <th>Rank</th>
@@ -611,7 +611,7 @@ function MembersTab({ toast }) {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="table table-vcenter card-table">
+            <table className="tbl">
               <thead>
                 <tr>
                   <th>Member</th>
@@ -721,7 +721,7 @@ function LedgerTab({ toast }) {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="table table-vcenter card-table">
+            <table className="tbl">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -811,7 +811,7 @@ function ReferralsTab({ toast }) {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="table table-vcenter card-table">
+            <table className="tbl">
               <thead>
                 <tr>
                   <th>Date</th>
