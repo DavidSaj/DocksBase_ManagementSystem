@@ -3,7 +3,6 @@ import useBookings from '../hooks/useBookings.js';
 import useOverview from '../hooks/useOverview.js';
 import useWeather from '../hooks/useWeather.js';
 import useMarina from '../hooks/useMarina.js';
-import SetupGuide from '../components/onboarding/SetupGuide.jsx';
 
 function relativeTime(isoStr) {
   const diff = Date.now() - new Date(isoStr).getTime();
@@ -76,7 +75,6 @@ export default function Overview({ setScreen }) {
 
   return (
     <div>
-      <SetupGuide setScreen={setScreen} />
       <div className="stat-row">
         {stats.map(s => (
           <div key={s.label} className="card stat-card">

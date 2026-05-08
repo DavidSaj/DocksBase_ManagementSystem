@@ -1,236 +1,300 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Ic from '../ui/Icon.jsx';
 import useOnboarding from '../../hooks/useOnboarding.js';
 import StripeGateModal from './StripeGateModal.jsx';
 
 const STEPS = [
   {
-    key: 'add_berths',
-    icon: '⚓',
-    label: 'Add your piers & berths',
-    desc: 'Define the physical layout — piers first, then individual berths.',
+    key:    'add_berths',
+    icon:   'anchor',
+    label:  'Add piers & berths',
+    desc:   'Define your marina structure — create piers first, then add individual berths to each.',
     screen: 'infrastructure',
+    cta:    'Go to Infrastructure',
     manual: true,
   },
   {
-    key: 'draw_map',
-    icon: '🗺',
-    label: 'Draw your marina map',
-    desc: 'Place berths visually so managers see the marina at a glance.',
+    key:    'draw_map',
+    icon:   'map',
+    label:  'Draw your marina map',
+    desc:   'Place berths on a visual canvas so staff can see the layout at a glance.',
     screen: 'map',
+    cta:    'Open Map Editor',
     manual: true,
   },
   {
-    key: 'set_pricing',
-    icon: '💶',
-    label: 'Set up pricing',
-    desc: 'Add rate cards and fees before taking your first booking.',
+    key:    'set_pricing',
+    icon:   'dollar',
+    label:  'Set up pricing',
+    desc:   'Add rate cards and service fees before taking your first booking.',
     screen: 'billing',
+    cta:    'Go to Billing',
     manual: true,
   },
   {
-    key: 'add_member',
-    icon: '👤',
-    label: 'Add your first member',
-    desc: 'Register a boater so you can assign berths and raise invoices.',
+    key:    'add_member',
+    icon:   'users',
+    label:  'Add your first member',
+    desc:   'Register a boater so you can assign berths and raise invoices.',
     screen: 'members',
+    cta:    'Go to Members',
     manual: true,
   },
   {
-    key: 'connect_bank',
-    icon: '🏦',
-    label: 'Connect bank account',
-    desc: 'Link Stripe so online payments go straight to your account.',
+    key:    'connect_bank',
+    icon:   'shield',
+    label:  'Connect bank account',
+    desc:   'Link Stripe so online payments are paid directly into your account.',
     screen: null,
+    cta:    'Connect via Stripe',
     manual: false,
     stripe: true,
   },
   {
-    key: 'invite_staff',
-    icon: '🧑‍✈',
-    label: 'Invite a team member',
-    desc: 'Give your harbour master or office staff access to DocksBase.',
+    key:    'invite_staff',
+    icon:   'user-check',
+    label:  'Invite a team member',
+    desc:   'Give your harbour master or office staff access to DocksBase.',
     screen: 'staff',
+    cta:    'Go to Staff',
     manual: false,
   },
 ];
 
 const TOTAL = STEPS.length;
 
+// Checkmark for completed steps
 function CheckDone() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <circle cx="9" cy="9" r="9" fill="#1a8c2e"/>
-      <polyline points="4.5,9 7.5,12 13.5,6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <polyline points="2.5,7.5 6,11 12.5,4" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
 
-function CheckTodo({ active }) {
+function StepRow({ step, done, active, onAction, onActivate }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <circle cx="9" cy="9" r="8" stroke={active ? 'var(--navy)' : 'rgba(0,0,0,0.18)'} strokeWidth="1.8"/>
-      {active && <circle cx="9" cy="9" r="3.5" fill="var(--navy)"/>}
-    </svg>
+    <div
+      style={{
+        padding: '0 0',
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        transition: 'background 0.15s',
+      }}
+    >
+      <div
+        onClick={done ? undefined : onActivate}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 13,
+          padding: '13px 20px',
+          cursor: done ? 'default' : 'pointer',
+          background: active ? 'rgba(12,31,61,0.035)' : 'transparent',
+          borderLeft: `2.5px solid ${active ? 'var(--navy)' : 'transparent'}`,
+          transition: 'background 0.15s, border-color 0.15s',
+        }}
+      >
+        {/* Icon badge */}
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: done
+            ? 'rgba(26,140,46,0.09)'
+            : active
+              ? 'var(--navy)'
+              : 'rgba(0,0,0,0.05)',
+          transition: 'background 0.2s',
+        }}>
+          {done
+            ? <CheckDone />
+            : <Ic n={step.icon} s={15} c={active ? '#fff' : 'rgba(0,0,0,0.45)'} />
+          }
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: done ? 400 : 500,
+            color: done ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.82)',
+            textDecoration: done ? 'line-through' : 'none',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {step.label}
+          </div>
+        </div>
+
+        {!done && !active && (
+          <Ic n="chevron" s={13} c="rgba(0,0,0,0.2)" />
+        )}
+      </div>
+
+      {/* Expanded content for active step */}
+      <AnimatePresence initial={false}>
+        {active && !done && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{ padding: '0 20px 16px 65px' }}>
+              <div style={{
+                fontSize: 12, color: 'rgba(0,0,0,0.48)', lineHeight: 1.55, marginBottom: 12,
+              }}>
+                {step.desc}
+              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={onAction}
+                style={{ fontSize: 12 }}
+              >
+                {step.cta}
+                <Ic n="chevron" s={11} c="#fff" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
 export default function SetupGuide({ setScreen }) {
   const { onboarding, loading, markStep, allDone } = useOnboarding();
-  const [stripeOpen, setStripeOpen]   = useState(false);
-  const [collapsed, setCollapsed]     = useState(false);
-  const [dismissed, setDismissed]     = useState(() => localStorage.getItem('setup_guide_dismissed') === '1');
+  const [stripeOpen, setStripeOpen] = useState(false);
+  const [open, setOpen]             = useState(true);
+  const [activeKey, setActiveKey]   = useState(null);
 
   if (loading || !onboarding || allDone) return null;
-  if (dismissed) {
-    return (
-      <button
-        onClick={() => setDismissed(false)}
-        style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 300,
-          background: 'var(--navy)', color: '#fff',
-          border: 'none', borderRadius: 24, padding: '9px 18px',
-          fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.22)',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}
-      >
-        <span style={{ fontSize: 15 }}>🚀</span> Get Started
-      </button>
-    );
-  }
 
-  const completed  = STEPS.filter(s => onboarding[s.key]).length;
-  const pct        = Math.round((completed / TOTAL) * 100);
-  const nextIdx    = STEPS.findIndex(s => !onboarding[s.key]);
+  const completed = STEPS.filter(s => onboarding[s.key]).length;
+  const pct       = Math.round((completed / TOTAL) * 100);
 
-  function handleStep(step) {
-    if (onboarding[step.key]) return;
+  // First incomplete step, unless user manually activated another
+  const firstIncomplete = STEPS.find(s => !onboarding[s.key])?.key ?? null;
+  const resolvedActive  = activeKey && !onboarding[activeKey] ? activeKey : firstIncomplete;
+
+  function handleAction(step) {
     if (step.stripe) { setStripeOpen(true); return; }
     if (step.manual) markStep(step.key);
     if (step.screen) setScreen?.(step.screen);
+    // advance to next
+    setActiveKey(null);
   }
 
-  function dismiss() {
-    localStorage.setItem('setup_guide_dismissed', '1');
-    setDismissed(true);
+  function handleActivate(step) {
+    setActiveKey(prev => (prev === step.key ? null : step.key));
   }
 
   return (
     <>
-      <div style={{
-        position: 'fixed',
-        top: 68,
-        right: 20,
-        width: 300,
-        background: '#fff',
-        borderRadius: 12,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.07)',
-        zIndex: 200,
-        overflow: 'hidden',
-        border: '1px solid rgba(0,0,0,0.08)',
-      }}>
-        {/* Header */}
-        <div style={{
-          background: 'var(--navy)',
-          padding: collapsed ? '14px 16px' : '16px 16px 14px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed ? 0 : 10 }}>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, letterSpacing: '-0.2px' }}>
-                🚀 Get started with DocksBase
-              </div>
-              {!collapsed && (
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2 }}>
-                  {completed} of {TOTAL} steps complete
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button
-                onClick={() => setCollapsed(c => !c)}
-                style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title={collapsed ? 'Expand' : 'Collapse'}
-              >
-                {collapsed ? '▲' : '▼'}
-              </button>
-              <button
-                onClick={dismiss}
-                style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title="Dismiss"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          {!collapsed && (
-            <div style={{ height: 5, background: 'rgba(255,255,255,0.15)', borderRadius: 3 }}>
-              <div style={{
-                height: '100%', borderRadius: 3,
-                background: pct === 100 ? 'var(--green)' : 'var(--gold)',
-                width: pct + '%',
-                transition: 'width 0.4s ease',
-              }} />
-            </div>
-          )}
-        </div>
-
-        {/* Steps */}
-        {!collapsed && (
-          <div style={{ maxHeight: 'calc(100vh - 180px)', overflowY: 'auto' }}>
-            {STEPS.map((step, idx) => {
-              const done   = !!onboarding[step.key];
-              const active = idx === nextIdx;
-              return (
-                <button
-                  key={step.key}
-                  type="button"
-                  onClick={() => handleStep(step)}
-                  disabled={done}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 12,
-                    width: '100%', padding: '12px 16px',
-                    background: active ? 'rgba(12,31,61,0.04)' : 'transparent',
-                    border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)',
-                    cursor: done ? 'default' : 'pointer',
-                    textAlign: 'left',
-                    transition: 'background 0.12s',
-                  }}
-                  onMouseEnter={e => { if (!done) e.currentTarget.style.background = 'rgba(12,31,61,0.06)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(12,31,61,0.04)' : 'transparent'; }}
-                >
-                  <div style={{ flexShrink: 0, marginTop: 1 }}>
-                    {done ? <CheckDone /> : <CheckTodo active={active} />}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 12, fontWeight: 600,
-                      color: done ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.85)',
-                      textDecoration: done ? 'line-through' : 'none',
-                      marginBottom: done ? 0 : 2,
-                    }}>
-                      <span style={{ marginRight: 5 }}>{step.icon}</span>
-                      {step.label}
-                    </div>
-                    {!done && (
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.42)', lineHeight: 1.4 }}>
-                        {step.desc}
-                      </div>
-                    )}
-                  </div>
-                  {!done && (
-                    <div style={{ flexShrink: 0, color: 'rgba(0,0,0,0.25)', fontSize: 14, marginTop: 1 }}>›</div>
-                  )}
-                </button>
-              );
-            })}
-
-            <div style={{ padding: '10px 16px', fontSize: 11, color: 'rgba(0,0,0,0.3)', textAlign: 'center' }}>
-              You can dismiss this guide at any time
-            </div>
-          </div>
+      {/* Floating trigger when closed */}
+      <AnimatePresence>
+        {!open && (
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setOpen(true)}
+            style={{
+              position: 'fixed', bottom: 24, right: 24, zIndex: 300,
+              background: 'var(--navy)', color: '#fff',
+              border: 'none', borderRadius: 24,
+              padding: '9px 16px 9px 12px',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.22)',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}
+          >
+            <Ic n="check-circle" s={14} c="rgba(255,255,255,0.7)" />
+            Setup guide
+            <span style={{
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: 12, padding: '1px 7px', fontSize: 11,
+            }}>
+              {completed}/{TOTAL}
+            </span>
+          </motion.button>
         )}
-      </div>
+      </AnimatePresence>
+
+      {/* Main panel */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ x: 320, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 340, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 320, opacity: { duration: 0.15 } }}
+            style={{
+              position: 'fixed',
+              top: 68, right: 20,
+              width: 300,
+              background: '#fff',
+              borderRadius: 12,
+              boxShadow: '0 4px 24px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)',
+              border: '1px solid rgba(0,0,0,0.08)',
+              zIndex: 200,
+              overflow: 'hidden',
+              maxHeight: 'calc(100vh - 88px)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Header */}
+            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(0,0,0,0.85)', letterSpacing: '-0.2px' }}>
+                    Setup guide
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>
+                    {completed === TOTAL ? 'All done!' : `${completed} of ${TOTAL} steps complete`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setOpen(false)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'rgba(0,0,0,0.3)', padding: 4, borderRadius: 4,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'color 0.12s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'rgba(0,0,0,0.6)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(0,0,0,0.3)'}
+                  title="Minimise"
+                >
+                  <Ic n="x" s={15} />
+                </button>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ height: 4, background: 'rgba(0,0,0,0.07)', borderRadius: 2 }}>
+                <div style={{
+                  height: '100%', borderRadius: 2,
+                  background: pct === 100 ? 'var(--green)' : 'var(--navy)',
+                  width: pct + '%',
+                  transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                }} />
+              </div>
+            </div>
+
+            {/* Step list */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {STEPS.map(step => (
+                <StepRow
+                  key={step.key}
+                  step={step}
+                  done={!!onboarding[step.key]}
+                  active={resolvedActive === step.key}
+                  onAction={() => handleAction(step)}
+                  onActivate={() => handleActivate(step)}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <StripeGateModal open={stripeOpen} onClose={() => setStripeOpen(false)} />
     </>

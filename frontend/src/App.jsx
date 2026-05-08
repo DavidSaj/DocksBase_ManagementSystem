@@ -31,6 +31,7 @@ class ScreenErrorBoundary extends Component {
 }
 import Sidebar from './components/layout/Sidebar.jsx';
 import Topbar  from './components/layout/Topbar.jsx';
+import SetupGuide from './components/onboarding/SetupGuide.jsx';
 
 import Overview     from './screens/Overview.jsx';
 import MarinaMap    from './screens/MarinaMap.jsx';
@@ -135,6 +136,7 @@ function DesktopApp() {
             </ScreenErrorBoundary>
           </div>
         </div>
+        <SetupGuide setScreen={setScreen} />
       </div>
     </>
   );
