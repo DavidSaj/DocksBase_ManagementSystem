@@ -1,32 +1,48 @@
 import { useState, useEffect } from 'react';
 import { getOnboarding, patchOnboarding } from '../api.js';
 
+// Steps that are tracked locally (backend may not have these fields)
+const LOCAL_STEPS = ['add_berths', 'add_member'];
+
+function readLocal() {
+  try { return JSON.parse(localStorage.getItem('onboarding_local') || '{}'); } catch { return {}; }
+}
+function writeLocal(data) {
+  localStorage.setItem('onboarding_local', JSON.stringify(data));
+}
+
 export default function useOnboarding() {
-  const [onboarding, setOnboarding] = useState(null);
-  const [loading, setLoading]       = useState(true);
+  const [remote, setRemote] = useState(null);
+  const [local, setLocal]   = useState(readLocal);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getOnboarding()
-      .then(data => setOnboarding(data))
-      .catch(() => setOnboarding(null))
+      .then(data => setRemote(data))
+      .catch(() => setRemote(null))
       .finally(() => setLoading(false));
   }, []);
 
+  const onboarding = remote ? { ...remote, ...local } : null;
+
   async function markStep(key) {
-    const snapshot = onboarding;
-    setOnboarding(prev => prev ? { ...prev, [key]: true } : prev);
+    if (LOCAL_STEPS.includes(key)) {
+      const next = { ...local, [key]: true };
+      setLocal(next);
+      writeLocal(next);
+      return;
+    }
+    const snapshot = remote;
+    setRemote(prev => prev ? { ...prev, [key]: true } : prev);
     try {
       const updated = await patchOnboarding({ [key]: true });
-      setOnboarding(updated);
+      setRemote(updated);
     } catch {
-      setOnboarding(snapshot);
+      setRemote(snapshot);
     }
   }
 
-  // connect_bank and invite_staff are backend-controlled; card hides only when Stripe Connect is built
-  const allDone = onboarding
-    ? Object.values(onboarding).every(Boolean)
-    : false;
+  const allDone = onboarding ? Object.values(onboarding).every(Boolean) : false;
 
   return { onboarding, loading, markStep, allDone };
 }
