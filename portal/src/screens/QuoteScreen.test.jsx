@@ -62,10 +62,9 @@ beforeEach(() => {
 });
 
 describe('QuoteScreen', () => {
-  it('displays dates, nights, and total price from wizard state', () => {
+  it('displays dates and nights from wizard state', () => {
     render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
     expect(screen.getByText(/3 nights/i)).toBeInTheDocument();
-    expect(screen.getByText(/€270/i)).toBeInTheDocument();
     expect(screen.getByText(/10 Jul/i)).toBeInTheDocument();
   });
 

@@ -147,7 +147,7 @@ function PayForm({ state, navigate, onSuccess }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="p-section-title" style={{ color: 'var(--navy)', opacity: 0.6 }}>Your details</div>
+      <div className="p-section-title">Your details</div>
       <div className="p-grid-2">
         {field('Full name', 'guestName')}
         {field('Email', 'guestEmail', 'email')}
@@ -161,8 +161,9 @@ function PayForm({ state, navigate, onSuccess }) {
         <input className="p-input" type="time" value={form.eta} onChange={e => set('eta', e.target.value)} />
       </div>
 
-      <div className="p-section-title" style={{ marginTop: 24, color: 'var(--navy)', opacity: 0.6 }}>Payment</div>
-      <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, padding: 20, marginBottom: 20 }}>
+      <hr className="q-checkout-divider" />
+      <div className="p-section-title">Payment</div>
+      <div style={{ marginBottom: 20 }}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </div>
 
@@ -203,7 +204,13 @@ export default function QuoteScreen({ state, navigate, marina }) {
     clientSecret,
     appearance: {
       theme: 'stripe',
-      variables: { colorPrimary: '#b8965a', fontFamily: 'IBM Plex Sans, system-ui, sans-serif' },
+      variables: {
+        colorPrimary:     '#b8965a',
+        colorBackground:  '#ede7d8',
+        colorText:        '#1a1a1a',
+        fontFamily:       'IBM Plex Sans, system-ui, sans-serif',
+        borderRadius:     '5px',
+      },
     },
   };
 
@@ -236,35 +243,32 @@ export default function QuoteScreen({ state, navigate, marina }) {
         <HarbourScene />
       </div>
 
-      {/* White section */}
-      <div style={{ position: 'relative', background: 'linear-gradient(to bottom, #0c1f3d 0, #0c1f3d 40px, #fff 40px)' }}>
+      {/* Sandy checkout section */}
+      <div className="q-checkout-section">
         <WaveLines />
-        <div className="p-form-card">
-          <div className="p-form-card-inner">
+        <div className="q-checkout-inner">
+          <div className="q-checkout-grid">
 
-            {/* Summary bar — only shown when no selectedCategory; ReceiptCard replaces it */}
-            {!state.selectedCategory && (
-              <div style={{
-                background: '#f7f7f7', border: '1px solid #ebebeb', borderRadius: 8,
-                padding: '14px 20px', marginBottom: 24,
-                display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
-              }}>
-                <div>
-                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Category</div>
-                  <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>Best available berth</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Nights</div>
-                  <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{nights}</div>
-                </div>
-                <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--gold)' }}>
-                  €{state.quotedTotal?.toFixed(2)}
-                </div>
-              </div>
-            )}
+            {/* Left column — form + payment */}
+            <div className="q-checkout-inputs">
+              {intentError && <p className="p-error">{intentError}</p>}
 
-            {intentError && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{intentError}</p>}
+              {state.selectedCategory && clientSecret && (
+                <Elements stripe={stripePromise} options={stripeOptions}>
+                  <PayForm state={state} navigate={navigate} onSuccess={handleSuccess} />
+                </Elements>
+              )}
 
+              {state.selectedCategory && !clientSecret && !intentError && (
+                <p style={{ color: 'rgba(0,0,0,0.55)', fontSize: 13 }}>Preparing payment…</p>
+              )}
+
+              {!state.selectedCategory && (
+                <FallbackQuoteForm state={state} navigate={navigate} nights={nights} />
+              )}
+            </div>
+
+            {/* Right column — receipt card (only when a category is selected) */}
             {state.selectedCategory && (
               <ReceiptCard
                 category={state.selectedCategory}
@@ -274,20 +278,6 @@ export default function QuoteScreen({ state, navigate, marina }) {
                 checkOut={state.checkOut}
                 marina={marina}
               />
-            )}
-
-            {state.selectedCategory && clientSecret && (
-              <Elements stripe={stripePromise} options={stripeOptions}>
-                <PayForm state={state} navigate={navigate} onSuccess={handleSuccess} />
-              </Elements>
-            )}
-
-            {state.selectedCategory && !clientSecret && !intentError && (
-              <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13 }}>Preparing payment…</p>
-            )}
-
-            {!state.selectedCategory && (
-              <FallbackQuoteForm state={state} navigate={navigate} nights={nights} />
             )}
           </div>
         </div>
