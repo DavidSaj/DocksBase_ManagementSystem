@@ -10,6 +10,79 @@ function formatDate(iso) {
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+const AMENITY_LABELS = {
+  power_30a:   '⚡ 30A Power',
+  power_50a:   '⚡ 50A Power',
+  water:       '💧 Water',
+  wifi:        '📶 WiFi',
+  fuel_nearby: '⛽ Fuel Nearby',
+  pump_out:    '🔄 Pump-out',
+};
+
+const MOORING_LABELS = {
+  finger:       'Finger Pontoon',
+  alongside:    'Alongside',
+  stern_to:     'Stern-to',
+  mooring_ball: 'Mooring Ball',
+};
+
+function ReceiptCard({ category, nights, total, checkIn, checkOut, marina }) {
+  const pricePerNight = parseFloat(category.price_per_night);
+  const subtotal      = pricePerNight * nights;
+  const vatRate       = marina?.vat_rate ? parseFloat(marina.vat_rate) : 0;
+  const vatAmount     = vatRate > 0 ? subtotal * vatRate / 100 : 0;
+  const fmt           = n => `€${n.toFixed(2)}`;
+
+  return (
+    <div className="q-receipt-card">
+      <div className="q-receipt-eyebrow">Booking Summary</div>
+      <div className="q-receipt-cat-name">{category.name}</div>
+      {category.mooring_type && (
+        <div className="q-receipt-mooring">
+          {MOORING_LABELS[category.mooring_type] || category.mooring_type}
+        </div>
+      )}
+      {category.amenities?.length > 0 && (
+        <div className="q-receipt-amenities">
+          {category.amenities.map(a => (
+            <span key={a} className="q-receipt-amenity">
+              {AMENITY_LABELS[a] || a}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <hr className="q-receipt-divider" />
+
+      <div className="q-receipt-line">
+        <span className="q-receipt-line-label">Price per night</span>
+        <span className="q-receipt-line-value">{fmt(pricePerNight)}</span>
+      </div>
+      <div className="q-receipt-line">
+        <span className="q-receipt-line-label">× {nights} night{nights !== 1 ? 's' : ''}</span>
+        <span className="q-receipt-line-value">{fmt(subtotal)}</span>
+      </div>
+      {vatRate > 0 && (
+        <div className="q-receipt-line">
+          <span className="q-receipt-line-label">VAT ({vatRate}%)</span>
+          <span className="q-receipt-line-value">{fmt(vatAmount)}</span>
+        </div>
+      )}
+
+      <hr className="q-receipt-divider" />
+
+      <div className="q-receipt-total-row">
+        <span className="q-receipt-total-label">Total</span>
+        <span className="q-receipt-total-amount">{fmt(total)}</span>
+      </div>
+
+      <div className="q-receipt-dates">
+        {formatDate(checkIn)} → {formatDate(checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
+      </div>
+    </div>
+  );
+}
+
 function PayForm({ state, navigate, onSuccess }) {
   const stripe   = useStripe();
   const elements = useElements();
@@ -169,30 +242,39 @@ export default function QuoteScreen({ state, navigate, marina }) {
         <div className="p-form-card">
           <div className="p-form-card-inner">
 
-            {/* Summary bar */}
-            <div style={{
-              background: '#f7f7f7', border: '1px solid #ebebeb', borderRadius: 8,
-              padding: '14px 20px', marginBottom: 24,
-              display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
-            }}>
-              <div>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Category</div>
-                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{state.selectedCategory?.name ?? 'Best available berth'}</div>
+            {/* Summary bar — only shown when no selectedCategory; ReceiptCard replaces it */}
+            {!state.selectedCategory && (
+              <div style={{
+                background: '#f7f7f7', border: '1px solid #ebebeb', borderRadius: 8,
+                padding: '14px 20px', marginBottom: 24,
+                display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+              }}>
+                <div>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Category</div>
+                  <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>Best available berth</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Nights</div>
+                  <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{nights}</div>
+                </div>
+                <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--gold)' }}>
+                  €{state.quotedTotal?.toFixed(2)}
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Dates</div>
-                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{formatDate(state.checkIn)} – {formatDate(state.checkOut)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Nights</div>
-                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{nights}</div>
-              </div>
-              <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--gold)' }}>
-                €{state.quotedTotal?.toFixed(2)}
-              </div>
-            </div>
+            )}
 
             {intentError && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{intentError}</p>}
+
+            {state.selectedCategory && (
+              <ReceiptCard
+                category={state.selectedCategory}
+                nights={nights}
+                total={state.quotedTotal}
+                checkIn={state.checkIn}
+                checkOut={state.checkOut}
+                marina={marina}
+              />
+            )}
 
             {state.selectedCategory && clientSecret && (
               <Elements stripe={stripePromise} options={stripeOptions}>
@@ -235,7 +317,7 @@ function FallbackQuoteForm({ state, navigate, nights }) {
       window.location.href = data.checkout_url;
     } catch (err) {
       if (err.response?.status === 409) {
-        navigate('search', { errorBanner: 'Availability changed. Please search again.' });
+        navigate('search', { errorBanner: 'Availability changed while you were reviewing. Please check your dates again.' });
         return;
       }
       setBusy(false);
@@ -246,12 +328,12 @@ function FallbackQuoteForm({ state, navigate, nights }) {
   return (
     <form onSubmit={handleSubmit}>
       <div className="p-section-title" style={{ color: 'var(--navy)', opacity: 0.6 }}>Your details</div>
-      <div className="p-field"><label className="p-label">Full name *</label><input className="p-input" required value={form.guestName} onChange={e => set('guestName', e.target.value)} /></div>
-      <div className="p-field"><label className="p-label">Email *</label><input className="p-input" type="email" required value={form.guestEmail} onChange={e => set('guestEmail', e.target.value)} /></div>
-      <div className="p-field"><label className="p-label">Phone</label><input className="p-input" type="tel" value={form.guestPhone} onChange={e => set('guestPhone', e.target.value)} /></div>
+      <div className="p-field"><label htmlFor="fb-name" className="p-label">Full name *</label><input id="fb-name" className="p-input" required value={form.guestName} onChange={e => set('guestName', e.target.value)} /></div>
+      <div className="p-field"><label htmlFor="fb-email" className="p-label">Email *</label><input id="fb-email" className="p-input" type="email" required value={form.guestEmail} onChange={e => set('guestEmail', e.target.value)} /></div>
+      <div className="p-field"><label htmlFor="fb-phone" className="p-label">Phone</label><input id="fb-phone" className="p-input" type="tel" value={form.guestPhone} onChange={e => set('guestPhone', e.target.value)} /></div>
       {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{error}</p>}
       <button type="submit" className="p-btn-gold" disabled={busy} style={{ width: '100%' }}>
-        {busy ? 'Processing…' : `Book & Pay €${state.quotedTotal?.toFixed(2)}`}
+        {busy ? 'Processing…' : 'Book & Pay'}
       </button>
     </form>
   );
