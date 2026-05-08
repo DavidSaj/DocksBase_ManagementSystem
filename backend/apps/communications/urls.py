@@ -1,6 +1,5 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework_nested import routers as nested_routers
 
 from apps.communications import views
 
@@ -13,13 +12,11 @@ router.register(r'journeys', views.JourneyViewSet, basename='journey')
 router.register(r'campaigns', views.EmailCampaignViewSet, basename='emailcampaign')
 router.register(r'dotdigital/segments', views.DotdigitalSegmentMappingViewSet, basename='dotdigitalsegment')
 
-# Nested: /journeys/{journey_pk}/steps/
-journey_router = nested_routers.NestedDefaultRouter(router, r'journeys', lookup='journey')
-journey_router.register(r'steps', views.JourneyStepViewSet, basename='journey-step')
-
 urlpatterns = [
     path('', include(router.urls)),
-    path('', include(journey_router.urls)),
+    # Journey steps nested route — explicit paths instead of drf-nested-routers
+    path('journeys/<int:journey_pk>/steps/', views.JourneyStepViewSet.as_view({'get': 'list', 'post': 'create'}), name='journey-steps-list'),
+    path('journeys/<int:journey_pk>/steps/<int:pk>/', views.JourneyStepViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update', 'delete': 'destroy'}), name='journey-steps-detail'),
     path('review-requests/', views.ReviewRequestListView.as_view(), name='review-requests'),
     path('review-config/', views.ReviewConfigView.as_view(), name='review-config'),
     path('dotdigital/config/', views.DotdigitalConfigView.as_view(), name='dotdigital-config'),
