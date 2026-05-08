@@ -213,7 +213,7 @@ export default function Members({ setScreen }) {
   return (
     <div>
       <div className="tabs">
-        {[['members','Members & Owners'],['docs','Document Vault'],['comms','Communications'],['segments','Segments']].map(([v,l]) => (
+        {[['members','Members & Owners'],['docs','Document Vault'],['compliance','Compliance'],['comms','Communications'],['segments','Segments']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -458,6 +458,92 @@ export default function Members({ setScreen }) {
           </div>
         </div>
       )}
+
+      {tab === 'compliance' && (() => {
+        const total       = members.length;
+        const docOk       = members.filter(m => m.docs === 'complete').length;
+        const insOk       = members.filter(m => m.insurance !== 'EXPIRED' && m.insurance !== 'expired').length;
+        const insExpired  = total - insOk;
+        const compliant   = members.filter(m => m.docs === 'complete' && m.insurance !== 'EXPIRED' && m.insurance !== 'expired').length;
+        const needsAction = members.filter(m => m.docs !== 'complete' || m.insurance === 'EXPIRED' || m.insurance === 'expired');
+        const pct = total > 0 ? Math.round((compliant / total) * 100) : 0;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* KPI row */}
+            <div className="kpi-row" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+              {[
+                { label: 'Fully Compliant',    val: `${compliant}/${total}`, sub: `${pct}% compliance rate` },
+                { label: 'Insurance Expired',  val: insExpired,  sub: insExpired > 0 ? 'Require immediate action' : 'All current' },
+                { label: 'Docs Complete',      val: `${docOk}/${total}`,    sub: 'Signed & verified' },
+                { label: 'Need Attention',     val: needsAction.length,     sub: 'Action required' },
+              ].map(k => (
+                <div key={k.label} className="kpi-card">
+                  <div className="kpi-label">{k.label}</div>
+                  <div className="kpi-val" style={{ color: (k.val === insExpired || k.val === needsAction.length) && k.val > 0 ? 'var(--orange)' : undefined }}>{k.val}</div>
+                  <div className="kpi-sub">{k.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid-2" style={{ alignItems: 'start' }}>
+              {/* Bar charts */}
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Compliance Overview</div>
+                {loading ? (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {[
+                      { label: 'Documents Complete', val: docOk,  color: 'var(--green)' },
+                      { label: 'Insurance Current',  val: insOk,  color: 'var(--teal)' },
+                      { label: 'Fully Compliant',    val: compliant, color: 'var(--navy)' },
+                    ].map(({ label, val, color }) => {
+                      const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                      return (
+                        <div key={label}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 12 }}>
+                            <span style={{ color: 'rgba(0,0,0,0.6)' }}>{label}</span>
+                            <span style={{ fontWeight: 600 }}>{val}/{total}</span>
+                          </div>
+                          <div style={{ height: 8, borderRadius: 4, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4, transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Members requiring action */}
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                  Members Requiring Action
+                  {needsAction.length > 0 && <span className="badge badge-orange" style={{ marginLeft: 8 }}>{needsAction.length}</span>}
+                </div>
+                {loading ? (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+                ) : needsAction.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>All members are fully compliant.</div>
+                ) : needsAction.map(m => (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{m.name}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 1 }}>{m.vessel}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {(m.insurance === 'EXPIRED' || m.insurance === 'expired') && <span className="badge badge-red">Insurance Expired</span>}
+                      {m.docs === 'missing'  && <span className="badge badge-orange">Docs Missing</span>}
+                      {m.docs === 'pending'  && <span className="badge badge-gold">Docs Pending</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {showAdd && (
         <NewMemberModal
