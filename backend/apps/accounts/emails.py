@@ -96,7 +96,7 @@ def _divider() -> str:
 
 def send_verification_email(user, token):
     name = user.first_name or user.email
-    url  = f"{settings.FRONTEND_URL}/verify-email?token={token}"
+    url  = f"{settings.FRONTEND_URL}/verify-email/{token}"
 
     html = _base(
         preheader="Please verify your email address to activate your DocksBase account.",

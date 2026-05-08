@@ -1,5 +1,17 @@
+"""
+apps/boatyard/serializers/__init__.py
+
+Re-exports all serializers so existing import paths
+(from .serializers import HaulOutSerializer, …) continue to work after
+the flat serializers.py was converted into this package.
+
+Track 5 serializers are imported here too so they are discoverable from
+the package root.
+"""
+
+# ---- Legacy / existing serializers (Track 1–6 base) ----
 from rest_framework import serializers
-from .models import HaulOut, WorkOrder, Part, Tool, StorageSlot, LaunchRequest, Contractor
+from ..models import HaulOut, WorkOrder, Part, Tool, StorageSlot, LaunchRequest, Contractor
 
 
 class HaulOutSerializer(serializers.ModelSerializer):
@@ -75,3 +87,48 @@ class ContractorSerializer(serializers.ModelSerializer):
             'id', 'name', 'trade', 'working_on',
             'access_start', 'access_end', 'vessel_owner',
         ]
+
+
+# ---- Track 5 serializers ----
+from .tasks_serializers import (          # noqa: E402,F401
+    WorkOrderTaskSerializer,
+    TaskDependencySerializer,
+    GanttTaskSerializer,
+)
+from .build_serializers import (          # noqa: E402,F401
+    BuildProjectSerializer,
+    BOMItemSerializer,
+    BuildMilestoneSerializer,
+)
+from .template_serializers import (       # noqa: E402,F401
+    JobTemplateSerializer,
+    JobTemplateTaskSerializer,
+    JobTemplatePartSerializer,
+)
+from .batch_serializers import (          # noqa: E402,F401
+    BatchJobPostSerializer,
+    BatchJobPostLineSerializer,
+)
+from .warranty_serializers import (       # noqa: E402,F401
+    WarrantyAgreementSerializer,
+    WarrantyClaimSerializer,
+)
+from .pricing_serializers import (        # noqa: E402,F401
+    SupplierPriceFileSerializer,
+    SupplierColumnMapSerializer,
+    PartPriceHistorySerializer,
+)
+from .truck_serializers import (          # noqa: E402,F401
+    LocationSerializer,
+    ServiceTruckSerializer,
+    InventoryLevelSerializer,
+    InventoryAnomalySerializer,
+    TruckStockTransferSerializer,
+)
+from .operations_serializers import (     # noqa: E402,F401
+    ServiceBaySerializer,
+    LiftOperationSerializer,
+    PaintRecordSerializer,
+    PartsInventoryItemSerializer,
+    SubcontractorSerializer,
+)

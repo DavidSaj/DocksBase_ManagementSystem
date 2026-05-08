@@ -57,6 +57,34 @@ class Booking(models.Model):
     booking_source = models.CharField(max_length=100, default='direct', blank=True)
     mysea_event_uid = models.CharField(max_length=255, blank=True, default='')
 
+    # Track 2 — document gate fields
+    insurance_verified = models.BooleanField(default=False)
+    registration_verified = models.BooleanField(default=False)
+    waiver_verified = models.BooleanField(default=False)
+    document_gate_cleared = models.BooleanField(default=False)
+    document_gate_cleared_by = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='document_gate_clearances',
+    )
+    document_gate_cleared_at = models.DateTimeField(null=True, blank=True)
+
+    # Track 2 — sub-let flag
+    is_sublet = models.BooleanField(
+        default=False,
+        help_text='True when this booking fills a TemporaryDeparture sub-let gap.',
+    )
+    # Track 1 — hourly berthing + dynamic pricing audit
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    is_hourly = models.BooleanField(default=False)
+    dynamic_price_applied = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Track 10 — OTA commission
+    ota_commission_amount = models.DecimalField(
+        max_digits=8, decimal_places=2,
+        null=True, blank=True,
+        help_text='OTA commission amount retained by the channel.',
+    )
+
     class Meta:
         ordering = ['-created_at']
 

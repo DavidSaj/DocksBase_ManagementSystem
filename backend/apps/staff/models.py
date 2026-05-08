@@ -16,6 +16,10 @@ class StaffMember(models.Model):
     contract = models.CharField(max_length=20, choices=CONTRACT, default='full_time')
     start_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    is_contractor = models.BooleanField(
+        default=False,
+        help_text='Contractor skippers appear in charter assignments but are excluded from payroll views.',
+    )
 
     def __str__(self):
         return self.name

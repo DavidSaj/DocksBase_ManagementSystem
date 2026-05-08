@@ -9,6 +9,8 @@ from .views import (
     AssignBerthView,
     ApproveBookingView,
     RejectBookingView,
+    # Track 2
+    ClearDocumentGateView,
 )
 
 urlpatterns = [
@@ -21,6 +23,8 @@ urlpatterns = [
     path('bookings/<int:pk>/assign-berth/',         AssignBerthView.as_view(),              name='assign_berth'),
     path('bookings/<int:pk>/approve/',              ApproveBookingView.as_view(),           name='approve_booking'),
     path('bookings/<int:pk>/reject/',               RejectBookingView.as_view(),            name='reject_booking'),
+    # Track 2 — document gate
+    path('bookings/<int:pk>/clear-document-gate/',  ClearDocumentGateView.as_view(),        name='clear_document_gate'),
     path('booking-requests/',                       BookingRequestListCreateView.as_view(), name='booking_request_list'),
     path('booking-requests/<int:pk>/',              BookingRequestDetailView.as_view(),     name='booking_request_detail'),
     path('booking-requests/<int:pk>/convert/',      ConvertBookingRequestView.as_view(),    name='booking_request_convert'),

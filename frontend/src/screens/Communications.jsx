@@ -92,7 +92,7 @@ function TemplatesTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data } = await api.post('/communications/message-templates/', form);
+      const { data } = await api.post('/communications/message-templates/', { ...form });
       setTemplates(prev => [data, ...prev]);
       setShowForm(false);
       setForm({ name: '', channel: 'email', subject: '', body: '' });
@@ -310,7 +310,7 @@ function JourneysTab() {
   const [showForm, setShowForm]         = useState(false);
   const [saving, setSaving]             = useState(false);
   const [toggling, setToggling]         = useState(null);
-  const [form, setForm]                 = useState({ name: '', description: '', trigger: 'booking_confirmed' });
+  const [form, setForm]                 = useState({ name: '', description: '', trigger_event: 'booking_confirmed' });
 
   useEffect(() => {
     api.get('/communications/journeys/')
@@ -326,7 +326,7 @@ function JourneysTab() {
       const { data } = await api.post('/communications/journeys/', form);
       setJourneys(prev => [data, ...prev]);
       setShowForm(false);
-      setForm({ name: '', description: '', trigger: 'booking_confirmed' });
+      setForm({ name: '', description: '', trigger_event: 'booking_confirmed' });
     } catch {
     } finally {
       setSaving(false);
@@ -339,8 +339,10 @@ function JourneysTab() {
       const endpoint = journey.is_active
         ? `/communications/journeys/${journey.id}/deactivate/`
         : `/communications/journeys/${journey.id}/activate/`;
-      const { data } = await api.post(endpoint);
-      setJourneys(prev => prev.map(j => j.id === journey.id ? { ...j, is_active: data.is_active } : j));
+      await api.post(endpoint);
+      // Backend returns {status: 'activated'/'deactivated'} — derive is_active from endpoint used
+      const nowActive = !journey.is_active;
+      setJourneys(prev => prev.map(j => j.id === journey.id ? { ...j, is_active: nowActive } : j));
     } catch {
     } finally {
       setToggling(null);
@@ -382,8 +384,8 @@ function JourneysTab() {
                   <label className="form-label">Trigger Event</label>
                   <select
                     className="form-select"
-                    value={form.trigger}
-                    onChange={e => setForm(f => ({ ...f, trigger: e.target.value }))}
+                    value={form.trigger_event}
+                    onChange={e => setForm(f => ({ ...f, trigger_event: e.target.value }))}
                   >
                     {Object.entries(TRIGGER_LABELS).map(([val, lbl]) => (
                       <option key={val} value={val}>{lbl}</option>
@@ -439,7 +441,7 @@ function JourneysTab() {
                     )}
                   </td>
                   <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
-                    {TRIGGER_LABELS[j.trigger] || j.trigger}
+                    {TRIGGER_LABELS[j.trigger_event] || j.trigger_event}
                   </td>
                   <td>
                     <StatusBadge status={j.is_active ? 'active' : 'inactive'} label={j.is_active ? 'Active' : 'Inactive'} />
@@ -480,11 +482,11 @@ function SegmentsTab() {
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving]     = useState(false);
-  const [form, setForm]         = useState({ name: '', description: '', filter_json: '{}' });
+  const [form, setForm]         = useState({ name: '', description: '', filter_params: '{}' });
   const [jsonError, setJsonError] = useState('');
 
   useEffect(() => {
-    api.get('/communications/segments/')
+    api.get('/segments/')
       .then(r => setSegments(r.data.results ?? r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -499,11 +501,11 @@ function SegmentsTab() {
     if (jsonError) return;
     setSaving(true);
     try {
-      const payload = { ...form, filter_json: JSON.parse(form.filter_json) };
-      const { data } = await api.post('/communications/segments/', payload);
+      const payload = { ...form, filter_params: JSON.parse(form.filter_params) };
+      const { data } = await api.post('/segments/', payload);
       setSegments(prev => [data, ...prev]);
       setShowForm(false);
-      setForm({ name: '', description: '', filter_json: '{}' });
+      setForm({ name: '', description: '', filter_params: '{}' });
     } catch {
     } finally {
       setSaving(false);
@@ -552,8 +554,8 @@ function SegmentsTab() {
                   <textarea
                     className="form-control"
                     rows={4}
-                    value={form.filter_json}
-                    onChange={e => { setForm(f => ({ ...f, filter_json: e.target.value })); validateJson(e.target.value); }}
+                    value={form.filter_params}
+                    onChange={e => { setForm(f => ({ ...f, filter_params: e.target.value })); validateJson(e.target.value); }}
                     style={{ fontFamily: 'monospace', fontSize: 12 }}
                   />
                   {jsonError && <div style={{ color: '#c0392b', fontSize: 11, marginTop: 4 }}>{jsonError}</div>}
@@ -594,7 +596,7 @@ function SegmentsTab() {
                   <td style={{ fontWeight: 600 }}>{seg.name}</td>
                   <td style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>{seg.description || '—'}</td>
                   <td style={{ fontSize: 13 }}>
-                    {seg.member_count != null ? seg.member_count.toLocaleString() : '—'}
+                    {seg.count != null ? seg.count.toLocaleString() : '—'}
                   </td>
                   <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.38)' }}>{fmtDate(seg.created_at)}</td>
                 </tr>
@@ -609,7 +611,7 @@ function SegmentsTab() {
 
 // ── Tab: Delivery Log ──────────────────────────────────────────────────────
 
-const DIRECTION_LABELS = { out: 'Outbound', in: 'Inbound' };
+const DIRECTION_LABELS = { outbound: 'Outbound', inbound: 'Inbound' };
 
 function DeliveryLogTab() {
   const [sends, setSends]             = useState([]);
@@ -625,7 +627,7 @@ function DeliveryLogTab() {
     const params = new URLSearchParams({ page, page_size: PAGE_SIZE });
     if (channelFilter) params.set('channel', channelFilter);
     if (statusFilter)  params.set('status', statusFilter);
-    api.get(`/communications/sends/?${params}`)
+    api.get(`/communications/messages/?${params}`)
       .then(r => {
         const data = r.data;
         setSends(data.results ?? data);
@@ -674,7 +676,7 @@ function DeliveryLogTab() {
               <option value="queued">Queued</option>
               <option value="sent">Sent</option>
               <option value="delivered">Delivered</option>
-              <option value="read">Read / Opened</option>
+              <option value="opened">Read / Opened</option>
               <option value="failed">Failed</option>
               <option value="received">Received (inbound)</option>
             </select>

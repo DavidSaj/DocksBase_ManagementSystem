@@ -154,7 +154,7 @@ class WasteLogViewSet(ESGFeatureGuardMixin, MarinaFilteredMixin, viewsets.ModelV
             qs = qs.filter(category=category)
         return qs
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='diversion-rate')
     def diversion_rate(self, request):
         """
         Returns diversion rate summary for a period.
@@ -221,9 +221,21 @@ class SustainabilityLedgerViewSet(ESGFeatureGuardMixin, MarinaFilteredMixin, vie
 
 
 class ESGReportArchiveViewSet(ESGFeatureGuardMixin, MarinaFilteredMixin, viewsets.GenericViewSet):
-    queryset           = ESGReportArchive.objects.all()
+    """
+    ESG Report Archive.  Extends GenericViewSet with an explicit list action so that
+    GET /sustainability/esg-reports/ returns the marina's report history without
+    requiring a separate /history/ sub-path.
+    """
     serializer_class   = ESGReportArchiveSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ESGReportArchive.objects.filter(marina=self.request.user.marina).order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        """GET /sustainability/esg-reports/ — list all ESG report archives for the marina."""
+        archives = self.get_queryset()
+        return Response(ESGReportArchiveSerializer(archives, many=True).data)
 
     @action(detail=False, methods=['post'])
     def generate(self, request):
@@ -260,7 +272,7 @@ class ESGReportArchiveViewSet(ESGFeatureGuardMixin, MarinaFilteredMixin, viewset
 
         return Response({'archive_id': archive.pk, 'status': 'pending'}, status=status.HTTP_202_ACCEPTED)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='status')
     def report_status(self, request, pk=None):
         """Read ESGReportArchive.status from DB (not Celery result state)."""
         archive = self.get_object()

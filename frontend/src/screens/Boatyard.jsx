@@ -542,20 +542,34 @@ function PartsInventoryModal({ onClose, onCreate }) {
 // ── Warranty Claim Modal ──────────────────────────────────────────────────────
 
 function WarrantyClaimModal({ onClose, onCreate }) {
+  const [agreements, setAgreements] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
+  const [agreementId, setAgreementId] = useState('');
+  const [workOrderId, setWorkOrderId] = useState('');
   const [claimRef, setClaimRef] = useState('');
-  const [manufacturer, setManufacturer] = useState('');
-  const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState('');
   const [partsClaimed, setPartsClaimed] = useState('');
   const [labourClaimed, setLabourClaimed] = useState('');
-  const [submittedDate, setSubmittedDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    api.get('/warranty-agreements/').then(r => setAgreements(r.data.results ?? r.data)).catch(() => {});
+    api.get('/work-orders/').then(r => setWorkOrders(r.data.results ?? r.data)).catch(() => {});
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true); setErr(null);
     try {
-      await onCreate({ claim_reference: claimRef, manufacturer, description, parts_claimed: partsClaimed || 0, labour_claimed: labourClaimed || 0, submitted_date: submittedDate || null });
+      await onCreate({
+        agreement: agreementId,
+        work_order: workOrderId,
+        claim_reference: claimRef,
+        notes,
+        parts_claimed: partsClaimed || 0,
+        labour_claimed: labourClaimed || 0,
+      });
       onClose();
     } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
   }
@@ -564,15 +578,23 @@ function WarrantyClaimModal({ onClose, onCreate }) {
     <Modal title="New Warranty Claim" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FieldGroup label="Warranty Agreement">
+            <select required value={agreementId} onChange={e => setAgreementId(e.target.value)}>
+              <option value="">Select agreement…</option>
+              {agreements.map(a => <option key={a.id} value={a.id}>{a.manufacturer_name}</option>)}
+            </select>
+          </FieldGroup>
+          <FieldGroup label="Work Order">
+            <select required value={workOrderId} onChange={e => setWorkOrderId(e.target.value)}>
+              <option value="">Select work order…</option>
+              {workOrders.map(w => <option key={w.id} value={w.id}>{w.title || `WO-${w.id}`}</option>)}
+            </select>
+          </FieldGroup>
+          <FieldGroup label="Claim Reference"><input value={claimRef} onChange={e => setClaimRef(e.target.value)} placeholder="Manufacturer ref #" /></FieldGroup>
+          <FieldGroup label="Notes"><textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical' }} /></FieldGroup>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <FieldGroup label="Claim Reference"><input value={claimRef} onChange={e => setClaimRef(e.target.value)} placeholder="Manufacturer ref #" /></FieldGroup>
-            <FieldGroup label="Manufacturer"><input required value={manufacturer} onChange={e => setManufacturer(e.target.value)} /></FieldGroup>
-          </div>
-          <FieldGroup label="Description"><textarea required rows={3} value={description} onChange={e => setDescription(e.target.value)} style={{ resize: 'vertical' }} /></FieldGroup>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <FieldGroup label="Parts Claimed (€)"><input type="number" step="0.01" value={partsClaimed} onChange={e => setPartsClaimed(e.target.value)} /></FieldGroup>
             <FieldGroup label="Labour Claimed (€)"><input type="number" step="0.01" value={labourClaimed} onChange={e => setLabourClaimed(e.target.value)} /></FieldGroup>
-            <FieldGroup label="Submitted Date"><input type="date" value={submittedDate} onChange={e => setSubmittedDate(e.target.value)} /></FieldGroup>
           </div>
           {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
         </div>
@@ -1221,7 +1243,7 @@ export default function Boatyard() {
                   return (
                     <tr key={c.id}>
                       <td style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>{c.claim_reference || `CLM-${c.id}`}</td>
-                      <td className="tbl-name">{c.manufacturer || c.agreement_name || '—'}</td>
+                      <td className="tbl-name">{c.manufacturer_name || c.manufacturer || '—'}</td>
                       <td style={{ fontSize: 12 }}>{c.parts_claimed != null ? `€${Number(c.parts_claimed).toFixed(2)}` : '—'}</td>
                       <td style={{ fontSize: 12 }}>{c.labour_claimed != null ? `€${Number(c.labour_claimed).toFixed(2)}` : '—'}</td>
                       <td style={{ fontSize: 12, fontWeight: 600 }}>{c.total_claimed != null ? `€${Number(c.total_claimed).toFixed(2)}` : '—'}</td>

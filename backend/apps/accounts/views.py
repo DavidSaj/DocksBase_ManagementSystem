@@ -116,12 +116,8 @@ class ResendVerificationView(APIView):
         if user.is_active:
             return Response({'detail': 'Verification email resent.'})
 
-        ev = EmailVerification.objects.filter(user=user).first()
-        if ev and timezone.now() - ev.created_at > datetime.timedelta(hours=24):
-            ev.delete()
-            ev = None
-        if ev is None:
-            ev = EmailVerification.objects.create(user=user)
+        EmailVerification.objects.filter(user=user).delete()
+        ev = EmailVerification.objects.create(user=user)
         send_verification_email(user, ev.token)
 
         return Response({'detail': 'Verification email resent.'})
@@ -487,15 +483,22 @@ class DraftAccountView(APIView):
 
         # Idempotency: return existing client_secret for pending_payment accounts
         existing_user = User.objects.filter(email=email).select_related('marina').first()
-        if existing_user and existing_user.marina and existing_user.marina.status == 'pending_payment':
-            sub = stripe.Subscription.retrieve(
-                existing_user.marina.stripe_subscription_id,
-                expand=['pending_setup_intent'],
-            )
-            return Response(
-                {'client_secret': sub.pending_setup_intent.client_secret},
-                status=status.HTTP_201_CREATED,
-            )
+        if existing_user:
+            if existing_user.marina and existing_user.marina.status == 'pending_payment':
+                sub = stripe.Subscription.retrieve(
+                    existing_user.marina.stripe_subscription_id,
+                    expand=['pending_setup_intent'],
+                )
+                return Response(
+                    {'client_secret': sub.pending_setup_intent.client_secret},
+                    status=status.HTTP_201_CREATED,
+                )
+            if not existing_user.is_active:
+                return Response(
+                    {'code': 'email_not_verified', 'detail': 'Please verify your email before continuing.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            raise serializers.ValidationError({'email': ['An account with this email already exists.']})
 
         with transaction.atomic():
             marina = Marina.objects.create(

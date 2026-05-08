@@ -202,7 +202,7 @@ function ActivityTypesTab() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/activity-types/')
+    api.get('/catalogue/')
       .then(r => setActivities(r.data.results ?? r.data))
       .catch(() => setError('Failed to load activity types.'))
       .finally(() => setLoading(false));
@@ -220,7 +220,7 @@ function ActivityTypesTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/activity-types/', {
+      await api.post('/catalogue/', {
         ...form,
         duration_minutes: Number(form.duration_minutes),
         capacity_min: Number(form.capacity_min),
@@ -376,7 +376,7 @@ function ActivityBookingsTab() {
     const params = {};
     if (dateFilter) params.date = dateFilter;
     if (statusFilter) params.status = statusFilter;
-    api.get('/activity-bookings/', { params })
+    api.get('/bookings/', { params })
       .then(r => setBookings(r.data.results ?? r.data))
       .catch(() => setError('Failed to load bookings.'))
       .finally(() => setLoading(false));
@@ -385,14 +385,14 @@ function ActivityBookingsTab() {
   useEffect(() => { loadBookings(); }, [loadBookings]);
 
   useEffect(() => {
-    api.get('/activity-types/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
+    api.get('/catalogue/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
   }, []);
 
   async function handleCreate(e) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/activity-bookings/', {
+      await api.post('/bookings/', {
         ...form,
         participant_count: Number(form.participant_count),
       });
@@ -628,7 +628,7 @@ function BookingDetail({ booking, onClose }) {
   async function handleCancel() {
     setCancelling(true);
     try {
-      await api.post(`/activity-bookings/${booking.id}/cancel/`, { reason });
+      await api.post(`/bookings/${booking.id}/cancel/`, { reason });
       onClose();
     } catch {
       alert('Failed to cancel booking.');
@@ -730,7 +730,7 @@ function ActivityResourcesTab() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/activity-resources/')
+    api.get('/activity-resource-requirements/')
       .then(r => setResources(r.data.results ?? r.data))
       .catch(() => setError('Failed to load resources.'))
       .finally(() => setLoading(false));
@@ -738,14 +738,14 @@ function ActivityResourcesTab() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    api.get('/activity-types/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
+    api.get('/catalogue/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
   }, []);
 
   async function handleCreate(e) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/activity-resources/', { ...form, quantity_required: Number(form.quantity_required) });
+      await api.post('/activity-resource-requirements/', { ...form, quantity_required: Number(form.quantity_required) });
       setShowForm(false);
       setForm({ activity: '', resource_type: 'instructor', required_role: '', quantity_required: 1 });
       load();
@@ -832,7 +832,7 @@ function ActivityScheduleTab() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.get('/activity-schedule/')
+    api.get('/bookings/', { params: { date: today(), status: 'confirmed' } })
       .then(r => setSchedule(r.data.results ?? r.data))
       .catch(() => setError('Failed to load schedule.'))
       .finally(() => setLoading(false));
@@ -932,7 +932,7 @@ function HousekeepingTasksTab({ onSelectTask }) {
     if (statusFilter) params.status = statusFilter;
     if (unitFilter) params.unit_type = unitFilter;
     if (dateFilter) params.date = dateFilter;
-    api.get('/housekeeping-tasks/', { params })
+    api.get('/tasks/', { params })
       .then(r => setTasks(r.data.results ?? r.data))
       .catch(() => setError('Failed to load tasks.'))
       .finally(() => setLoading(false));
@@ -944,7 +944,7 @@ function HousekeepingTasksTab({ onSelectTask }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/housekeeping-tasks/', { ...form, target_ready_by: form.target_ready_by || null });
+      await api.post('/tasks/', { ...form, target_ready_by: form.target_ready_by || null });
       setShowForm(false);
       setForm({ unit_type: 'vessel', unit_label: '', source_type: 'manual', priority: 'normal', notes: '', target_ready_by: '' });
       load();
@@ -1095,7 +1095,7 @@ function HousekeepingMatrixTab({ onSelectTaskId }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/housekeeping-log/', { params: { from: fromDate, to: toDate } })
+    api.get('/matrix/', { params: { from: fromDate, to: toDate } })
       .then(r => {
         // Try to handle both matrix format and plain list
         const raw = r.data;
@@ -1237,7 +1237,7 @@ function CleaningSchedulesTab() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/cleaning-schedules/')
+    api.get('/cleaning-schedules/', { params: {} })
       .then(r => setSchedules(r.data.results ?? r.data))
       .catch(() => setError('Failed to load cleaning schedules.'))
       .finally(() => setLoading(false));
@@ -1335,7 +1335,7 @@ function InspectionChecklistsTab() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/inspection-checklists/')
+    api.get('/checklist-templates/')
       .then(r => setChecklists(r.data.results ?? r.data))
       .catch(() => setError('Failed to load checklists.'))
       .finally(() => setLoading(false));
@@ -1347,7 +1347,7 @@ function InspectionChecklistsTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/inspection-checklists/', { ...form, order: Number(form.order) });
+      await api.post('/checklist-templates/', { ...form, order: Number(form.order) });
       setShowForm(false);
       setForm({ unit_type: 'vessel', text: '', order: 0 });
       load();
@@ -1433,7 +1433,7 @@ function HousekeepingLogTab() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.get('/housekeeping-log/')
+    api.get('/tasks/', { params: { status: 'ready_guest' } })
       .then(r => setLog(r.data.results ?? r.data))
       .catch(() => setError('Failed to load log.'))
       .finally(() => setLoading(false));
@@ -1489,7 +1489,7 @@ function TaskDetailDrawer({ taskId, onClose }) {
   const load = useCallback(() => {
     if (!taskId) return;
     setLoading(true);
-    api.get(`/housekeeping-tasks/${taskId}/`)
+    api.get(`/tasks/${taskId}/`)
       .then(r => setTask(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -1501,7 +1501,7 @@ function TaskDetailDrawer({ taskId, onClose }) {
     if (!task || !NEXT_STATUS[task.status]) return;
     setAdvancing(true);
     try {
-      await api.post(`/housekeeping-tasks/${task.id}/advance/`);
+      await api.post(`/tasks/${task.id}/advance/`);
       load();
     } catch {
       alert('Failed to advance task status.');
@@ -1512,7 +1512,7 @@ function TaskDetailDrawer({ taskId, onClose }) {
 
   async function toggleChecklist(itemId, isDone) {
     try {
-      await api.patch(`/housekeeping-tasks/${task.id}/checklist/${itemId}/`, { is_done: !isDone });
+      await api.patch(`/tasks/${task.id}/checklist/${itemId}/`, { is_done: !isDone });
       load();
     } catch {
       alert('Failed to update checklist.');
@@ -1523,7 +1523,7 @@ function TaskDetailDrawer({ taskId, onClose }) {
     e.preventDefault();
     setEscalating(true);
     try {
-      await api.post(`/housekeeping-tasks/${task.id}/escalate-defect/`, escalateForm);
+      await api.post(`/tasks/${task.id}/escalate-defect/`, escalateForm);
       setShowEscalate(false);
       setEscalateForm({ description: '', severity: 'medium' });
       alert('Defect escalated to maintenance. The Maintenance Manager has been notified.');

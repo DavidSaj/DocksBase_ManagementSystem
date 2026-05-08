@@ -465,3 +465,65 @@ class RejectBookingView(APIView):
 
         send_reject_email(booking, reason=reason)
         return Response({'detail': 'Booking rejected.'}, status=http_status.HTTP_200_OK)
+
+
+# ── Track 2 — Document Gate ────────────────────────────────────────────────────
+
+class ClearDocumentGateView(APIView):
+    """
+    POST /api/v1/bookings/<pk>/clear-document-gate/
+    Body: { insurance_verified: true, registration_verified: true, waiver_verified: true }
+
+    Only marina_manager or owner can call this.
+    Requires marina.document_gate_enabled = True.
+    After clearing, transitions pending_approval bookings to the next state.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.utils import timezone as tz
+
+        if request.user.role not in ('marina_manager', 'owner', 'manager'):
+            return Response(
+                {'detail': 'Only marina managers or owners can clear the document gate.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            booking = Booking.objects.get(pk=pk, marina=request.user.marina)
+        except Booking.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        marina = request.user.marina
+        if not marina.document_gate_enabled:
+            return Response(
+                {'detail': 'Document gate is not enabled for this marina.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        insurance    = request.data.get('insurance_verified', False)
+        registration = request.data.get('registration_verified', False)
+        waiver       = request.data.get('waiver_verified', False)
+
+        if not (insurance and registration and waiver):
+            return Response(
+                {'detail': 'All three documents (insurance, registration, waiver) must be verified.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        booking.insurance_verified       = True
+        booking.registration_verified    = True
+        booking.waiver_verified          = True
+        booking.document_gate_cleared    = True
+        booking.document_gate_cleared_by = request.user
+        booking.document_gate_cleared_at = tz.now()
+
+        # If booking is pending_approval and document gate is now cleared,
+        # allow the approval flow to continue.
+        update_fields = [
+            'insurance_verified', 'registration_verified', 'waiver_verified',
+            'document_gate_cleared', 'document_gate_cleared_by', 'document_gate_cleared_at',
+        ]
+
+        booking.save(update_fields=update_fields)
+        return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)

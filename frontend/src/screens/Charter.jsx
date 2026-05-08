@@ -215,7 +215,7 @@ function CharterFleetTab() {
   const [prefilledVessel, setPrefilledVessel] = useState(null);
 
   useEffect(() => {
-    api.get('/charter-vessels/')
+    api.get('/charter/vessels/')
       .then(r => setVessels(r.data.results ?? r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -311,7 +311,7 @@ function CharterBookingWizard({ vessels, prefilledVessel, onClose, onCreated }) 
   async function handleSubmit() {
     setSaving(true); setErr(null);
     try {
-      await api.post('/charter-bookings/', {
+      await api.post('/charter/bookings/', {
         charter_vessel: vesselId,
         charterer_name: chartererName,
         charterer_email: chartererEmail,
@@ -453,7 +453,7 @@ function CharterBookingDrawer({ booking, onClose, onStatusChange }) {
   async function changeStatus(status) {
     setUpdating(true);
     try {
-      await api.patch(`/charter-bookings/${booking.id}/`, { status });
+      await api.patch(`/charter/bookings/${booking.id}/`, { status });
       onStatusChange(booking.id, status);
     } finally {
       setUpdating(false);
@@ -532,7 +532,7 @@ function CharterBookingsTab() {
 
   const fetchBookings = useCallback(() => {
     const params = statusFilter ? `?status=${statusFilter}` : '';
-    api.get(`/charter-bookings/${params}`)
+    api.get(`/charter/bookings/${params}`)
       .then(r => setBookings(r.data.results ?? r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -623,7 +623,7 @@ function NewHarbourDueModal({ agents, onClose, onCreated }) {
     e.preventDefault();
     setSaving(true); setErr(null);
     try {
-      const { data } = await api.post('/harbour-dues/', {
+      const { data } = await api.post('/harbour/dues/', {
         vessel_name: vesselName,
         due_type: dueType,
         amount,
@@ -682,9 +682,9 @@ function HarbourDuesTab() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/harbour-dues/').then(r => r.data.results ?? r.data),
-      api.get('/harbour-dues/summary/').then(r => r.data).catch(() => null),
-      api.get('/shipping-agents/').then(r => r.data.results ?? r.data).catch(() => []),
+      api.get('/harbour/dues/').then(r => r.data.results ?? r.data),
+      api.get('/harbour/dues/summary/').then(r => r.data).catch(() => null),
+      api.get('/harbour/agents/').then(r => r.data.results ?? r.data).catch(() => []),
     ]).then(([duesData, summaryData, agentsData]) => {
       setDues(duesData);
       setSummary(summaryData);
@@ -815,7 +815,7 @@ function NewShippingAgentModal({ onClose, onCreated }) {
     e.preventDefault();
     setSaving(true); setErr(null);
     try {
-      const { data } = await api.post('/shipping-agents/', { name, contact_name: contactName, email, phone, address, vat_number: vatNumber, notes });
+      const { data } = await api.post('/harbour/agents/', { name, contact_name: contactName, email, phone, address, vat_number: vatNumber, notes });
       onCreated(data);
     } catch (ex) {
       setErr(ex?.response?.data?.detail ?? 'Save failed');
@@ -866,7 +866,7 @@ function ShippingAgentsTab() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    api.get('/shipping-agents/')
+    api.get('/harbour/agents/')
       .then(r => setAgents(r.data.results ?? r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -956,7 +956,7 @@ function NewVesselCallModal({ agents, onClose, onCreated }) {
     e.preventDefault();
     setSaving(true); setErr(null);
     try {
-      const { data } = await api.post('/vessel-calls/', {
+      const { data } = await api.post('/harbour/movements/', {
         vessel_name: vesselName,
         imo_number: imoNumber,
         vessel_type: vesselType,
@@ -1049,7 +1049,7 @@ function VesselCallDrawer({ call, onClose, onStatusChange }) {
   async function markStatus(status) {
     setUpdating(true);
     try {
-      await api.patch(`/vessel-calls/${call.id}/`, { status });
+      await api.patch(`/harbour/movements/${call.id}/`, { status });
       onStatusChange(call.id, status);
     } finally {
       setUpdating(false);
@@ -1085,7 +1085,7 @@ function VesselCallDrawer({ call, onClose, onStatusChange }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: 'rgba(0,0,0,0.5)' }}>Next</span><span>{call.next_port || '—'}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: 'rgba(0,0,0,0.5)' }}>ETA</span><span>{fmtDateTime(call.eta)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: 'rgba(0,0,0,0.5)' }}>ETD</span><span>{fmtDateTime(call.etd)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: 'rgba(0,0,0,0.5)' }}>Agent</span><span>{call.agent_name || '—'}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: 'rgba(0,0,0,0.5)' }}>Agent</span><span>{call.shipping_agent_name || call.agent_name || '—'}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}><span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Status</span>{statusBadge(call.status)}</div>
           </div>
         </div>
@@ -1124,8 +1124,8 @@ function VesselCallsTab() {
   const fetchCalls = useCallback(() => {
     const params = statusFilter ? `?status=${statusFilter}` : '';
     Promise.all([
-      api.get(`/vessel-calls/${params}`).then(r => r.data.results ?? r.data),
-      api.get('/shipping-agents/').then(r => r.data.results ?? r.data).catch(() => []),
+      api.get(`/harbour/movements/${params}`).then(r => r.data.results ?? r.data),
+      api.get('/harbour/agents/').then(r => r.data.results ?? r.data).catch(() => []),
     ]).then(([callsData, agentsData]) => {
       setCalls(callsData);
       setAgents(agentsData);
@@ -1192,7 +1192,7 @@ function VesselCallsTab() {
                     <td style={{ fontSize: 12 }}>{c.gross_tonnage ?? '—'}</td>
                     <td style={{ fontSize: 12 }}>{fmtDateTime(c.eta)}</td>
                     <td style={{ fontSize: 12 }}>{fmtDateTime(c.etd)}</td>
-                    <td style={{ fontSize: 12 }}>{c.agent_name || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{c.shipping_agent_name || c.agent_name || '—'}</td>
                     <td>{statusBadge(c.status)}</td>
                   </tr>
                 ))

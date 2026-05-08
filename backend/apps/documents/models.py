@@ -2,7 +2,13 @@ from django.db import models
 
 
 class DocTemplate(models.Model):
-    CATEGORY = [('lease', 'Lease'), ('insurance', 'Insurance'), ('waiver', 'Waiver'), ('other', 'Other')]
+    CATEGORY = [
+        ('lease',             'Lease'),
+        ('insurance',         'Insurance'),
+        ('waiver',            'Waiver'),
+        ('charter_agreement', 'Charter Agreement'),
+        ('other',             'Other'),
+    ]
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='doc_templates')
     name = models.CharField(max_length=200)

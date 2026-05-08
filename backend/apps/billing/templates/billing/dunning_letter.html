@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formal Demand for Payment — {{marina_name}}</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 12pt;
+      color: #1a1a1a;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+    .page {
+      max-width: 720px;
+      margin: 60px auto;
+      padding: 0 40px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 20px;
+      margin-bottom: 32px;
+    }
+    .marina-details h1 {
+      font-size: 18pt;
+      margin: 0 0 4px 0;
+    }
+    .marina-details p {
+      margin: 2px 0;
+      font-size: 10pt;
+      color: #444;
+    }
+    .letter-meta {
+      text-align: right;
+      font-size: 10pt;
+      color: #444;
+    }
+    h2.letter-title {
+      font-size: 14pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 8px;
+    }
+    .recipient {
+      margin-bottom: 28px;
+    }
+    .recipient p {
+      margin: 2px 0;
+    }
+    .body-text p {
+      line-height: 1.7;
+      margin: 0 0 14px 0;
+    }
+    .demand-box {
+      border: 2px solid #1a1a1a;
+      padding: 16px 24px;
+      margin: 28px 0;
+      background: #f9f9f9;
+    }
+    .demand-box .amount {
+      font-size: 22pt;
+      font-weight: bold;
+      color: #c0392b;
+    }
+    .demand-box p {
+      margin: 4px 0;
+    }
+    table.invoice-list {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 10pt;
+    }
+    table.invoice-list th {
+      background: #1a1a1a;
+      color: #fff;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    table.invoice-list td {
+      border-bottom: 1px solid #ddd;
+      padding: 7px 10px;
+    }
+    table.invoice-list tr:nth-child(even) td {
+      background: #f5f5f5;
+    }
+    .signature {
+      margin-top: 48px;
+    }
+    .signature p {
+      margin: 2px 0;
+    }
+    .footer {
+      margin-top: 60px;
+      border-top: 1px solid #ccc;
+      padding-top: 12px;
+      font-size: 9pt;
+      color: #888;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <div class="header">
+      <div class="marina-details">
+        <h1>{{marina_name}}</h1>
+        <p>{{marina_address}}</p>
+        <p>{{marina_contact_email}}</p>
+      </div>
+      <div class="letter-meta">
+        <p><strong>Date:</strong> {{letter_date}}</p>
+        <p><strong>Reference:</strong> {{reference_number}}</p>
+        <p><strong>Dunning Level:</strong> {{dunning_level}}</p>
+      </div>
+    </div>
+
+    <h2 class="letter-title">Formal Demand for Payment</h2>
+
+    <div class="recipient">
+      <p><strong>{{member_name}}</strong></p>
+      <p>{{member_address}}</p>
+    </div>
+
+    <div class="body-text">
+      <p>Dear {{member_name}},</p>
+
+      <p>
+        Despite our previous correspondence, the outstanding balance on your account
+        with <strong>{{marina_name}}</strong> remains unpaid. We hereby issue this formal
+        demand for settlement of the amount due.
+      </p>
+
+      <div class="demand-box">
+        <p><strong>Total Amount Due:</strong></p>
+        <p class="amount">{{demand_amount}}</p>
+        <p>Payment is required within <strong>{{payment_due_days}} days</strong> of this letter.</p>
+      </div>
+
+      <p>The outstanding invoices are listed below:</p>
+
+      <table class="invoice-list">
+        <thead>
+          <tr>
+            <th>Invoice Number</th>
+            <th>Invoice Date</th>
+            <th>Due Date</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{invoice_list}}
+        </tbody>
+      </table>
+
+      <p>
+        Please arrange payment immediately by bank transfer, credit card, or by
+        contacting our office directly. If you believe this demand has been sent
+        in error or wish to discuss a payment arrangement, please contact us without
+        delay at <strong>{{marina_contact_email}}</strong>.
+      </p>
+
+      <p>
+        Please be advised that failure to settle this balance within the time specified
+        may result in referral to a debt collection agency and/or legal proceedings,
+        at your cost. This letter may be used as evidence in any such proceedings.
+      </p>
+
+      <p>We trust this matter will receive your immediate attention.</p>
+    </div>
+
+    <div class="signature">
+      <p>Yours sincerely,</p>
+      <br>
+      <p><strong>{{harbour_master_name}}</strong></p>
+      <p>Harbour Master</p>
+      <p>{{marina_name}}</p>
+    </div>
+
+    <div class="footer">
+      <p>
+        {{marina_name}} &mdash; {{marina_address}} &mdash; {{marina_contact_email}}
+      </p>
+      <p>This is an automatically generated document. Please retain for your records.</p>
+    </div>
+
+  </div>
+</body>
+</html>

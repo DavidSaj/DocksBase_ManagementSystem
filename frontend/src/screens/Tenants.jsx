@@ -201,7 +201,7 @@ function CommercialUnitsTab() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/commercial-units/')
+    api.get('/tenants/units/')
       .then(r => setUnits(r.data.results ?? r.data))
       .catch(() => setUnits([]))
       .finally(() => setLoading(false));
@@ -212,7 +212,7 @@ function CommercialUnitsTab() {
     setSaving(true); setError('');
     try {
       const payload = { ...form, area_m2: form.area_m2 || null };
-      const { data } = await api.post('/commercial-units/', payload);
+      const { data } = await api.post('/tenants/units/', payload);
       setUnits(prev => [data, ...prev]);
       setShowAdd(false);
       setForm({ unit_ref: '', unit_type: 'chandlery', description: '', area_m2: '', has_power: false, has_water: false, has_broadband: false, notes: '' });
@@ -391,7 +391,7 @@ function TenanciesTab() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/tenancies/')
+    api.get('/tenants/tenancies/')
       .then(r => setTenancies(r.data.results ?? r.data))
       .catch(() => setTenancies([]))
       .finally(() => setLoading(false));
@@ -514,7 +514,7 @@ function TenancySchedulePanel({ tenancyId }) {
 
   useEffect(() => {
     setLoading(true);
-    api.get(`/tenancies/${tenancyId}/schedule/`)
+    api.get(`/tenants/tenancies/${tenancyId}/schedule/`)
       .then(r => setEntries(r.data.results ?? r.data))
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
@@ -566,7 +566,7 @@ function TenancyTasksPanel({ tenancyId }) {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/tenancy-tasks/', { params: { tenancy: tenancyId } })
+    api.get('/tenants/tasks/', { params: { tenancy: tenancyId } })
       .then(r => setTasks(r.data.results ?? r.data))
       .catch(() => setTasks([]))
       .finally(() => setLoading(false));
@@ -613,7 +613,7 @@ function RentScheduleTab() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/rent-schedule/')
+    api.get('/tenants/schedule/')
       .then(r => setEntries(r.data.results ?? r.data))
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
@@ -708,7 +708,7 @@ function MarketplaceListingsTab() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/berth-listings/')
+    api.get('/marketplace/listings/')
       .then(r => setListings(r.data.results ?? r.data))
       .catch(() => setListings([]))
       .finally(() => setLoading(false));
@@ -718,7 +718,7 @@ function MarketplaceListingsTab() {
 
   async function handlePublish(id) {
     try {
-      const { data } = await api.post(`/berth-listings/${id}/publish/`);
+      const { data } = await api.post(`/marketplace/listings/${id}/publish/`);
       setListings(prev => prev.map(l => l.id === id ? { ...l, ...data } : l));
       if (selected?.id === id) setSelected(prev => ({ ...prev, ...data }));
     } catch {
@@ -730,7 +730,7 @@ function MarketplaceListingsTab() {
     if (!form.asking_price) { setError('Asking price is required.'); return; }
     setSaving(true); setError('');
     try {
-      const { data } = await api.post('/berth-listings/', {
+      const { data } = await api.post('/marketplace/listings/', {
         ...form,
         asking_price: parseFloat(form.asking_price),
       });
@@ -973,7 +973,7 @@ function ListingEnquiriesPanel({ listingId }) {
 
   useEffect(() => {
     setLoading(true);
-    api.get(`/berth-listings/${listingId}/enquiries/`)
+    api.get(`/marketplace/listings/${listingId}/enquiries/`)
       .then(r => setEnquiries(r.data.results ?? r.data))
       .catch(() => setEnquiries([]))
       .finally(() => setLoading(false));
@@ -1025,7 +1025,7 @@ function EnquiriesTab() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/berth-enquiries/')
+    api.get('/marketplace/enquiries/')
       .then(r => setEnquiries(r.data.results ?? r.data))
       .catch(() => setEnquiries([]))
       .finally(() => setLoading(false));
@@ -1035,7 +1035,7 @@ function EnquiriesTab() {
 
   async function updateStatus(id, status) {
     try {
-      const { data } = await api.patch(`/berth-enquiries/${id}/`, { status });
+      const { data } = await api.patch(`/marketplace/enquiries/${id}/`, { status });
       setEnquiries(prev => prev.map(e => e.id === id ? { ...e, ...data } : e));
     } catch {
       /* noop */
@@ -1134,8 +1134,8 @@ function ExchangeTab() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get('/exchange-listings/').then(r => r.data.results ?? r.data).catch(() => []),
-      api.get('/exchange-agreements/').then(r => r.data.results ?? r.data).catch(() => []),
+      api.get('/marketplace/exchange/').then(r => r.data.results ?? r.data).catch(() => []),
+      api.get('/marketplace/exchange/agreements/').then(r => r.data.results ?? r.data).catch(() => []),
     ]).then(([ls, ags]) => {
       setListings(ls);
       setAgreements(ags);

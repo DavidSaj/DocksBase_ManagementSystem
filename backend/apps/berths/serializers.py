@@ -104,6 +104,7 @@ _OCCUPIED_STATUSES = frozenset(['checked_in', 'overstay'])
 
 class BerthSerializer(serializers.ModelSerializer):
     pier_code                = serializers.CharField(source='pier.code',              read_only=True, default=None)
+    pier_name                = serializers.CharField(source='pier.display_name',      read_only=True, default=None)
     vessel_name              = serializers.CharField(source='vessel.name',            read_only=True, default=None)
     pricing_tier_name        = serializers.CharField(source='pricing_tier.name',      read_only=True, default=None)
     pricing_tier_unit_price  = serializers.DecimalField(
@@ -112,6 +113,10 @@ class BerthSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
         allow_null=True,
+    )
+    # Track 1 — booking tier (yield / revenue intelligence tier)
+    booking_tier_name = serializers.CharField(
+        source='booking_tier.name', read_only=True, default=None, allow_null=True
     )
     is_placed          = serializers.SerializerMethodField()
     effective_status   = serializers.SerializerMethodField()
@@ -125,15 +130,17 @@ class BerthSerializer(serializers.ModelSerializer):
         model = Berth
         fields = [
             'id', 'code', 'berth_type', 'berth_class', 'operational_type',
-            'pier', 'pier_code', 'side', 'position_index',
+            'pier', 'pier_code', 'pier_name', 'side', 'position_index',
             'length_m', 'max_draft_m', 'max_beam_m', 'amenities',
             'pricing_tier', 'pricing_tier_name', 'pricing_tier_unit_price',
+            'booking_tier', 'booking_tier_name',
             'status', 'effective_status', 'vessel', 'vessel_name',
             'local_x', 'local_y', 'position_on_parent', 'is_placed',
             'ota_connection', 'channel_locked', 'category',
         ]
         read_only_fields = [
-            'id', 'pier_code', 'vessel_name', 'is_placed', 'effective_status',
+            'id', 'pier_code', 'pier_name', 'vessel_name', 'is_placed', 'effective_status',
+            'booking_tier_name',
         ]
 
     def get_is_placed(self, obj):
@@ -185,3 +192,198 @@ class BerthCategorySerializer(serializers.ModelSerializer):
                 f'Unknown amenity slug(s): {bad}. Allowed: {sorted(AMENITY_SLUGS)}'
             )
         return value
+
+
+# ── Track 2 — Berth Intelligence serializers ───────────────────────────────────
+
+from .models import (
+    BerthScoreWeights, TemporaryDeparture, SubLetBooking,
+    FleetAssignJob, DockWalkSession, DockWalkEntry,
+    BerthAlert, BerthListing, BerthListingEnquiry,
+)
+
+
+class BerthScoreWeightsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BerthScoreWeights
+        fields = ['w_size_fit', 'w_gap_min', 'w_amenity_match', 'w_pier_cluster', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def validate(self, attrs):
+        # Merge with existing instance values for partial updates
+        instance = self.instance
+        w_size_fit      = attrs.get('w_size_fit',      instance.w_size_fit      if instance else 40)
+        w_gap_min       = attrs.get('w_gap_min',       instance.w_gap_min       if instance else 25)
+        w_amenity_match = attrs.get('w_amenity_match', instance.w_amenity_match if instance else 20)
+        w_pier_cluster  = attrs.get('w_pier_cluster',  instance.w_pier_cluster  if instance else 15)
+        total = w_size_fit + w_gap_min + w_amenity_match + w_pier_cluster
+        if total != 100:
+            raise serializers.ValidationError(
+                f'Score weights must sum to 100 (got {total}).'
+            )
+        return attrs
+
+
+class SubLetBookingSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubLetBooking
+        fields = [
+            'id', 'booking', 'total_revenue', 'holder_share', 'marina_share',
+            'inventory_collision', 'actual_nights_sublet', 'credit_applied_at',
+        ]
+        read_only_fields = fields
+
+
+class TemporaryDepartureSerializer(serializers.ModelSerializer):
+    berth_code   = serializers.CharField(source='berth.code', read_only=True)
+    vessel_name  = serializers.CharField(source='vessel.name', read_only=True)
+    member_name  = serializers.CharField(source='member.name', read_only=True, default=None)
+    sublet_bookings = SubLetBookingSummarySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TemporaryDeparture
+        fields = [
+            'id', 'marina', 'berth', 'berth_code', 'vessel', 'vessel_name',
+            'member', 'member_name',
+            'depart_date', 'expected_return', 'actual_return', 'status',
+            'sublet_enabled', 'revenue_share_pct',
+            'departure_heading', 'notes',
+            'created_by', 'created_at',
+            'sublet_bookings',
+        ]
+        read_only_fields = ['id', 'marina', 'created_at', 'berth_code', 'vessel_name', 'member_name']
+
+
+class SubLetBookingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubLetBooking
+        fields = [
+            'id', 'marina', 'departure', 'booking',
+            'total_revenue', 'holder_share', 'marina_share',
+            'credit_invoice_id', 'credit_applied_at',
+            'inventory_collision', 'actual_nights_sublet',
+            'relocation_booking', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+class FleetAssignJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FleetAssignJob
+        fields = [
+            'id', 'marina', 'status', 'request_payload', 'result_payload',
+            'celery_task_id', 'error_detail', 'created_by', 'created_at', 'completed_at',
+        ]
+        read_only_fields = fields
+
+
+class DockWalkSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DockWalkSession
+        fields = ['id', 'marina', 'pier', 'walked_by', 'started_at', 'finished_at', 'berth_order']
+        read_only_fields = ['id', 'marina', 'berth_order']
+
+
+class DockWalkEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DockWalkEntry
+        fields = [
+            'id', 'marina', 'session', 'berth',
+            'observed_occupancy', 'discrepancy',
+            'electric_reading_kwh', 'water_reading_litres',
+            'notes', 'photo', 'observed_at', 'synced_at', 'alert',
+        ]
+        read_only_fields = ['id', 'marina', 'synced_at', 'discrepancy', 'alert']
+
+
+class BerthAlertSerializer(serializers.ModelSerializer):
+    vessel_name        = serializers.CharField(source='vessel.name', read_only=True, default=None)
+    vessel_owner_name  = serializers.SerializerMethodField()
+    vessel_owner_phone = serializers.SerializerMethodField()
+    departure_id       = serializers.IntegerField(source='departure.id', read_only=True, default=None)
+    departure_heading  = serializers.CharField(source='departure.departure_heading', read_only=True, default='')
+    expected_return    = serializers.DateField(source='departure.expected_return', read_only=True, default=None)
+    hours_overdue      = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BerthAlert
+        fields = [
+            'id', 'marina', 'alert_type', 'status',
+            'berth', 'vessel', 'vessel_name',
+            'vessel_owner_name', 'vessel_owner_phone',
+            'departure', 'departure_id', 'departure_heading', 'expected_return',
+            'detail', 'hours_overdue',
+            'resolved_at', 'resolved_by',
+            'coastguard_report_text', 'coastguard_escalated_at', 'coastguard_escalated_by',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_vessel_owner_name(self, obj):
+        if obj.departure and obj.departure.member:
+            return obj.departure.member.name
+        if obj.vessel and hasattr(obj.vessel, 'owner') and obj.vessel.owner:
+            return obj.vessel.owner.name
+        return None
+
+    def get_vessel_owner_phone(self, obj):
+        if obj.departure and obj.departure.member:
+            return obj.departure.member.phone
+        if obj.vessel and hasattr(obj.vessel, 'owner') and obj.vessel.owner:
+            return obj.vessel.owner.phone
+        return None
+
+    def get_hours_overdue(self, obj):
+        if not obj.departure:
+            return None
+        import datetime
+        from django.utils import timezone
+        expected_dt = datetime.datetime.combine(
+            obj.departure.expected_return, datetime.time.min,
+            tzinfo=timezone.utc,
+        )
+        delta = timezone.now() - expected_dt
+        hours = delta.total_seconds() / 3600
+        return round(hours, 1) if hours > 0 else 0.0
+
+
+class BerthListingEnquirySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BerthListingEnquiry
+        fields = [
+            'id', 'marina', 'listing',
+            'enquirer_member', 'enquirer_name', 'enquirer_email', 'enquirer_phone',
+            'message', 'created_at',
+        ]
+        read_only_fields = ['id', 'marina', 'created_at']
+
+
+class BerthListingSerializer(serializers.ModelSerializer):
+    berth_code       = serializers.CharField(source='berth.code', read_only=True)
+    berth_length_m   = serializers.DecimalField(
+        source='berth.length_m', max_digits=6, decimal_places=1, read_only=True, allow_null=True,
+    )
+    berth_max_beam_m = serializers.DecimalField(
+        source='berth.max_beam_m', max_digits=5, decimal_places=2, read_only=True, allow_null=True,
+    )
+    berth_amenities  = serializers.ListField(source='berth.amenities', read_only=True)
+    seller_name      = serializers.CharField(source='seller_member.name', read_only=True, default=None)
+    commission_pct   = serializers.SerializerMethodField()
+    enquiry_count    = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BerthListing
+        fields = [
+            'id', 'marina', 'berth', 'berth_code', 'berth_length_m', 'berth_max_beam_m', 'berth_amenities',
+            'seller_member', 'seller_name',
+            'asking_price', 'licence_terms', 'description', 'status',
+            'commission_pct', 'enquiry_count',
+            'listed_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'marina', 'listed_at', 'updated_at']
+
+    def get_commission_pct(self, obj):
+        return float(obj.marina.berth_sale_commission_pct)
+
+    def get_enquiry_count(self, obj):
+        return obj.enquiries.count()

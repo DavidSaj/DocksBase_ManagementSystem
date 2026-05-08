@@ -8,9 +8,9 @@ router.register(r'emission-factors',     views.EmissionFactorViewSet,       base
 router.register(r'scope1',               views.Scope1RecordViewSet,          basename='scope1record')
 router.register(r'scope2',               views.Scope2RecordViewSet,          basename='scope2record')
 router.register(r'scope3',               views.Scope3RecordViewSet,          basename='scope3record')
-router.register(r'waste-log',            views.WasteLogViewSet,              basename='wastelog')
+router.register(r'waste',                views.WasteLogViewSet,              basename='wastelog')
 router.register(r'ledger',               views.SustainabilityLedgerViewSet,  basename='sustainabilityledger')
-router.register(r'esg-report',           views.ESGReportArchiveViewSet,      basename='esgreportarchive')
+router.register(r'esg-reports',          views.ESGReportArchiveViewSet,      basename='esgreportarchive')
 router.register(r'offset-contributions', views.OffsetContributionViewSet,    basename='offsetcontribution')
 router.register(r'grid-intensity',       views.GridCarbonIntensityViewSet,   basename='gridcarbonintensity')
 
