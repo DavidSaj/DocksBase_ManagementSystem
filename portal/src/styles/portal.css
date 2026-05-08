@@ -208,6 +208,158 @@ input, select, textarea { font-family: inherit; }
 .p-summary-val { font-size: 14px; color: var(--cream); font-weight: 500; }
 .p-summary-total { font-family: var(--font-serif); font-size: 22px; color: var(--gold); margin-left: auto; }
 
+/* ── Checkout page (QuoteScreen two-column layout) ───────────────────── */
+.q-checkout-section {
+  position: relative;
+  background: linear-gradient(to bottom, var(--navy) 0, var(--navy) 40px, #ede7d8 40px);
+}
+
+.q-checkout-inner {
+  max-width: 960px;
+  margin: -40px auto 0;
+  padding: 0 32px 64px;
+  position: relative;
+  z-index: 2;
+}
+
+.q-checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 40px;
+  align-items: start;
+}
+
+/* Warm input override — lifted off sandy surface */
+.q-checkout-inputs .p-input {
+  background: #fff;
+  border-color: #d6cfc4;
+}
+.q-checkout-inputs .p-input:focus {
+  border-color: var(--gold);
+}
+
+.q-checkout-divider {
+  border: none;
+  border-top: 1px solid #d6cfc4;
+  margin: 20px 0;
+}
+
+/* ── Receipt card ────────────────────────────────────────────────────── */
+.q-receipt-card {
+  background: #fff;
+  border: 1px solid #e0d8cc;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  position: sticky;
+  top: 24px;
+}
+
+.q-receipt-eyebrow {
+  font-family: var(--font-brand);
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 12px;
+}
+
+.q-receipt-cat-name {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+
+.q-receipt-mooring {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid rgba(184,150,90,0.3);
+  border-radius: 3px;
+  padding: 2px 7px;
+  margin-bottom: 10px;
+}
+
+.q-receipt-amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.q-receipt-amenity {
+  font-size: 11px;
+  color: var(--navy);
+  background: rgba(12,31,61,0.05);
+  border: 1px solid rgba(12,31,61,0.12);
+  border-radius: 20px;
+  padding: 3px 9px;
+}
+
+.q-receipt-divider {
+  border: none;
+  border-top: 1px solid #e8e0d4;
+  margin: 16px 0;
+}
+
+.q-receipt-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.q-receipt-line-label {
+  font-size: 13px;
+  color: rgba(0,0,0,0.45);
+}
+
+.q-receipt-line-value {
+  font-size: 13px;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+.q-receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 4px;
+}
+
+.q-receipt-total-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0,0,0,0.5);
+}
+
+.q-receipt-total-amount {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.q-receipt-dates {
+  font-size: 12px;
+  color: rgba(0,0,0,0.4);
+  margin-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .q-checkout-grid { grid-template-columns: 1fr; }
+  .q-receipt-card  { position: static; }
+  .q-receipt-amenities,
+  .q-receipt-mooring,
+  .q-receipt-line,
+  .q-receipt-dates { display: none; }
+}
+
 /* ── Error / info banners ─────────────────────────────────────────────── */
 .p-error { font-size: 13px; color: #f87171; margin-bottom: 12px; }
 .p-section-title {
