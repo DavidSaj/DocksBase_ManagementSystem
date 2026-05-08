@@ -229,6 +229,9 @@ input, select, textarea { font-family: inherit; }
   align-items: start;
 }
 
+/* Left column wrapper — also scopes the warm input overrides below */
+.q-checkout-inputs { /* layout handled by .q-checkout-grid */ }
+
 /* Warm input override — lifted off sandy surface */
 .q-checkout-inputs .p-input {
   background: #fff;
@@ -357,6 +360,7 @@ input, select, textarea { font-family: inherit; }
   .q-receipt-amenities,
   .q-receipt-mooring,
   .q-receipt-line,
+  .q-receipt-divider,
   .q-receipt-dates { display: none; }
 }
 

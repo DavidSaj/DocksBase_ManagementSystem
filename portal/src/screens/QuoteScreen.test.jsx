@@ -162,6 +162,8 @@ describe('ReceiptCard', () => {
     );
     expect(screen.getByText(/VAT \(8%\)/i)).toBeInTheDocument();
     expect(screen.getByText('€13.20')).toBeInTheDocument(); // 165 (subtotal) * 0.08
+    // total should be subtotal + VAT: 165 + 13.20 = 178.20
+    expect(screen.getAllByText('€178.20').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows amenity pills', () => {

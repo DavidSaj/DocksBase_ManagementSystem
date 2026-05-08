@@ -27,11 +27,12 @@ const MOORING_LABELS = {
 };
 
 function ReceiptCard({ category, nights, total, checkIn, checkOut, marina }) {
-  const pricePerNight = parseFloat(category.price_per_night);
-  const subtotal      = pricePerNight * nights;
-  const vatRate       = marina?.vat_rate ? parseFloat(marina.vat_rate) : 0;
-  const vatAmount     = vatRate > 0 ? subtotal * vatRate / 100 : 0;
-  const fmt           = n => `€${n.toFixed(2)}`;
+  const pricePerNight  = parseFloat(category.price_per_night);
+  const subtotal       = pricePerNight * nights;
+  const vatRate        = marina?.vat_rate ? parseFloat(marina.vat_rate) : 0;
+  const vatAmount      = vatRate > 0 ? subtotal * vatRate / 100 : 0;
+  const displayTotal   = vatRate > 0 ? subtotal + vatAmount : total;
+  const fmt            = n => `€${n.toFixed(2)}`;
 
   return (
     <div className="q-receipt-card">
@@ -73,7 +74,7 @@ function ReceiptCard({ category, nights, total, checkIn, checkOut, marina }) {
 
       <div className="q-receipt-total-row">
         <span className="q-receipt-total-label">Total</span>
-        <span className="q-receipt-total-amount">{fmt(total)}</span>
+        <span className="q-receipt-total-amount">{fmt(displayTotal)}</span>
       </div>
 
       <div className="q-receipt-dates">
