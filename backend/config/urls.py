@@ -27,6 +27,24 @@ urlpatterns = [
         path('', include('apps.portal.checkin_urls')),
         path('public/', include('apps.portal.public_urls')),
         path('mobile/', include('apps.mobile.urls')),
+        # ERP tracks
+        path('', include('apps.revenue.urls')),
+        path('', include('apps.loyalty.urls')),
+        path('', include('apps.accounting.urls')),
+        path('', include('apps.movements.urls')),
+        path('', include('apps.utilities.urls')),
+        path('', include('apps.activities.urls')),
+        path('', include('apps.housekeeping.urls')),
+        path('', include('apps.charter.urls')),
+        path('', include('apps.harbour.urls')),
+        path('access-control/', include('apps.access_control.urls')),
+        path('', include('apps.sustainability.urls')),
+        # Tracks 1, 7, 10
+        path('', include('apps.revenue_intelligence.urls')),
+        path('communications/', include('apps.communications.urls')),
+        path('channels/', include('apps.channels.urls')),
+        path('', include('apps.tenants.urls')),
+        path('', include('apps.marketplace.urls')),
     ])),
 ]
 

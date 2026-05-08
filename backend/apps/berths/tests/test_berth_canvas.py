@@ -54,7 +54,7 @@ class PierCanvasFieldsTest(TestCase):
         berth = Berth.objects.create(marina=self.marina, pier=None, code='X2', pricing_tier=self.tier)
         self.assertIsNone(berth.local_x)
         self.assertIsNone(berth.local_y)
-        self.assertIsNone(berth.position_on_parent)
+        self.assertFalse(berth.position_on_parent)  # blank CharField defaults to ''
 
 
 class PierSerializerCanvasTest(TestCase):
@@ -109,7 +109,7 @@ class PierSerializerCanvasTest(TestCase):
                 'pier': pier.id,
                 'local_x': '-3.00',
                 'local_y': '0.00',
-                'position_on_parent': {'side': 'port', 'slot_index': 0},
+                'position_on_parent': 'port:0',
             },
             format='json',
         )
