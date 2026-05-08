@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
+import Ic from '../components/ui/Icon.jsx';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -18,54 +19,48 @@ function fmtDate(val) {
 
 // ── Status badge ──────────────────────────────────────────────────────────
 
-const STATUS_COLORS = {
-  // Journal
-  true: { bg: '#e8f5e9', color: '#2e7d32', label: 'Posted' },
-  false: { bg: '#fff3e0', color: '#e65100', label: 'Draft' },
-  // Accounts
-  asset:     { bg: '#e3f2fd', color: '#1565c0', label: 'Asset' },
-  liability: { bg: '#fce4ec', color: '#c62828', label: 'Liability' },
-  equity:    { bg: '#f3e5f5', color: '#6a1b9a', label: 'Equity' },
-  revenue:   { bg: '#e8f5e9', color: '#2e7d32', label: 'Revenue' },
-  expense:   { bg: '#fff3e0', color: '#e65100', label: 'Expense' },
-  // Cost centres
-  active:    { bg: '#e8f5e9', color: '#2e7d32', label: 'Active' },
-  inactive:  { bg: '#f5f5f5', color: '#616161', label: 'Inactive' },
-  // AP Invoices
-  draft:       { bg: '#e3f2fd', color: '#1565c0', label: 'Draft' },
-  matched:     { bg: '#e8f5e9', color: '#2e7d32', label: 'Matched' },
-  discrepancy: { bg: '#fff3e0', color: '#e65100', label: 'Discrepancy' },
-  approved:    { bg: '#ede7f6', color: '#4527a0', label: 'Approved' },
-  paid:        { bg: '#e8f5e9', color: '#1b5e20', label: 'Paid' },
-  disputed:    { bg: '#fce4ec', color: '#c62828', label: 'Disputed' },
-  void:        { bg: '#f5f5f5', color: '#616161', label: 'Void' },
-  // Payment plans
-  completed:   { bg: '#e8f5e9', color: '#2e7d32', label: 'Completed' },
-  cancelled:   { bg: '#f5f5f5', color: '#616161', label: 'Cancelled' },
-  paused:      { bg: '#fff3e0', color: '#e65100', label: 'Paused' },
-  // Sync
-  ok:          { bg: '#e8f5e9', color: '#2e7d32', label: 'OK' },
-  error:       { bg: '#fce4ec', color: '#c62828', label: 'Error' },
-  skipped:     { bg: '#f5f5f5', color: '#616161', label: 'Skipped' },
+const BADGE_CLASS = {
+  true:        'badge-green',
+  false:       'badge-orange',
+  asset:       'badge-blue',
+  liability:   'badge-red',
+  equity:      'badge-purple',
+  revenue:     'badge-green',
+  expense:     'badge-orange',
+  active:      'badge-green',
+  inactive:    'badge-gray',
+  draft:       'badge-blue',
+  matched:     'badge-green',
+  discrepancy: 'badge-orange',
+  approved:    'badge-purple',
+  paid:        'badge-teal',
+  disputed:    'badge-red',
+  void:        'badge-gray',
+  completed:   'badge-teal',
+  cancelled:   'badge-gray',
+  paused:      'badge-orange',
+  ok:          'badge-green',
+  error:       'badge-red',
+  skipped:     'badge-gray',
+  pending:     'badge-orange',
+};
+
+const STATUS_LABELS = {
+  true: 'Posted', false: 'Draft',
+  asset: 'Asset', liability: 'Liability', equity: 'Equity',
+  revenue: 'Revenue', expense: 'Expense',
+  active: 'Active', inactive: 'Inactive',
+  draft: 'Draft', matched: 'Matched', discrepancy: 'Discrepancy',
+  approved: 'Approved', paid: 'Paid', disputed: 'Disputed', void: 'Void',
+  completed: 'Completed', cancelled: 'Cancelled', paused: 'Paused',
+  ok: 'OK', error: 'Error', skipped: 'Skipped', pending: 'Pending',
 };
 
 function Badge({ value, label }) {
   const key = value === true ? true : value === false ? false : value;
-  const cfg = STATUS_COLORS[key] ?? { bg: '#f5f5f5', color: '#616161', label: label ?? String(value) };
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 20,
-      fontSize: 11,
-      fontWeight: 600,
-      background: cfg.bg,
-      color: cfg.color,
-      whiteSpace: 'nowrap',
-    }}>
-      {label ?? cfg.label}
-    </span>
-  );
+  const cls = BADGE_CLASS[key] ?? 'badge-gray';
+  const txt = STATUS_LABELS[key] ?? label ?? String(value);
+  return <span className={`badge ${cls}`}>{txt}</span>;
 }
 
 // ── Loading / empty states ─────────────────────────────────────────────────
@@ -90,34 +85,6 @@ function EmptyRow({ cols, message = 'No records found.' }) {
   );
 }
 
-// ── Tab bar ───────────────────────────────────────────────────────────────
-
-function TabBar({ tabs, active, onChange }) {
-  return (
-    <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(0,0,0,0.08)', marginBottom: 20 }}>
-      {tabs.map(t => (
-        <button
-          key={t.value}
-          onClick={() => onChange(t.value)}
-          style={{
-            padding: '10px 18px',
-            fontSize: 13,
-            fontWeight: active === t.value ? 700 : 500,
-            background: 'none',
-            border: 'none',
-            borderBottom: active === t.value ? '2px solid var(--navy, #1a2d4a)' : '2px solid transparent',
-            color: active === t.value ? 'var(--navy, #1a2d4a)' : 'rgba(0,0,0,0.5)',
-            cursor: 'pointer',
-            marginBottom: -1,
-            transition: 'all 0.12s',
-          }}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ── 1. Journal tab ─────────────────────────────────────────────────────────
 
@@ -277,18 +244,12 @@ function AccountsTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="filter-row">
           {['', 'asset', 'liability', 'equity', 'revenue', 'expense'].map(t => (
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
-              style={{
-                padding: '4px 12px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
-                border: '1px solid rgba(0,0,0,0.15)',
-                background: typeFilter === t ? 'var(--navy, #1a2d4a)' : '#fff',
-                color: typeFilter === t ? '#fff' : 'rgba(0,0,0,0.6)',
-                fontWeight: typeFilter === t ? 700 : 400,
-              }}
+              className={`btn btn-sm${typeFilter === t ? ' btn-primary' : ''}`}
             >
               {t ? t.charAt(0).toUpperCase() + t.slice(1) : 'All'}
             </button>
@@ -527,54 +488,32 @@ function PayablesTab() {
       .finally(() => setLoading(false));
   }, [statusFilter]);
 
-  const AP_STATUS_COLORS = {
-    draft: 'badge bg-azure-lt', matched: 'badge bg-success-lt',
-    discrepancy: 'badge bg-warning-lt', approved: 'badge bg-purple-lt',
-    paid: 'badge bg-success', disputed: 'badge bg-danger-lt', void: 'badge bg-secondary-lt',
-  };
-
-  const PO_STATUS = {
-    open: { bg: '#e3f2fd', color: '#1565c0' },
-    received: { bg: '#e8f5e9', color: '#2e7d32' },
-    invoiced: { bg: '#ede7f6', color: '#4527a0' },
-    closed: { bg: '#f5f5f5', color: '#616161' },
+  const PO_STATUS_CLASS = {
+    open:     'badge-blue',
+    received: 'badge-green',
+    invoiced: 'badge-purple',
+    closed:   'badge-gray',
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {['invoices', 'purchase-orders'].map(t => (
-          <button
-            key={t}
-            onClick={() => setSubTab(t)}
-            style={{
-              padding: '5px 14px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-              border: '1px solid rgba(0,0,0,0.15)',
-              background: subTab === t ? 'var(--navy, #1a2d4a)' : '#fff',
-              color: subTab === t ? '#fff' : 'rgba(0,0,0,0.6)',
-              fontWeight: subTab === t ? 700 : 400,
-            }}
-          >
-            {t === 'invoices' ? 'AP Invoices' : 'Purchase Orders'}
-          </button>
+      <div className="tabs">
+        {[['invoices', 'AP Invoices'], ['purchase-orders', 'Purchase Orders']].map(([t, label]) => (
+          <div key={t} className={`tab${subTab === t ? ' active' : ''}`} onClick={() => setSubTab(t)}>
+            {label}
+          </div>
         ))}
       </div>
 
       {subTab === 'invoices' && (
         <>
           {/* Status filter */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="filter-row">
             {['', 'draft', 'discrepancy', 'approved', 'paid', 'disputed', 'void'].map(s => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                style={{
-                  padding: '3px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer',
-                  border: '1px solid rgba(0,0,0,0.15)',
-                  background: statusFilter === s ? 'var(--navy, #1a2d4a)' : '#fff',
-                  color: statusFilter === s ? '#fff' : 'rgba(0,0,0,0.55)',
-                  fontWeight: statusFilter === s ? 700 : 400,
-                }}
+                className={`btn btn-sm${statusFilter === s ? ' btn-primary' : ''}`}
               >
                 {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
               </button>
@@ -619,11 +558,7 @@ function PayablesTab() {
                       <td><Badge value={inv.status} /></td>
                       <td>
                         {inv.match_status ? (
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
-                            background: inv.match_status === 'ok' ? '#e8f5e9' : inv.match_status === 'no_po' ? '#f5f5f5' : '#fff3e0',
-                            color: inv.match_status === 'ok' ? '#2e7d32' : inv.match_status === 'no_po' ? '#616161' : '#e65100',
-                          }}>
+                          <span className={`badge ${inv.match_status === 'ok' ? 'badge-green' : inv.match_status === 'no_po' ? 'badge-gray' : 'badge-orange'}`}>
                             {inv.match_status === 'ok' ? 'Matched' : inv.match_status === 'no_po' ? 'No PO' : 'Variance'}
                           </span>
                         ) : '—'}
@@ -668,30 +603,24 @@ function PayablesTab() {
                   <LoadingRow cols={6} />
                 ) : pos.length === 0 ? (
                   <EmptyRow cols={6} message="No purchase orders found." />
-                ) : pos.map(po => {
-                  const sc = PO_STATUS[po.status] ?? { bg: '#f5f5f5', color: '#616161' };
-                  return (
-                    <tr key={po.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
-                        PO-{po.po_number}
-                      </td>
-                      <td style={{ fontSize: 13 }}>{po.supplier_name ?? po.supplier ?? '—'}</td>
-                      <td style={{ fontSize: 12 }}>{fmtDate(po.issue_date)}</td>
-                      <td style={{ fontSize: 12 }}>{fmtDate(po.expected_delivery)}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
-                        {fmt(po.total_amount)}
-                      </td>
-                      <td>
-                        <span style={{
-                          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
-                          background: sc.bg, color: sc.color,
-                        }}>
-                          {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                ) : pos.map(po => (
+                  <tr key={po.id}>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                      PO-{po.po_number}
+                    </td>
+                    <td style={{ fontSize: 13 }}>{po.supplier_name ?? po.supplier ?? '—'}</td>
+                    <td style={{ fontSize: 12 }}>{fmtDate(po.issue_date)}</td>
+                    <td style={{ fontSize: 12 }}>{fmtDate(po.expected_delivery)}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                      {fmt(po.total_amount)}
+                    </td>
+                    <td>
+                      <span className={`badge ${PO_STATUS_CLASS[po.status] ?? 'badge-gray'}`}>
+                        {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -790,18 +719,12 @@ function PaymentPlansTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Status filters */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="filter-row">
         {['', 'active', 'completed', 'paused', 'cancelled'].map(s => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            style={{
-              padding: '3px 12px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
-              border: '1px solid rgba(0,0,0,0.15)',
-              background: statusFilter === s ? 'var(--navy, #1a2d4a)' : '#fff',
-              color: statusFilter === s ? '#fff' : 'rgba(0,0,0,0.55)',
-              fontWeight: statusFilter === s ? 700 : 400,
-            }}
+            className={`btn btn-sm${statusFilter === s ? ' btn-primary' : ''}`}
           >
             {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
           </button>
@@ -992,10 +915,7 @@ function SyncTab() {
                     {r.platform ?? r.config_platform ?? '—'}
                   </td>
                   <td>
-                    <span style={{
-                      fontSize: 11, fontWeight: 600,
-                      color: r.direction === 'push' ? '#1565c0' : '#4527a0',
-                    }}>
+                    <span className={`badge ${r.direction === 'push' ? 'badge-blue' : 'badge-purple'}`}>
                       {DIRECTION_LABELS[r.direction] ?? r.direction}
                     </span>
                   </td>
@@ -1044,23 +964,17 @@ function SurchargeRulesSummary() {
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+      <div className="stat-label" style={{ marginBottom: 8 }}>
         Surcharge Rules ({rules.length})
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {rules.map(r => (
-          <div key={r.id} style={{
-            padding: '6px 12px', borderRadius: 6, fontSize: 12,
-            background: r.is_active ? '#e3f2fd' : '#f5f5f5',
-            color: r.is_active ? '#1565c0' : '#9e9e9e',
-            border: '1px solid ' + (r.is_active ? 'rgba(21,101,192,0.2)' : 'rgba(0,0,0,0.1)'),
-          }}>
-            <span style={{ fontWeight: 600 }}>{r.name}</span>
+          <span key={r.id} className={`badge ${r.is_active ? 'badge-blue' : 'badge-gray'}`}>
+            {r.name}
             <span style={{ marginLeft: 6, opacity: 0.7 }}>
               {r.amount_type === 'percentage' ? `${r.amount}%` : fmt(r.amount)} · {r.trigger_type?.replace('_', ' ')}
             </span>
-            {!r.is_active && <span style={{ marginLeft: 6, fontSize: 10 }}>(inactive)</span>}
-          </div>
+          </span>
         ))}
       </div>
     </div>
@@ -1070,13 +984,13 @@ function SurchargeRulesSummary() {
 // ── Main screen ────────────────────────────────────────────────────────────
 
 const TABS = [
-  { value: 'journal',        label: 'Journal' },
-  { value: 'accounts',       label: 'Accounts' },
-  { value: 'cost-centres',   label: 'Cost Centres' },
-  { value: 'payables',       label: 'Payables' },
-  { value: 'suppliers',      label: 'Suppliers' },
-  { value: 'payment-plans',  label: 'Payment Plans' },
-  { value: 'sync',           label: 'Sync' },
+  ['journal',       'Journal'],
+  ['accounts',      'Accounts'],
+  ['cost-centres',  'Cost Centres'],
+  ['payables',      'Payables'],
+  ['suppliers',     'Suppliers'],
+  ['payment-plans', 'Payment Plans'],
+  ['sync',          'Sync'],
 ];
 
 export default function Accounting() {
@@ -1094,7 +1008,11 @@ export default function Accounting() {
         </div>
       </div>
 
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <div className="tabs">
+        {TABS.map(([id, label]) => (
+          <div key={id} className={`tab${tab === id ? ' active' : ''}`} onClick={() => setTab(id)}>{label}</div>
+        ))}
+      </div>
 
       {tab === 'journal'       && <JournalTab />}
       {tab === 'accounts'      && <AccountsTab />}

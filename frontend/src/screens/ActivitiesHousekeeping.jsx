@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
+import Ic from '../components/ui/Icon.jsx';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -93,18 +94,17 @@ function priorityBadge(p) {
 
 function Loading({ label = 'Loading…' }) {
   return (
-    <div style={{ padding: '48px 0', textAlign: 'center', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>
+    <div style={{ textAlign: 'center', padding: '32px', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>
       {label}
     </div>
   );
 }
 
-function Empty({ icon = '📭', title, subtitle }) {
+function Empty({ title, subtitle }) {
   return (
-    <div style={{ padding: '48px 0', textAlign: 'center' }}>
-      <div style={{ fontSize: 32, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(0,0,0,0.55)', marginBottom: 4 }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>{subtitle}</div>}
+    <div className="empty">
+      <div className="empty-title">{title}</div>
+      {subtitle && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 4 }}>{subtitle}</div>}
     </div>
   );
 }
@@ -119,46 +119,27 @@ function Err({ msg = 'Failed to load data.' }) {
 
 function SecHdr({ title, children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'rgba(0,0,0,0.7)' }}>{title}</div>
-      <div style={{ display: 'flex', gap: 8 }}>{children}</div>
+    <div className="sec-hdr">
+      <span className="sec-hdr-title">{title}</span>
+      {children && <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{children}</div>}
     </div>
   );
 }
 
 // ─── Shared: Drawer shell ───────────────────────────────────────────────────
 
-function Drawer({ open, onClose, title, width = 480, children }) {
+function Drawer({ open, onClose, title, children }) {
   if (!open) return null;
   return (
-    <>
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 200,
-        }}
-      />
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width,
-        background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
-        zIndex: 201, display: 'flex', flexDirection: 'column', overflowY: 'auto',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid rgba(0,0,0,0.08)',
-          position: 'sticky', top: 0, background: '#fff', zIndex: 1,
-        }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{title}</div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'rgba(0,0,0,0.4)', lineHeight: 1 }}
-          >
-            ×
-          </button>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <div className="modal-hdr">
+          <span className="modal-title">{title}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13} /></button>
         </div>
-        <div style={{ padding: 20, flex: 1 }}>{children}</div>
+        <div style={{ padding: 20 }}>{children}</div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -252,20 +233,22 @@ function ActivityTypesTab() {
     <div>
       <SecHdr title="Activity Catalogue">
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ New Activity'}
+          {showForm ? 'Cancel' : <><Ic n="plus" s={11} />New Activity</>}
         </button>
       </SecHdr>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div className="filter-row">
         <input
-          style={{ ...inputStyle, width: 220 }}
+          className="form-control form-control-sm"
+          style={{ width: 220 }}
           placeholder="Search activities…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <select
-          style={{ ...inputStyle, width: 160 }}
+          className="form-control form-control-sm"
+          style={{ width: 160 }}
           value={catFilter}
           onChange={e => setCatFilter(e.target.value)}
         >
@@ -321,7 +304,7 @@ function ActivityTypesTab() {
       )}
 
       {loading ? <Loading /> : error ? <Err msg={error} /> : filtered.length === 0 ? (
-        <Empty icon="🏄" title="No activities found" subtitle="Add your first activity to start taking bookings." />
+        <Empty title="No activities found" subtitle="Add your first activity to start taking bookings." />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
           {filtered.map(a => (
@@ -431,19 +414,20 @@ function ActivityBookingsTab() {
     <div>
       <SecHdr title="Activity Bookings">
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ New Booking'}
+          {showForm ? 'Cancel' : <><Ic n="plus" s={11} />New Booking</>}
         </button>
       </SecHdr>
 
       {/* Controls */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="filter-row">
         <input
           type="date"
-          style={{ ...inputStyle, width: 160 }}
+          className="form-control form-control-sm"
+          style={{ width: 160 }}
           value={dateFilter}
           onChange={e => setDateFilter(e.target.value)}
         />
-        <select style={{ ...inputStyle, width: 150 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className="form-control form-control-sm" style={{ width: 150 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All statuses</option>
           <option value="confirmed">Confirmed</option>
           <option value="completed">Completed</option>
@@ -451,19 +435,11 @@ function ActivityBookingsTab() {
           <option value="no_show">No Show</option>
         </select>
         {/* View toggle */}
-        <div style={{ display: 'flex', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 6, overflow: 'hidden', marginLeft: 'auto' }}>
+        <div className="tabs" style={{ marginLeft: 'auto' }}>
           {['calendar', 'list'].map(v => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              style={{
-                padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                background: view === v ? 'var(--navy, #1a2d4a)' : '#fff',
-                color: view === v ? '#fff' : 'rgba(0,0,0,0.55)',
-              }}
-            >
+            <div key={v} className={`tab${view === v ? ' active' : ''}`} onClick={() => setView(v)}>
               {v === 'calendar' ? 'Calendar' : 'List'}
-            </button>
+            </div>
           ))}
         </div>
       </div>
@@ -571,13 +547,13 @@ function ActivityBookingsTab() {
                 ))}
               </div>
               {bookings.length === 0 && (
-                <Empty icon="📅" title="No bookings this week" subtitle="Use the date picker to navigate, or create a new booking above." />
+                <Empty title="No bookings this week" subtitle="Use the date picker to navigate, or create a new booking above." />
               )}
             </div>
           ) : (
             // List view
             bookings.length === 0 ? (
-              <Empty icon="📋" title="No bookings found" subtitle="Adjust filters or create a new booking." />
+              <Empty title="No bookings found" subtitle="Adjust filters or create a new booking." />
             ) : (
               <div className="card" style={{ overflowX: 'auto' }}>
                 <table className="tbl" style={{ width: '100%' }}>
@@ -760,7 +736,7 @@ function ActivityResourcesTab() {
     <div>
       <SecHdr title="Resource Requirements">
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ Add Requirement'}
+          {showForm ? 'Cancel' : <><Ic n="plus" s={11} />Add Requirement</>}
         </button>
       </SecHdr>
 
@@ -796,7 +772,7 @@ function ActivityResourcesTab() {
       )}
 
       {loading ? <Loading /> : error ? <Err msg={error} /> : resources.length === 0 ? (
-        <Empty icon="🔧" title="No resource requirements" subtitle="Define what staff and equipment each activity requires." />
+        <Empty title="No resource requirements" subtitle="Define what staff and equipment each activity requires." />
       ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <table className="tbl" style={{ width: '100%' }}>
@@ -840,7 +816,7 @@ function ActivityScheduleTab() {
 
   if (loading) return <Loading />;
   if (error) return <Err msg={error} />;
-  if (schedule.length === 0) return <Empty icon="🗓️" title="No scheduled sessions" subtitle="Sessions appear here once activity bookings are confirmed." />;
+  if (schedule.length === 0) return <Empty title="No scheduled sessions" subtitle="Sessions appear here once activity bookings are confirmed." />;
 
   return (
     <div>
@@ -959,13 +935,13 @@ function HousekeepingTasksTab({ onSelectTask }) {
     <div>
       <SecHdr title="Housekeeping Tasks">
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ New Task'}
+          {showForm ? 'Cancel' : <><Ic n="plus" s={11} />New Task</>}
         </button>
       </SecHdr>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <select style={{ ...inputStyle, width: 150 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+      <div className="filter-row">
+        <select className="form-control form-control-sm" style={{ width: 150 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All statuses</option>
           <option value="dirty">Dirty</option>
           <option value="in_progress">In Progress</option>
@@ -973,13 +949,13 @@ function HousekeepingTasksTab({ onSelectTask }) {
           <option value="clean">Clean</option>
           <option value="ready_guest">Ready for Guest</option>
         </select>
-        <select style={{ ...inputStyle, width: 150 }} value={unitFilter} onChange={e => setUnitFilter(e.target.value)}>
+        <select className="form-control form-control-sm" style={{ width: 150 }} value={unitFilter} onChange={e => setUnitFilter(e.target.value)}>
           <option value="">All unit types</option>
           <option value="vessel">Vessel</option>
           <option value="accommodation">Accommodation</option>
           <option value="facility">Facility</option>
         </select>
-        <input type="date" style={{ ...inputStyle, width: 160 }} value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
+        <input type="date" className="form-control form-control-sm" style={{ width: 160 }} value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
       </div>
 
       {/* New task form */}
@@ -1021,7 +997,7 @@ function HousekeepingTasksTab({ onSelectTask }) {
       )}
 
       {loading ? <Loading /> : error ? <Err msg={error} /> : tasks.length === 0 ? (
-        <Empty icon="🧹" title="No tasks found" subtitle="All clear — or adjust filters to see more." />
+        <Empty title="No tasks found" subtitle="All clear — or adjust filters to see more." />
       ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <table className="tbl" style={{ width: '100%' }}>
@@ -1053,7 +1029,7 @@ function HousekeepingTasksTab({ onSelectTask }) {
                   >
                     <td style={{ fontWeight: 600 }}>
                       {t.unit_label}
-                      {isDelayed && <span style={{ marginLeft: 6, fontSize: 10, color: '#e67700', fontWeight: 700 }}>⚠ Due soon</span>}
+                      {isDelayed && <span style={{ marginLeft: 6, fontSize: 10, color: '#e67700', fontWeight: 700 }}><Ic n="alert-circle" s={10} /> Due soon</span>}
                     </td>
                     <td>
                       <span className="badge badge-gray" style={{ fontSize: 10 }}>{t.unit_type}</span>
@@ -1136,34 +1112,25 @@ function HousekeepingMatrixTab({ onSelectTaskId }) {
   return (
     <div>
       <SecHdr title="Housekeeping Matrix">
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <label style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>From</label>
-          <input type="date" style={{ ...inputStyle, width: 150 }} value={fromDate} onChange={e => setFromDate(e.target.value)} />
-        </div>
+        <label style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>From</label>
+        <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={fromDate} onChange={e => setFromDate(e.target.value)} />
       </SecHdr>
 
       {/* Summary chips */}
       {matrix && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          {[
-            { key: 'dirty', label: 'Dirty', bg: '#ffe3e3', text: '#c92a2a' },
-            { key: 'in_progress', label: 'In Progress', bg: '#fff3bf', text: '#e67700' },
-            { key: 'ready_inspection', label: 'Inspection', bg: '#d0ebff', text: '#1864ab' },
-            { key: 'clean', label: 'Clean', bg: '#c3fae8', text: '#0b7a6a' },
-            { key: 'ready_guest', label: 'Ready', bg: '#d3f9d8', text: '#2b8a3e' },
-          ].map(chip => (
-            <div key={chip.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: chip.bg }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: chip.text }}>{counts[chip.key] ?? 0}</span>
-              <span style={{ fontSize: 11, color: chip.text }}>{chip.label}</span>
-            </div>
-          ))}
+        <div className="filter-row" style={{ marginBottom: 16 }}>
+          <span className="badge badge-red">{counts['dirty'] ?? 0} Dirty</span>
+          <span className="badge badge-orange">{counts['in_progress'] ?? 0} In Progress</span>
+          <span className="badge badge-blue">{counts['ready_inspection'] ?? 0} Inspection</span>
+          <span className="badge badge-teal">{counts['clean'] ?? 0} Clean</span>
+          <span className="badge badge-green">{counts['ready_guest'] ?? 0} Ready</span>
         </div>
       )}
 
       {loading ? <Loading /> : error ? <Err msg={error} /> : !matrix ? (
-        <Empty icon="📊" title="Matrix data not available" subtitle="The housekeeping matrix endpoint will be available once the backend is deployed." />
+        <Empty title="Matrix data not available" subtitle="The housekeeping matrix endpoint will be available once the backend is deployed." />
       ) : matrix.units.length === 0 ? (
-        <Empty icon="✅" title="No units in range" subtitle="No vessels or accommodation units with tasks in this period." />
+        <Empty title="No units in range" subtitle="No vessels or accommodation units with tasks in this period." />
       ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 600 }}>
@@ -1180,8 +1147,12 @@ function HousekeepingMatrixTab({ onSelectTaskId }) {
             {matrix.units.map(unit => (
               <div key={unit.unit_id} style={{ display: 'grid', gridTemplateColumns: `180px repeat(${dates.length}, 1fr)`, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                 <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
-                    {unit.unit_type === 'vessel' ? '⛵' : unit.unit_type === 'accommodation' ? '🏠' : '🏢'}
+                  <span style={{ color: 'rgba(0,0,0,0.35)' }}>
+                    {unit.unit_type === 'vessel'
+                      ? <Ic n="home" s={12} />
+                      : unit.unit_type === 'accommodation'
+                        ? <Ic n="home" s={12} />
+                        : <Ic n="package" s={12} />}
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{unit.unit_label}</span>
                 </div>
@@ -1212,7 +1183,7 @@ function HousekeepingMatrixTab({ onSelectTaskId }) {
                       {cell.assigned_to && (
                         <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>{cell.assigned_to}</div>
                       )}
-                      {isDelayed && <div style={{ fontSize: 9, color: '#e67700', fontWeight: 700 }}>⚠ Due soon</div>}
+                      {isDelayed && <div style={{ fontSize: 9, color: '#e67700', fontWeight: 700 }}><Ic n="alert-circle" s={9} /> Due soon</div>}
                     </div>
                   );
                 })}
@@ -1264,7 +1235,7 @@ function CleaningSchedulesTab() {
     <div>
       <SecHdr title="Recurring Cleaning Schedules">
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ New Schedule'}
+          {showForm ? 'Cancel' : <><Ic n="plus" s={11} />New Schedule</>}
         </button>
       </SecHdr>
 
@@ -1298,7 +1269,7 @@ function CleaningSchedulesTab() {
       )}
 
       {loading ? <Loading /> : error ? <Err msg={error} /> : schedules.length === 0 ? (
-        <Empty icon="🔁" title="No recurring schedules" subtitle="Set up mid-stay recurring cleaning for vessels and accommodation." />
+        <Empty title="No recurring schedules" subtitle="Set up mid-stay recurring cleaning for vessels and accommodation." />
       ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <table className="tbl" style={{ width: '100%' }}>
@@ -1371,7 +1342,7 @@ function InspectionChecklistsTab() {
     <div>
       <SecHdr title="Inspection Checklist Templates">
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ Add Item'}
+          {showForm ? 'Cancel' : <><Ic n="plus" s={11} />Add Item</>}
         </button>
       </SecHdr>
 
@@ -1402,7 +1373,7 @@ function InspectionChecklistsTab() {
       )}
 
       {loading ? <Loading /> : error ? <Err msg={error} /> : checklists.length === 0 ? (
-        <Empty icon="☑️" title="No checklist templates" subtitle="Add items for each unit type — they'll be pre-loaded when tasks are assigned." />
+        <Empty title="No checklist templates" subtitle="Add items for each unit type — they'll be pre-loaded when tasks are assigned." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {Object.entries(grouped).map(([unitType, items]) => (
@@ -1441,7 +1412,7 @@ function HousekeepingLogTab() {
 
   if (loading) return <Loading />;
   if (error) return <Err msg={error} />;
-  if (log.length === 0) return <Empty icon="📜" title="No log entries" subtitle="Completed housekeeping tasks will appear here." />;
+  if (log.length === 0) return <Empty title="No log entries" subtitle="Completed housekeeping tasks will appear here." />;
 
   return (
     <div>
@@ -1716,27 +1687,11 @@ function HousekeepingSection() {
 
 function SubTabBar({ tabs, active, onChange }) {
   return (
-    <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid rgba(0,0,0,0.08)', marginBottom: 0 }}>
+    <div className="tabs">
       {tabs.map(t => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          style={{
-            padding: '8px 16px',
-            fontSize: 13,
-            fontWeight: active === t.key ? 700 : 500,
-            color: active === t.key ? 'var(--navy, #1a2d4a)' : 'rgba(0,0,0,0.45)',
-            background: 'none',
-            border: 'none',
-            borderBottom: active === t.key ? '2px solid var(--navy, #1a2d4a)' : '2px solid transparent',
-            cursor: 'pointer',
-            marginBottom: -2,
-            transition: 'all 0.12s',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <div key={t.key} className={`tab${active === t.key ? ' active' : ''}`} onClick={() => onChange(t.key)}>
           {t.label}
-        </button>
+        </div>
       ))}
     </div>
   );
@@ -1757,25 +1712,11 @@ export default function ActivitiesHousekeeping() {
   return (
     <div>
       {/* Top-level tab bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
+      <div className="tabs">
         {TOP_TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTopTab(t.key)}
-            style={{
-              padding: '8px 22px',
-              fontSize: 14,
-              fontWeight: topTab === t.key ? 700 : 500,
-              background: topTab === t.key ? 'var(--navy, #1a2d4a)' : 'rgba(0,0,0,0.04)',
-              color: topTab === t.key ? '#fff' : 'rgba(0,0,0,0.55)',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              transition: 'all 0.12s',
-            }}
-          >
+          <div key={t.key} className={`tab${topTab === t.key ? ' active' : ''}`} onClick={() => setTopTab(t.key)}>
             {t.label}
-          </button>
+          </div>
         ))}
       </div>
 

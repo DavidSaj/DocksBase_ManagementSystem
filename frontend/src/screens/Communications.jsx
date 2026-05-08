@@ -1,38 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
+import Ic from '../components/ui/Icon.jsx';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const CHANNEL_LABELS = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', task: 'Task' };
-const CHANNEL_ICONS  = { email: '✉', sms: '💬', whatsapp: '📱', task: '✅' };
+const CHANNEL_ICONS  = { email: 'mail', sms: 'message-square', whatsapp: 'smartphone', task: 'check-circle' };
 
-const STATUS_COLORS = {
-  // message send statuses
-  queued:    { bg: 'rgba(0,0,0,0.07)',  text: 'rgba(0,0,0,0.55)' },
-  sent:      { bg: 'rgba(26,158,80,0.12)', text: '#1a7040' },
-  delivered: { bg: 'rgba(26,158,80,0.18)', text: '#14572e' },
-  read:      { bg: 'rgba(26,100,180,0.12)', text: '#1a4a8a' },
-  failed:    { bg: 'rgba(200,40,40,0.12)',  text: '#8a1a1a' },
-  received:  { bg: 'rgba(140,80,220,0.12)', text: '#5a2090' },
-  // journey statuses
-  active:    { bg: 'rgba(26,158,80,0.12)', text: '#1a7040' },
-  inactive:  { bg: 'rgba(0,0,0,0.07)',  text: 'rgba(0,0,0,0.45)' },
-  completed: { bg: 'rgba(26,100,180,0.12)', text: '#1a4a8a' },
-  cancelled: { bg: 'rgba(0,0,0,0.07)',  text: 'rgba(0,0,0,0.38)' },
-  // template channel badges
-  email:     { bg: 'rgba(26,100,180,0.1)', text: '#1a4a8a' },
-  sms:       { bg: 'rgba(26,158,80,0.1)',  text: '#1a6040' },
-  whatsapp:  { bg: 'rgba(37,211,102,0.15)', text: '#1a6030' },
+const STATUS_CLASS = {
+  sent:      'badge-green',
+  delivered: 'badge-teal',
+  failed:    'badge-red',
+  queued:    'badge-gray',
+  received:  'badge-purple',
+  active:    'badge-green',
+  inactive:  'badge-gray',
+  completed: 'badge-blue',
+  email:     'badge-blue',
+  sms:       'badge-green',
+  whatsapp:  'badge-teal',
 };
 
 function StatusBadge({ status, label }) {
-  const s = STATUS_COLORS[status] || STATUS_COLORS.queued;
   return (
-    <span style={{
-      display: 'inline-block', fontSize: 11, fontWeight: 600,
-      padding: '2px 8px', borderRadius: 10,
-      background: s.bg, color: s.text, textTransform: 'capitalize', letterSpacing: '0.3px',
-    }}>
+    <span className={`badge ${STATUS_CLASS[status] ?? 'badge-gray'}`}>
       {label || status}
     </span>
   );
@@ -41,7 +32,7 @@ function StatusBadge({ status, label }) {
 function EmptyState({ icon, title, subtitle }) {
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px', color: 'rgba(0,0,0,0.38)' }}>
-      <div style={{ fontSize: 32, marginBottom: 12 }}>{icon}</div>
+      <div style={{ marginBottom: 12 }}><Ic n={icon} s={28} c="rgba(0,0,0,0.2)"/></div>
       <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 6 }}>{title}</div>
       {subtitle && <div style={{ fontSize: 12 }}>{subtitle}</div>}
     </div>
@@ -60,8 +51,8 @@ function LoadingRow({ cols }) {
 
 function SectionHeader({ title, action }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{title}</h3>
+    <div className="sec-hdr">
+      <span className="sec-hdr-title">{title}</span>
       {action}
     </div>
   );
@@ -192,7 +183,7 @@ function TemplatesTab() {
               {!loading && templates.length === 0 && (
                 <tr>
                   <td colSpan={4}>
-                    <EmptyState icon="✉" title="No templates yet" subtitle="Create your first message template above." />
+                    <EmptyState icon="mail" title="No templates yet" subtitle="Create your first message template above." />
                   </td>
                 </tr>
               )}
@@ -200,7 +191,7 @@ function TemplatesTab() {
                 <tr key={t.id}>
                   <td style={{ fontWeight: 600 }}>{t.name}</td>
                   <td>
-                    <StatusBadge status={t.channel} label={`${CHANNEL_ICONS[t.channel] || ''} ${CHANNEL_LABELS[t.channel] || t.channel}`} />
+                    <StatusBadge status={t.channel} label={<><Ic n={CHANNEL_ICONS[t.channel]} s={13}/> {CHANNEL_LABELS[t.channel] || t.channel}</>} />
                   </td>
                   <td style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>{t.subject || '—'}</td>
                   <td style={{ color: 'rgba(0,0,0,0.38)', fontSize: 12 }}>{fmtDate(t.updated_at)}</td>
@@ -259,7 +250,7 @@ function JourneyStepsPanel({ journeyId, onClose }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
         {loading && <div style={{ color: 'rgba(0,0,0,0.38)', fontSize: 13 }}>Loading steps…</div>}
         {!loading && steps.length === 0 && (
-          <EmptyState icon="📋" title="No steps" subtitle="This journey has no steps configured yet." />
+          <EmptyState icon="clipboard" title="No steps" subtitle="This journey has no steps configured yet." />
         )}
         {!loading && steps.map((step, idx) => (
           <div key={step.id} style={{
@@ -274,8 +265,11 @@ function JourneyStepsPanel({ journeyId, onClose }) {
               }}>
                 {step.order}
               </span>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>
-                {step.step_type === 'gate' ? '⏳ Gate' : (CHANNEL_ICONS[step.channel] || '')} {CHANNEL_LABELS[step.channel] || step.channel}
+              <span style={{ fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {step.step_type === 'gate'
+                  ? <><Ic n="refresh-cw" s={13}/> Gate</>
+                  : <><Ic n={CHANNEL_ICONS[step.channel]} s={13}/> {CHANNEL_LABELS[step.channel] || step.channel}</>
+                }
               </span>
               <span style={{ marginLeft: 'auto', fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
                 +{step.delay_value} {step.delay_unit}
@@ -428,7 +422,7 @@ function JourneysTab() {
               {!loading && journeys.length === 0 && (
                 <tr>
                   <td colSpan={5}>
-                    <EmptyState icon="🔄" title="No journeys yet" subtitle="Create an automation journey to send timed, multi-channel messages." />
+                    <EmptyState icon="send" title="No journeys yet" subtitle="Create an automation journey to send timed, multi-channel messages." />
                   </td>
                 </tr>
               )}
@@ -587,7 +581,7 @@ function SegmentsTab() {
               {!loading && segments.length === 0 && (
                 <tr>
                   <td colSpan={4}>
-                    <EmptyState icon="👥" title="No segments yet" subtitle="Create audience segments to target specific groups of members." />
+                    <EmptyState icon="users" title="No segments yet" subtitle="Create audience segments to target specific groups of members." />
                   </td>
                 </tr>
               )}
@@ -715,7 +709,7 @@ function DeliveryLogTab() {
                 <tr>
                   <td colSpan={6}>
                     <EmptyState
-                      icon="📬"
+                      icon="message-square"
                       title="No messages found"
                       subtitle={channelFilter || statusFilter ? 'Try adjusting your filters.' : 'No messages have been sent yet.'}
                     />
@@ -727,7 +721,7 @@ function DeliveryLogTab() {
                   <td>
                     <StatusBadge
                       status={s.channel}
-                      label={`${CHANNEL_ICONS[s.channel] || ''} ${CHANNEL_LABELS[s.channel] || s.channel}`}
+                      label={<><Ic n={CHANNEL_ICONS[s.channel]} s={13}/> {CHANNEL_LABELS[s.channel] || s.channel}</>}
                     />
                   </td>
                   <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
