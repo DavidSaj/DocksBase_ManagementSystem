@@ -55,6 +55,17 @@ import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
 import Channels from './screens/Channels.jsx';
+import ActivitiesHousekeeping from './screens/ActivitiesHousekeeping.jsx';
+import RevenueIntelligence from './screens/RevenueIntelligence.jsx';
+import BerthIntelligence from './screens/BerthIntelligence.jsx';
+import Loyalty from './screens/Loyalty.jsx';
+import Accounting from './screens/Accounting.jsx';
+import Utilities from './screens/Utilities.jsx';
+import Communications from './screens/Communications.jsx';
+import Charter from './screens/Charter.jsx';
+import Tenants from './screens/Tenants.jsx';
+import AccessControl from './screens/AccessControl.jsx';
+import Sustainability from './screens/Sustainability.jsx';
 
 
 const SCREEN_MAP = {
@@ -66,6 +77,17 @@ const SCREEN_MAP = {
   infrastructure: Infrastructure,
   'service-catalog': ServiceCatalogScreen,
   channels: Channels,
+  activities: ActivitiesHousekeeping,
+  'revenue-intelligence': RevenueIntelligence,
+  'berth-intelligence': BerthIntelligence,
+  loyalty: Loyalty,
+  accounting: Accounting,
+  utilities: Utilities,
+  communications: Communications,
+  charter: Charter,
+  tenants: Tenants,
+  'access-control': AccessControl,
+  sustainability: Sustainability,
 };
 
 function ComingSoon() {
@@ -123,7 +145,7 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/signup"       element={<Signup />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
         <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />

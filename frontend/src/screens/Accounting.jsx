@@ -1,0 +1,1108 @@
+import { useState, useEffect, useCallback } from 'react';
+import api from '../api.js';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmt(val, currency = '') {
+  if (val == null) return '—';
+  const num = parseFloat(val);
+  if (isNaN(num)) return val;
+  const formatted = num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return currency ? `${currency} ${formatted}` : formatted;
+}
+
+function fmtDate(val) {
+  if (!val) return '—';
+  return new Date(val).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// ── Status badge ──────────────────────────────────────────────────────────
+
+const STATUS_COLORS = {
+  // Journal
+  true: { bg: '#e8f5e9', color: '#2e7d32', label: 'Posted' },
+  false: { bg: '#fff3e0', color: '#e65100', label: 'Draft' },
+  // Accounts
+  asset:     { bg: '#e3f2fd', color: '#1565c0', label: 'Asset' },
+  liability: { bg: '#fce4ec', color: '#c62828', label: 'Liability' },
+  equity:    { bg: '#f3e5f5', color: '#6a1b9a', label: 'Equity' },
+  revenue:   { bg: '#e8f5e9', color: '#2e7d32', label: 'Revenue' },
+  expense:   { bg: '#fff3e0', color: '#e65100', label: 'Expense' },
+  // Cost centres
+  active:    { bg: '#e8f5e9', color: '#2e7d32', label: 'Active' },
+  inactive:  { bg: '#f5f5f5', color: '#616161', label: 'Inactive' },
+  // AP Invoices
+  draft:       { bg: '#e3f2fd', color: '#1565c0', label: 'Draft' },
+  matched:     { bg: '#e8f5e9', color: '#2e7d32', label: 'Matched' },
+  discrepancy: { bg: '#fff3e0', color: '#e65100', label: 'Discrepancy' },
+  approved:    { bg: '#ede7f6', color: '#4527a0', label: 'Approved' },
+  paid:        { bg: '#e8f5e9', color: '#1b5e20', label: 'Paid' },
+  disputed:    { bg: '#fce4ec', color: '#c62828', label: 'Disputed' },
+  void:        { bg: '#f5f5f5', color: '#616161', label: 'Void' },
+  // Payment plans
+  completed:   { bg: '#e8f5e9', color: '#2e7d32', label: 'Completed' },
+  cancelled:   { bg: '#f5f5f5', color: '#616161', label: 'Cancelled' },
+  paused:      { bg: '#fff3e0', color: '#e65100', label: 'Paused' },
+  // Sync
+  ok:          { bg: '#e8f5e9', color: '#2e7d32', label: 'OK' },
+  error:       { bg: '#fce4ec', color: '#c62828', label: 'Error' },
+  skipped:     { bg: '#f5f5f5', color: '#616161', label: 'Skipped' },
+};
+
+function Badge({ value, label }) {
+  const key = value === true ? true : value === false ? false : value;
+  const cfg = STATUS_COLORS[key] ?? { bg: '#f5f5f5', color: '#616161', label: label ?? String(value) };
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '2px 8px',
+      borderRadius: 20,
+      fontSize: 11,
+      fontWeight: 600,
+      background: cfg.bg,
+      color: cfg.color,
+      whiteSpace: 'nowrap',
+    }}>
+      {label ?? cfg.label}
+    </span>
+  );
+}
+
+// ── Loading / empty states ─────────────────────────────────────────────────
+
+function LoadingRow({ cols }) {
+  return (
+    <tr>
+      <td colSpan={cols} style={{ textAlign: 'center', padding: '32px 16px', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>
+        Loading…
+      </td>
+    </tr>
+  );
+}
+
+function EmptyRow({ cols, message = 'No records found.' }) {
+  return (
+    <tr>
+      <td colSpan={cols} style={{ textAlign: 'center', padding: '32px 16px', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>
+        {message}
+      </td>
+    </tr>
+  );
+}
+
+// ── Tab bar ───────────────────────────────────────────────────────────────
+
+function TabBar({ tabs, active, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(0,0,0,0.08)', marginBottom: 20 }}>
+      {tabs.map(t => (
+        <button
+          key={t.value}
+          onClick={() => onChange(t.value)}
+          style={{
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: active === t.value ? 700 : 500,
+            background: 'none',
+            border: 'none',
+            borderBottom: active === t.value ? '2px solid var(--navy, #1a2d4a)' : '2px solid transparent',
+            color: active === t.value ? 'var(--navy, #1a2d4a)' : 'rgba(0,0,0,0.5)',
+            cursor: 'pointer',
+            marginBottom: -1,
+            transition: 'all 0.12s',
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── 1. Journal tab ─────────────────────────────────────────────────────────
+
+function JournalTab() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sourceType, setSourceType] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (sourceType) params.source_type = sourceType;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      const { data } = await api.get('/journal-entries/', { params });
+      setEntries(data.results ?? data);
+    } catch {
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [sourceType, dateFrom, dateTo]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const SOURCE_LABELS = {
+    invoice: 'Invoice', payment: 'Payment', credit_note: 'Credit Note',
+    deferred_recognition: 'Deferred Recognition', ap_invoice: 'AP Invoice',
+    ap_payment: 'AP Payment', manual: 'Manual Journal', fx_revaluation: 'FX Revaluation',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Filters */}
+      <div className="card">
+        <div className="card-body" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 160px' }}>
+            <label className="form-label" style={{ fontSize: 11 }}>Source Type</label>
+            <select
+              className="form-control form-control-sm"
+              value={sourceType}
+              onChange={e => setSourceType(e.target.value)}
+            >
+              <option value="">All types</option>
+              {Object.entries(SOURCE_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: '1 1 140px' }}>
+            <label className="form-label" style={{ fontSize: 11 }}>Date From</label>
+            <input
+              type="date" className="form-control form-control-sm"
+              value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div style={{ flex: '1 1 140px' }}>
+            <label className="form-label" style={{ fontSize: 11 }}>Date To</label>
+            <input
+              type="date" className="form-control form-control-sm"
+              value={dateTo} onChange={e => setDateTo(e.target.value)}
+            />
+          </div>
+          <div>
+            <button className="btn btn-sm" style={{ background: 'var(--navy, #1a2d4a)', color: '#fff' }} onClick={load}>
+              Filter
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Journal Entries</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>General ledger — double-entry</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-vcenter table-hover card-table">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Description</th>
+                <th>Currency</th>
+                <th>FX Rate</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow cols={7} />
+              ) : entries.length === 0 ? (
+                <EmptyRow cols={7} message="No journal entries found." />
+              ) : entries.map(je => (
+                <tr key={je.id}>
+                  <td style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
+                    {je.reference || `JE-${je.id}`}
+                  </td>
+                  <td style={{ fontSize: 12 }}>{fmtDate(je.entry_date)}</td>
+                  <td><Badge value={je.source_type} label={SOURCE_LABELS[je.source_type] ?? je.source_type} /></td>
+                  <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', maxWidth: 260 }}>
+                    {je.description || '—'}
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{je.currency}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{je.fx_rate === '1.000000' || je.fx_rate === 1 ? '1.00' : je.fx_rate}</td>
+                  <td><Badge value={je.is_posted} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 2. Accounts (Chart of Accounts) tab ──────────────────────────────────
+
+function AccountsTab() {
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ code: '', name: '', account_type: 'revenue' });
+  const [saving, setSaving] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('');
+
+  useEffect(() => {
+    api.get('/accounts/')
+      .then(r => setAccounts(r.data.results ?? r.data))
+      .catch(() => setAccounts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.post('/accounts/', form);
+      setAccounts(prev => [data, ...prev]);
+      setForm({ code: '', name: '', account_type: 'revenue' });
+      setShowForm(false);
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const filtered = typeFilter ? accounts.filter(a => a.account_type === typeFilter) : accounts;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['', 'asset', 'liability', 'equity', 'revenue', 'expense'].map(t => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              style={{
+                padding: '4px 12px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
+                border: '1px solid rgba(0,0,0,0.15)',
+                background: typeFilter === t ? 'var(--navy, #1a2d4a)' : '#fff',
+                color: typeFilter === t ? '#fff' : 'rgba(0,0,0,0.6)',
+                fontWeight: typeFilter === t ? 700 : 400,
+              }}
+            >
+              {t ? t.charAt(0).toUpperCase() + t.slice(1) : 'All'}
+            </button>
+          ))}
+        </div>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={() => setShowForm(v => !v)}
+        >
+          {showForm ? 'Cancel' : '+ Add Account'}
+        </button>
+      </div>
+
+      {/* Inline create form */}
+      {showForm && (
+        <div className="card">
+          <div className="card-header"><div className="card-header-title">New Account</div></div>
+          <div className="card-body">
+            <form onSubmit={handleCreate} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '0 0 100px' }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Code</label>
+                <input
+                  className="form-control form-control-sm"
+                  placeholder="4100"
+                  value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                  required
+                />
+              </div>
+              <div style={{ flex: '1 1 200px' }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Name</label>
+                <input
+                  className="form-control form-control-sm"
+                  placeholder="Berth Revenue"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div style={{ flex: '0 0 150px' }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Type</label>
+                <select
+                  className="form-control form-control-sm"
+                  value={form.account_type}
+                  onChange={e => setForm(f => ({ ...f, account_type: e.target.value }))}
+                >
+                  {['asset', 'liability', 'equity', 'revenue', 'expense'].map(t => (
+                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              <button className="btn btn-sm btn-primary" type="submit" disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Chart of Accounts</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{accounts.length} accounts</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-vcenter table-hover card-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Cost Centre</th>
+                <th>External Code</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow cols={6} />
+              ) : filtered.length === 0 ? (
+                <EmptyRow cols={6} message="No accounts found." />
+              ) : filtered.map(a => (
+                <tr key={a.id}>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>{a.code}</td>
+                  <td style={{ fontSize: 13 }}>{a.name}</td>
+                  <td><Badge value={a.account_type} /></td>
+                  <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+                    {a.cost_centre_name ?? a.cost_centre ?? '—'}
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                    {a.external_code || '—'}
+                  </td>
+                  <td><Badge value={a.is_active ? 'active' : 'inactive'} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 3. Cost Centres tab ───────────────────────────────────────────────────
+
+function CostCentresTab() {
+  const [centres, setCentres] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ code: '', name: '' });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get('/cost-centres/')
+      .then(r => setCentres(r.data.results ?? r.data))
+      .catch(() => setCentres([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.post('/cost-centres/', form);
+      setCentres(prev => [...prev, data]);
+      setForm({ code: '', name: '' });
+      setShowForm(false);
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-sm btn-primary" onClick={() => setShowForm(v => !v)}>
+          {showForm ? 'Cancel' : '+ Add Cost Centre'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="card">
+          <div className="card-header"><div className="card-header-title">New Cost Centre</div></div>
+          <div className="card-body">
+            <form onSubmit={handleCreate} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '0 0 100px' }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Code</label>
+                <input
+                  className="form-control form-control-sm"
+                  placeholder="FUEL"
+                  value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                  required
+                />
+              </div>
+              <div style={{ flex: '1 1 200px' }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Name</label>
+                <input
+                  className="form-control form-control-sm"
+                  placeholder="Fuel Dock"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <button className="btn btn-sm btn-primary" type="submit" disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Cost Centres</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>P&L department groupings</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-vcenter table-hover card-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow cols={3} />
+              ) : centres.length === 0 ? (
+                <EmptyRow cols={3} message="No cost centres configured. Add one above." />
+              ) : centres.map(cc => (
+                <tr key={cc.id}>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>{cc.code}</td>
+                  <td style={{ fontSize: 13 }}>{cc.name}</td>
+                  <td><Badge value={cc.is_active ? 'active' : 'inactive'} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 4. Payables tab (Suppliers / POs / AP Invoices) ───────────────────────
+
+function PayablesTab() {
+  const [subTab, setSubTab] = useState('invoices');
+  const [invoices, setInvoices] = useState([]);
+  const [pos, setPos] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    const params = statusFilter ? { status: statusFilter } : {};
+    Promise.all([
+      api.get('/ap-invoices/', { params }),
+      api.get('/purchase-orders/'),
+      api.get('/suppliers/'),
+    ])
+      .then(([inv, po, sup]) => {
+        setInvoices(inv.data.results ?? inv.data);
+        setPos(po.data.results ?? po.data);
+        setSuppliers(sup.data.results ?? sup.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [statusFilter]);
+
+  const AP_STATUS_COLORS = {
+    draft: 'badge bg-azure-lt', matched: 'badge bg-success-lt',
+    discrepancy: 'badge bg-warning-lt', approved: 'badge bg-purple-lt',
+    paid: 'badge bg-success', disputed: 'badge bg-danger-lt', void: 'badge bg-secondary-lt',
+  };
+
+  const PO_STATUS = {
+    open: { bg: '#e3f2fd', color: '#1565c0' },
+    received: { bg: '#e8f5e9', color: '#2e7d32' },
+    invoiced: { bg: '#ede7f6', color: '#4527a0' },
+    closed: { bg: '#f5f5f5', color: '#616161' },
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {['invoices', 'purchase-orders'].map(t => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            style={{
+              padding: '5px 14px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+              border: '1px solid rgba(0,0,0,0.15)',
+              background: subTab === t ? 'var(--navy, #1a2d4a)' : '#fff',
+              color: subTab === t ? '#fff' : 'rgba(0,0,0,0.6)',
+              fontWeight: subTab === t ? 700 : 400,
+            }}
+          >
+            {t === 'invoices' ? 'AP Invoices' : 'Purchase Orders'}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'invoices' && (
+        <>
+          {/* Status filter */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {['', 'draft', 'discrepancy', 'approved', 'paid', 'disputed', 'void'].map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                style={{
+                  padding: '3px 10px', fontSize: 11, borderRadius: 20, cursor: 'pointer',
+                  border: '1px solid rgba(0,0,0,0.15)',
+                  background: statusFilter === s ? 'var(--navy, #1a2d4a)' : '#fff',
+                  color: statusFilter === s ? '#fff' : 'rgba(0,0,0,0.55)',
+                  fontWeight: statusFilter === s ? 700 : 400,
+                }}
+              >
+                {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+              </button>
+            ))}
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">AP Invoices</div>
+              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Supplier invoices — three-way match</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table table-vcenter table-hover card-table">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Supplier</th>
+                    <th>Invoice Date</th>
+                    <th>Due Date</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Match</th>
+                    <th>OCR Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <LoadingRow cols={8} />
+                  ) : invoices.length === 0 ? (
+                    <EmptyRow cols={8} message="No AP invoices found." />
+                  ) : invoices.map(inv => (
+                    <tr key={inv.id}>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                        {inv.supplier_invoice_number || `AP-${inv.id}`}
+                      </td>
+                      <td style={{ fontSize: 13 }}>{inv.supplier_name ?? inv.supplier ?? '—'}</td>
+                      <td style={{ fontSize: 12 }}>{fmtDate(inv.invoice_date)}</td>
+                      <td style={{ fontSize: 12 }}>{fmtDate(inv.due_date)}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                        {fmt(inv.total_amount, inv.currency)}
+                      </td>
+                      <td><Badge value={inv.status} /></td>
+                      <td>
+                        {inv.match_status ? (
+                          <span style={{
+                            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                            background: inv.match_status === 'ok' ? '#e8f5e9' : inv.match_status === 'no_po' ? '#f5f5f5' : '#fff3e0',
+                            color: inv.match_status === 'ok' ? '#2e7d32' : inv.match_status === 'no_po' ? '#616161' : '#e65100',
+                          }}>
+                            {inv.match_status === 'ok' ? 'Matched' : inv.match_status === 'no_po' ? 'No PO' : 'Variance'}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                        {inv.ocr_service || '—'}
+                        {inv.ocr_confidence != null && (
+                          <span style={{ marginLeft: 4, color: 'rgba(0,0,0,0.35)' }}>
+                            ({parseFloat(inv.ocr_confidence).toFixed(0)}%)
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {subTab === 'purchase-orders' && (
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-title">Purchase Orders</div>
+            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Three-way match source documents</span>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table table-vcenter table-hover card-table">
+              <thead>
+                <tr>
+                  <th>PO Number</th>
+                  <th>Supplier</th>
+                  <th>Issue Date</th>
+                  <th>Expected Delivery</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <LoadingRow cols={6} />
+                ) : pos.length === 0 ? (
+                  <EmptyRow cols={6} message="No purchase orders found." />
+                ) : pos.map(po => {
+                  const sc = PO_STATUS[po.status] ?? { bg: '#f5f5f5', color: '#616161' };
+                  return (
+                    <tr key={po.id}>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                        PO-{po.po_number}
+                      </td>
+                      <td style={{ fontSize: 13 }}>{po.supplier_name ?? po.supplier ?? '—'}</td>
+                      <td style={{ fontSize: 12 }}>{fmtDate(po.issue_date)}</td>
+                      <td style={{ fontSize: 12 }}>{fmtDate(po.expected_delivery)}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                        {fmt(po.total_amount)}
+                      </td>
+                      <td>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                          background: sc.bg, color: sc.color,
+                        }}>
+                          {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 5. Suppliers tab ───────────────────────────────────────────────────────
+
+function SuppliersTab() {
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/suppliers/')
+      .then(r => setSuppliers(r.data.results ?? r.data))
+      .catch(() => setSuppliers([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">Suppliers</div>
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{suppliers.length} suppliers</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="table table-vcenter table-hover card-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Contact Email</th>
+              <th>Payment Terms</th>
+              <th>External ID</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <LoadingRow cols={5} />
+            ) : suppliers.length === 0 ? (
+              <EmptyRow cols={5} message="No suppliers configured." />
+            ) : suppliers.map(s => (
+              <tr key={s.id}>
+                <td style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</td>
+                <td style={{ fontSize: 12 }}>
+                  {s.contact_email
+                    ? <a href={`mailto:${s.contact_email}`} style={{ color: 'var(--teal, #009688)' }}>{s.contact_email}</a>
+                    : '—'
+                  }
+                </td>
+                <td style={{ fontSize: 12 }}>{s.payment_terms ? `${s.payment_terms} days` : '—'}</td>
+                <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                  {s.external_id || '—'}
+                </td>
+                <td><Badge value={s.is_active ? 'active' : 'inactive'} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 6. Payment Plans tab ──────────────────────────────────────────────────
+
+function PaymentPlansTab() {
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = statusFilter ? { status: statusFilter } : {};
+      const { data } = await api.get('/payment-plans/', { params });
+      setPlans(data.results ?? data);
+    } catch {
+      setPlans([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function instalmentProgress(plan) {
+    const total = plan.instalment_count ?? plan.instalments?.length ?? 0;
+    const paid = plan.paid_instalment_count ?? plan.instalments?.filter(i => i.status === 'paid').length ?? 0;
+    return { total, paid };
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Status filters */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {['', 'active', 'completed', 'paused', 'cancelled'].map(s => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            style={{
+              padding: '3px 12px', fontSize: 12, borderRadius: 20, cursor: 'pointer',
+              border: '1px solid rgba(0,0,0,0.15)',
+              background: statusFilter === s ? 'var(--navy, #1a2d4a)' : '#fff',
+              color: statusFilter === s ? '#fff' : 'rgba(0,0,0,0.55)',
+              fontWeight: statusFilter === s ? 700 : 400,
+            }}
+          >
+            {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+          </button>
+        ))}
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Payment Plans</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Scheduled instalment plans</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-vcenter table-hover card-table">
+            <thead>
+              <tr>
+                <th>Plan Name</th>
+                <th>Member</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Auto-Issue</th>
+                <th>DD Mandate</th>
+                <th>Progress</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow cols={8} />
+              ) : plans.length === 0 ? (
+                <EmptyRow cols={8} message="No payment plans found." />
+              ) : plans.map(plan => {
+                const { total, paid } = instalmentProgress(plan);
+                const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
+                return (
+                  <tr key={plan.id}>
+                    <td style={{ fontWeight: 600, fontSize: 13 }}>{plan.name}</td>
+                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+                      {plan.member_name ?? plan.member ?? '—'}
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                      {fmt(plan.total_amount)}
+                    </td>
+                    <td><Badge value={plan.status} /></td>
+                    <td style={{ fontSize: 12 }}>
+                      {plan.auto_issue ? (
+                        <span style={{ color: '#2e7d32', fontWeight: 600 }}>Yes</span>
+                      ) : (
+                        <span style={{ color: 'rgba(0,0,0,0.4)' }}>No</span>
+                      )}
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                      {plan.dd_mandate_ref || '—'}
+                    </td>
+                    <td style={{ minWidth: 120 }}>
+                      {total > 0 ? (
+                        <div>
+                          <div style={{
+                            height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.08)',
+                            overflow: 'hidden', marginBottom: 3,
+                          }}>
+                            <div style={{
+                              height: '100%', width: `${pct}%`,
+                              background: pct === 100 ? '#2e7d32' : 'var(--navy, #1a2d4a)',
+                              borderRadius: 3, transition: 'width 0.3s',
+                            }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)' }}>
+                            {paid}/{total} instalments
+                          </div>
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
+                      {fmtDate(plan.created_at)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 7. Sync tab ───────────────────────────────────────────────────────────
+
+function SyncTab() {
+  const [syncRecords, setSyncRecords] = useState([]);
+  const [rates, setRates] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/accounting-sync/'),
+      api.get('/exchange-rates/'),
+    ])
+      .then(([sync, fx]) => {
+        setSyncRecords(sync.data.results ?? sync.data);
+        setRates(fx.data.results ?? fx.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const DIRECTION_LABELS = { push: 'Push', pull: 'Pull' };
+  const OBJ_LABELS = {
+    invoice: 'Invoice', payment: 'Payment', gl_entry: 'GL Entry',
+    contact: 'Contact', account: 'Account',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Exchange Rates summary */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Exchange Rates</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Latest daily FX snapshots</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th>Pair</th>
+                <th>Rate</th>
+                <th>Date</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow cols={4} />
+              ) : rates.length === 0 ? (
+                <EmptyRow cols={4} message="No exchange rates recorded." />
+              ) : rates.slice(0, 10).map((r, i) => (
+                <tr key={i}>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>
+                    {r.from_currency}/{r.to_currency}
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.rate}</td>
+                  <td style={{ fontSize: 12 }}>{fmtDate(r.rate_date)}</td>
+                  <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase' }}>
+                    {r.source || 'manual'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Accounting Sync Log */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Accounting Integration Sync Log</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+            Recent push/pull events to external accounting systems
+          </span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-vcenter table-hover card-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Platform</th>
+                <th>Direction</th>
+                <th>Object Type</th>
+                <th>Local ID</th>
+                <th>External ID</th>
+                <th>Status</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <LoadingRow cols={8} />
+              ) : syncRecords.length === 0 ? (
+                <EmptyRow cols={8} message="No sync events recorded. Connect an accounting platform to start syncing." />
+              ) : syncRecords.map(r => (
+                <tr key={r.id}>
+                  <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', whiteSpace: 'nowrap' }}>
+                    {r.synced_at ? new Date(r.synced_at).toLocaleString(undefined, {
+                      month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
+                    }) : '—'}
+                  </td>
+                  <td style={{ fontSize: 12, fontWeight: 600 }}>
+                    {r.platform ?? r.config_platform ?? '—'}
+                  </td>
+                  <td>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600,
+                      color: r.direction === 'push' ? '#1565c0' : '#4527a0',
+                    }}>
+                      {DIRECTION_LABELS[r.direction] ?? r.direction}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: 12 }}>{OBJ_LABELS[r.object_type] ?? r.object_type}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{r.local_id}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                    {r.external_id || '—'}
+                  </td>
+                  <td><Badge value={r.status} /></td>
+                  <td style={{ fontSize: 11, color: '#c62828', maxWidth: 180 }}>
+                    {r.error_detail
+                      ? <span title={r.error_detail}>{r.error_detail.slice(0, 60)}{r.error_detail.length > 60 ? '…' : ''}</span>
+                      : <span style={{ color: 'rgba(0,0,0,0.25)' }}>—</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Surcharge Rules info section */}
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', padding: '14px 16px' }}>
+          <SurchargeRulesSummary />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SurchargeRulesSummary() {
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/surcharge-rules/')
+      .then(r => setRules(r.data.results ?? r.data))
+      .catch(() => setRules([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading surcharge rules…</div>;
+  if (rules.length === 0) return (
+    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No surcharge rules configured.</div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+        Surcharge Rules ({rules.length})
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {rules.map(r => (
+          <div key={r.id} style={{
+            padding: '6px 12px', borderRadius: 6, fontSize: 12,
+            background: r.is_active ? '#e3f2fd' : '#f5f5f5',
+            color: r.is_active ? '#1565c0' : '#9e9e9e',
+            border: '1px solid ' + (r.is_active ? 'rgba(21,101,192,0.2)' : 'rgba(0,0,0,0.1)'),
+          }}>
+            <span style={{ fontWeight: 600 }}>{r.name}</span>
+            <span style={{ marginLeft: 6, opacity: 0.7 }}>
+              {r.amount_type === 'percentage' ? `${r.amount}%` : fmt(r.amount)} · {r.trigger_type?.replace('_', ' ')}
+            </span>
+            {!r.is_active && <span style={{ marginLeft: 6, fontSize: 10 }}>(inactive)</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────
+
+const TABS = [
+  { value: 'journal',        label: 'Journal' },
+  { value: 'accounts',       label: 'Accounts' },
+  { value: 'cost-centres',   label: 'Cost Centres' },
+  { value: 'payables',       label: 'Payables' },
+  { value: 'suppliers',      label: 'Suppliers' },
+  { value: 'payment-plans',  label: 'Payment Plans' },
+  { value: 'sync',           label: 'Sync' },
+];
+
+export default function Accounting() {
+  const [tab, setTab] = useState('journal');
+
+  return (
+    <div>
+      {/* Page header */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy, #1a2d4a)' }}>
+          Financial Accounting
+        </div>
+        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+          General ledger, chart of accounts, cost centres, AP workflow, and accounting integration sync
+        </div>
+      </div>
+
+      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+
+      {tab === 'journal'       && <JournalTab />}
+      {tab === 'accounts'      && <AccountsTab />}
+      {tab === 'cost-centres'  && <CostCentresTab />}
+      {tab === 'payables'      && <PayablesTab />}
+      {tab === 'suppliers'     && <SuppliersTab />}
+      {tab === 'payment-plans' && <PaymentPlansTab />}
+      {tab === 'sync'          && <SyncTab />}
+    </div>
+  );
+}

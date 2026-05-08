@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useMarina from '../hooks/useMarina.js';
 import useHaulOuts from '../hooks/useHaulOuts.js';
 import useStorageSlots from '../hooks/useStorageSlots.js';
@@ -10,6 +10,7 @@ import useContractors from '../hooks/useContractors.js';
 import useAssets from '../hooks/useAssets.js';
 import useVessels from '../hooks/useVessels.js';
 import Ic from '../components/ui/Icon.jsx';
+import api from '../api.js';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 
@@ -297,6 +298,333 @@ function AssignVesselModal({ slot, vessels, onClose, onAssign }) {
   );
 }
 
+// ── Generic data hook ────────────────────────────────────────────────────────
+
+function useApiList(endpoint) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { data } = await api.get(endpoint);
+      setItems(Array.isArray(data) ? data : (data.results ?? []));
+    } catch { /* silent */ } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, [endpoint]);
+
+  async function createItem(payload) {
+    const { data } = await api.post(endpoint, payload);
+    setItems(prev => [data, ...prev]);
+    return data;
+  }
+
+  async function updateItem(id, payload) {
+    const { data } = await api.patch(`${endpoint}${id}/`, payload);
+    setItems(prev => prev.map(i => i.id === id ? data : i));
+    return data;
+  }
+
+  async function deleteItem(id) {
+    await api.delete(`${endpoint}${id}/`);
+    setItems(prev => prev.filter(i => i.id !== id));
+  }
+
+  return { items, loading, reload: load, createItem, updateItem, deleteItem };
+}
+
+// ── Service Bay Modal ─────────────────────────────────────────────────────────
+
+function ServiceBayModal({ onClose, onCreate }) {
+  const [name, setName] = useState('');
+  const [bayType, setBayType] = useState('general');
+  const [capacity, setCapacity] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({ name, bay_type: bayType, capacity: capacity || null, notes });
+      onClose();
+    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
+  }
+
+  return (
+    <Modal title="Add Service Bay" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FieldGroup label="Bay Name"><input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Bay 1 — Engine" /></FieldGroup>
+          <FieldGroup label="Type">
+            <select value={bayType} onChange={e => setBayType(e.target.value)}>
+              <option value="general">General</option>
+              <option value="electrical">Electrical</option>
+              <option value="mechanical">Mechanical</option>
+              <option value="paint">Paint / Spray</option>
+              <option value="welding">Welding</option>
+              <option value="rigging">Rigging</option>
+            </select>
+          </FieldGroup>
+          <FieldGroup label="Capacity (LOA m)"><input type="number" step="0.1" value={capacity} onChange={e => setCapacity(e.target.value)} placeholder="Max vessel length" /></FieldGroup>
+          <FieldGroup label="Notes"><textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical' }} /></FieldGroup>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+        </div>
+        <FormActions onClose={onClose} saving={saving} saveLabel="Add Bay" />
+      </form>
+    </Modal>
+  );
+}
+
+// ── Lift Operation Modal ──────────────────────────────────────────────────────
+
+function LiftOperationModal({ vessels, onClose, onCreate }) {
+  const [vesselId, setVesselId] = useState('');
+  const [liftType, setLiftType] = useState('haul_out');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [equipment, setEquipment] = useState('');
+  const [operator, setOperator] = useState('');
+  const [boatWeight, setBoatWeight] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({ vessel: vesselId || null, lift_type: liftType, scheduled_at: scheduledAt, equipment, operator, boat_weight_t: boatWeight || null, notes });
+      onClose();
+    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
+  }
+
+  return (
+    <Modal title="New Lift Operation" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FieldGroup label="Vessel">
+            <select value={vesselId} onChange={e => setVesselId(e.target.value)}>
+              <option value="">— none —</option>
+              {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </FieldGroup>
+          <FieldGroup label="Lift Type">
+            <select value={liftType} onChange={e => setLiftType(e.target.value)}>
+              <option value="haul_out">Haul-out</option>
+              <option value="splash">Splash / Launch</option>
+              <option value="travel_lift">Travel Lift Transfer</option>
+              <option value="crane">Crane Lift</option>
+            </select>
+          </FieldGroup>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <FieldGroup label="Scheduled Date/Time"><input type="datetime-local" required value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Boat Weight (t)"><input type="number" step="0.1" value={boatWeight} onChange={e => setBoatWeight(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Equipment"><input value={equipment} onChange={e => setEquipment(e.target.value)} placeholder="e.g. 70T Travelift" /></FieldGroup>
+            <FieldGroup label="Operator"><input value={operator} onChange={e => setOperator(e.target.value)} /></FieldGroup>
+          </div>
+          <FieldGroup label="Notes"><textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical' }} /></FieldGroup>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+        </div>
+        <FormActions onClose={onClose} saving={saving} saveLabel="Schedule" />
+      </form>
+    </Modal>
+  );
+}
+
+// ── Paint Record Modal ────────────────────────────────────────────────────────
+
+function PaintRecordModal({ vessels, onClose, onCreate }) {
+  const [vesselId, setVesselId] = useState('');
+  const [paintType, setPaintType] = useState('antifoul');
+  const [productName, setProductName] = useState('');
+  const [colour, setColour] = useState('');
+  const [appliedDate, setAppliedDate] = useState('');
+  const [appliedBy, setAppliedBy] = useState('');
+  const [coats, setCoats] = useState(2);
+  const [area, setArea] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({ vessel: vesselId || null, paint_type: paintType, product_name: productName, colour, applied_date: appliedDate, applied_by: appliedBy, coats, area_sqm: area || null, notes });
+      onClose();
+    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
+  }
+
+  return (
+    <Modal title="Add Paint Record" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FieldGroup label="Vessel">
+            <select value={vesselId} onChange={e => setVesselId(e.target.value)}>
+              <option value="">— none —</option>
+              {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </FieldGroup>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <FieldGroup label="Paint Type">
+              <select value={paintType} onChange={e => setPaintType(e.target.value)}>
+                <option value="antifoul">Antifoul</option>
+                <option value="topside">Topside</option>
+                <option value="primer">Primer</option>
+                <option value="gelcoat">Gelcoat</option>
+                <option value="varnish">Varnish</option>
+                <option value="other">Other</option>
+              </select>
+            </FieldGroup>
+            <FieldGroup label="Product Name"><input value={productName} onChange={e => setProductName(e.target.value)} placeholder="e.g. International Micron" /></FieldGroup>
+            <FieldGroup label="Colour"><input value={colour} onChange={e => setColour(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Applied Date"><input type="date" required value={appliedDate} onChange={e => setAppliedDate(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Applied By"><input value={appliedBy} onChange={e => setAppliedBy(e.target.value)} /></FieldGroup>
+            <FieldGroup label="No. of Coats"><input type="number" min={1} value={coats} onChange={e => setCoats(parseInt(e.target.value))} /></FieldGroup>
+            <FieldGroup label="Area (m²)"><input type="number" step="0.1" value={area} onChange={e => setArea(e.target.value)} /></FieldGroup>
+          </div>
+          <FieldGroup label="Notes"><textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical' }} /></FieldGroup>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+        </div>
+        <FormActions onClose={onClose} saving={saving} saveLabel="Save Record" />
+      </form>
+    </Modal>
+  );
+}
+
+// ── Parts Inventory Modal ─────────────────────────────────────────────────────
+
+function PartsInventoryModal({ onClose, onCreate }) {
+  const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
+  const [category, setCategory] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [unitCost, setUnitCost] = useState('');
+  const [qty, setQty] = useState(0);
+  const [reorderPoint, setReorderPoint] = useState(0);
+  const [location, setLocation] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({ name, sku, category, supplier, unit_cost: unitCost || null, quantity: qty, reorder_point: reorderPoint, location });
+      onClose();
+    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
+  }
+
+  return (
+    <Modal title="Add Parts Inventory Item" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FieldGroup label="Part Name"><input required value={name} onChange={e => setName(e.target.value)} /></FieldGroup>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <FieldGroup label="SKU / Part No."><input value={sku} onChange={e => setSku(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Category"><input value={category} onChange={e => setCategory(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Supplier"><input value={supplier} onChange={e => setSupplier(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Unit Cost"><input type="number" step="0.01" value={unitCost} onChange={e => setUnitCost(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Qty in Stock"><input type="number" value={qty} onChange={e => setQty(parseInt(e.target.value))} /></FieldGroup>
+            <FieldGroup label="Reorder Point"><input type="number" value={reorderPoint} onChange={e => setReorderPoint(parseInt(e.target.value))} /></FieldGroup>
+          </div>
+          <FieldGroup label="Storage Location"><input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Shelf A3" /></FieldGroup>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+        </div>
+        <FormActions onClose={onClose} saving={saving} saveLabel="Add Item" />
+      </form>
+    </Modal>
+  );
+}
+
+// ── Warranty Claim Modal ──────────────────────────────────────────────────────
+
+function WarrantyClaimModal({ onClose, onCreate }) {
+  const [claimRef, setClaimRef] = useState('');
+  const [manufacturer, setManufacturer] = useState('');
+  const [description, setDescription] = useState('');
+  const [partsClaimed, setPartsClaimed] = useState('');
+  const [labourClaimed, setLabourClaimed] = useState('');
+  const [submittedDate, setSubmittedDate] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({ claim_reference: claimRef, manufacturer, description, parts_claimed: partsClaimed || 0, labour_claimed: labourClaimed || 0, submitted_date: submittedDate || null });
+      onClose();
+    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
+  }
+
+  return (
+    <Modal title="New Warranty Claim" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <FieldGroup label="Claim Reference"><input value={claimRef} onChange={e => setClaimRef(e.target.value)} placeholder="Manufacturer ref #" /></FieldGroup>
+            <FieldGroup label="Manufacturer"><input required value={manufacturer} onChange={e => setManufacturer(e.target.value)} /></FieldGroup>
+          </div>
+          <FieldGroup label="Description"><textarea required rows={3} value={description} onChange={e => setDescription(e.target.value)} style={{ resize: 'vertical' }} /></FieldGroup>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <FieldGroup label="Parts Claimed (€)"><input type="number" step="0.01" value={partsClaimed} onChange={e => setPartsClaimed(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Labour Claimed (€)"><input type="number" step="0.01" value={labourClaimed} onChange={e => setLabourClaimed(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Submitted Date"><input type="date" value={submittedDate} onChange={e => setSubmittedDate(e.target.value)} /></FieldGroup>
+          </div>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+        </div>
+        <FormActions onClose={onClose} saving={saving} saveLabel="Create Claim" />
+      </form>
+    </Modal>
+  );
+}
+
+// ── Subcontractor Modal ───────────────────────────────────────────────────────
+
+function SubcontractorModal({ onClose, onCreate }) {
+  const [company, setCompany] = useState('');
+  const [contact, setContact] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [trade, setTrade] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [insuranceExpiry, setInsuranceExpiry] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({ company, contact_name: contact, email, phone, trade, hourly_rate: hourlyRate || null, insurance_expiry: insuranceExpiry || null });
+      onClose();
+    } catch (ex) { setErr(ex?.response?.data?.detail ?? 'Save failed'); setSaving(false); }
+  }
+
+  return (
+    <Modal title="Add Subcontractor" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <FieldGroup label="Company Name"><input required value={company} onChange={e => setCompany(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Contact Name"><input value={contact} onChange={e => setContact(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Phone"><input value={phone} onChange={e => setPhone(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Trade / Speciality"><input value={trade} onChange={e => setTrade(e.target.value)} placeholder="e.g. Marine Electrical" /></FieldGroup>
+            <FieldGroup label="Hourly Rate (€)"><input type="number" step="0.01" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} /></FieldGroup>
+            <FieldGroup label="Insurance Expiry"><input type="date" value={insuranceExpiry} onChange={e => setInsuranceExpiry(e.target.value)} /></FieldGroup>
+          </div>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+        </div>
+        <FormActions onClose={onClose} saving={saving} saveLabel="Add Subcontractor" />
+      </form>
+    </Modal>
+  );
+}
+
 // ── Status badge helpers ───────────────────────────────────────────────────────
 
 const HAUL_STATUS = { scheduled: 'badge-blue', in_progress: 'badge-teal', completed: 'badge-green', cancelled: 'badge-red' };
@@ -329,6 +657,22 @@ export default function Boatyard() {
   const [showAddContractor, setShowAddContractor] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
+  // ── New tab data hooks ──────────────────────────────────────────────────────
+  const { items: serviceBays,      loading: baysLoading,      createItem: createBay,      deleteItem: deleteBay }      = useApiList('/service-bays/');
+  const { items: liftOps,          loading: liftOpsLoading,   createItem: createLiftOp,   updateItem: updateLiftOp }   = useApiList('/lift-operations/');
+  const { items: paintRecords,     loading: paintLoading,     createItem: createPaintRec, deleteItem: deletePaintRec } = useApiList('/paint-records/');
+  const { items: partsInventory,   loading: partsInvLoading,  createItem: createInvPart,  deleteItem: deleteInvPart }  = useApiList('/parts-inventory/');
+  const { items: warrantyClaims,   loading: warrantyLoading,  createItem: createClaim,    updateItem: updateClaim }    = useApiList('/warranty-claims/');
+  const { items: subcontractors,   loading: subconLoading,    createItem: createSubcon,   deleteItem: deleteSubcon }   = useApiList('/subcontractors/');
+
+  // ── New tab modal visibility ────────────────────────────────────────────────
+  const [showAddBay, setShowAddBay]           = useState(false);
+  const [showAddLiftOp, setShowAddLiftOp]     = useState(false);
+  const [showAddPaintRec, setShowAddPaintRec] = useState(false);
+  const [showAddInvPart, setShowAddInvPart]   = useState(false);
+  const [showAddClaim, setShowAddClaim]       = useState(false);
+  const [showAddSubcon, setShowAddSubcon]     = useState(false);
+
   function isBlocked(slot) {
     if (slot.tier <= 1) return false;
     const below = slots.find(s => s.lane === slot.lane && s.col === slot.col && s.tier === slot.tier - 1);
@@ -352,11 +696,21 @@ export default function Boatyard() {
       {showAddContractor && <AddContractorModal onClose={() => setShowAddContractor(false)} onCreate={createContractor} />}
       {selectedSlot && <AssignVesselModal slot={selectedSlot} vessels={vessels} onClose={() => setSelectedSlot(null)} onAssign={updateSlot} />}
 
+      {showAddBay     && <ServiceBayModal onClose={() => setShowAddBay(false)} onCreate={createBay} />}
+      {showAddLiftOp  && <LiftOperationModal vessels={vessels} onClose={() => setShowAddLiftOp(false)} onCreate={createLiftOp} />}
+      {showAddPaintRec && <PaintRecordModal vessels={vessels} onClose={() => setShowAddPaintRec(false)} onCreate={createPaintRec} />}
+      {showAddInvPart && <PartsInventoryModal onClose={() => setShowAddInvPart(false)} onCreate={createInvPart} />}
+      {showAddClaim   && <WarrantyClaimModal onClose={() => setShowAddClaim(false)} onCreate={createClaim} />}
+      {showAddSubcon  && <SubcontractorModal onClose={() => setShowAddSubcon(false)} onCreate={createSubcon} />}
+
       <div className="tabs">
         {[
           ['schedule','Haul-out Schedule'],['launch','Launch Queue'],['storage','Dry Storage Map'],
           ['workorders','Work Orders'],['parts','Parts & Inventory'],['tools','Tools'],
           ['contractors','Contractors'],['facility','Facility Log'],
+          ['servicebays','Service Bays'],['liftops','Lift Operations'],
+          ['paint','Paint Records'],['partsinv','Parts Inventory'],
+          ['warranty','Warranty Claims'],['subcontractors','Subcontractors'],
         ].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
@@ -695,6 +1049,240 @@ export default function Boatyard() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Service Bays ──────────────────────────────────────────────────────── */}
+      {tab === 'servicebays' && (
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Service Bays</div>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddBay(true)}><Ic n="plus" s={11} />Add Bay</button>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Bay Name</th><th>Type</th><th>Capacity (LOA)</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+              <tbody>
+                {baysLoading ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : serviceBays.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No service bays configured.</td></tr>
+                ) : serviceBays.map(b => (
+                  <tr key={b.id}>
+                    <td className="tbl-name">{b.name}</td>
+                    <td><span className="badge badge-navy">{b.bay_type?.replace('_', ' ') || '—'}</span></td>
+                    <td style={{ fontSize: 12 }}>{b.capacity ? `${b.capacity} m` : '—'}</td>
+                    <td><span className={`badge ${b.is_occupied ? 'badge-orange' : 'badge-green'}`}>{b.is_occupied ? 'Occupied' : 'Available'}</span></td>
+                    <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{b.notes || '—'}</td>
+                    <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Remove this bay?')) deleteBay(b.id); }}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lift Operations ───────────────────────────────────────────────────── */}
+      {tab === 'liftops' && (
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Lift Operations</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="badge badge-blue">{liftOps.filter(l => l.status === 'scheduled').length} Scheduled</span>
+              <span className="badge badge-teal">{liftOps.filter(l => l.status === 'in_progress').length} In Progress</span>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddLiftOp(true)}><Ic n="plus" s={11} />New Lift</button>
+            </div>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Vessel</th><th>Type</th><th>Scheduled</th><th>Equipment</th><th>Operator</th><th>Weight (t)</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {liftOpsLoading ? (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : liftOps.length === 0 ? (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No lift operations recorded.</td></tr>
+                ) : liftOps.map(l => (
+                  <tr key={l.id}>
+                    <td className="tbl-name">{l.vessel_name || '—'}</td>
+                    <td><span className="badge badge-blue">{l.lift_type?.replace('_', ' ') || '—'}</span></td>
+                    <td style={{ fontSize: 12 }}>{l.scheduled_at ? new Date(l.scheduled_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
+                    <td style={{ fontSize: 12 }}>{l.equipment || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{l.operator || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{l.boat_weight_t ?? '—'}</td>
+                    <td><span className={`badge ${l.status === 'completed' ? 'badge-green' : l.status === 'in_progress' ? 'badge-teal' : l.status === 'cancelled' ? 'badge-red' : 'badge-gray'}`}>{l.status?.replace('_', ' ') || 'scheduled'}</span></td>
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      {(!l.status || l.status === 'scheduled') && <button className="btn btn-ghost btn-sm" onClick={() => updateLiftOp(l.id, { status: 'in_progress' })}>Start</button>}
+                      {l.status === 'in_progress' && <button className="btn btn-ghost btn-sm" onClick={() => updateLiftOp(l.id, { status: 'completed' })}>Complete</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Paint Records ─────────────────────────────────────────────────────── */}
+      {tab === 'paint' && (
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Paint Records</div>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddPaintRec(true)}><Ic n="plus" s={11} />Add Record</button>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Vessel</th><th>Paint Type</th><th>Product</th><th>Colour</th><th>Applied Date</th><th>Applied By</th><th>Coats</th><th>Area (m²)</th><th></th></tr></thead>
+              <tbody>
+                {paintLoading ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : paintRecords.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No paint records found.</td></tr>
+                ) : paintRecords.map(p => (
+                  <tr key={p.id}>
+                    <td className="tbl-name">{p.vessel_name || '—'}</td>
+                    <td><span className="badge badge-navy">{p.paint_type?.replace('_', ' ') || '—'}</span></td>
+                    <td style={{ fontSize: 12 }}>{p.product_name || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{p.colour || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{p.applied_date || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{p.applied_by || '—'}</td>
+                    <td style={{ fontSize: 12, textAlign: 'center' }}>{p.coats ?? '—'}</td>
+                    <td style={{ fontSize: 12, textAlign: 'center' }}>{p.area_sqm ?? '—'}</td>
+                    <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Delete this paint record?')) deletePaintRec(p.id); }}>Delete</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Parts Inventory ───────────────────────────────────────────────────── */}
+      {tab === 'partsinv' && (
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Parts Inventory</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="badge badge-red">{partsInventory.filter(p => p.quantity <= p.reorder_point).length} Low Stock</span>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddInvPart(true)}><Ic n="plus" s={11} />Add Item</button>
+            </div>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Part</th><th>SKU</th><th>Category</th><th>Supplier</th><th>Unit Cost</th><th>Qty</th><th>Reorder At</th><th>Location</th><th></th></tr></thead>
+              <tbody>
+                {partsInvLoading ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : partsInventory.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No inventory items found.</td></tr>
+                ) : partsInventory.map(p => {
+                  const lowStock = p.quantity <= p.reorder_point;
+                  return (
+                    <tr key={p.id}>
+                      <td className="tbl-name">{p.name}</td>
+                      <td style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(0,0,0,0.45)' }}>{p.sku || '—'}</td>
+                      <td><span className="badge badge-navy">{p.category || '—'}</span></td>
+                      <td style={{ fontSize: 12 }}>{p.supplier || '—'}</td>
+                      <td style={{ fontSize: 12 }}>{p.unit_cost != null ? `€${Number(p.unit_cost).toFixed(2)}` : '—'}</td>
+                      <td style={{ fontWeight: 700, color: lowStock ? 'var(--red)' : 'var(--green)', fontSize: 13 }}>{p.quantity}</td>
+                      <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{p.reorder_point ?? '—'}</td>
+                      <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{p.location || '—'}</td>
+                      <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Remove this item?')) deleteInvPart(p.id); }}>Remove</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Warranty Claims ───────────────────────────────────────────────────── */}
+      {tab === 'warranty' && (
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Warranty Claims</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="badge badge-gold">{warrantyClaims.filter(c => c.status === 'submitted' || c.status === 'acknowledged').length} Pending</span>
+              <span className="badge badge-green">{warrantyClaims.filter(c => c.status === 'approved' || c.status === 'reimbursed').length} Approved</span>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddClaim(true)}><Ic n="plus" s={11} />New Claim</button>
+            </div>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Ref</th><th>Manufacturer</th><th>Parts (€)</th><th>Labour (€)</th><th>Total (€)</th><th>Reimbursed (€)</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {warrantyLoading ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : warrantyClaims.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No warranty claims.</td></tr>
+                ) : warrantyClaims.map(c => {
+                  const statusBadge = { draft: 'badge-gray', submitted: 'badge-blue', acknowledged: 'badge-teal', approved: 'badge-green', reimbursed: 'badge-green', rejected: 'badge-red', closed: 'badge-gray' };
+                  return (
+                    <tr key={c.id}>
+                      <td style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>{c.claim_reference || `CLM-${c.id}`}</td>
+                      <td className="tbl-name">{c.manufacturer || c.agreement_name || '—'}</td>
+                      <td style={{ fontSize: 12 }}>{c.parts_claimed != null ? `€${Number(c.parts_claimed).toFixed(2)}` : '—'}</td>
+                      <td style={{ fontSize: 12 }}>{c.labour_claimed != null ? `€${Number(c.labour_claimed).toFixed(2)}` : '—'}</td>
+                      <td style={{ fontSize: 12, fontWeight: 600 }}>{c.total_claimed != null ? `€${Number(c.total_claimed).toFixed(2)}` : '—'}</td>
+                      <td style={{ fontSize: 12, color: c.amount_reimbursed != null ? 'var(--green)' : 'rgba(0,0,0,0.35)' }}>{c.amount_reimbursed != null ? `€${Number(c.amount_reimbursed).toFixed(2)}` : '—'}</td>
+                      <td style={{ fontSize: 12 }}>{c.submitted_at ? new Date(c.submitted_at).toLocaleDateString() : c.submitted_date || '—'}</td>
+                      <td><span className={`badge ${statusBadge[c.status] || 'badge-gray'}`}>{c.status || 'draft'}</span></td>
+                      <td style={{ display: 'flex', gap: 6 }}>
+                        {c.status === 'draft' && <button className="btn btn-ghost btn-sm" onClick={() => updateClaim(c.id, { status: 'submitted' })}>Submit</button>}
+                        {c.status === 'submitted' && <button className="btn btn-ghost btn-sm" onClick={() => updateClaim(c.id, { status: 'acknowledged' })}>Acknowledge</button>}
+                        {c.status === 'acknowledged' && <button className="btn btn-ghost btn-sm" onClick={() => updateClaim(c.id, { status: 'approved' })}>Approve</button>}
+                        {c.status === 'approved' && <button className="btn btn-ghost btn-sm" onClick={() => { const amt = prompt('Reimbursement amount (€):'); if (amt) updateClaim(c.id, { status: 'reimbursed', amount_reimbursed: amt }); }}>Mark Reimbursed</button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Subcontractors ────────────────────────────────────────────────────── */}
+      {tab === 'subcontractors' && (
+        <div>
+          <div className="sec-hdr">
+            <div className="sec-hdr-title">Subcontractors</div>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubcon(true)}><Ic n="plus" s={11} />Add Subcontractor</button>
+          </div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead><tr><th>Company</th><th>Contact</th><th>Trade</th><th>Email</th><th>Phone</th><th>Hourly Rate</th><th>Insurance Expiry</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {subconLoading ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
+                ) : subcontractors.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No subcontractors registered.</td></tr>
+                ) : subcontractors.map(s => {
+                  const expiry = s.insurance_expiry ? new Date(s.insurance_expiry) : null;
+                  const today = new Date();
+                  const expiryStatus = !expiry ? null : expiry < today ? 'badge-red' : expiry < new Date(today.getTime() + 30 * 86400000) ? 'badge-orange' : 'badge-green';
+                  return (
+                    <tr key={s.id}>
+                      <td className="tbl-name">{s.company || s.name || '—'}</td>
+                      <td style={{ fontSize: 12 }}>{s.contact_name || '—'}</td>
+                      <td><span className="badge badge-teal">{s.trade || '—'}</span></td>
+                      <td style={{ fontSize: 12 }}><a href={`mailto:${s.email}`} style={{ color: 'var(--navy)' }}>{s.email || '—'}</a></td>
+                      <td style={{ fontSize: 12 }}>{s.phone || '—'}</td>
+                      <td style={{ fontSize: 12, fontWeight: 600 }}>{s.hourly_rate != null ? `€${Number(s.hourly_rate).toFixed(2)}/hr` : '—'}</td>
+                      <td>
+                        {expiry ? (
+                          <span className={`badge ${expiryStatus}`}>{expiry.toLocaleDateString()}</span>
+                        ) : <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>—</span>}
+                      </td>
+                      <td><span className={`badge ${s.is_active !== false ? 'badge-green' : 'badge-gray'}`}>{s.is_active !== false ? 'Active' : 'Inactive'}</span></td>
+                      <td><button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => { if (window.confirm('Remove this subcontractor?')) deleteSubcon(s.id); }}>Remove</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
