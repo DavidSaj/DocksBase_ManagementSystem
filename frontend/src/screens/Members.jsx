@@ -64,6 +64,110 @@ function NewMemberModal({ onClose, onCreate }) {
   );
 }
 
+function BerthContractModal({ member, onClose }) {
+  const [berths, setBerths] = useState([]);
+  const [berthId, setBerthId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [annualRate, setAnnualRate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    api.get('/berths/').then(r => {
+      setBerths(r.data?.results ?? r.data ?? []);
+    }).catch(() => setBerths([]));
+  }, []);
+
+  async function handleGenerate(e) {
+    e.preventDefault();
+    if (!berthId || !startDate || !endDate || !annualRate) {
+      setErr('All fields except Notes are required.');
+      return;
+    }
+    setGenerating(true);
+    setErr(null);
+    try {
+      const params = new URLSearchParams({
+        berth_id: berthId,
+        start_date: startDate,
+        end_date: endDate,
+        annual_rate: annualRate,
+        ...(notes ? { notes } : {}),
+      });
+      const response = await api.get(
+        `/members/${member.id}/berth-agreement-pdf/?${params.toString()}`,
+        { responseType: 'blob' }
+      );
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const year = startDate.slice(0, 4);
+      a.download = `berth-agreement-${member.name.replace(/\s+/g, '-')}-${year}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (ex) {
+      const detail = ex?.response?.data?.detail ?? ex?.message ?? 'PDF generation failed.';
+      setErr(detail);
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ width: 500, padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Download Berth Contract</div>
+        <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 18 }}>{member.name}</div>
+        <form onSubmit={handleGenerate}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Berth</label>
+              <select required value={berthId} onChange={e => setBerthId(e.target.value)}>
+                <option value="">Select berth…</option>
+                {berths.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.code}{b.pier_name ? ` — ${b.pier_name}` : ''}{b.length_m ? ` (${b.length_m}m)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Start Date</label>
+                <input required type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>End Date</label>
+                <input required type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Annual Rate (&euro;)</label>
+              <input required type="number" min="0" step="0.01" placeholder="e.g. 3500.00" value={annualRate} onChange={e => setAnnualRate(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes (optional)</label>
+              <textarea rows={3} placeholder="Any additional terms or remarks…" value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical' }} />
+            </div>
+            {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={generating}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={generating}>
+              {generating ? 'Generating…' : 'Generate PDF'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function fmt(m) {
   const vessel = m.vessels?.[0]?.name ?? m.vessel ?? '—';
   return {
@@ -152,6 +256,7 @@ export default function Members({ setScreen }) {
   const [payNotes, setPayNotes]           = useState('');
   const [payLoading, setPayLoading]       = useState(false);
   const [payError, setPayError]           = useState(null);
+  const [showContractModal, setShowContractModal] = useState(false);
 
   async function handleSendPortalLink() {
     if (!sel?.id) return;
@@ -329,6 +434,14 @@ export default function Members({ setScreen }) {
                   type="button"
                   className="btn btn-ghost"
                   style={{ justifyContent: 'center' }}
+                  onClick={() => setShowContractModal(true)}
+                >
+                  Download Contract
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ justifyContent: 'center' }}
                   onClick={handleSendPortalLink}
                   disabled={linkSending || !sel?.email}
                   title={sel?.email ? undefined : 'Member has no email address'}
@@ -480,6 +593,13 @@ export default function Members({ setScreen }) {
         <NewMemberModal
           onClose={() => setShowAdd(false)}
           onCreate={async (payload) => { await createMember(payload); setShowAdd(false); }}
+        />
+      )}
+
+      {showContractModal && sel && (
+        <BerthContractModal
+          member={sel}
+          onClose={() => setShowContractModal(false)}
         />
       )}
 

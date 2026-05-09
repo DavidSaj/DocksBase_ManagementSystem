@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 24mm 18mm;
+    @bottom-center {
+      content: "Confidential — {{ marina.name }} Annual Berth Licence Agreement {{ year }}   |   Page " counter(page) " of " counter(pages);
+      font-family: Arial, sans-serif;
+      font-size: 9px;
+      color: #888;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    color: #1a1a1a;
+    line-height: 1.5;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .doc-header {
+    border-bottom: 3px solid #1a3d6e;
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .doc-header-left .marina-name {
+    font-size: 20px;
+    font-weight: bold;
+    color: #1a3d6e;
+    letter-spacing: 0.5px;
+  }
+  .doc-header-left .doc-title {
+    font-size: 13px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #444;
+    margin-top: 4px;
+  }
+  .doc-header-right {
+    text-align: right;
+    font-size: 11px;
+    color: #555;
+    line-height: 1.7;
+  }
+  .doc-header-right .agreement-no {
+    font-weight: bold;
+    font-size: 12px;
+    color: #1a3d6e;
+  }
+
+  /* ── Section headings ───────────────────────────────────────────────────── */
+  .section {
+    margin-bottom: 18px;
+  }
+  .section-title {
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #1a3d6e;
+    border-bottom: 1.5px solid #1a3d6e;
+    padding-bottom: 3px;
+    margin-bottom: 10px;
+  }
+
+  /* ── Two-column layout ──────────────────────────────────────────────────── */
+  .two-col {
+    display: flex;
+    gap: 20px;
+  }
+  .two-col .col {
+    flex: 1;
+  }
+  .col-label {
+    font-size: 9px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #888;
+    margin-bottom: 5px;
+  }
+
+  /* ── Data tables ────────────────────────────────────────────────────────── */
+  table.data-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  table.data-tbl td {
+    padding: 5px 8px;
+    border: 1px solid #dde3ec;
+    vertical-align: top;
+  }
+  table.data-tbl td.lbl {
+    background: #f3f6fa;
+    font-weight: bold;
+    width: 38%;
+    color: #333;
+  }
+  table.data-tbl td.val {
+    color: #1a1a1a;
+  }
+
+  /* ── Parties block ──────────────────────────────────────────────────────── */
+  .party-box {
+    border: 1px solid #dde3ec;
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 11px;
+    line-height: 1.7;
+    height: 100%;
+  }
+  .party-box .party-role {
+    font-size: 9px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #888;
+    margin-bottom: 5px;
+  }
+  .party-box .party-name {
+    font-size: 13px;
+    font-weight: bold;
+    color: #1a3d6e;
+    margin-bottom: 4px;
+  }
+
+  /* ── Terms section ──────────────────────────────────────────────────────── */
+  .terms-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .terms-table td {
+    padding: 5px 8px;
+    border: 1px solid #dde3ec;
+    vertical-align: top;
+  }
+  .terms-table td.lbl {
+    background: #f3f6fa;
+    font-weight: bold;
+    width: 30%;
+  }
+
+  /* ── Standard clauses ───────────────────────────────────────────────────── */
+  ol.clauses {
+    padding-left: 18px;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  ol.clauses li {
+    margin-bottom: 5px;
+    padding-left: 4px;
+  }
+
+  /* ── Signature section ──────────────────────────────────────────────────── */
+  .sig-block {
+    border: 1px solid #dde3ec;
+    border-radius: 4px;
+    padding: 14px 16px;
+    flex: 1;
+  }
+  .sig-block .sig-role {
+    font-size: 9px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  .sig-line {
+    border-bottom: 1.5px solid #555;
+    height: 38px;
+    margin-bottom: 5px;
+  }
+  .sig-meta {
+    font-size: 10px;
+    color: #555;
+    line-height: 1.6;
+  }
+
+  /* ── Notes box ──────────────────────────────────────────────────────────── */
+  .notes-box {
+    border: 1px solid #dde3ec;
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #333;
+    background: #fffdf0;
+    white-space: pre-wrap;
+  }
+
+  /* ── Sublet checkbox ────────────────────────────────────────────────────── */
+  .checkbox-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+  .checkbox-box {
+    width: 12px;
+    height: 12px;
+    border: 1.5px solid #555;
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: inline-block;
+    text-align: center;
+    line-height: 10px;
+    font-size: 10px;
+  }
+  .checkbox-box.checked {
+    background: #1a3d6e;
+    border-color: #1a3d6e;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
+<div class="doc-header">
+  <div class="doc-header-left">
+    <div class="marina-name">{{ marina.name }}</div>
+    <div class="doc-title">Annual Berth Licence Agreement</div>
+  </div>
+  <div class="doc-header-right">
+    <div class="agreement-no">{{ agreement_number }}</div>
+    <div>Date: {{ doc_date }}</div>
+  </div>
+</div>
+
+
+<!-- ══ PARTIES ════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">1. Parties</div>
+  <div class="two-col">
+
+    <div class="col">
+      <div class="party-box">
+        <div class="party-role">Marina (Licensor)</div>
+        <div class="party-name">{{ marina.name }}</div>
+        {% if marina.address %}<div>{{ marina.address }}</div>{% endif %}
+        {% if marina.vat_number %}<div>VAT: {{ marina.vat_number }}</div>{% endif %}
+        {% if marina.contact_email %}<div>{{ marina.contact_email }}</div>{% endif %}
+        {% if marina.phone %}<div>{{ marina.phone }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="party-box">
+        <div class="party-role">Berth Holder (Licensee)</div>
+        <div class="party-name">{{ member.name }}</div>
+        {% if member.address %}<div>{{ member.address }}</div>{% endif %}
+        {% if member.address_country %}<div>{{ member.address_country }}</div>{% endif %}
+        {% if member.phone %}<div>{{ member.phone }}</div>{% endif %}
+        {% if member.email %}<div>{{ member.email }}</div>{% endif %}
+        {% if member.emergency_name %}
+        <div style="margin-top:6px; padding-top:6px; border-top:1px solid #e5e7eb; font-size:10px; color:#555;">
+          <strong>Emergency Contact:</strong><br>
+          {{ member.emergency_name }}{% if member.emergency_phone %} &mdash; {{ member.emergency_phone }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══ VESSEL DETAILS ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">2. Vessel Details</div>
+  {% if vessel %}
+  <table class="data-tbl">
+    <tr>
+      <td class="lbl">Vessel Name</td>
+      <td class="val">{{ vessel.name|default:"—" }}</td>
+      <td class="lbl">Registration</td>
+      <td class="val">{{ vessel.reg|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Flag</td>
+      <td class="val">{{ vessel.flag|default:"—" }}</td>
+      <td class="lbl">MMSI</td>
+      <td class="val">{{ vessel.mmsi|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Call Sign</td>
+      <td class="val">{{ vessel.call_sign|default:"—" }}</td>
+      <td class="lbl">Vessel Type</td>
+      <td class="val">{{ vessel.get_vessel_type_display|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">LOA (m)</td>
+      <td class="val">{{ vessel.loa|default:"—" }}</td>
+      <td class="lbl">Beam (m)</td>
+      <td class="val">{{ vessel.beam|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Draft (m)</td>
+      <td class="val">{{ vessel.draft|default:"—" }}</td>
+      <td class="lbl">Air Draft (m)</td>
+      <td class="val">{{ vessel.air_draft|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Year Built</td>
+      <td class="val">{{ vessel.year_built|default:"—" }}</td>
+      <td class="lbl">Builder</td>
+      <td class="val">{{ vessel.builder|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Model</td>
+      <td class="val">{{ vessel.model|default:"—" }}</td>
+      <td class="lbl">Engine</td>
+      <td class="val">{{ vessel.engine|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Fuel Type</td>
+      <td class="val">{{ vessel.fuel|default:"—" }}</td>
+      <td class="lbl">Shore Power</td>
+      <td class="val">{{ vessel.shore_power|default:"—" }}</td>
+    </tr>
+  </table>
+  {% else %}
+  <div style="color:#888; font-style:italic; font-size:11px;">No vessel registered for this member.</div>
+  {% endif %}
+</div>
+
+
+<!-- ══ INSURANCE ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">3. Insurance</div>
+  {% if insurance %}
+  <table class="data-tbl">
+    <tr>
+      <td class="lbl">Insurer</td>
+      <td class="val">{{ insurance.insurer|default:"—" }}</td>
+      <td class="lbl">Policy Number</td>
+      <td class="val">{{ insurance.policy_no|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Expiry Date</td>
+      <td class="val">{{ insurance.expires|date:"d M Y"|default:"—" }}</td>
+      <td class="lbl">Status</td>
+      <td class="val">{{ insurance.get_status_display|default:"—" }}</td>
+    </tr>
+  </table>
+  {% else %}
+  <div style="color:#888; font-style:italic; font-size:11px;">No insurance record on file.</div>
+  {% endif %}
+</div>
+
+
+<!-- ══ BERTH DETAILS ═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">4. Berth Details</div>
+  <table class="data-tbl">
+    <tr>
+      <td class="lbl">Berth Code</td>
+      <td class="val">{{ berth.code }}</td>
+      <td class="lbl">Pier</td>
+      <td class="val">{% if berth.pier %}{{ berth.pier.label|default:berth.pier.code }}{% else %}—{% endif %}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Berth Type</td>
+      <td class="val">{{ berth.berth_type|default:"—" }}</td>
+      <td class="lbl">Berth Class</td>
+      <td class="val">{{ berth.get_berth_class_display|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Operational Type</td>
+      <td class="val">{{ berth.get_operational_type_display|default:"—" }}</td>
+      <td class="lbl">Side</td>
+      <td class="val">{{ berth.get_side_display|default:"—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Mooring Type</td>
+      <td class="val">{% if berth.category %}{{ berth.category.get_mooring_type_display }}{% else %}—{% endif %}</td>
+      <td class="lbl">Berth Length (m)</td>
+      <td class="val">{{ berth.length_m|default:"—" }}</td>
+    </tr>
+  </table>
+</div>
+
+
+<!-- ══ AGREEMENT TERMS ════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">5. Licence Terms</div>
+  <table class="terms-table">
+    <tr>
+      <td class="lbl">Licence Period</td>
+      <td>{{ start_date|date:"d M Y" }} to {{ end_date|date:"d M Y" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Annual Licence Fee</td>
+      <td><strong style="font-size:12px;">{{ marina.currency }} {{ annual_rate }}</strong></td>
+    </tr>
+    <tr>
+      <td class="lbl">Payment Terms</td>
+      <td>Net {{ marina.payment_terms }} days from invoice date</td>
+    </tr>
+    <tr>
+      <td class="lbl">Sub-letting</td>
+      <td>
+        {% if sublet_explicit %}
+          {% if sublet_allowed %}
+            <span style="font-weight:bold; color:#16a34a;">Permitted</span> &mdash; The berth holder may sub-let the berth during temporary absences, subject to marina approval and the terms of this agreement.
+          {% else %}
+            <span style="font-weight:bold; color:#dc2626;">Not Permitted</span> &mdash; The berth holder may not sub-let the berth during temporary absences.
+          {% endif %}
+        {% else %}
+          <div class="checkbox-option"><span class="checkbox-box">&nbsp;</span> <span>The berth holder <strong>may</strong> sub-let the berth during temporary absences (subject to marina approval).</span></div>
+          <div class="checkbox-option"><span class="checkbox-box">&nbsp;</span> <span>The berth holder <strong>may not</strong> sub-let the berth during temporary absences.</span></div>
+          <div style="font-size:10px; color:#888; margin-top:4px;">Please initial the applicable option above.</div>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<!-- ══ STANDARD CLAUSES ═══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">6. Standard Clauses</div>
+  <ol class="clauses">
+    <li>The berth holder agrees to comply with all marina regulations and bye-laws in force from time to time, copies of which are available from the marina office.</li>
+    <li>The marina reserves the right to reallocate the berth in exceptional circumstances (including but not limited to safety requirements or major infrastructure works) with a minimum of 7 days' written notice to the berth holder, and shall endeavour to provide an equivalent alternative berth.</li>
+    <li>The berth holder is responsible for maintaining adequate third-party liability and hull insurance cover at all times during the term of this agreement. Evidence of current insurance must be provided to the marina upon request.</li>
+    <li>The marina accepts no liability for any loss of or damage to vessels, equipment, personal property, or any other item howsoever caused, whether by storm, flood, fire, theft, or any other cause.</li>
+    <li>Either party may terminate this agreement by giving not less than 30 days' written notice to the other party. In the event of material breach by the berth holder, the marina may terminate immediately.</li>
+    <li>This agreement is governed by the laws of the jurisdiction in which the marina operates, and the parties submit to the exclusive jurisdiction of the courts of that jurisdiction.</li>
+  </ol>
+</div>
+
+
+{% if notes %}
+<!-- ══ ADDITIONAL NOTES ════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">7. Additional Notes</div>
+  <div class="notes-box">{{ notes }}</div>
+</div>
+{% endif %}
+
+
+<!-- ══ SIGNATURES ══════════════════════════════════════════════════════════ -->
+<div class="section" style="margin-top: 24px;">
+  <div class="section-title">{% if notes %}8{% else %}7{% endif %}. Signatures</div>
+  <div style="font-size:10px; color:#555; margin-bottom:12px;">
+    By signing below, both parties acknowledge that they have read, understood, and agree to be bound by the terms of this Annual Berth Licence Agreement.
+  </div>
+  <div class="two-col">
+
+    <div class="sig-block">
+      <div class="sig-role">For and on behalf of the Marina (Licensor)</div>
+      <div class="sig-line"></div>
+      <div class="sig-meta">
+        Name: ___________________________<br>
+        Title: Harbour Master / Authorised Representative<br>
+        Date: ___________________________
+      </div>
+    </div>
+
+    <div class="sig-block">
+      <div class="sig-role">Berth Holder (Licensee)</div>
+      <div class="sig-line"></div>
+      <div class="sig-meta">
+        Name: {{ member.name }}<br>
+        &nbsp;<br>
+        Date: ___________________________
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
