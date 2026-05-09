@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.mail import send_mail
+from django.conf import settings
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from rest_framework import status as http_status
@@ -11,6 +13,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.billing.account_views import _build_detail
+from apps.reservations.models import Booking
 
 User = get_user_model()
 
@@ -78,3 +81,63 @@ class ActivatePortalView(APIView):
             'access': str(refresh.access_token),
             'refresh': str(refresh),
         })
+
+
+class SendGuestMessageView(APIView):
+    """
+    POST /api/v1/mobile/send-guest-message/
+    Body: { booking_id: int, message: str }
+    Sends an email to the guest associated with the booking.
+    Restricted to authenticated staff users scoped to their marina.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        booking_id = request.data.get('booking_id')
+        message    = request.data.get('message', '').strip()
+
+        if not booking_id:
+            return Response(
+                {'detail': 'booking_id is required.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        if not message:
+            return Response(
+                {'detail': 'message is required.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            booking = Booking.objects.get(pk=booking_id, marina=request.user.marina)
+        except Booking.DoesNotExist:
+            return Response(
+                {'detail': 'Booking not found.'},
+                status=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        guest_email = booking.guest_email
+        if not guest_email and booking.vessel_id:
+            # Try to get email from the linked vessel owner
+            try:
+                guest_email = booking.vessel.owner.email
+            except Exception:
+                pass
+
+        if not guest_email:
+            return Response(
+                {'detail': 'No guest email address on file for this booking.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        marina_name = getattr(request.user.marina, 'name', 'The marina')
+        from_email  = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@docksbase.com')
+
+        send_mail(
+            subject=f'Message from {marina_name}',
+            message=message,
+            from_email=from_email,
+            recipient_list=[guest_email],
+            fail_silently=False,
+        )
+
+        return Response({'ok': True, 'guest_email': guest_email})

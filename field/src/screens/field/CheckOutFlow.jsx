@@ -5,6 +5,16 @@ const HDR = { background: '#1a2d4a', padding: '16px 20px', display: 'flex', alig
 const BACK_BTN = { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44 };
 const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#1a2d4a', color: '#fff', border: 'none', fontSize: 17, fontWeight: 700, cursor: 'pointer' };
 
+const PAYMENT_METHODS = [
+  { id: 'cash',          label: 'Cash',          icon: '💵' },
+  { id: 'card',          label: 'Card',          icon: '💳' },
+  { id: 'bank_transfer', label: 'Bank Transfer', icon: '🏦' },
+];
+
+function paymentLabel(method) {
+  return PAYMENT_METHODS.find(m => m.id === method)?.label ?? method;
+}
+
 function vesselLabel(b) {
   if (b.vessel && typeof b.vessel === 'object') return b.vessel.name || b.guest_name || '—';
   return b.vessel_name || b.guest_name || '—';
@@ -20,6 +30,7 @@ export default function CheckOutFlow({ onBack }) {
   const [loading, setLoading]         = useState(true);
   const [search, setSearch]           = useState('');
   const [selected, setSelected]       = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState(null);
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState(null);
   const [checkedOut, setCheckedOut]   = useState(null);
@@ -40,7 +51,10 @@ export default function CheckOutFlow({ onBack }) {
     setSaving(true);
     setError(null);
     try {
-      const { data } = await api.patch(`/bookings/${selected.id}/`, { status: 'checked_out' });
+      const { data } = await api.patch(`/bookings/${selected.id}/`, {
+        status: 'checked_out',
+        payment_method: paymentMethod,
+      });
       setCheckedOut(data);
       setAllBookings(prev => prev.filter(b => b.id !== selected.id));
     } catch {
@@ -50,7 +64,9 @@ export default function CheckOutFlow({ onBack }) {
     }
   }
 
+  // ── Success / receipt screen ──────────────────────────────────────────────
   if (checkedOut) {
+    const amount = checkedOut.amount ?? selected?.amount;
     return (
       <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
         <div style={HDR}>
@@ -58,50 +74,115 @@ export default function CheckOutFlow({ onBack }) {
           <span style={{ fontSize: 16, fontWeight: 700 }}>Check Out</span>
         </div>
         <div style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🚪</div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🧾</div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Checked Out</div>
-          <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>{vesselLabel(selected)}</div>
-          {checkedOut.amount && (
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#1a2d4a', marginBottom: 28 }}>
-              Invoice: €{Number(checkedOut.amount).toFixed(2)}
+
+          {/* Receipt card */}
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: 24,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24, textAlign: 'left',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a2d4a' }}>
+              Receipt
             </div>
-          )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Vessel</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{vesselLabel(selected)}</span>
+            </div>
+            {amount && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Amount paid</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2d4a' }}>
+                  €{Number(amount).toFixed(2)}
+                </span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Payment method</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                {paymentLabel(paymentMethod)}
+              </span>
+            </div>
+          </div>
+
           <button style={ACTION_BTN} onClick={onBack}>Back to Actions</button>
         </div>
       </div>
     );
   }
 
+  // ── Booking details + payment method selection ────────────────────────────
   if (selected) {
     const berth = berthCode(selected);
     return (
       <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
         <div style={HDR}>
-          <button style={BACK_BTN} onClick={() => { setSelected(null); setError(null); }}>←</button>
+          <button style={BACK_BTN} onClick={() => { setSelected(null); setPaymentMethod(null); setError(null); }}>←</button>
           <span style={{ fontSize: 16, fontWeight: 700 }}>Check Out</span>
         </div>
         <div style={{ padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 18, marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+          {/* Booking details card */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 18, marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{vesselLabel(selected)}</div>
             {berth && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>Berth {berth}</div>}
             <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>Arrived: {selected.check_in}</div>
             <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>Departs: {selected.check_out}</div>
             {selected.nights && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>Nights: {selected.nights}</div>}
             {selected.amount && (
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1a2d4a', marginTop: 8 }}>
-                Amount: €{Number(selected.amount).toFixed(2)}
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1a2d4a', marginTop: 10 }}>
+                €{Number(selected.amount).toFixed(2)}
               </div>
             )}
           </div>
+
+          {/* Payment method selection */}
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            Payment method
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+            {PAYMENT_METHODS.map(m => {
+              const isSelected = paymentMethod === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setPaymentMethod(m.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    width: '100%', padding: '16px 18px', borderRadius: 14,
+                    border: `2px solid ${isSelected ? '#1a2d4a' : 'rgba(0,0,0,0.1)'}`,
+                    background: isSelected ? '#1a2d4a' : '#fff',
+                    color: isSelected ? '#fff' : '#1a2d4a',
+                    cursor: 'pointer', textAlign: 'left',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                    transition: 'background 0.15s, border-color 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 26 }}>{m.icon}</span>
+                  <span style={{ fontSize: 16, fontWeight: 700 }}>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {error && <div style={{ color: '#c0392b', fontSize: 13, marginBottom: 10, textAlign: 'center' }}>{error}</div>}
-          <button style={ACTION_BTN} disabled={saving} onClick={handleCheckOut}>
-            {saving ? 'Saving…' : '🚪 Check Out'}
+
+          <button
+            style={{
+              ...ACTION_BTN,
+              opacity: paymentMethod ? 1 : 0.4,
+              cursor: paymentMethod ? 'pointer' : 'default',
+            }}
+            disabled={!paymentMethod || saving}
+            onClick={handleCheckOut}
+          >
+            {saving ? 'Saving…' : '🚪 Confirm Check-Out'}
           </button>
         </div>
       </div>
     );
   }
 
+  // ── Vessel list ───────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
       <div style={HDR}>

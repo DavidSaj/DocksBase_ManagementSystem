@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import useBookings from '../hooks/useBookings.js';
 import useBookingRequests from '../hooks/useBookingRequests.js';
 import useVessels from '../hooks/useVessels.js';
@@ -34,12 +34,86 @@ function fmt(b) {
 }
 
 // ---------------------------------------------------------------------------
+// useAvailableBerthsForDates — fetches date-aware berth availability from the
+// management API. Fires whenever check_in, check_out, or any dimension changes.
+// Returns { berths, loading, noDatesYet } so the caller can render appropriate UI.
+// ---------------------------------------------------------------------------
+function useAvailableBerthsForDates({ check_in, check_out, boat_loa, boat_beam, boat_draft }) {
+  const [berths, setBerths] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const abortRef = useRef(null);
+
+  const fetchBerths = useCallback(async () => {
+    if (!check_in || !check_out) {
+      setBerths([]);
+      setLoading(false);
+      return;
+    }
+    // Cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    try {
+      const params = { check_in, check_out };
+      if (boat_loa)   params.boat_loa   = boat_loa;
+      if (boat_beam)  params.boat_beam  = boat_beam;
+      if (boat_draft) params.boat_draft = boat_draft;
+      const { data } = await api.get('/bookings/available-berths/', {
+        params,
+        signal: controller.signal,
+      });
+      const list = Array.isArray(data) ? data : (data.results ?? []);
+      setBerths(list);
+    } catch (err) {
+      if (err.name !== 'CanceledError' && err.name !== 'AbortError') setBerths([]);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, [check_in, check_out, boat_loa, boat_beam, boat_draft]);
+
+  useEffect(() => {
+    fetchBerths();
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, [fetchBerths]);
+
+  return { berths, loading, noDatesYet: !check_in || !check_out };
+}
+
+// Renders the berth <select> with loading / empty-state awareness.
+function BerthSelect({ value, onChange, check_in, check_out, boat_loa, boat_beam, boat_draft, required, style }) {
+  const { berths, loading, noDatesYet } = useAvailableBerthsForDates({ check_in, check_out, boat_loa, boat_beam, boat_draft });
+
+  let placeholder;
+  if (noDatesYet)   placeholder = 'Set check-in & check-out first';
+  else if (loading) placeholder = 'Checking availability…';
+  else if (!berths.length) placeholder = 'No berths available for these dates';
+  else placeholder = 'Select berth…';
+
+  return (
+    <select
+      className="input"
+      value={value}
+      onChange={onChange}
+      required={required}
+      disabled={noDatesYet || loading}
+      style={style}
+    >
+      <option value="">{placeholder}</option>
+      {berths.map(b => (
+        <option key={b.id} value={b.id}>
+          {b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SmartBookingModal
 // ---------------------------------------------------------------------------
 function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }) {
-  const { berths } = useBerths();
-  const availableBerths = berths.filter(b => b.status === 'available');
-
   // State machine
   const [phase, setPhase] = useState('search');
 
@@ -69,12 +143,25 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
   // Hover state for result rows
   const [hoveredIdx, setHoveredIdx] = useState(null);
 
-  // Derived amount preview helpers
+  // Derived amount preview — works off the berth id selected; we look it up
+  // from the live availability results via a small lookup cache stored on the
+  // select element's data attribute. Instead we keep a berth-price lookup map
+  // that BerthSelect populates indirectly. Simpler: just store selected berth
+  // metadata in state when the user changes the select.
+  const [selectedBerthMeta, setSelectedBerthMeta] = useState(null); // { id, price_per_night }
+
+  function handleMBerthChange(e, berths) {
+    const id = e.target.value;
+    setMForm(f => ({ ...f, berth: id }));
+    const found = berths.find(b => String(b.id) === id);
+    setSelectedBerthMeta(found ? { id: found.id, price_per_night: found.price_per_night } : null);
+  }
+
   function amountPreview(berthId, checkIn, checkOut) {
-    const b = availableBerths.find(b => b.id === Number(berthId));
-    if (!b?.price_per_night || !checkIn || !checkOut) return '—';
+    if (!selectedBerthMeta || String(selectedBerthMeta.id) !== String(berthId)) return '—';
+    if (!selectedBerthMeta.price_per_night || !checkIn || !checkOut) return '—';
     const nights = Math.max(1, Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000));
-    return `€${(b.price_per_night * nights).toLocaleString('de-DE', { minimumFractionDigits: 2 })} (${nights} nights)`;
+    return `€${(selectedBerthMeta.price_per_night * nights).toLocaleString('de-DE', { minimumFractionDigits: 2 })} (${nights} nights)`;
   }
 
   // Search debounce
@@ -101,6 +188,7 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
   function pickMember(m) {
     setSelectedMember(m);
     setMForm({ vessel: '', berth: '', booking_type: 'transient', check_in: '', check_out: '' });
+    setSelectedBerthMeta(null);
     setPhase('memberFound');
   }
 
@@ -122,6 +210,7 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
     setResults([]);
     setSearchDone(false);
     setError(null);
+    setSelectedBerthMeta(null);
   }
 
   // Submit: memberFound
@@ -205,6 +294,15 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
     guestQuick:  'Guest Check-In',
     guestFull:   'Register & Book',
   };
+
+  // memberFound — we need access to the live berth list for amount preview.
+  // Use the hook at modal level for the member phase; the BerthSelect component
+  // will also call it internally (React dedupes by key identity so the second
+  // call reuses the same effect in practice — two fetches at most, negligible).
+  const mBerths = useAvailableBerthsForDates({
+    check_in:   mForm.check_in,
+    check_out:  mForm.check_out,
+  });
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -299,14 +397,6 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
               </label>
 
               <label style={LABEL}>
-                Berth (available only)
-                <select className="input" value={mForm.berth} onChange={e => setMForm(f => ({ ...f, berth: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
-                  <option value="">Select berth…</option>
-                  {availableBerths.map(b => <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>)}
-                </select>
-              </label>
-
-              <label style={LABEL}>
                 Type
                 <select className="input" value={mForm.booking_type} onChange={e => setMForm(f => ({ ...f, booking_type: e.target.value }))} style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
                   <option value="transient">Transient</option>
@@ -317,13 +407,40 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <label style={LABEL}>
                   Check-in
-                  <input type="date" className="input" value={mForm.check_in} onChange={e => setMForm(f => ({ ...f, check_in: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                  <input type="date" className="input" value={mForm.check_in} onChange={e => { setMForm(f => ({ ...f, check_in: e.target.value, berth: '' })); setSelectedBerthMeta(null); }} required style={{ marginTop: 4, width: '100%' }} />
                 </label>
                 <label style={LABEL}>
                   Check-out
-                  <input type="date" className="input" value={mForm.check_out} onChange={e => setMForm(f => ({ ...f, check_out: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
+                  <input type="date" className="input" value={mForm.check_out} onChange={e => { setMForm(f => ({ ...f, check_out: e.target.value, berth: '' })); setSelectedBerthMeta(null); }} required style={{ marginTop: 4, width: '100%' }} />
                 </label>
               </div>
+
+              <label style={LABEL}>
+                Berth
+                <select
+                  className="input"
+                  value={mForm.berth}
+                  onChange={e => handleMBerthChange(e, mBerths.berths)}
+                  required
+                  disabled={mBerths.noDatesYet || mBerths.loading}
+                  style={{ marginTop: 4, width: '100%', fontWeight: 400 }}
+                >
+                  <option value="">
+                    {mBerths.noDatesYet
+                      ? 'Set check-in & check-out first'
+                      : mBerths.loading
+                        ? 'Checking availability…'
+                        : mBerths.berths.length === 0
+                          ? 'No berths available for these dates'
+                          : 'Select berth…'}
+                  </option>
+                  {mBerths.berths.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f5f8ff', borderRadius: 6 }}>
                 <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Estimated amount</span>
@@ -357,15 +474,31 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
 
               <label style={LABEL}>
                 Boat Length (m)
-                <input className="input" type="number" step="0.1" min="0" value={qForm.guest_loa} onChange={e => setQForm(f => ({ ...f, guest_loa: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+                <input className="input" type="number" step="0.1" min="0" value={qForm.guest_loa} onChange={e => setQForm(f => ({ ...f, guest_loa: e.target.value, berth: '' }))} style={{ marginTop: 4, width: '100%' }} />
               </label>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label style={LABEL}>
+                  Check-in
+                  <input type="date" className="input" value={qForm.check_in} onChange={e => setQForm(f => ({ ...f, check_in: e.target.value, berth: '' }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+                <label style={LABEL}>
+                  Check-out
+                  <input type="date" className="input" value={qForm.check_out} onChange={e => setQForm(f => ({ ...f, check_out: e.target.value, berth: '' }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+              </div>
+
               <label style={LABEL}>
-                Berth (available only)
-                <select className="input" value={qForm.berth} onChange={e => setQForm(f => ({ ...f, berth: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
-                  <option value="">Select berth…</option>
-                  {availableBerths.map(b => <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>)}
-                </select>
+                Berth
+                <BerthSelect
+                  value={qForm.berth}
+                  onChange={e => setQForm(f => ({ ...f, berth: e.target.value }))}
+                  check_in={qForm.check_in}
+                  check_out={qForm.check_out}
+                  boat_loa={qForm.guest_loa || undefined}
+                  required
+                  style={{ marginTop: 4, width: '100%', fontWeight: 400 }}
+                />
               </label>
 
               <label style={LABEL}>
@@ -375,17 +508,6 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
                   <option value="seasonal">Seasonal</option>
                 </select>
               </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <label style={LABEL}>
-                  Check-in
-                  <input type="date" className="input" value={qForm.check_in} onChange={e => setQForm(f => ({ ...f, check_in: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
-                </label>
-                <label style={LABEL}>
-                  Check-out
-                  <input type="date" className="input" value={qForm.check_out} onChange={e => setQForm(f => ({ ...f, check_out: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
-                </label>
-              </div>
 
               <button type="submit" className="btn btn-primary" disabled={submitting} style={{ justifyContent: 'center' }}>
                 {submitting ? 'Saving…' : 'Create Guest Booking'}
@@ -424,22 +546,39 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <label style={LABEL}>
                   LOA (m)
-                  <input className="input" type="number" step="0.1" min="0" value={fForm.loa} onChange={e => setFForm(f => ({ ...f, loa: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+                  <input className="input" type="number" step="0.1" min="0" value={fForm.loa} onChange={e => setFForm(f => ({ ...f, loa: e.target.value, berth: '' }))} style={{ marginTop: 4, width: '100%' }} />
                 </label>
                 <label style={LABEL}>
                   Draft (m)
-                  <input className="input" type="number" step="0.01" min="0" value={fForm.draft} onChange={e => setFForm(f => ({ ...f, draft: e.target.value }))} style={{ marginTop: 4, width: '100%' }} />
+                  <input className="input" type="number" step="0.01" min="0" value={fForm.draft} onChange={e => setFForm(f => ({ ...f, draft: e.target.value, berth: '' }))} style={{ marginTop: 4, width: '100%' }} />
                 </label>
               </div>
 
               <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.08)', margin: '4px 0' }} />
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label style={LABEL}>
+                  Check-in
+                  <input type="date" className="input" value={fForm.check_in} onChange={e => setFForm(f => ({ ...f, check_in: e.target.value, berth: '' }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+                <label style={LABEL}>
+                  Check-out
+                  <input type="date" className="input" value={fForm.check_out} onChange={e => setFForm(f => ({ ...f, check_out: e.target.value, berth: '' }))} required style={{ marginTop: 4, width: '100%' }} />
+                </label>
+              </div>
+
               <label style={LABEL}>
-                Berth (available only)
-                <select className="input" value={fForm.berth} onChange={e => setFForm(f => ({ ...f, berth: e.target.value }))} required style={{ marginTop: 4, width: '100%', fontWeight: 400 }}>
-                  <option value="">Select berth…</option>
-                  {availableBerths.map(b => <option key={b.id} value={b.id}>{b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}</option>)}
-                </select>
+                Berth
+                <BerthSelect
+                  value={fForm.berth}
+                  onChange={e => setFForm(f => ({ ...f, berth: e.target.value }))}
+                  check_in={fForm.check_in}
+                  check_out={fForm.check_out}
+                  boat_loa={fForm.loa || undefined}
+                  boat_draft={fForm.draft || undefined}
+                  required
+                  style={{ marginTop: 4, width: '100%', fontWeight: 400 }}
+                />
               </label>
 
               <label style={LABEL}>
@@ -449,17 +588,6 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
                   <option value="seasonal">Seasonal</option>
                 </select>
               </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <label style={LABEL}>
-                  Check-in
-                  <input type="date" className="input" value={fForm.check_in} onChange={e => setFForm(f => ({ ...f, check_in: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
-                </label>
-                <label style={LABEL}>
-                  Check-out
-                  <input type="date" className="input" value={fForm.check_out} onChange={e => setFForm(f => ({ ...f, check_out: e.target.value }))} required style={{ marginTop: 4, width: '100%' }} />
-                </label>
-              </div>
 
               <button type="submit" className="btn btn-primary" disabled={submitting} style={{ justifyContent: 'center' }}>
                 {submitting ? 'Registering & booking…' : 'Register & Create Booking'}

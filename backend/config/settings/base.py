@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import timedelta
 from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -247,6 +248,18 @@ CELERY_BEAT_SCHEDULE = {
     'run-communication-journeys': {
         'task': 'communications.run_journey_enrollments',
         'schedule': 300,  # every 5 minutes
+    },
+    'send-overdue-invoice-alerts': {
+        'task': 'billing.send_overdue_invoice_alerts',
+        'schedule': crontab(hour=9, minute=0),
+    },
+    'send-overstay-alerts': {
+        'task': 'reservations.send_overstay_alerts',
+        'schedule': crontab(hour=8, minute=0),
+    },
+    'send-prearival-reminders': {
+        'task': 'reservations.send_prearival_reminders',
+        'schedule': crontab(hour=10, minute=0),
     },
 }
 
