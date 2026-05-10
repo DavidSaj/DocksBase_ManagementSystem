@@ -22,6 +22,7 @@ function GuestCheckinFlow() {
   const [subScreen, setSubScreen] = useState(null);
 
   function reload() {
+    setLoading(true);
     if (!bookingId) {
       setError('No booking session found.');
       setLoading(false);
@@ -33,7 +34,13 @@ function GuestCheckinFlow() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(reload, [bookingId]);
+  useEffect(() => {
+    if (!bookingId) { setError('No booking session found.'); setLoading(false); return; }
+    api.get(`/portal/checkin/bookings/${bookingId}/`)
+      .then(r => setBooking(r.data))
+      .catch(() => setError('Could not load your booking. Please use the link from your email.'))
+      .finally(() => setLoading(false));
+  }, [bookingId]);
 
   if (loading) {
     return (
