@@ -1,5 +1,5 @@
 // portal/src/App.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTenant } from './context/TenantContext';
 import Magic from './screens/Magic';
@@ -31,10 +31,13 @@ export default function App() {
 
   // --- Member magic link click ---
   const memberToken = params.get('member_token');
-  if (memberToken) {
+  useEffect(() => {
+    if (!memberToken) return;
     exchangeMemberToken(memberToken).catch(() => {
       window.location.replace(window.location.pathname);
     });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (memberToken) {
     return (
       <div className="p-login">
         <div className="p-login__tagline" style={{ color: 'rgba(255,255,255,0.7)' }}>

@@ -59,6 +59,7 @@ api.interceptors.response.use(
         localStorage.removeItem('portal_session_token');
         localStorage.removeItem('portal_refresh_token');
         localStorage.removeItem('portal_token_type');
+        localStorage.removeItem('portal_marina_slug');
         return Promise.reject(err);
       }
     }

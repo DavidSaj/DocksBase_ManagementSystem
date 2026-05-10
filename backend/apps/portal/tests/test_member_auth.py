@@ -122,3 +122,20 @@ def test_member_magic_refresh_returns_new_tokens(member_factory):
     data = resp.json()
     assert 'session_token' in data
     assert 'refresh_token' in data
+
+
+@pytest.mark.django_db
+def test_member_magic_request_sends_email(member_factory):
+    """Single known member: magic link email dispatched."""
+    member = member_factory()
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/member-magic/request/',
+        data={'email': member.email},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=member.marina.slug,
+    )
+    assert resp.status_code == 200
+    assert len(django_mail.outbox) == 1
+    assert member.email in django_mail.outbox[0].to
+    assert 'member_token=' in django_mail.outbox[0].body
