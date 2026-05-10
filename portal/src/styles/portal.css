@@ -849,7 +849,7 @@ input, select, textarea { font-family: inherit; }
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
-  color: var(--muted);
+  color: rgba(0,0,0,0.4);
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 14px;
   text-align: center;
@@ -877,7 +877,7 @@ input, select, textarea { font-family: inherit; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: var(--muted);
+  color: rgba(0,0,0,0.4);
   margin: 0 0 4px;
 }
 
@@ -892,7 +892,7 @@ input, select, textarea { font-family: inherit; }
 .p-feed-card__sub {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 13px;
-  color: var(--muted);
+  color: rgba(0,0,0,0.4);
   margin: 0 0 12px;
 }
 
