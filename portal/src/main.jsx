@@ -9,13 +9,16 @@ if ('serviceWorker' in navigator) {
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { TenantProvider } from './context/TenantContext';
+import { UserContextProvider } from './context/UserContext';
 import App from './App';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <TenantProvider>
-        <App />
+        <UserContextProvider>
+          <App />
+        </UserContextProvider>
       </TenantProvider>
     </BrowserRouter>
   </StrictMode>
