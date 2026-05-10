@@ -413,7 +413,7 @@ input, select, textarea { font-family: inherit; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: var(--muted, rgba(0,0,0,0.45));
+  color: rgba(0,0,0,0.45);
 }
 
 .p-body {
