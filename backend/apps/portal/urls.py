@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .feed_views import FeedView
 from .member_auth_urls import urlpatterns as member_auth_urls
 from .views import (
     PortalInvoiceListView, AbsenceReportCreateView, CraneRequestListCreateView,
@@ -8,6 +9,7 @@ from .views import (
 )
 
 urlpatterns = member_auth_urls + [
+    path('portal/feed/',                                   FeedView.as_view(),                   name='portal_feed'),
     path('portal/invoices/',                              PortalInvoiceListView.as_view(),      name='portal_invoices'),
     path('portal/invoices/<int:pk>/pay/',                 PortalInvoicePayView.as_view(),        name='portal_invoice_pay'),
     path('portal/absence/',                               AbsenceReportCreateView.as_view(),     name='portal_absence'),

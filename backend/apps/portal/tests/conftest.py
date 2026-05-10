@@ -1,4 +1,5 @@
 import pytest
+import datetime as _dt
 
 
 @pytest.fixture
@@ -41,3 +42,25 @@ def member_factory(marina_factory):
         return Member.objects.create(**defaults)
 
     return _make
+
+
+@pytest.fixture
+def invoice_factory():
+    from apps.billing.models import Invoice
+
+    _counter = [0]
+
+    def make(member, marina, status='unpaid', due_date=None, total='100.00'):
+        _counter[0] += 1
+        n = _counter[0]
+        return Invoice.objects.create(
+            member=member,
+            marina=marina,
+            status=status,
+            due_date=due_date or (_dt.date.today() + _dt.timedelta(days=30)),
+            total=total,
+            subtotal=total,
+            tax_total='0.00',
+            invoice_number=f'INV-TEST-{n:04d}',
+        )
+    return make
