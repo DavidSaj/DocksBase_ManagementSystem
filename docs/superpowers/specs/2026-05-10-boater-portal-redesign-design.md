@@ -29,15 +29,18 @@ A ground-up redesign of the DocksBase boater-facing PWA. The current portal is a
 **Member flow (new)**
 1. Boater visits `/{slug}`, sees branded login screen, enters email
 2. Frontend posts `POST /portal/auth/member-magic/request/` with `{ email }` + `X-Marina-Slug` header
-3. Backend: `Member.objects.get(email=email, marina__slug=slug)` — finds exactly one record (strict marina isolation)
-4. Backend generates signed token, sends magic link email to member
+3. Backend: `Member.objects.filter(email=email, marina__slug=slug)` — gets a queryset (never `.get()` — shared family/corporate emails may map to multiple members, and a `MultipleObjectsReturned` crash is fatal)
+   - Zero results → success response (don't leak whether email exists)
+   - One result → generate signed token, send magic link
+   - Multiple results → send a "Select your profile" magic link listing each member name; user taps their name in email, token encodes the specific `member_id`
+4. Backend generates signed token, sends magic link email to member(s)
 5. Boater clicks link → `POST /portal/auth/member-magic/verify/` with `{ token }`
-6. Response: `{ session_token, member_id, marina_slug }`
-7. Token stored in localStorage as `portal_session_token`
-8. Token payload: `{ member_id, marina_slug, email }`
+6. Response: `{ session_token, refresh_token, member_id, marina_slug }`
+7. Tokens stored in localStorage as `portal_session_token` (short-lived, 1 hour) and `portal_refresh_token` (long-lived)
+8. Session token payload: `{ member_id, marina_slug, email }`
 9. Salt: `portal-member-v1` (new)
 
-Both token types use Django's `signing.dumps` / `signing.loads` infrastructure. Member tokens expire after 7 days; booking tokens expire after 72 hours (unchanged).
+Both token types use Django's `signing.dumps` / `signing.loads` infrastructure. **Session tokens:** 1-hour expiry. **Refresh tokens:** 90-day rolling window — each successful API call issues a new refresh token, resetting the clock. A boater who uses the app regularly never needs to re-authenticate. Booking (guest) tokens expire after 72 hours (unchanged; no refresh). Refresh token endpoint: `POST /portal/auth/member-magic/refresh/` with `{ refresh_token }` → `{ session_token, refresh_token }`.
 
 ### 2.2 UserContext and capabilities
 
@@ -213,14 +216,22 @@ Guests (checkin flow) do not reach the Services tab via the bottom nav. However,
 
 **Extend Stay**
 - Redesign of existing `ExtendStayScreen`
-- Date picker, availability check
-- API: existing extend stay endpoint
+- Date picker; availability check is berth-specific — must verify the guest's currently-assigned berth (`booking.berth`) is free for the extended dates, not just that any berth is available in the marina
+- Backend returns `409 Conflict` if the same berth is taken in the requested extension window; response body includes `{ detail: "Your berth is unavailable for those dates.", alternatives: [...] }` — frontend shows an "Alternative slips available" warning card with the alternatives list
+- API: existing extend stay endpoint (add berth-specific availability guard if not already present)
 
 **Report an Issue**
 - New screen
+- **Category dropdown (mandatory, first field):** routes the ticket to the correct backend track
+  - "Cleanliness / Facilities" → Track 8 Housekeeping task
+  - "Mechanical / Electrical" → Track 5 Boatyard WorkOrder
+  - "Security" → Track 5 Boatyard WorkOrder (high-priority flag)
+  - "Berthing / Mooring" → Track 5 Boatyard WorkOrder
+  - "Other" → Track 8 Housekeeping task
 - Text description (required) + photo upload (optional, single image)
-- Submits to new `POST /api/v1/portal/issues/` endpoint — creates a housekeeping or maintenance ticket
-- Confirmation screen with reference number
+- Category selection is not skippable — submit button disabled until category chosen
+- Submits to `POST /api/v1/portal/issues/` with `{ category, description, photo? }`; backend creates the appropriate Track 8 or Track 5 record and returns `{ reference }` 
+- Confirmation screen with reference number and category-appropriate copy ("Your report has been sent to the marina team")
 
 ### 5.2 Member-only
 
@@ -333,7 +344,10 @@ Four sections:
 **Security & Access**
 - RFID cards: list of `AccessCard` entries with card ID + status badge
 - ANPR vehicles: list of `VehicleRegistration` entries, add/remove plates → `POST /api/v1/portal/access/vehicles/`
-- Biometric consent: GDPR toggle for FaceID/fingerprint gate access (`BiometricEnrolment`). Off by default. One-sentence GDPR explanation shown before enabling.
+- Biometric gate access: UI state is driven entirely by the `BiometricEnrolment` DB record — the toggle never controls hardware directly
+  - `BiometricEnrolment` exists for this member → show **"Enrolled"** green badge + "Revoke consent" destructive button (calls `DELETE /api/v1/portal/access/biometric/` which removes the record; hardware revocation is a marina office task)
+  - No `BiometricEnrolment` record → show **"Not enrolled"** grey state + "Pre-sign GDPR consent" button → opens GDPR modal (data stored, retention period, right to withdraw) → on confirm calls `POST /api/v1/portal/access/biometric/consent/` which creates a pending `BiometricEnrolment`; UI then shows: "Consent recorded. Visit the marina office to complete physical enrolment." The toggle never goes straight to "enrolled" — physical hardware enrolment at the office is always required.
+  - API: `GET /api/v1/portal/access/biometric/` returns `{ enrolled: bool, pending: bool }`
 
 **Notifications**
 - Toggles: booking confirmations, invoice reminders, marina announcements, promotional offers
@@ -350,10 +364,14 @@ Four sections:
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/v1/portal/auth/member-magic/request/` | Send member magic link email |
-| POST | `/api/v1/portal/auth/member-magic/verify/` | Exchange token for session |
+| POST | `/api/v1/portal/auth/member-magic/request/` | Send member magic link email (uses `.filter()`, handles multi-profile) |
+| POST | `/api/v1/portal/auth/member-magic/verify/` | Exchange token for session + refresh tokens |
+| POST | `/api/v1/portal/auth/member-magic/refresh/` | Exchange refresh token for new session + refresh tokens (90-day rolling) |
 | GET | `/api/v1/portal/feed/` | DynamicFeed ActionableItem[] |
-| POST | `/api/v1/portal/issues/` | Submit issue report |
+| POST | `/api/v1/portal/issues/` | Submit issue report (category routes to Track 8 or Track 5) |
+| GET | `/api/v1/portal/access/biometric/` | Check BiometricEnrolment state (enrolled/pending/none) |
+| POST | `/api/v1/portal/access/biometric/consent/` | Record GDPR consent, create pending BiometricEnrolment |
+| DELETE | `/api/v1/portal/access/biometric/` | Revoke biometric consent (removes BiometricEnrolment record) |
 | POST | `/api/v1/portal/activities/book/` | Book an activity |
 | POST | `/api/v1/portal/charter/book/` | Book charter/rental |
 | POST | `/api/v1/portal/boatyard/request/` | Request boatyard work |
