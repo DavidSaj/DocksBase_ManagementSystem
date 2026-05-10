@@ -1,22 +1,29 @@
 import { useState } from 'react';
-import BottomNav from './BottomNav';
-import HomeTab from '../../screens/tabs/HomeTab';
+import { useUserContext } from '../../context/UserContext';
+import BottomNav   from './BottomNav';
+import HomeTab     from '../../screens/tabs/HomeTab';
 import ServicesTab from '../../screens/tabs/ServicesTab';
-import BookTab from '../../screens/tabs/BookTab';
-import WalletTab from '../../screens/tabs/WalletTab';
-import AccountTab from '../../screens/tabs/AccountTab';
+import BookTab     from '../../screens/tabs/BookTab';
+import WalletTab   from '../../screens/tabs/WalletTab';
+import AccountTab  from '../../screens/tabs/AccountTab';
 
 const TAB_COMPONENTS = {
-  home: HomeTab,
+  home:     HomeTab,
   services: ServicesTab,
-  book: BookTab,
-  wallet: WalletTab,
-  account: AccountTab,
+  book:     BookTab,
+  wallet:   WalletTab,
+  account:  AccountTab,
 };
 
 export default function AppShell({ initialTab = 'home' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const { capabilities } = useUserContext();
   const TabComponent = TAB_COMPONENTS[activeTab] || HomeTab;
+
+  // Guests see the full-screen checkin flow — no shell chrome
+  if (capabilities.isGuest) {
+    return <HomeTab />;
+  }
 
   return (
     <div className="p-shell">
