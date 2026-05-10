@@ -1,7 +1,8 @@
 // portal/src/components/feed/cards/InvoiceCard.jsx
 function formatAmount(amount) {
-  if (!amount) return '—';
-  return `€${parseFloat(amount).toFixed(2)}`;
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (num == null || isNaN(num)) return '—';
+  return `€${num.toFixed(2)}`;
 }
 
 export default function InvoiceCard({ item }) {

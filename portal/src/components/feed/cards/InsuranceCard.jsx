@@ -6,7 +6,7 @@ const STATUS_COPY = {
 };
 
 export default function InsuranceCard({ item }) {
-  const cfg = STATUS_COPY[item.status] || STATUS_COPY['missing'];
+  const cfg = STATUS_COPY[item.status] ?? STATUS_COPY['missing'];
   return (
     <div className={`p-feed-card p-feed-card--${cfg.accent}`}>
       <p className="p-feed-card__eyebrow">Insurance · {cfg.label}</p>
