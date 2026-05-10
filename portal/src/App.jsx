@@ -8,7 +8,6 @@ import AppShell         from './components/shell/AppShell';
 import BookingConfirmed from './screens/BookingConfirmed';
 import BookingRequest    from './screens/BookingRequest';
 import BookingRequestSent from './screens/BookingRequestSent';
-import BookingWizard     from './screens/BookingWizard';
 import api from './api';
 
 const BOOKING_RESULT = /\/booking\/(\d+)\/(confirmed|cancelled)$/;
