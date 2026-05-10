@@ -648,3 +648,269 @@ input, select, textarea { font-family: inherit; }
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 15px;
 }
+
+/* ============================================================
+   PORTAL REDESIGN — Checkin components & Home Tab
+   ============================================================ */
+
+/* --- Checkin hero header --- */
+.p-hero {
+  background: var(--navy);
+  padding: 20px 20px 16px;
+  color: var(--cream);
+}
+
+.p-hero__title {
+  font-family: 'Jost', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--cream);
+  margin: 0 0 4px;
+}
+
+.p-hero__subtitle {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  color: rgba(245,240,230,0.6);
+  margin: 0;
+}
+
+/* --- Check item (checklist row) --- */
+.p-check-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+
+.p-check-item__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.p-check-item__header--open {
+  margin-bottom: 16px;
+}
+
+.p-check-item__icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.p-check-item__icon--done {
+  color: var(--green);
+}
+
+.p-check-item__icon--pending {
+  color: rgba(0,0,0,0.25);
+}
+
+.p-check-item__label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* --- Countdown card --- */
+.p-countdown-number {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 72px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+
+/* --- Arrival button pulse --- */
+@keyframes p-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(0.99); }
+}
+
+.p-arrive-btn {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: 80px;
+  border-radius: 16px;
+  background: var(--navy);
+  color: var(--cream);
+  border: none;
+  font-family: 'Jost', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  animation: p-pulse 2s ease-in-out infinite;
+}
+
+.p-arrive-btn:disabled {
+  background: rgba(0,0,0,0.25);
+  animation: none;
+  cursor: wait;
+}
+
+/* --- Member home header --- */
+.p-member-header {
+  background: var(--navy);
+  height: 56px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.p-member-header__marina {
+  font-family: 'Jost', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cream);
+}
+
+.p-member-header__name {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  color: rgba(245,240,230,0.55);
+}
+
+/* --- Quick actions row --- */
+.p-quick-actions {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg);
+}
+
+.p-quick-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  background: #fff;
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.p-quick-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--navy);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.p-quick-btn__label {
+  font-family: 'Jost', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  text-align: center;
+}
+
+.p-quick-btn--disabled svg {
+  stroke: rgba(0,0,0,0.2);
+}
+
+.p-quick-btn--disabled .p-quick-btn__label {
+  color: rgba(0,0,0,0.25);
+}
+
+/* --- Feed --- */
+.p-feed {
+  padding: 4px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.p-feed__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* --- Feed cards --- */
+.p-feed-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-left: 4px solid transparent;
+}
+
+.p-feed-card--red    { border-left-color: var(--red); }
+.p-feed-card--orange { border-left-color: var(--orange); }
+.p-feed-card--navy   { border-left-color: var(--navy); }
+.p-feed-card--gold   { border-left-color: var(--gold); }
+.p-feed-card--green  { border-left-color: var(--green); }
+
+.p-feed-card__eyebrow {
+  font-family: 'Jost', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.p-feed-card__title {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 2px;
+}
+
+.p-feed-card__sub {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.p-feed-card__amount {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+/* --- Toast --- */
+.p-toast {
+  position: fixed;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--navy);
+  color: var(--cream);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  z-index: 200;
+  pointer-events: none;
+  white-space: nowrap;
+}
