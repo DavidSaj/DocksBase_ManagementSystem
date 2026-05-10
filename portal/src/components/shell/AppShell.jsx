@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUserContext } from '../../context/UserContext';
 import BottomNav   from './BottomNav';
 import HomeTab     from '../../screens/tabs/HomeTab';
@@ -19,6 +19,12 @@ export default function AppShell({ initialTab = 'home' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const { capabilities } = useUserContext();
   const TabComponent = TAB_COMPONENTS[activeTab] || HomeTab;
+
+  useEffect(() => {
+    function handleNav(e) { setActiveTab(e.detail.tab); }
+    window.addEventListener('portal:navigate', handleNav);
+    return () => window.removeEventListener('portal:navigate', handleNav);
+  }, []);
 
   // Guests see the full-screen checkin flow — no shell chrome
   if (capabilities?.isGuest) {
