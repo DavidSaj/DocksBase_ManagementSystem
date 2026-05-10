@@ -7,7 +7,7 @@ import DynamicFeed  from '../../components/feed/DynamicFeed';
 export default function MemberHomeScreen() {
   const { user }   = useUserContext();
   const { marina } = useTenant();
-  const memberName = user?.email?.split('@')[0] || '';
+  const memberName = user?.email?.split('@')[0] ?? '';
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 16 }}>
