@@ -7,8 +7,13 @@ const api = axios.create({
 
 api.interceptors.request.use(cfg => {
   const sessionToken = localStorage.getItem('portal_session_token');
+  const tokenType    = localStorage.getItem('portal_token_type'); // 'guest' | 'member'
+
   if (sessionToken) {
-    cfg.headers['Authorization'] = `Bearer ${sessionToken}`;
+    cfg.headers['Authorization'] =
+      tokenType === 'member'
+        ? `MemberBearer ${sessionToken}`
+        : `Bearer ${sessionToken}`;
   }
 
   const marinaSlug = localStorage.getItem('portal_marina_slug');
@@ -25,5 +30,40 @@ api.interceptors.request.use(cfg => {
 
   return cfg;
 });
+
+// Token refresh interceptor — fires on 401 for member sessions only
+api.interceptors.response.use(
+  res => res,
+  async err => {
+    const original = err.config;
+    const tokenType = localStorage.getItem('portal_token_type');
+    if (
+      err.response?.status === 401 &&
+      tokenType === 'member' &&
+      !original._retried
+    ) {
+      original._retried = true;
+      const refreshToken = localStorage.getItem('portal_refresh_token');
+      if (!refreshToken) return Promise.reject(err);
+      try {
+        const { data } = await axios.post(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/portal/auth/member-magic/refresh/`,
+          { refresh_token: refreshToken },
+        );
+        localStorage.setItem('portal_session_token', data.session_token);
+        localStorage.setItem('portal_refresh_token', data.refresh_token);
+        original.headers['Authorization'] = `MemberBearer ${data.session_token}`;
+        return api(original);
+      } catch {
+        // Refresh failed — clear session, caller will redirect to login
+        localStorage.removeItem('portal_session_token');
+        localStorage.removeItem('portal_refresh_token');
+        localStorage.removeItem('portal_token_type');
+        return Promise.reject(err);
+      }
+    }
+    return Promise.reject(err);
+  }
+);
 
 export default api;
