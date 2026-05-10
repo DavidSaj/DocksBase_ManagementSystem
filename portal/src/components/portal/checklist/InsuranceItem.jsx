@@ -1,10 +1,6 @@
+// portal/src/components/portal/checklist/InsuranceItem.jsx
 import { useState } from 'react';
 import api from '../../../api';
-
-const BTN = {
-  width: '100%', height: 52, borderRadius: 12, background: '#f4f6f8',
-  color: '#1a2d4a', border: '1.5px solid rgba(0,0,0,0.12)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
-};
 
 export default function InsuranceItem({ booking, onUpdate }) {
   const [uploading, setUploading] = useState(false);
@@ -30,12 +26,15 @@ export default function InsuranceItem({ booking, onUpdate }) {
 
   return (
     <div>
-      <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 14, lineHeight: 1.6 }}>
+      <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 14, lineHeight: 1.6 }}>
         Optional: upload a copy of your vessel insurance certificate.
-      </div>
-      {error && <div style={{ color: '#c0392b', fontSize: 13, marginBottom: 10 }}>{error}</div>}
-      <label style={{ ...BTN, display: 'block', lineHeight: '52px', textAlign: 'center', cursor: uploading ? 'wait' : 'pointer' }}>
-        {uploading ? 'Uploading…' : '📎 Upload Insurance Certificate'}
+      </p>
+      {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+      <label className="p-btn p-btn--ghost" style={{ display: 'block', textAlign: 'center', lineHeight: '44px', cursor: uploading ? 'wait' : 'pointer' }}>
+        <svg style={{ width: 14, height: 14, verticalAlign: 'middle', marginRight: 6, stroke: 'currentColor', fill: 'none', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }} viewBox="0 0 24 24">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+        </svg>
+        {uploading ? 'Uploading…' : 'Upload Insurance Certificate'}
         <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={handleFile} disabled={uploading} />
       </label>
     </div>
