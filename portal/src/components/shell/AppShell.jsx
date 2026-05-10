@@ -21,7 +21,7 @@ export default function AppShell({ initialTab = 'home' }) {
   const TabComponent = TAB_COMPONENTS[activeTab] || HomeTab;
 
   // Guests see the full-screen checkin flow — no shell chrome
-  if (capabilities.isGuest) {
+  if (capabilities?.isGuest) {
     return <HomeTab />;
   }
 
