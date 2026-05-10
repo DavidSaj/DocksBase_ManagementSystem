@@ -57,7 +57,8 @@ input, select, textarea { font-family: inherit; }
 .p-hero {
   background: var(--navy);
   position: relative;
-  overflow: hidden;
+  overflow-x: clip;
+  z-index: 1;
   padding: 0 0 0;
 }
 .p-hero-inner {
@@ -217,7 +218,7 @@ input, select, textarea { font-family: inherit; }
 .q-checkout-inner {
   max-width: 960px;
   margin: -40px auto 0;
-  padding: 0 32px 64px;
+  padding: 80px 32px 64px;
   position: relative;
   z-index: 2;
 }
@@ -229,8 +230,11 @@ input, select, textarea { font-family: inherit; }
   align-items: start;
 }
 
-/* Left column wrapper — also scopes the warm input overrides below */
-.q-checkout-inputs { /* layout handled by .q-checkout-grid */ }
+/* Left column wrapper — min-width: 0 prevents nested grids from overflowing the column */
+.q-checkout-inputs { min-width: 0; }
+
+/* Section titles on sandy bg are dark, not gold */
+.q-checkout-inputs .p-section-title { color: #1a1a1a; }
 
 /* Warm input override — lifted off sandy surface */
 .q-checkout-inputs .p-input {
@@ -391,4 +395,256 @@ input, select, textarea { font-family: inherit; }
 @media (max-width: 600px) {
   .p-grid-2, .p-grid-3 { grid-template-columns: 1fr; }
   .p-title { font-size: 30px; }
+}
+
+/* ============================================================
+   PORTAL REDESIGN — Shell, Nav, Login
+   ============================================================ */
+
+/* --- Typography --- */
+.p-display {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+}
+
+.p-label {
+  font-family: 'Jost', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted, rgba(0,0,0,0.45));
+}
+
+.p-body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  color: var(--text, #1a1a1a);
+  line-height: 1.5;
+}
+
+/* --- Tokens (Already defined in root, but provided for reference) --- */
+/* :root tokens are defined at the top of this file */
+
+/* --- AppShell --- */
+.p-shell {
+  min-height: 100vh;
+  background: var(--bg, #f4f3f0);
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+/* --- Bottom Nav --- */
+.p-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(64px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #fff;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+}
+
+.p-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 0 0;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.p-nav-tab.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 3px;
+  background: var(--gold);
+  border-radius: 0 0 3px 3px;
+}
+
+.p-nav-tab svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.p-nav-tab .p-nav-label {
+  font-family: 'Jost', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+.p-nav-tab.active .p-nav-label {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.p-nav-tab.active svg {
+  color: var(--navy);
+}
+
+/* --- Card --- */
+.p-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.p-card--accent-red    { border-left: 4px solid #c0392b; }
+.p-card--accent-orange { border-left: 4px solid #dd5b00; }
+.p-card--accent-gold   { border-left: 4px solid var(--gold); }
+.p-card--accent-green  { border-left: 4px solid #1a8c2e; }
+.p-card--accent-navy   { border-left: 4px solid var(--navy); }
+
+/* --- Buttons --- */
+.p-btn {
+  display: block;
+  width: 100%;
+  padding: 14px 0;
+  border-radius: 6px;
+  font-family: 'Jost', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  border: none;
+  min-height: 44px;
+  transition: opacity 0.15s;
+}
+
+.p-btn:disabled { opacity: 0.45; cursor: default; }
+
+.p-btn--primary {
+  background: var(--navy);
+  color: #fff;
+}
+
+.p-btn--gold {
+  background: var(--gold);
+  color: #fff;
+}
+
+.p-btn--outline {
+  background: transparent;
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+}
+
+.p-btn--ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1.5px solid rgba(0,0,0,0.15);
+}
+
+/* --- Input --- */
+.p-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 16px;
+  border: 1.5px solid rgba(0,0,0,0.15);
+  border-radius: 6px;
+  box-sizing: border-box;
+  outline: none;
+  background: #fff;
+  color: var(--text, #1a1a1a);
+  -webkit-appearance: none;
+}
+
+.p-input:focus {
+  border-color: var(--navy);
+}
+
+/* --- Login screen --- */
+.p-login {
+  min-height: 100vh;
+  background: var(--navy);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+
+.p-login__logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin-bottom: 24px;
+}
+
+.p-login__marina-name {
+  font-family: 'Jost', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--cream);
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.p-login__tagline {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+.p-login__card {
+  width: 100%;
+  max-width: 360px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 24px;
+}
+
+.p-login__card h2 {
+  font-family: 'Jost', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 6px;
+}
+
+.p-login__card p {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+/* --- Stub tab content --- */
+.p-tab-stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: var(--muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
 }
