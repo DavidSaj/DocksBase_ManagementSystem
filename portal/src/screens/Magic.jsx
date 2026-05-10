@@ -16,6 +16,7 @@ export default function Magic() {
     api.post('/portal/checkin/auth/magic/', { token })
       .then(res => {
         localStorage.setItem('portal_session_token', res.data.token);
+        localStorage.setItem('portal_token_type', 'guest');
         localStorage.setItem('portal_booking_id', String(res.data.booking_id));
         localStorage.setItem('portal_marina_slug', res.data.marina_slug);
         window.location.replace(window.location.pathname);
