@@ -7,6 +7,8 @@ function QuickBtn({ label, icon, onTap, disabled }) {
       className={`p-quick-btn${disabled ? ' p-quick-btn--disabled' : ''}`}
       onClick={disabled ? undefined : onTap}
       aria-label={label}
+      aria-disabled={disabled}
+      type="button"
     >
       {icon}
       <span className="p-quick-btn__label">{label}</span>
@@ -24,10 +26,15 @@ export default function QuickActions({ wallet }) {
 
   function copyTo(value, label) {
     if (!value) return;
-    navigator.clipboard.writeText(value).then(() => {
-      setToast(`${label} copied`);
-      setTimeout(() => setToast(''), 2000);
-    });
+    navigator.clipboard.writeText(value)
+      .then(() => {
+        setToast(`${label} copied`);
+        setTimeout(() => setToast(''), 2000);
+      })
+      .catch(() => {
+        setToast('Copy failed');
+        setTimeout(() => setToast(''), 2000);
+      });
   }
 
   const wifiPassword       = wallet?.wifi_password;
@@ -56,7 +63,7 @@ export default function QuickActions({ wallet }) {
         <QuickBtn
           label="Call HM"
           disabled={!harbourMasterPhone}
-          onTap={() => { if (harbourMasterPhone) window.location.href = `tel:${harbourMasterPhone}`; }}
+          onTap={() => { window.location.href = `tel:${harbourMasterPhone}`; }}
           icon={
             <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.68 9.7a19.79 19.79 0 01-3.07-8.67A2 2 0 012.58 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.56a16 16 0 006.29 6.29l1.93-1.92a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
           }
