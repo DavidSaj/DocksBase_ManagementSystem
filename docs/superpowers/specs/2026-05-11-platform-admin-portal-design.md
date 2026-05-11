@@ -140,12 +140,16 @@ impersonator_user_id     = models.IntegerField(null=True, blank=True)
 
 ### Break-Glass Active Alerting
 
-When `action='impersonate_override'` is triggered (admin bypasses absent/expired consent), `AdminMarinaImpersonateView` fires two synchronous notifications inside a `try/except` so a failed alert never blocks the override:
+When `action='impersonate_override'` is triggered, the view:
+1. Writes the `AuditLog` entry synchronously (fast, local DB — always succeeds first)
+2. Hands alerts to a `daemon=True` background thread — the response token is returned immediately without waiting
 
-1. **Slack webhook** — POST to `settings.SECURITY_SLACK_WEBHOOK_URL` with: admin name, marina name, timestamp, `bypass_reason`. If the env var is unset, this step is skipped silently (logged to Django logger at WARNING level).
-2. **Marina owner email** — `send_mail()` to `marina.contact_email` stating: `"DocksBase Support accessed your instance via Emergency Override at [timestamp]. Justification: [bypass_reason]. Contact support@docksbase.com if this was unexpected."`
+The alert thread runs `dispatch_break_glass_alerts(marina_email, admin_email, bypass_reason)` which:
+- Calls `send_mail()` to `marina.contact_email`: `"DocksBase Support accessed your instance via Emergency Override at [timestamp]. Justification: [bypass_reason]. Contact support@docksbase.com if this was unexpected."`
+- POSTs to `settings.SECURITY_SLACK_WEBHOOK_URL` with a hard `timeout=3` (skipped silently if env var unset)
+- Wraps both calls in a single `try/except Exception` that logs failures to Django's error logger (Sentry-compatible) without interrupting the session
 
-Note: Celery is not currently set up in the project. Override events are rare; synchronous notification is sufficient. Celery can be introduced later if background task volume grows.
+This pattern gives non-blocking resilience without Celery. If Slack has a partial outage or SMTP hangs, the support agent's browser is unaffected — the token is already returned. Celery will be introduced when Track 4/6 ERP modules require it; Break-Glass alerting can migrate to a task queue at that point with no interface change.
 
 ### Impersonation Banner (main marina frontend)
 
