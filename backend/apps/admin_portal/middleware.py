@@ -57,8 +57,8 @@ class ImpersonationAuditMiddleware:
                         impersonator_user_id=payload.get('impersonator_user_id'),
                         detail={'status': response.status_code, 'path': request.path},
                     )
-                except Exception as e:
-                    logger.error('ImpersonationAuditMiddleware log failed: %s', e)
+                except Exception:
+                    logger.exception('ImpersonationAuditMiddleware failed to create AuditLog')
 
         _local.ctx = None
         return response

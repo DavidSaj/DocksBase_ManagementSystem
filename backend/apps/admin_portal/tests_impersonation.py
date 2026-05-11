@@ -61,6 +61,20 @@ class ImpersonationAuditMiddlewareTest(TestCase):
         after = AuditLog.objects.filter(impersonation_session_id=session_id).count()
         self.assertEqual(before, after)
 
+    def test_failed_post_during_impersonation_does_not_create_audit_log(self):
+        token, session_id = _impersonation_token(self.owner, self.admin, self.marina)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        before = AuditLog.objects.filter(impersonation_session_id=session_id).count()
+        # POST as manager (wrong role) — will return 403
+        manager_marina = make_marina(name='Other Marina')
+        manager = make_user(manager_marina, role='manager')
+        token2, session_id2 = _impersonation_token(manager, self.admin, manager_marina)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token2}')
+        resp = self.client.post('/api/v1/marina/grant-support-access/')
+        self.assertEqual(resp.status_code, 403)
+        after = AuditLog.objects.filter(impersonation_session_id=session_id2).count()
+        self.assertEqual(before, after)
+
     def test_normal_token_does_not_create_impersonation_log(self):
         refresh = RefreshToken.for_user(self.owner)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
