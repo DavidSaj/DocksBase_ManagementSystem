@@ -36,6 +36,8 @@ class AuditLog(models.Model):
     )
     detail = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
+    impersonation_session_id = models.UUIDField(null=True, blank=True, db_index=True)
+    impersonator_user_id = models.IntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

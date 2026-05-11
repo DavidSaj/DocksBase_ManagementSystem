@@ -1,7 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useInvoices from '../hooks/useInvoices.js';
-import useFuelEntries from '../hooks/useFuelEntries.js';
-import usePOSCatalog from '../hooks/usePOSCatalog.js';
 import useBoaterAccounts from '../hooks/useBoaterAccounts.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
@@ -24,6 +22,149 @@ function fmtInv(inv) {
   };
 }
 
+// ── Payment Plans tab ─────────────────────────────────────────────────────
+
+function fmtDate(val) {
+  if (!val) return '—';
+  return new Date(val).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function fmt(val, currency = '') {
+  if (val == null) return '—';
+  const num = parseFloat(val);
+  if (isNaN(num)) return val;
+  const formatted = num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return currency ? `${currency} ${formatted}` : formatted;
+}
+
+const PLAN_BADGE_CLASS = {
+  active: 'badge-green', completed: 'badge-teal', paused: 'badge-orange', cancelled: 'badge-gray',
+};
+
+function PaymentPlansTab() {
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = statusFilter ? { status: statusFilter } : {};
+      const { data } = await api.get('/payment-plans/', { params });
+      setPlans(data.results ?? data);
+    } catch {
+      setPlans([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function instalmentProgress(plan) {
+    const total = plan.instalment_count ?? plan.instalments?.length ?? 0;
+    const paid = plan.paid_instalment_count ?? plan.instalments?.filter(i => i.status === 'paid').length ?? 0;
+    return { total, paid };
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="filter-row">
+        {['', 'active', 'completed', 'paused', 'cancelled'].map(s => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`btn btn-sm${statusFilter === s ? ' btn-primary' : ''}`}
+          >
+            {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+          </button>
+        ))}
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">Payment Plans</div>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>Scheduled instalment plans</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Plan Name</th>
+                <th>Member</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Auto-Issue</th>
+                <th>DD Mandate</th>
+                <th>Progress</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>Loading…</td></tr>
+              ) : plans.length === 0 ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>No payment plans found.</td></tr>
+              ) : plans.map(plan => {
+                const { total, paid } = instalmentProgress(plan);
+                const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
+                return (
+                  <tr key={plan.id}>
+                    <td style={{ fontWeight: 600, fontSize: 13 }}>{plan.name}</td>
+                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+                      {plan.member_name ?? plan.member ?? '—'}
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                      {fmt(plan.total_amount)}
+                    </td>
+                    <td>
+                      <span className={`badge ${PLAN_BADGE_CLASS[plan.status] ?? 'badge-gray'}`}>
+                        {plan.status ? plan.status.charAt(0).toUpperCase() + plan.status.slice(1) : '—'}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 12 }}>
+                      {plan.auto_issue ? (
+                        <span style={{ color: '#2e7d32', fontWeight: 600 }}>Yes</span>
+                      ) : (
+                        <span style={{ color: 'rgba(0,0,0,0.4)' }}>No</span>
+                      )}
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                      {plan.dd_mandate_ref || '—'}
+                    </td>
+                    <td style={{ minWidth: 120 }}>
+                      {total > 0 ? (
+                        <div>
+                          <div style={{
+                            height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.08)',
+                            overflow: 'hidden', marginBottom: 3,
+                          }}>
+                            <div style={{
+                              height: '100%', width: `${pct}%`,
+                              background: pct === 100 ? '#2e7d32' : 'var(--navy, #1a2d4a)',
+                              borderRadius: 3, transition: 'width 0.3s',
+                            }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)' }}>
+                            {paid}/{total} instalments
+                          </div>
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
+                      {fmtDate(plan.created_at)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Billing() {
   const [tab, setTab] = useState('invoices');
 
@@ -42,21 +183,6 @@ export default function Billing() {
 
   const { invoices: rawInv, loading, refetch } = useInvoices();
   const invoices = rawInv.map(fmtInv);
-
-  // Fuel Dock POS — real completed entries
-  const { entries: fuelEntries, loading: fuelLoading, refetch: refetchFuelEntries } = useFuelEntries({ limit: 20 });
-
-  // Quick Sale state
-  const [selectedPOSItem,  setSelectedPOSItem]  = useState(null);
-  const [posLitres,        setPosLitres]        = useState('');
-  const [posQuery,         setPosQuery]         = useState('');
-  const [posSuggestions,   setPosSuggestions]   = useState([]);
-  const [posResolved,      setPosResolved]      = useState(null);
-  const [posSubmitting,    setPosSubmitting]    = useState(false);
-  const [posError,         setPosError]         = useState('');
-  const debounceRef = useRef(null);
-
-  const { items: posCatalog, loading: posLoading } = usePOSCatalog();
 
   const {
     accounts, loading: acctLoading, fetchAccounts,
@@ -255,82 +381,6 @@ export default function Billing() {
     }
   }
 
-  const FUEL_COLORS = { diesel: '#0075de', petrol: '#dd5b00', pump_out: '#2a9d99' };
-
-  function posTotal() {
-    if (!selectedPOSItem) return 0;
-    if (selectedPOSItem.pricing_model === 'per_litre') {
-      const l = parseFloat(posLitres);
-      return (isNaN(l) || l <= 0) ? 0 : +(l * parseFloat(selectedPOSItem.unit_price)).toFixed(2);
-    }
-    return parseFloat(selectedPOSItem.unit_price);
-  }
-
-  function posPriceLabel(item) {
-    return item.pricing_model === 'per_litre'
-      ? `€${Number(item.unit_price).toFixed(2)}/L`
-      : `€${Number(item.unit_price).toFixed(2)} flat`;
-  }
-
-  function handlePosQueryChange(e) {
-    const val = e.target.value;
-    setPosQuery(val);
-    setPosResolved(null);
-    clearTimeout(debounceRef.current);
-    if (val.length < 2) { setPosSuggestions([]); return; }
-    debounceRef.current = setTimeout(() => {
-      api.get('/members/', { params: { search: val } })
-        .then(r => setPosSuggestions((r.data.results ?? r.data).slice(0, 5)))
-        .catch(() => {});
-    }, 300);
-  }
-
-  function handlePosSuggestionSelect(member) {
-    const vessel = member.vessels?.[0] ?? null;
-    setPosResolved({ id: member.id, vesselId: vessel?.id ?? null });
-    setPosQuery(vessel ? `${member.name} — ${vessel.name}` : member.name);
-    setPosSuggestions([]);
-  }
-
-  function clearPosForm() {
-    clearTimeout(debounceRef.current);
-    setSelectedPOSItem(null);
-    setPosLitres('');
-    setPosQuery('');
-    setPosSuggestions([]);
-    setPosResolved(null);
-    setPosSubmitting(false);
-    setPosError('');
-  }
-
-  async function handleProcessSale() {
-    const total = posTotal();
-    if (total <= 0) return;
-    setPosSubmitting(true);
-    setPosError('');
-    try {
-      const isPerLitre = selectedPOSItem.pricing_model === 'per_litre';
-      await api.post('/fuel-dock/queue/', {
-        status:          'completed',
-        fuel_type:       selectedPOSItem.fuel_dock_type,
-        actual_litres:   isPerLitre ? posLitres : null,
-        price_per_litre: isPerLitre ? selectedPOSItem.unit_price : null,
-        total_amount:    isPerLitre ? null : String(parseFloat(selectedPOSItem.unit_price).toFixed(2)),
-        ...(posResolved
-          ? { member: posResolved.id, ...(posResolved.vesselId ? { vessel: posResolved.vesselId } : {}) }
-          : { guest_description: posQuery || 'Walk-up' }),
-      });
-      clearPosForm();
-      refetchFuelEntries();
-    } catch {
-      setPosError('Sale failed — please try again.');
-    } finally {
-      setPosSubmitting(false);
-    }
-  }
-
-  const total = posTotal();
-
   const lineSubtotal = invoiceLines.reduce((s, l) => s + Number(l.line_subtotal ?? l.total_price ?? 0), 0);
   const lineTax      = invoiceLines.reduce((s, l) => s + Number(l.line_tax ?? 0), 0);
   const lineTotal    = lineSubtotal + lineTax;
@@ -391,7 +441,7 @@ export default function Billing() {
   return (
     <div>
       <div className="tabs">
-        {[['invoices','Invoices'],['boater-accounts','Boater Accounts'],['utilities','Utility Meters'],['pos','Fuel Dock POS'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
+        {[['invoices','Invoices'],['boater-accounts','Boater Accounts'],['payment-plans','Payment Plans'],['utilities','Utility Meters'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -446,6 +496,8 @@ export default function Billing() {
         </div>
       )}
 
+      {tab === 'payment-plans' && <PaymentPlansTab />}
+
       {tab === 'utilities' && (
         <div>
           <div className="sec-hdr">
@@ -463,151 +515,6 @@ export default function Billing() {
                 </tr>
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'pos' && (
-        <div className="grid-2" style={{ alignItems: 'start' }}>
-          <div className="card">
-            <div className="card-header"><div className="card-header-title">Fuel Dock — Quick Sale</div></div>
-            <div className="card-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                {posLoading ? (
-                  <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: 8 }}>Loading catalog…</div>
-                ) : posCatalog.length === 0 ? (
-                  <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: 8 }}>
-                    No POS items configured. Add items in Settings → Service Catalog and enable "Show in POS".
-                  </div>
-                ) : posCatalog.map(item => (
-                  <div key={item.id}
-                    onClick={() => { setPosLitres(''); setPosError(''); setPosSubmitting(false); setSelectedPOSItem(item); }}
-                    style={{
-                      background: selectedPOSItem?.id === item.id ? 'var(--bg-active, #eef4ff)' : 'var(--bg)',
-                      borderRadius: 8, padding: '14px', cursor: 'pointer',
-                      border: selectedPOSItem?.id === item.id ? '1.5px solid var(--blue, #0075de)' : 'var(--border)',
-                      transition: 'box-shadow 0.1s',
-                    }}
-                    onMouseOver={e => e.currentTarget.style.boxShadow = 'var(--shadow2)'}
-                    onMouseOut={e  => e.currentTarget.style.boxShadow = ''}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.8)' }}>{item.name}</div>
-                    <div style={{ fontSize: 12, color: FUEL_COLORS[item.fuel_dock_type] ?? '#888', fontWeight: 600, marginTop: 4 }}>
-                      {posPriceLabel(item)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {selectedPOSItem && (
-                <div style={{ marginTop: 12, padding: '12px 0 4px', borderTop: 'var(--border)' }}>
-
-                  {/* Member / Guest combobox */}
-                  <div style={{ position: 'relative', marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 3 }}>
-                      Vessel / Member <span style={{ fontWeight: 400 }}>(optional)</span>
-                    </div>
-                    <input
-                      value={posQuery}
-                      onChange={handlePosQueryChange}
-                      onBlur={() => setTimeout(() => setPosSuggestions([]), 200)}
-                      placeholder="Search member or type guest name…"
-                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '7px 10px',
-                        border: 'var(--border)', borderRadius: 6, outline: 'none',
-                        borderColor: posResolved ? 'var(--green, #2a9d50)' : undefined }}
-                    />
-                    {posResolved && (
-                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-2px)',
-                        color: 'var(--green, #2a9d50)', fontSize: 13, fontWeight: 700 }}>✓</span>
-                    )}
-                    {posSuggestions.length > 0 && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
-                        background: '#fff', border: 'var(--border)', borderRadius: 6,
-                        boxShadow: 'var(--shadow2)', marginTop: 2 }}>
-                        {posSuggestions.map(m => (
-                          <div key={m.id}
-                            onMouseDown={() => handlePosSuggestionSelect(m)}
-                            style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}
-                            onMouseOver={e => e.currentTarget.style.background = 'var(--bg)'}
-                            onMouseOut={e  => e.currentTarget.style.background = '#fff'}>
-                            <span style={{ fontWeight: 600 }}>{m.name}</span>
-                            {m.vessels?.[0] && <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 6 }}>— {m.vessels[0].name}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Litres input (per_litre items only) */}
-                  {selectedPOSItem.pricing_model === 'per_litre' && (
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 3 }}>Litres</div>
-                      <input
-                        type="number" min="0" step="0.1"
-                        value={posLitres}
-                        onChange={e => setPosLitres(e.target.value)}
-                        placeholder="0.0"
-                        style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '7px 10px',
-                          border: 'var(--border)', borderRadius: 6, outline: 'none' }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Total */}
-                  {total > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      marginBottom: 10, fontSize: 13 }}>
-                      <span style={{ color: 'rgba(0,0,0,0.5)' }}>Total</span>
-                      <span style={{ fontWeight: 700 }}>€{total.toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  {posError && (
-                    <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{posError}</div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={clearPosForm} style={{ flex: 1 }}>Cancel</button>
-                    <button
-                      className="btn btn-gold"
-                      onClick={handleProcessSale}
-                      disabled={posSubmitting || total <= 0}
-                      style={{ flex: 2, justifyContent: 'center', fontSize: 13, padding: '10px' }}>
-                      {posSubmitting ? 'Processing…' : 'Process Sale'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!selectedPOSItem && (
-                <button className="btn btn-gold" style={{ width: '100%', justifyContent: 'center', fontSize: 13, padding: '10px', marginTop: 12 }} disabled>
-                  Select item above
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="card">
-            <div className="card-header"><div className="card-header-title">Recent Fuel Sales</div></div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {fuelLoading ? (
-                <div style={{ padding: '16px 18px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
-              ) : fuelEntries.length === 0 ? (
-                <div style={{ padding: '16px 18px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No completed sales yet.</div>
-              ) : fuelEntries.map(e => {
-                const name = e.vessel_name ?? e.guest_description ?? '—';
-                const litres = e.actual_litres ? `${e.actual_litres}L` : '—';
-                const fuelLabel = e.fuel_type === 'pump_out' ? 'Pump-out' : (e.fuel_type ?? '—').charAt(0).toUpperCase() + (e.fuel_type ?? '').slice(1);
-                const amount = e.total_amount != null ? `€${Number(e.total_amount).toFixed(2)}` : '—';
-                const when = e.completed_at ? new Date(e.completed_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-                return (
-                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px', borderBottom: 'var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{name}</div>
-                      <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>{fuelLabel} · {litres} · {when}</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{amount}</div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         </div>
       )}

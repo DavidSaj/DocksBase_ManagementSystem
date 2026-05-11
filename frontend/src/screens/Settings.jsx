@@ -337,6 +337,57 @@ function OTAConnectionsCard() {
   );
 }
 
+// ── Support Access Section ─────────────────────────────────────────────────
+
+function SupportAccessSection() {
+  const { marina } = useMarina();
+  const [grantedUntil, setGrantedUntil] = useState(marina?.support_access_granted_until || null);
+  const [loading, setLoading] = useState(false);
+
+  const isActive = grantedUntil && new Date(grantedUntil) > new Date();
+
+  async function handleGrant() {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/marina/grant-support-access/');
+      setGrantedUntil(data.support_access_granted_until);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRevoke() {
+    setLoading(true);
+    try {
+      await api.delete('/marina/grant-support-access/');
+      setGrantedUntil(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">DocksBase Support Access</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+          Allow DocksBase support agents to access your account for troubleshooting.
+          Access automatically expires after 48 hours.
+        </div>
+      </div>
+      <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Toggle on={isActive} onChange={isActive ? handleRevoke : handleGrant} />
+        <span style={{ fontSize: 13, color: 'var(--text-secondary, rgba(0,0,0,0.5))' }}>
+          {isActive
+            ? `Access granted — expires ${formatDate(grantedUntil)}`
+            : 'Support access not granted'}
+        </span>
+        {loading && <span style={{ fontSize: 12, color: 'var(--text-secondary, rgba(0,0,0,0.4))' }}>Saving…</span>}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -506,6 +557,58 @@ export default function Settings() {
     }
   }
 
+  // ── Integrations — Dropbox Sign ───────────────────────────────────────
+
+  const [dsSettings, setDsSettings] = useState(null);
+  const [dsLoading, setDsLoading]   = useState(false);
+  const [dsApiKey, setDsApiKey]     = useState('');
+  const [dsClientId, setDsClientId] = useState('');
+  const [dsSaving, setDsSaving]     = useState(false);
+  const [dsMsg, setDsMsg]           = useState(null);
+
+  useEffect(() => {
+    if (tab !== 'integrations') return;
+    setDsLoading(true);
+    api.get('/marina/integrations/dropbox-sign/')
+      .then(r => {
+        setDsSettings(r.data);
+        setDsClientId(r.data.client_id || '');
+      })
+      .finally(() => setDsLoading(false));
+  }, [tab]);
+
+  async function handleDsSave() {
+    setDsSaving(true);
+    setDsMsg(null);
+    try {
+      const r = await api.patch('/marina/integrations/dropbox-sign/', {
+        api_key: dsApiKey,
+        client_id: dsClientId,
+      });
+      setDsSettings(r.data);
+      setDsApiKey('');
+      setDsMsg({ type: 'ok', text: r.data.connected ? 'Connected.' : 'Settings saved.' });
+    } catch {
+      setDsMsg({ type: 'err', text: 'Save failed. Check credentials and try again.' });
+    } finally {
+      setDsSaving(false);
+    }
+  }
+
+  async function handleDsDisconnect() {
+    setDsSaving(true);
+    setDsMsg(null);
+    try {
+      const r = await api.patch('/marina/integrations/dropbox-sign/', { api_key: '', client_id: '' });
+      setDsSettings(r.data);
+      setDsClientId('');
+      setDsApiKey('');
+      setDsMsg({ type: 'ok', text: 'Disconnected.' });
+    } finally {
+      setDsSaving(false);
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -517,6 +620,7 @@ export default function Settings() {
           ['users',         'Users & Roles',    false],
           ['billing',       'Billing',          false],
           ['notifications', 'Notifications',    true],
+          ['integrations',  'Integrations',     false],
           ['system',        'System',           false],
         ].map(([v, l, cs]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>
@@ -1072,6 +1176,9 @@ export default function Settings() {
               <OTAConnectionsCard />
             </div>
 
+            {/* Support Access */}
+            <SupportAccessSection />
+
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1149,6 +1256,69 @@ export default function Settings() {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
+      {tab === 'integrations' && (
+        <div style={{ maxWidth: 560 }}>
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">Dropbox Sign</div>
+              {dsSettings?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {dsLoading ? (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                    Connect your marina's own Dropbox Sign account to enable e-signatures on waivers. Your account is billed directly by Dropbox Sign — DocksBase never sees payment.{' '}
+                    <a href="https://app.hellosign.com/account/signUp" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                      Create a Dropbox Sign account →
+                    </a>
+                  </div>
+                  <FieldRow label="Client ID" hint="Found in Dropbox Sign → API → App Settings">
+                    <input
+                      type="text"
+                      value={dsClientId}
+                      onChange={e => setDsClientId(e.target.value)}
+                      placeholder="e.g. a1b2c3d4e5f6..."
+                    />
+                  </FieldRow>
+                  <FieldRow
+                    label="API Key"
+                    hint={dsSettings?.connected ? `Current key ending in ···${dsSettings.api_key_tail}` : 'Found in Dropbox Sign → API → API Keys'}
+                  >
+                    <input
+                      type="password"
+                      value={dsApiKey}
+                      onChange={e => setDsApiKey(e.target.value)}
+                      placeholder={dsSettings?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                      autoComplete="new-password"
+                    />
+                  </FieldRow>
+                  {dsMsg && (
+                    <div style={{ fontSize: 12, color: dsMsg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                      {dsMsg.text}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary" onClick={handleDsSave} disabled={dsSaving}>
+                      {dsSaving ? 'Saving…' : dsSettings?.connected ? 'Update' : 'Connect'}
+                    </button>
+                    {dsSettings?.connected && (
+                      <button className="btn btn-ghost" style={{ color: 'var(--red)' }} onClick={handleDsDisconnect} disabled={dsSaving}>
+                        Disconnect
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

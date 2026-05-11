@@ -1,0 +1,46 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  celery_worker:
+    build: ./backend
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: >
+      watchmedo auto-restart
+        --directory=./
+        --pattern=*.py
+        --recursive
+        --
+        celery -A config worker -l info
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  celery_beat:
+    build: ./backend
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: >
+      celery -A config beat -l info
+        --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:

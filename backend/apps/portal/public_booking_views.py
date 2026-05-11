@@ -230,7 +230,7 @@ class PublicEngineRequestView(APIView):
 
         # Category flow: payment already collected via PaymentIntent before this call.
         # Skip invoice/checkout creation — booking goes straight to confirmed.
-        pre_paid = bool(cat and payment_intent_id)
+        pre_paid = bool(payment_intent_id)
 
         try:
             with transaction.atomic():
@@ -303,7 +303,7 @@ class PublicEngineRequestView(APIView):
 
 
 class PublicBerthIntentSerializer(serializers.Serializer):
-    berth_category_id = serializers.IntegerField()
+    berth_category_id = serializers.IntegerField(allow_null=True, required=False)
     check_in          = serializers.DateField()
     check_out         = serializers.DateField()
 
@@ -328,21 +328,34 @@ class PublicBerthIntentView(APIView):
 
         d = ser.validated_data
         marina = request.tenant
-
-        try:
-            cat = BerthCategory.objects.select_related('pricing_tier').get(
-                pk=d['berth_category_id'],
-                marina=marina,
-                is_active=True,
-            )
-        except BerthCategory.DoesNotExist:
-            return Response({'detail': 'Berth category not found or inactive.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if cat.pricing_tier is None:
-            return Response({'detail': 'This category has no price configured.'}, status=status.HTTP_400_BAD_REQUEST)
+        category_id = d.get('berth_category_id')
 
         nights = (d['check_out'] - d['check_in']).days
-        price_per_night = cat.pricing_tier.unit_price
+
+        if category_id is not None:
+            try:
+                cat = BerthCategory.objects.select_related('pricing_tier').get(
+                    pk=category_id,
+                    marina=marina,
+                    is_active=True,
+                )
+            except BerthCategory.DoesNotExist:
+                return Response({'detail': 'Berth category not found or inactive.'}, status=status.HTTP_400_BAD_REQUEST)
+            if cat.pricing_tier is None:
+                return Response({'detail': 'This category has no price configured.'}, status=status.HTTP_400_BAD_REQUEST)
+            price_per_night = cat.pricing_tier.unit_price
+        else:
+            # Unassigned berths — price from the first available standard berth's own pricing tier
+            berth = Berth.objects.filter(
+                marina=marina,
+                berth_class='standard',
+                status__in=['available', 'reserved'],
+                category__isnull=True,
+                pricing_tier__isnull=False,
+            ).select_related('pricing_tier').first()
+            if not berth:
+                return Response({'detail': 'No standard berths available.'}, status=status.HTTP_400_BAD_REQUEST)
+            price_per_night = berth.pricing_tier.unit_price
         total = price_per_night * nights
         amount_cents = int(round(float(total) * 100))
 
@@ -352,7 +365,7 @@ class PublicBerthIntentView(APIView):
                 amount_cents=amount_cents,
                 currency=marina.currency,
                 metadata={
-                    'berth_category_id': str(cat.id),
+                    'berth_category_id': str(category_id) if category_id is not None else '',
                     'check_in': str(d['check_in']),
                     'check_out': str(d['check_out']),
                     'marina_id': str(marina.id),
@@ -414,6 +427,18 @@ class PublicBerthCategoriesView(APIView):
         # Berths that fit the boat and are free
         available_berths = base_berths.filter(dim_filter).exclude(Exists(conflicting_bookings))
 
+        # Unassigned berths (no category) — the marina's base/standard berths
+        uncat_base = Berth.objects.filter(
+            marina=request.tenant,
+            berth_class='standard',
+            status__in=['available', 'reserved'],
+            category__isnull=True,
+            pricing_tier__isnull=False,
+        )
+        uncat_available = uncat_base.filter(dim_filter).exclude(
+            Exists(conflicting_bookings)
+        ).select_related('pricing_tier')
+
         def _build_entry(cat, tier_note):
             count = available_berths.filter(category=cat).count()
             if count == 0:
@@ -421,7 +446,9 @@ class PublicBerthCategoriesView(APIView):
             return {
                 'id': cat.id,
                 'name': cat.name,
+                'tagline': cat.tagline,
                 'description': cat.description,
+                'highlights': cat.highlights,
                 'mooring_type': cat.mooring_type,
                 'amenities': cat.amenities,
                 'price_per_night': f'{cat.pricing_tier.unit_price:.2f}',
@@ -473,5 +500,23 @@ class PublicBerthCategoriesView(APIView):
             entry = _build_entry(cat, note)
             if entry:
                 result.append(entry)
+
+        # Prepend unassigned berths as the base option if any are available
+        uncat_count = uncat_available.count()
+        if uncat_count > 0:
+            first_uncat = uncat_available.first()
+            uncat_entry = {
+                'id': None,
+                'name': first_uncat.pricing_tier.name,
+                'tagline': '',
+                'description': '',
+                'highlights': [],
+                'mooring_type': None,
+                'amenities': [],
+                'price_per_night': f'{first_uncat.pricing_tier.unit_price:.2f}',
+                'available_count': uncat_count,
+                'tier_note': None,
+            }
+            result = [uncat_entry] + result
 
         return Response(result)

@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { verifyEmail } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function VerifyEmail() {
-  const [searchParams]    = useSearchParams();
+  const { token }         = useParams();
   const [status, setStatus] = useState('loading');
   const navigate          = useNavigate();
   const { signIn }        = useAuth();
 
   useEffect(() => {
-    const token = searchParams.get('token');
     if (!token) {
       setStatus('error');
       return;

@@ -46,7 +46,8 @@ def _handle_marina_subscription_event(event_type, obj):
 
         user = marina.users.filter(role='owner').first()
         if user and not user.is_active:
-            token, _ = _EmailVerification.objects.get_or_create(user=user)
+            _EmailVerification.objects.filter(user=user).delete()
+            token = _EmailVerification.objects.create(user=user)
             _send_verification_email(user, str(token.token))
 
     elif event_type == 'customer.subscription.deleted':

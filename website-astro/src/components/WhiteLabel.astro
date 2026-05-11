@@ -1,0 +1,137 @@
+---
+import type { Strings } from '../i18n/strings'
+import styles from './WhiteLabel.module.css'
+
+interface Props { t: Strings }
+const { t } = Astro.props
+const tr = t.whiteLabel
+---
+<section class={styles.section}>
+  <div class={styles.inner}>
+
+    {/* ── Left: copy ── */}
+    <div class={styles.left}>
+      <div class={styles.eyebrow}>{tr.eyebrow}</div>
+      <h2 class={styles.title}>{tr.title}</h2>
+      <p class={styles.body}>{tr.body}</p>
+
+      <ul class={styles.checklist}>
+        {tr.checklist.map((item) => (
+          <li class={styles.checkItem}>
+            <svg class={styles.checkIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* DNS flow */}
+      <div class={styles.flow}>
+        {tr.flowSteps.map((step, i) => (
+          <div class={styles.flowRow}>
+            <div class={styles.flowStep}>
+              <div class={styles.flowDot}>{i + 1}</div>
+              <span class={styles.flowText}>{step}</span>
+            </div>
+            {i < tr.flowSteps.length - 1 && (
+              <svg class={styles.flowArrow} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <a href="#" class={styles.cta}>{tr.cta}</a>
+
+      <div class={styles.hostedCard}>
+        <div class={styles.hostedCardIcon}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </div>
+        <div>
+          <p class={styles.hostedCardTitle}>No custom domain? No problem.</p>
+          <p class={styles.hostedCardBody}>
+            We host your portal at{' '}
+            <span class={styles.hostedUrl}>booking.docksbase.com/yourmarina</span>
+            {' '}— live in minutes, zero DNS setup.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* ── Right: browser mockup ── */}
+    <div class={styles.right}>
+      <div class={styles.browser}>
+
+        {/* Chrome bar */}
+        <div class={styles.chrome}>
+          <div class={styles.dots}>
+            <span class={styles.dot} style="background:#ff5f56" />
+            <span class={styles.dot} style="background:#ffbd2e" />
+            <span class={styles.dot} style="background:#27c93f" />
+          </div>
+          <div class={styles.urlBar}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span class={styles.urlText}>booking.yourmarina.com</span>
+          </div>
+        </div>
+
+        {/* Simulated marina website */}
+        <div class={styles.site}>
+
+          {/* Marina nav */}
+          <div class={styles.siteNav}>
+            <div class={styles.siteLogo}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+              </svg>
+              <span>Harbour View Marina</span>
+            </div>
+            <div class={styles.siteLinks}>
+              <span>Berths</span><span>Facilities</span><span>Contact</span>
+            </div>
+          </div>
+
+          {/* Booking hero */}
+          <div class={styles.siteHero}>
+            <div class={styles.siteHeroText}>
+              <p class={styles.siteEyebrow}>Online Reservations</p>
+              <h3 class={styles.siteHeadline}>Book a Berth</h3>
+              <p class={styles.siteSub}>Check real-time availability and reserve your spot.</p>
+            </div>
+          </div>
+
+          {/* Booking form */}
+          <div class={styles.siteForm}>
+            <div class={styles.formRow}>
+              <div class={styles.formField}>
+                <label>Arrival</label>
+                <div class={styles.formInput}>12 Aug 2026</div>
+              </div>
+              <div class={styles.formField}>
+                <label>Departure</label>
+                <div class={styles.formInput}>15 Aug 2026</div>
+              </div>
+              <div class={styles.formField}>
+                <label>Vessel length</label>
+                <div class={styles.formInput}>10 m</div>
+              </div>
+            </div>
+            <button class={styles.formBtn}>Check availability →</button>
+          </div>
+
+          {/* Powered-by badge */}
+          <div class={styles.poweredBy}>{tr.poweredBy}</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>

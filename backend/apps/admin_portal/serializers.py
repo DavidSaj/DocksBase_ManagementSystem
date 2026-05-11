@@ -43,7 +43,10 @@ class MarinaDetailSerializer(MarinaListSerializer):
     active_bookings = serializers.SerializerMethodField()
 
     class Meta(MarinaListSerializer.Meta):
-        fields = MarinaListSerializer.Meta.fields + ['staff', 'active_bookings', 'address', 'phone', 'currency']
+        fields = MarinaListSerializer.Meta.fields + [
+            'staff', 'active_bookings', 'address', 'phone', 'currency',
+            'support_access_granted_until',
+        ]
 
     def get_staff(self, obj):
         users = obj.users.filter(role__in=['owner', 'manager', 'staff']).order_by('role')
@@ -72,12 +75,12 @@ class PlatformPaymentSerializer(serializers.ModelSerializer):
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
-    admin_email = serializers.CharField(source='admin_user.email', read_only=True, default=None)
-    marina_name = serializers.CharField(source='target_marina.name', read_only=True, default=None)
+    admin_user_email = serializers.CharField(source='admin_user.email', read_only=True, default=None)
+    target_marina_name = serializers.CharField(source='target_marina.name', read_only=True, default=None)
 
     class Meta:
         model = AuditLog
-        fields = ['id', 'admin_email', 'action', 'marina_name', 'detail', 'created_at']
+        fields = ['id', 'admin_user_email', 'action', 'target_marina_name', 'detail', 'created_at']
 
 
 class GlobalFeatureFlagSerializer(serializers.ModelSerializer):

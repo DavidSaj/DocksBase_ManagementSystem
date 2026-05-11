@@ -120,7 +120,7 @@ const stMap = {
 };
 
 export default function Documents() {
-  const { templates, loading: tplLoading, uploadTemplate, prepareTemplate } = useDocTemplates();
+  const { templates, loading: tplLoading, uploadTemplate, prepareTemplate, setWaiver, clearWaiver } = useDocTemplates();
   const { envelopes, loading: envLoading, sendEnvelope, getDownloadUrl } = useEnvelopes();
   const { members } = useMembers();
   const [tab, setTab] = useState('templates');
@@ -129,6 +129,7 @@ export default function Documents() {
   const [showUpload, setShowUpload] = useState(false);
   const [sendingTemplate, setSendingTemplate] = useState(null);
   const [preparing, setPreparing] = useState(null);
+  const [waiverBusy, setWaiverBusy] = useState(null);
 
   const filteredEnv = envFilter === 'all' ? envelopes : envelopes.filter(e => e.status === envFilter);
 
@@ -145,6 +146,16 @@ export default function Documents() {
   async function handleDownload(env) {
     const url = await getDownloadUrl(env.id);
     window.open(url, '_blank');
+  }
+
+  async function handleSetWaiver(tpl) {
+    setWaiverBusy(tpl.id);
+    try { await setWaiver(tpl.id); } finally { setWaiverBusy(null); }
+  }
+
+  async function handleClearWaiver(tpl) {
+    setWaiverBusy(tpl.id);
+    try { await clearWaiver(tpl.id); } finally { setWaiverBusy(null); }
   }
 
   return (
@@ -198,7 +209,7 @@ export default function Documents() {
                   <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 14 }}>
                     {t.uses_count} uses · {t.last_used ? `Last used: ${t.last_used}` : 'Never sent'}
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {t.dropboxsign_template_id ? (
                       <button className="btn btn-primary btn-sm" onClick={() => setSendingTemplate(t)}>
                         <Ic n="pen" s={11} />Send Contract
@@ -210,6 +221,32 @@ export default function Documents() {
                     )}
                     {t.file && <a className="btn btn-ghost btn-sm" href={t.file} target="_blank" rel="noreferrer">Download</a>}
                   </div>
+                  {t.category === 'waiver' && t.dropboxsign_template_id && (
+                    <div style={{ marginTop: 8 }}>
+                      {t.is_active_waiver ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="badge badge-green" style={{ fontSize: 10 }}>Active Marina Waiver</span>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ fontSize: 11, color: 'var(--red)' }}
+                            onClick={() => handleClearWaiver(t)}
+                            disabled={waiverBusy === t.id}
+                          >
+                            {waiverBusy === t.id ? '…' : 'Remove'}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ fontSize: 11 }}
+                          onClick={() => handleSetWaiver(t)}
+                          disabled={waiverBusy === t.id}
+                        >
+                          {waiverBusy === t.id ? 'Setting…' : 'Set as Marina Waiver'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

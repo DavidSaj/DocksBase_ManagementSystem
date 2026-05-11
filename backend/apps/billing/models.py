@@ -14,6 +14,12 @@ class Invoice(models.Model):
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='invoices')
     member = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    tenant = models.ForeignKey(
+        'tenants.TenantContact',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='invoices',
+    )
     invoice_number = models.CharField(max_length=20, db_index=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
     source_type = models.CharField(max_length=50, blank=True)
@@ -30,6 +36,26 @@ class Invoice(models.Model):
     pdf_document = models.FileField(upload_to='invoices/', null=True, blank=True)
     booking = models.ForeignKey(
         'reservations.Booking',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices',
+    )
+    invoice_type = models.CharField(
+        max_length=20,
+        choices=[('invoice', 'Invoice'), ('credit_note', 'Credit Note')],
+        default='invoice',
+    )
+    related_invoice = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='credit_notes',
+        help_text='For credit notes: points to the original invoice being neutralised.',
+    )
+    shipping_agent = models.ForeignKey(
+        'harbour.ShippingAgent',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -94,11 +120,23 @@ class Payment(models.Model):
 
 class ChargeableItem(models.Model):
     class Category(models.TextChoices):
-        BERTH        = 'berth',       'Berth'
-        UTILITY      = 'utility',     'Utility'
-        SERVICE      = 'service',     'Service'
-        RETAIL       = 'retail',      'Retail'
-        BOOKING_FEE  = 'booking_fee', 'Booking Fee'
+        BERTH        = 'berth',        'Berth'
+        UTILITY      = 'utility',      'Utility'
+        SERVICE      = 'service',      'Service'
+        RETAIL       = 'retail',       'Retail'
+        BOOKING_FEE  = 'booking_fee',  'Booking Fee'
+        FUEL         = 'fuel',         'Fuel'
+        REPAIR       = 'repair',       'Repair'
+        COURSE       = 'course',       'Course'
+        LOYALTY      = 'loyalty',      'Loyalty Redemption'
+        SUBSCRIPTION = 'subscription', 'Subscription'
+        PENALTY      = 'penalty',      'Penalty'
+        DEPOSIT      = 'deposit',      'Deposit'
+        RENT         = 'rent',         'Rent'
+        OFFSET       = 'offset',       'Carbon Offset'
+        COMMISSION     = 'commission',     'Commission'
+        CHARTER        = 'charter',        'Charter Fee'
+        HARBOUR_TARIFF = 'harbour_tariff', 'Harbour Tariff'
 
     class PricingModel(models.TextChoices):
         FLAT_FEE            = 'flat_fee',            'Flat Fee'
@@ -108,6 +146,10 @@ class ChargeableItem(models.Model):
         PER_HOUR            = 'per_hour',             'Per Hour'
         PER_METER_FLAT      = 'per_meter_flat',      'Per Meter (flat)'
         PER_LITRE           = 'per_litre',           'Per Litre'
+        PER_WEEK            = 'per_week',            'Per Week'
+        PER_PASSENGER       = 'per_passenger',       'Per Passenger'
+        PER_GROSS_TON       = 'per_gross_ton',       'Per Gross Ton'
+        PER_TON_DISTANCE    = 'per_ton_distance',    'Per Ton × Distance'
 
     marina        = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='chargeable_items')
     name          = models.CharField(max_length=200)
@@ -118,6 +160,15 @@ class ChargeableItem(models.Model):
     is_active                  = models.BooleanField(default=True)
     show_in_pos                = models.BooleanField(default=False)
     is_mandatory_transient_fee = models.BooleanField(default=False)
+    # Coupons/loyalty points must NOT apply to offset certificates or deposit items.
+    is_discountable = models.BooleanField(
+        default=True,
+        help_text='Set False for deposit and carbon-offset items to block coupon/loyalty discounts.',
+    )
+    is_upsell_eligible = models.BooleanField(
+        default=False,
+        help_text='Mark items that can be offered as upsells during booking or check-in.',
+    )
     fuel_dock_type = models.CharField(
         max_length=20,
         blank=True,
@@ -166,3 +217,116 @@ class PaymentAllocation(models.Model):
 
     def __str__(self):
         return f'Alloc {self.pk}: €{self.allocated_amount} → {self.invoice}'
+
+
+# ── Track 3 — Debt management models ─────────────────────────────────────────
+
+class DunningTemplate(models.Model):
+    marina     = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='dunning_templates')
+    level      = models.IntegerField()
+    subject    = models.CharField(max_length=500)
+    body_html  = models.TextField()
+    created_by = models.ForeignKey(
+        'staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('marina', 'level')]
+        ordering = ['marina', 'level']
+
+    def __str__(self):
+        return f'Dunning Level {self.level} — {self.marina}'
+
+
+class DebtNote(models.Model):
+    class ContactMethod(models.TextChoices):
+        PHONE     = 'phone',     'Phone Call'
+        EMAIL     = 'email',     'Email'
+        IN_PERSON = 'in_person', 'In Person'
+        LETTER    = 'letter',    'Letter'
+
+    class Outcome(models.TextChoices):
+        PROMISE_TO_PAY = 'promise_to_pay', 'Promise to Pay'
+        DISPUTED       = 'disputed',       'Disputed'
+        NO_CONTACT     = 'no_contact',     'No Contact Made'
+        PAID           = 'paid',           'Paid in Full'
+
+    marina         = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='debt_notes')
+    member         = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='debt_notes')
+    invoices       = models.ManyToManyField('Invoice', blank=True, related_name='debt_notes')
+    contact_method = models.CharField(max_length=20, choices=ContactMethod.choices)
+    outcome        = models.CharField(max_length=30, choices=Outcome.choices)
+    notes          = models.TextField(blank=True)
+    promised_payment_date = models.DateField(null=True, blank=True)
+    created_by     = models.ForeignKey(
+        'staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='debt_notes',
+    )
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'DebtNote {self.pk} — {self.member} ({self.outcome})'
+
+
+class DunningLetter(models.Model):
+    class Status(models.TextChoices):
+        DRAFT   = 'draft',   'Draft'
+        SENT    = 'sent',    'Sent'
+        BOUNCED = 'bounced', 'Bounced'
+
+    marina        = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='dunning_letters')
+    member        = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='dunning_letters')
+    invoices      = models.ManyToManyField('Invoice', blank=True, related_name='dunning_letters')
+    level         = models.IntegerField()
+    status        = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    demand_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    pdf_document  = models.FileField(upload_to='dunning_letters/', null=True, blank=True)
+    send_via      = models.CharField(max_length=20, default='email')
+    generated_by  = models.ForeignKey(
+        'staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dunning_letters',
+    )
+    generated_at  = models.DateTimeField(auto_now_add=True)
+    sent_at       = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-generated_at']
+
+    def __str__(self):
+        return f'DunningLetter L{self.level} — {self.member} ({self.status})'
+
+
+class DebtEscalation(models.Model):
+    class Status(models.TextChoices):
+        OPEN     = 'open',     'Open'
+        RESOLVED = 'resolved', 'Resolved'
+        REFERRED = 'referred', 'Referred to Agency'
+
+    marina      = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='debt_escalations')
+    member      = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='debt_escalations')
+    invoices    = models.ManyToManyField('Invoice', blank=True, related_name='debt_escalations')
+    escalate_to = models.CharField(max_length=100, blank=True)
+    status      = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    notes       = models.TextField(blank=True)
+    created_by  = models.ForeignKey(
+        'staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='debt_escalations',
+    )
+    created_at  = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'DebtEscalation {self.pk} — {self.member} ({self.status})'
+
+
+# ── Track 7 — Coupon models ───────────────────────────────────────────────────
+# NOTE: CouponCode already exists in apps/loyalty/models.py (added by a previous track).
+# Skipping duplicate definition here — use apps.loyalty.models.CouponCode as the
+# single source of truth. See INSTALL.md for details.

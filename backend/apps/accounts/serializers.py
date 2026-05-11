@@ -18,11 +18,13 @@ class MarinaSerializer(serializers.ModelSerializer):
             # read-only: owner can see but not change
             'id', 'slug', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',
+            'support_access_granted_until',
             'created_at',
         ]
         read_only_fields = [
             'id', 'slug', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'onboarding',
+            'support_access_granted_until',
             'created_at',
         ]
 

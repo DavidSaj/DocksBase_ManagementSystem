@@ -103,7 +103,7 @@ class ServiceLayerTest(TestCase):
         mock_ds.TemplateApi.return_value = mock_api
         mock_api.create_embedded_template_draft.return_value.embedded_template.edit_url = 'https://dsign.example/edit/abc'
 
-        result = create_embedded_template_draft(self.template, file_path='/tmp/test.pdf')
+        result = create_embedded_template_draft(self.template, file_path='/tmp/test.pdf', api_key='', client_id='')
 
         self.assertEqual(result, 'https://dsign.example/edit/abc')
         mock_api.create_embedded_template_draft.assert_called_once()
@@ -119,7 +119,7 @@ class ServiceLayerTest(TestCase):
             dropboxsign_template_id='tpl_real_id',
         )
         env = Envelope.objects.create(marina=self.marina, template=tpl, recipient=self.member)
-        result = send_envelope(env)
+        result = send_envelope(env, api_key='')
 
         self.assertEqual(result, 'req_abc123')
         mock_api.send_with_template.assert_called_once()
@@ -130,7 +130,7 @@ class ServiceLayerTest(TestCase):
         mock_ds.SignatureRequestApi.return_value = mock_api
         mock_api.get.return_value.signature_request.signing_url = 'https://dsign.example/signed.pdf'
 
-        url = get_signed_pdf_url('req_abc123')
+        url = get_signed_pdf_url('req_abc123', api_key='')
         self.assertEqual(url, 'https://dsign.example/signed.pdf')
 
 

@@ -3,9 +3,6 @@ import { useState } from 'react';
 import useBerths from '../hooks/useBerths.js';
 import usePiers from '../hooks/usePiers.js';
 import useInvoices from '../hooks/useInvoices.js';
-import useMembers from '../hooks/useMembers.js';
-import useAssets from '../hooks/useAssets.js';
-import useDefects from '../hooks/useDefects.js';
 import useReports from '../hooks/useReports.js';
 
 function Bar({ val, max, color = 'var(--navy)' }) {
@@ -27,20 +24,12 @@ export default function Reports() {
   const { berths, counts, loading: bLoading } = useBerths();
   const { piers } = usePiers();
   const { invoices: rawInv, loading: invLoading } = useInvoices();
-  const { members, loading: mLoading } = useMembers();
-  const { assets } = useAssets();
-  const { defects } = useDefects();
   const { revenue: revReport, occupancy: occReport, utilisation: utilReport, loading: rLoading, error: repError } = useReports();
 
   const invoices = rawInv.map(inv => ({ ...inv, status: inv.status ?? 'unpaid' }));
 
   const monthlyData = revReport?.monthly_breakdown ?? [];
   const maxMonthRev = Math.max(...monthlyData.map(m => (m.berth||0)+(m.utility||0)+(m.service||0)+(m.retail||0)), 1);
-
-  const docCompliant  = members.filter(m => (m.docs_status ?? m.docs) === 'complete' && (m.insurance_status ?? m.insurance) !== 'EXPIRED' && (m.insurance_status ?? m.insurance) !== 'expired').length;
-  const insExpired    = members.filter(m => (m.insurance_status ?? m.insurance) === 'EXPIRED' || (m.insurance_status ?? m.insurance) === 'expired').length;
-  const assetsOverdue = assets.filter(a => a.status === 'due_service' || a.status === 'under_repair' || (a.next_service && new Date(a.next_service) < new Date())).length;
-  const openDefects   = defects.filter(d => d.status !== 'resolved').length;
 
   const occPct = counts.total > 0 ? Math.round((counts.occupied / counts.total) * 100) : 0;
 
@@ -56,7 +45,7 @@ export default function Reports() {
         </div>
       )}
       <div className="tabs">
-        {[['occupancy','Occupancy'],['revenue','Revenue'],['berths','Berth Utilisation'],['compliance','Compliance']].map(([v,l]) => (
+        {[['occupancy','Occupancy'],['revenue','Revenue'],['berths','Berth Utilisation']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -280,93 +269,6 @@ export default function Reports() {
         </div>
       )}
 
-      {tab === 'compliance' && (
-        <div>
-          <div className="kpi-row" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-            {mLoading ? (
-              Array(4).fill(null).map((_, i) => (
-                <div key={i} className="kpi-card"><div className="kpi-val" style={{ color: 'rgba(0,0,0,0.3)' }}>…</div></div>
-              ))
-            ) : [
-              { label: 'Members Fully Compliant', val: `${docCompliant}/${members.length}`, sub: `${members.length > 0 ? Math.round(docCompliant/members.length*100) : 0}% compliance rate` },
-              { label: 'Insurance Expired',        val: insExpired,    sub: 'Require immediate action' },
-              { label: 'Assets Overdue Service',   val: assetsOverdue, sub: 'Scheduled maintenance' },
-              { label: 'Open Defects',             val: openDefects,   sub: 'Across all assets' },
-            ].map(k => (
-              <div key={k.label} className="kpi-card">
-                <div className="kpi-label">{k.label}</div>
-                <div className="kpi-val" style={{ color: (k.val === insExpired || k.val === assetsOverdue || k.val === openDefects) && k.val > 0 ? 'var(--orange)' : undefined }}>{k.val}</div>
-                <div className="kpi-sub">{k.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div className="grid-2" style={{ alignItems: 'start' }}>
-            <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Document Compliance — Members</div>
-              {mLoading ? (
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '12px 0' }}>Loading…</div>
-              ) : (
-                <>
-                  <div className="chart-wrap" style={{ marginBottom: 16 }}>
-                    <div className="chart-row">
-                      <div className="chart-lbl">Docs OK</div>
-                      <Bar val={members.filter(m=>(m.docs_status??m.docs)==='complete').length} max={members.length||1} color="var(--green)" />
-                      <div className="chart-val">{members.filter(m=>(m.docs_status??m.docs)==='complete').length}/{members.length}</div>
-                    </div>
-                    <div className="chart-row">
-                      <div className="chart-lbl">Insurance</div>
-                      <Bar val={members.filter(m=>(m.insurance_status??m.insurance)!=='EXPIRED'&&(m.insurance_status??m.insurance)!=='expired').length} max={members.length||1} color="var(--teal)" />
-                      <div className="chart-val">{members.filter(m=>(m.insurance_status??m.insurance)!=='EXPIRED'&&(m.insurance_status??m.insurance)!=='expired').length}/{members.length}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Members Requiring Action</div>
-                  {members.filter(m => (m.docs_status??m.docs) !== 'complete' || (m.insurance_status??m.insurance) === 'EXPIRED' || (m.insurance_status??m.insurance) === 'expired').map(m => (
-                    <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{m.name}</div>
-                        <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>{m.vessels?.[0]?.name ?? m.vessel ?? '—'}</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        {((m.insurance_status??m.insurance)==='EXPIRED'||(m.insurance_status??m.insurance)==='expired') && <span className="badge badge-red">Insurance Expired</span>}
-                        {(m.docs_status??m.docs)==='missing' && <span className="badge badge-orange">Docs Missing</span>}
-                        {(m.docs_status??m.docs)==='pending' && <span className="badge badge-gold">Docs Pending</span>}
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-            <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Maintenance Overdue Report</div>
-              {assets.filter(a => a.status === 'under_repair' || a.status === 'due_service' || (a.next_service && new Date(a.next_service) < new Date())).map(a => (
-                <div key={a.id} style={{ padding: '10px 0', borderBottom: 'var(--border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>{a.name}</div>
-                    <span className={`badge ${a.status==='under_repair'?'badge-red':'badge-orange'}`}>{a.status === 'under_repair' ? 'Under Repair' : 'Due Service'}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{a.location} · Next due: <span style={{ fontWeight: 600, color: a.next_service && new Date(a.next_service) < new Date() ? 'var(--red)' : 'var(--orange)' }}>{a.next_service ?? '—'}</span></div>
-                </div>
-              ))}
-              {assets.filter(a => a.status === 'under_repair' || a.status === 'due_service' || (a.next_service && new Date(a.next_service) < new Date())).length === 0 && (
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>No overdue assets.</div>
-              )}
-              <div style={{ marginTop: 16, fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Open Defects</div>
-              {defects.filter(d => d.status !== 'resolved').map(d => (
-                <div key={d.id} style={{ padding: '8px 0', borderBottom: 'var(--border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>{d.asset_name || `DEF-${d.id}`}</div>
-                    <span className={`badge ${d.severity==='high'?'badge-red':d.severity==='medium'?'badge-orange':'badge-gray'}`}>{d.severity}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{d.location} · {d.reported_at?.slice(0, 10) ?? '—'}</div>
-                </div>
-              ))}
-              {defects.filter(d => d.status !== 'resolved').length === 0 && (
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>No open defects.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

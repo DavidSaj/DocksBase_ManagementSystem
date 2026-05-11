@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { login, resendVerification } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -104,10 +104,6 @@ export default function Login() {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 16 }}>
-          Don't have an account?{' '}
-          <Link to="/signup" style={{ color: 'var(--navy)', textDecoration: 'none', fontWeight: 600 }}>Sign up</Link>
-        </p>
       </div>
     </div>
   );

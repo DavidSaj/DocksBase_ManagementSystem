@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 from .models import DocTemplate, Envelope, MemberDocument
 from .serializers import DocTemplateSerializer, EnvelopeSerializer, MemberDocumentSerializer
 from .services import create_embedded_template_draft, send_envelope, get_signed_pdf_url
+from apps.reservations.models import Booking
+from apps.portal.checkin_utils import evaluate_pre_cleared
 
 
 class DocTemplateList(generics.ListCreateAPIView):
@@ -37,8 +39,41 @@ class DocTemplatePrepare(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not template.file:
             return Response({'detail': 'No file uploaded yet.'}, status=status.HTTP_400_BAD_REQUEST)
-        edit_url = create_embedded_template_draft(template, template.file.path)
+        edit_url = create_embedded_template_draft(
+            template,
+            template.file.path,
+            api_key=request.user.marina.dropboxsign_api_key,
+            client_id=request.user.marina.dropboxsign_client_id,
+        )
         return Response({'edit_url': edit_url})
+
+
+class DocTemplateSetWaiver(APIView):
+    def post(self, request, pk):
+        try:
+            template = DocTemplate.objects.get(pk=pk, marina=request.user.marina)
+        except DocTemplate.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not template.file:
+            return Response(
+                {'detail': 'Template must have a PDF file before it can be set as the marina waiver.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        marina = request.user.marina
+        marina.waiver_template_id = str(template.pk)
+        marina.save(update_fields=['waiver_template_id'])
+        return Response({'waiver_template_id': marina.waiver_template_id})
+
+    def delete(self, request, pk):
+        try:
+            template = DocTemplate.objects.get(pk=pk, marina=request.user.marina)
+        except DocTemplate.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        marina = request.user.marina
+        if marina.waiver_template_id == str(template.pk):
+            marina.waiver_template_id = None
+            marina.save(update_fields=['waiver_template_id'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EnvelopeList(generics.ListCreateAPIView):
@@ -49,7 +84,10 @@ class EnvelopeList(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         envelope = serializer.save(marina=self.request.user.marina)
-        request_id = send_envelope(envelope)
+        request_id = send_envelope(
+            envelope,
+            api_key=self.request.user.marina.dropboxsign_api_key,
+        )
         envelope.dropboxsign_request_id = request_id
         envelope.save(update_fields=['dropboxsign_request_id'])
 
@@ -69,7 +107,10 @@ class EnvelopeDownload(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if envelope.status != 'completed':
             return Response({'detail': 'Not yet signed.'}, status=status.HTTP_400_BAD_REQUEST)
-        url = get_signed_pdf_url(envelope.dropboxsign_request_id)
+        url = get_signed_pdf_url(
+            envelope.dropboxsign_request_id,
+            api_key=request.user.marina.dropboxsign_api_key,
+        )
         return Response({'url': url})
 
 
@@ -136,15 +177,26 @@ class DropboxSignWebhook(APIView):
             metadata = sig_req.get('metadata', {})
             marina_id = metadata.get('marina_id')
             envelope_pk = metadata.get('envelope_pk')
-            if not marina_id or not envelope_pk:
-                return Response({'detail': 'Missing metadata.'}, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                envelope = Envelope.objects.get(pk=envelope_pk, marina_id=marina_id)
-            except Envelope.DoesNotExist:
-                return Response({'detail': 'Envelope not found.'}, status=status.HTTP_400_BAD_REQUEST)
-            envelope.status = 'completed'
-            envelope.completed_at = timezone.now()
-            envelope.save(update_fields=['status', 'completed_at'])
+            booking_id = metadata.get('booking_id')
+
+            # Mark the Envelope record completed (general docs and waiver both use envelope_pk when available)
+            if envelope_pk:
+                qs = Envelope.objects.filter(pk=envelope_pk)
+                if marina_id:
+                    qs = qs.filter(marina_id=marina_id)
+                now = timezone.now()
+                qs.update(status='completed', completed_at=now)
+
+            # Mark the booking's waiver as signed (waiver flow passes booking_id)
+            if booking_id:
+                try:
+                    booking = Booking.objects.get(pk=int(booking_id))
+                    if not booking.waiver_signed:
+                        booking.waiver_signed = True
+                        booking.save(update_fields=['waiver_signed'])
+                        evaluate_pre_cleared(booking)
+                except (Booking.DoesNotExist, ValueError):
+                    pass
 
         elif event_type == 'template_created':
             template_data = event.get('template', {})

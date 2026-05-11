@@ -20,6 +20,7 @@ class MarinaPublicView(APIView):
         if request.tenant is None:
             return Response({'error': 'X-Marina-Slug header is required.'}, status=400)
         marina = request.tenant
+        cfg = getattr(marina, 'widget_config', None)
         return Response({
             'id': marina.id,
             'name': marina.name,
@@ -29,6 +30,8 @@ class MarinaPublicView(APIView):
             'contact_email': marina.contact_email,
             'phone': marina.phone,
             'booking_mode': marina.booking_mode,
+            'vat_rate': str(marina.vat_rate),
+            'logo_url': cfg.logo_url if cfg else '',
         })
 
 

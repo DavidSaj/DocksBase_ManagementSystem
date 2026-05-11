@@ -10,7 +10,9 @@ const NAV = [
     { id: 'finance',       icon: 'dollar',       label: 'Finance' },
   ]},
   { group: 'System', items: [
-    { id: 'settings',      icon: 'settings',     label: 'Settings' },
+    { id: 'feature-flags', icon: 'toggle-right',  label: 'Feature Flags' },
+    { id: 'audit-log',     icon: 'clipboard',     label: 'Audit Log' },
+    { id: 'settings',      icon: 'settings',      label: 'Settings' },
   ]},
 ];
 

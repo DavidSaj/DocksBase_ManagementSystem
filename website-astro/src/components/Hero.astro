@@ -1,0 +1,37 @@
+---
+import type { Strings } from '../i18n/strings'
+import styles from './Hero.module.css'
+
+interface Props { t: Strings }
+const { t } = Astro.props
+const h = t.hero
+---
+<section class={styles.hero}>
+  <div class={styles.bgOuter}>
+    <div class={styles.bgInner} />
+  </div>
+  <div class={styles.overlay} />
+  <div class={styles.content}>
+    <div class={styles.eyebrow}>{h.eyebrow}</div>
+    <h1 class={styles.title}>
+      <span class={styles.word1}>{h.title1}</span>{' '}
+      <em class={styles.wordEm}>{h.titleEm}</em>
+      <br />
+      <span class={styles.word2}>{h.title2}</span>
+    </h1>
+    <p class={styles.sub}>{h.sub}</p>
+    <div class={styles.actions}>
+      <a href="/signup/" class={`${styles.btn} ${styles.btnPrimary}`}>
+        {h.cta1}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </a>
+      <a href="#features" class={`${styles.btn} ${styles.btnGhost}`}>{h.cta2}</a>
+    </div>
+  </div>
+  <div class={styles.scroll}>
+    <div class={styles.scrollLine} />
+    <span class={styles.scrollText}>Scroll</span>
+  </div>
+</section>

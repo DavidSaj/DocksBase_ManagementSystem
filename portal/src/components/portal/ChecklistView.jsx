@@ -1,16 +1,30 @@
+// portal/src/components/portal/ChecklistView.jsx
 import DimensionsForm from './checklist/DimensionsForm';
-import WaiverItem from './checklist/WaiverItem';
-import InsuranceItem from './checklist/InsuranceItem';
+import WaiverItem     from './checklist/WaiverItem';
+import InsuranceItem  from './checklist/InsuranceItem';
 
-const CARD = { background: '#fff', borderRadius: 14, padding: 20, marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
-const HDR = { background: '#1a2d4a', padding: '20px 20px 16px', color: '#fff' };
+function CheckIcon({ done }) {
+  if (done) {
+    return (
+      <svg className="p-check-item__icon p-check-item__icon--done" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    );
+  }
+  return (
+    <svg className="p-check-item__icon p-check-item__icon--pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="3"/>
+    </svg>
+  );
+}
 
 function CheckItem({ label, done, children }) {
   return (
-    <div style={CARD}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: done ? 0 : 16 }}>
-        <span style={{ fontSize: 20 }}>{done ? '✅' : '⬜'}</span>
-        <span style={{ fontSize: 15, fontWeight: 700 }}>{label}</span>
+    <div className="p-check-item">
+      <div className={`p-check-item__header${done ? '' : ' p-check-item__header--open'}`}>
+        <CheckIcon done={done} />
+        <span className="p-check-item__label">{label}</span>
       </div>
       {!done && children}
     </div>
@@ -22,10 +36,10 @@ export default function ChecklistView({ booking, onUpdate }) {
   const waiverDone = booking.waiver_signed;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
-      <div style={HDR}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>Pre-Arrival Checklist</div>
-        <div style={{ fontSize: 13, opacity: 0.6, marginTop: 4 }}>Complete all required steps before arrival</div>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <div className="p-checkin-hero">
+        <div className="p-checkin-hero__title">Pre-Arrival Checklist</div>
+        <div className="p-checkin-hero__subtitle">Complete all required steps before arrival</div>
       </div>
       <div style={{ padding: '16px 16px 40px' }}>
         <CheckItem label="Vessel Dimensions" done={dimsDone}>

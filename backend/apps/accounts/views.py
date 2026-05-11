@@ -1,8 +1,10 @@
 import datetime
+import datetime as _dt
 import stripe
 from django.conf import settings
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.utils import timezone
+from django.utils import timezone as _tz
 from django.core.mail import send_mail
 from django.core.cache import cache
 from django.db.models import Sum
@@ -116,12 +118,8 @@ class ResendVerificationView(APIView):
         if user.is_active:
             return Response({'detail': 'Verification email resent.'})
 
-        ev = EmailVerification.objects.filter(user=user).first()
-        if ev and timezone.now() - ev.created_at > datetime.timedelta(hours=24):
-            ev.delete()
-            ev = None
-        if ev is None:
-            ev = EmailVerification.objects.create(user=user)
+        EmailVerification.objects.filter(user=user).delete()
+        ev = EmailVerification.objects.create(user=user)
         send_verification_email(user, ev.token)
 
         return Response({'detail': 'Verification email resent.'})
@@ -487,15 +485,22 @@ class DraftAccountView(APIView):
 
         # Idempotency: return existing client_secret for pending_payment accounts
         existing_user = User.objects.filter(email=email).select_related('marina').first()
-        if existing_user and existing_user.marina and existing_user.marina.status == 'pending_payment':
-            sub = stripe.Subscription.retrieve(
-                existing_user.marina.stripe_subscription_id,
-                expand=['pending_setup_intent'],
-            )
-            return Response(
-                {'client_secret': sub.pending_setup_intent.client_secret},
-                status=status.HTTP_201_CREATED,
-            )
+        if existing_user:
+            if existing_user.marina and existing_user.marina.status == 'pending_payment':
+                sub = stripe.Subscription.retrieve(
+                    existing_user.marina.stripe_subscription_id,
+                    expand=['pending_setup_intent'],
+                )
+                return Response(
+                    {'client_secret': sub.pending_setup_intent.client_secret},
+                    status=status.HTTP_201_CREATED,
+                )
+            if not existing_user.is_active:
+                return Response(
+                    {'code': 'email_not_verified', 'detail': 'Please verify your email before continuing.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            raise serializers.ValidationError({'email': ['An account with this email already exists.']})
 
         with transaction.atomic():
             marina = Marina.objects.create(
@@ -574,4 +579,62 @@ class ResumeView(APIView):
             'client_secret': sub.pending_setup_intent.client_secret,
             'marina_name':   marina.name,
             'plan':          marina.plan,
+        })
+
+
+class GrantSupportAccessView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_marina(self, request):
+        if not request.user.marina:
+            return None
+        return request.user.marina
+
+    def post(self, request):
+        if request.user.role != 'owner':
+            return Response({'detail': 'Only marina owners can grant support access.'}, status=status.HTTP_403_FORBIDDEN)
+        marina = self._get_marina(request)
+        if not marina:
+            return Response({'detail': 'No marina found.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina.support_access_granted_until = _tz.now() + _dt.timedelta(hours=48)
+        marina.save(update_fields=['support_access_granted_until'])
+        return Response({
+            'support_access_granted_until': marina.support_access_granted_until.isoformat(),
+        })
+
+    def delete(self, request):
+        if request.user.role != 'owner':
+            return Response({'detail': 'Only marina owners can revoke support access.'}, status=status.HTTP_403_FORBIDDEN)
+        marina = self._get_marina(request)
+        if not marina:
+            return Response({'detail': 'No marina found.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina.support_access_granted_until = None
+        marina.save(update_fields=['support_access_granted_until'])
+        return Response({'support_access_granted_until': None})
+
+
+class DropboxSignSettingsView(APIView):
+    permission_classes = [IsMarinaStaff]
+
+    def get(self, request):
+        marina = request.user.marina
+        key = marina.dropboxsign_api_key or ''
+        return Response({
+            'connected': bool(key and marina.dropboxsign_client_id),
+            'client_id': marina.dropboxsign_client_id or '',
+            'api_key_tail': key[-4:] if len(key) >= 4 else '',
+        })
+
+    def patch(self, request):
+        marina = request.user.marina
+        api_key   = request.data.get('api_key', marina.dropboxsign_api_key)
+        client_id = request.data.get('client_id', marina.dropboxsign_client_id)
+        marina.dropboxsign_api_key   = api_key   or ''
+        marina.dropboxsign_client_id = client_id or ''
+        marina.save(update_fields=['dropboxsign_api_key', 'dropboxsign_client_id'])
+        key = marina.dropboxsign_api_key
+        return Response({
+            'connected': bool(key and marina.dropboxsign_client_id),
+            'client_id': marina.dropboxsign_client_id,
+            'api_key_tail': key[-4:] if len(key) >= 4 else '',
         })

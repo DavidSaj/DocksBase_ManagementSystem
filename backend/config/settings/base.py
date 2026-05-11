@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import timedelta
 from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -21,6 +22,7 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
 ]
 
 THIRD_PARTY_APPS = [
@@ -33,6 +35,7 @@ THIRD_PARTY_APPS = [
     'storages',
     'anymail',
     'csp',
+    'django_celery_beat',
 ]
 
 LOCAL_APPS = [
@@ -51,9 +54,29 @@ LOCAL_APPS = [
     'apps.sales',
     'apps.reports',
     'apps.fuel_dock',
+    'apps.search',
+    'apps.notifications',
     'apps.portal',
     'apps.admin_portal',
     'apps.mobile',
+    # ERP tracks
+    'apps.revenue',
+    'apps.loyalty',
+    'apps.accounting',
+    'apps.movements',
+    'apps.utilities',
+    'apps.activities',
+    'apps.housekeeping',
+    'apps.charter',
+    'apps.harbour',
+    'apps.access_control',
+    'apps.sustainability',
+    # Tracks 1, 7, 10
+    'apps.revenue_intelligence',
+    'apps.communications',
+    'apps.channels',
+    'apps.tenants',
+    'apps.marketplace',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -67,6 +90,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.admin_portal.middleware.ImpersonationAuditMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -189,6 +213,58 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+}
+
+# ---------------------------------------------------------------------------
+# Celery
+# ---------------------------------------------------------------------------
+CELERY_BROKER_URL        = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND    = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT    = ['json']
+CELERY_TASK_SERIALIZER   = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE          = 'UTC'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_ROUTES = {
+    'sustainability.generate_esg_report_async': {'queue': 'pdf_generation'},
+}
+CELERY_BEAT_SCHEDULE = {
+    'roll-sustainability-ledger': {
+        'task': 'sustainability.roll_sustainability_ledger',
+        'schedule': 3600,  # hourly
+    },
+    'fetch-grid-intensity': {
+        'task': 'sustainability.fetch_grid_intensity',
+        'schedule': 86400,  # daily
+    },
+    'sync-play-it-green': {
+        'task': 'sustainability.sync_play_it_green',
+        'schedule': 21600,  # 6-hourly
+    },
+    'expire-waitlist-offers': {
+        'task': 'revenue_intelligence.expire_waitlist_offers',
+        'schedule': 3600,
+    },
+    'expire-upgrade-campaigns': {
+        'task': 'revenue_intelligence.expire_upgrade_campaigns',
+        'schedule': 3600,
+    },
+    'run-communication-journeys': {
+        'task': 'communications.run_journey_enrollments',
+        'schedule': 300,  # every 5 minutes
+    },
+    'send-overdue-invoice-alerts': {
+        'task': 'billing.send_overdue_invoice_alerts',
+        'schedule': crontab(hour=9, minute=0),
+    },
+    'send-overstay-alerts': {
+        'task': 'reservations.send_overstay_alerts',
+        'schedule': crontab(hour=8, minute=0),
+    },
+    'send-prearival-reminders': {
+        'task': 'reservations.send_prearival_reminders',
+        'schedule': crontab(hour=10, minute=0),
+    },
 }
 
 CONTENT_SECURITY_POLICY = {

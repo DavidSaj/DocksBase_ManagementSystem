@@ -42,7 +42,7 @@ function CalendarGrid({ year, month, startDate, endDate, hoverDate, onDayClick, 
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {cells.map((day, i) => {
-          if (!day) return <div key={`blank-${i}`} style={{ height: 40 }} />;
+          if (!day) return <div key={`blank-${i}`} style={{ height: 34 }} />;
 
           const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const isPast    = ds < today;
@@ -59,7 +59,7 @@ function CalendarGrid({ year, month, startDate, endDate, hoverDate, onDayClick, 
               onClick={() => !isPast && onDayClick(ds)}
               onMouseEnter={() => !isPast && onDayHover(ds)}
               onMouseLeave={() => onDayHover(null)}
-              style={{ position: 'relative', height: 40, cursor: isPast ? 'default' : 'pointer' }}
+              style={{ position: 'relative', height: 34, cursor: isPast ? 'default' : 'pointer' }}
             >
               {/* Range stripe — right-half on start, full on in-range, left-half on end */}
               {hasRange && isStart && (
@@ -76,7 +76,7 @@ function CalendarGrid({ year, month, startDate, endDate, hoverDate, onDayClick, 
               <div style={{
                 position: 'absolute', top: '50%', left: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: 32, height: 32,
+                width: 28, height: 28,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: '50%',
                 background: isSelected ? '#b8965a' : 'transparent',
@@ -180,6 +180,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
               cursor: 'pointer', userSelect: 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
               borderColor: open ? '#b8965a' : undefined,
+              padding: '7px 10px',
             }}
           >
             <span style={{ color: checkIn ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontSize: 14 }}>
@@ -199,6 +200,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
               cursor: 'pointer', userSelect: 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
               borderColor: open ? '#b8965a' : undefined,
+              padding: '7px 10px',
             }}
           >
             <span style={{ color: checkOut ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontSize: 14 }}>
@@ -214,12 +216,12 @@ export default function DateRangePicker({ checkIn, checkOut, onChange }) {
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
           background: '#fff', border: '1px solid #e5e5e5',
-          borderRadius: 10, padding: '18px 20px 14px',
+          borderRadius: 10, padding: '12px 16px 10px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
           zIndex: 300,
         }}>
           {/* Month nav */}
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
             <button type="button" onClick={e => { e.stopPropagation(); prevMonth(); }}
               style={{
                 background: 'none', border: '1px solid #e8e8e8', borderRadius: 6,

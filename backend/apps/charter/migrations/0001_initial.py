@@ -1,0 +1,195 @@
+import decimal
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ('accounts', '0001_initial'),
+        ('billing', '0001_initial'),
+        ('members', '0001_initial'),
+        ('staff', '0001_initial'),
+        ('vessels', '0001_initial'),
+        ('documents', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='CharterVessel',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('fuel_inclusive', models.BooleanField(default=False)),
+                ('skipper_required', models.BooleanField(default=False)),
+                ('min_charterer_qual', models.CharField(blank=True, max_length=200)),
+                ('security_deposit', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=10)),
+                ('max_duration_days', models.IntegerField(blank=True, null=True)),
+                ('is_available', models.BooleanField(default=True)),
+                ('notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='charter_vessels', to='accounts.marina')),
+                ('vessel', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='charter_profile', to='vessels.vessel')),
+                ('hourly_rate_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_hourly', to='billing.chargeableitem')),
+                ('daily_rate_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_daily', to='billing.chargeableitem')),
+                ('weekly_rate_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_weekly', to='billing.chargeableitem')),
+                ('cleaning_fee_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_cleaning', to='billing.chargeableitem')),
+                ('skipper_fee_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_skipper', to='billing.chargeableitem')),
+            ],
+            options={
+                'ordering': ['vessel__name'],
+            },
+        ),
+        migrations.CreateModel(
+            name='CharterManagementAgreement',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('owner_label', models.CharField(blank=True, max_length=200)),
+                ('split_percentage', models.DecimalField(decimal_places=2, max_digits=5)),
+                ('commission_rate', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=5)),
+                ('valid_from', models.DateField()),
+                ('valid_to', models.DateField(blank=True, null=True)),
+                ('notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='charter_management_agreements', to='accounts.marina')),
+                ('charter_vessel', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='management_agreements', to='charter.chartervessel')),
+                ('member', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_management_agreements', to='members.member')),
+            ],
+            options={
+                'ordering': ['charter_vessel', 'valid_from'],
+            },
+        ),
+        migrations.CreateModel(
+            name='CharterBooking',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('charterer_name', models.CharField(blank=True, max_length=200)),
+                ('charterer_email', models.EmailField(blank=True)),
+                ('charterer_phone', models.CharField(blank=True, max_length=30)),
+                ('start_dt', models.DateTimeField()),
+                ('end_dt', models.DateTimeField()),
+                ('duration_unit', models.CharField(choices=[('hourly', 'Hourly'), ('daily', 'Daily'), ('weekly', 'Weekly')], default='daily', max_length=10)),
+                ('rate_applied', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=10)),
+                ('fuel_inclusive', models.BooleanField(default=False)),
+                ('cleaning_fee', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=8)),
+                ('skipper_fee', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=8)),
+                ('deposit_amount', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=8)),
+                ('deposit_status', models.CharField(choices=[('pending', 'Pending'), ('held', 'Held'), ('released', 'Released'), ('withheld', 'Partially/Fully Withheld')], default='pending', max_length=20)),
+                ('deposit_mechanism', models.CharField(blank=True, choices=[('auth_hold', 'Stripe Auth & Hold (< 7 days)'), ('captured', 'Captured to Card + Credit Account Liability (>= 7 days)')], max_length=20)),
+                ('deposit_stripe_payment_intent', models.CharField(blank=True, max_length=200)),
+                ('subtotal', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=10)),
+                ('total', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=10)),
+                ('channel', models.CharField(blank=True, max_length=50)),
+                ('channel_ref', models.CharField(blank=True, max_length=200)),
+                ('channel_commission', models.DecimalField(decimal_places=2, default=decimal.Decimal('0.00'), max_digits=8)),
+                ('status', models.CharField(choices=[('enquiry', 'Enquiry'), ('confirmed', 'Confirmed'), ('active', 'Active (On Charter)'), ('completed', 'Completed'), ('cancelled', 'Cancelled')], default='enquiry', max_length=20)),
+                ('internal_notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='charter_bookings', to='accounts.marina')),
+                ('charter_vessel', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='bookings', to='charter.chartervessel')),
+                ('charterer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_bookings', to='members.member')),
+                ('skipper', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_assignments', to='staff.staffmember')),
+                ('invoice', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_bookings', to='billing.invoice')),
+            ],
+            options={
+                'ordering': ['-start_dt'],
+            },
+        ),
+        migrations.AddConstraint(
+            model_name='charterbooking',
+            constraint=models.UniqueConstraint(
+                condition=models.Q(channel_ref__gt=''),
+                fields=['marina', 'channel', 'channel_ref'],
+                name='unique_ota_charter_booking_per_marina_channel',
+            ),
+        ),
+        migrations.CreateModel(
+            name='CharterAgreement',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('signed_at', models.DateTimeField(blank=True, null=True)),
+                ('charterer_ip', models.GenericIPAddressField(blank=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='charter_agreements', to='accounts.marina')),
+                ('booking', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='agreement', to='charter.charterbooking')),
+                ('envelope', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='charter_agreements', to='documents.envelope')),
+            ],
+        ),
+        migrations.CreateModel(
+            name='CharterAgentCommission',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('agent_name', models.CharField(max_length=200)),
+                ('agent_email', models.EmailField(blank=True)),
+                ('commission_rate', models.DecimalField(decimal_places=2, max_digits=5)),
+                ('commission_amount', models.DecimalField(decimal_places=2, max_digits=8)),
+                ('payment_status', models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('paid', 'Paid')], default='pending', max_length=20)),
+                ('paid_at', models.DateField(blank=True, null=True)),
+                ('notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='charter_agent_commissions', to='accounts.marina')),
+                ('booking', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='agent_commissions', to='charter.charterbooking')),
+            ],
+        ),
+        migrations.CreateModel(
+            name='CharterVesselOTAMapping',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('channel', models.CharField(max_length=50)),
+                ('ota_vessel_id', models.CharField(max_length=200)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ota_vessel_mappings', to='accounts.marina')),
+                ('charter_vessel', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ota_mappings', to='charter.chartervessel')),
+            ],
+            options={
+                'ordering': ['channel', 'ota_vessel_id'],
+                'unique_together': {('marina', 'channel', 'ota_vessel_id')},
+            },
+        ),
+        migrations.CreateModel(
+            name='RentalUnit',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=200)),
+                ('unit_type', models.CharField(choices=[('electric_boat', 'Electric Day Boat'), ('pedal_boat', 'Pedal Boat'), ('kayak', 'Kayak'), ('paddleboard', 'Paddleboard'), ('sailing_dinghy', 'Sailing Dinghy'), ('other', 'Other')], max_length=30)),
+                ('colour', models.CharField(default='#3b82f6', max_length=7)),
+                ('turnaround_minutes', models.PositiveIntegerField(default=15)),
+                ('is_active', models.BooleanField(default=True)),
+                ('notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='rental_units', to='accounts.marina')),
+                ('hourly_rate_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='rental_hourly', to='billing.chargeableitem')),
+                ('halfday_rate_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='rental_halfday', to='billing.chargeableitem')),
+                ('fullday_rate_item', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='rental_fullday', to='billing.chargeableitem')),
+            ],
+            options={
+                'ordering': ['unit_type', 'name'],
+            },
+        ),
+        migrations.CreateModel(
+            name='RentalBooking',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('customer_name', models.CharField(blank=True, max_length=200)),
+                ('customer_email', models.EmailField(blank=True)),
+                ('customer_phone', models.CharField(blank=True, max_length=30)),
+                ('start_dt', models.DateTimeField()),
+                ('end_dt', models.DateTimeField()),
+                ('duration_minutes', models.IntegerField()),
+                ('rate_applied', models.DecimalField(decimal_places=2, max_digits=8)),
+                ('total', models.DecimalField(decimal_places=2, max_digits=8)),
+                ('status', models.CharField(choices=[('reserved', 'Reserved'), ('active', 'Active'), ('completed', 'Completed'), ('cancelled', 'Cancelled')], default='reserved', max_length=20)),
+                ('online_booking', models.BooleanField(default=False)),
+                ('stripe_payment_intent', models.CharField(blank=True, max_length=200)),
+                ('notes', models.TextField(blank=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('marina', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='rental_bookings', to='accounts.marina')),
+                ('rental_unit', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='bookings', to='charter.rentalunit')),
+                ('member', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='rental_bookings', to='members.member')),
+                ('invoice', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='rental_bookings', to='billing.invoice')),
+            ],
+            options={
+                'ordering': ['-start_dt'],
+            },
+        ),
+    ]

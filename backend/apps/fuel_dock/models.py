@@ -40,6 +40,16 @@ class FuelDockEntry(models.Model):
         related_name='fuel_entries',
     )
 
+    # Sustainability / ESG (Track 12 prerequisite)
+    is_internal_use = models.BooleanField(
+        default=False,
+        help_text=(
+            "Set True when the marina fills its own workboat/vehicle at its own fuel dock. "
+            "These litres are counted in Scope 1 (workboat_fuel) and must NOT appear in "
+            "Scope 3 fuel_sold_vessels — counting here would double-tax the marina."
+        ),
+    )
+
     # Timestamps
     arrived_at    = models.DateTimeField(auto_now_add=True)
     service_start = models.DateTimeField(null=True, blank=True)

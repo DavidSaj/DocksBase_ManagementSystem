@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 20mm; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
+  h1 { font-size: 22pt; color: #1a4a2e; margin-bottom: 4px; }
+  h2 { font-size: 14pt; color: #1a4a2e; border-bottom: 2px solid #1a4a2e; padding-bottom: 4px; margin-top: 24px; }
+  h3 { font-size: 11pt; color: #2c6e49; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { background: #1a4a2e; color: #fff; padding: 6px 8px; text-align: left; font-size: 9pt; }
+  td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; font-size: 9pt; }
+  tr:nth-child(even) td { background: #f5f9f6; }
+  .cover { text-align: center; padding: 60px 0 40px; }
+  .badge { display: inline-block; background: #1a4a2e; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 9pt; }
+  .kpi-row { display: flex; gap: 16px; margin: 16px 0; }
+  .kpi { flex: 1; background: #f0f7f2; border-left: 4px solid #1a4a2e; padding: 10px 14px; }
+  .kpi .value { font-size: 18pt; font-weight: bold; color: #1a4a2e; }
+  .kpi .label { font-size: 8pt; color: #555; }
+  .note { background: #fff8dc; border: 1px solid #e8c840; padding: 8px 12px; font-size: 8pt; border-radius: 3px; margin: 8px 0; }
+  .prior-na { color: #888; font-style: italic; }
+  .page-break { page-break-after: always; }
+</style>
+</head>
+<body>
+
+<!-- ======================================================= -->
+<!-- 1. Cover Page                                           -->
+<!-- ======================================================= -->
+<div class="cover page-break">
+  {% if marina.logo %}
+    <img src="{{ marina.logo.url }}" alt="{{ marina.name }} logo" style="max-height:80px; margin-bottom:20px;">
+  {% endif %}
+  <h1>{{ marina.name }}</h1>
+  <h2 style="border:none; color:#555; font-size:14pt;">Sustainability & ESG Report</h2>
+  <p style="font-size:12pt; color:#333;">
+    Period: <strong>{{ archive.period_from }}</strong> to <strong>{{ archive.period_to }}</strong>
+  </p>
+  <p>Generated: {{ archive.generated_at|date:"d F Y" }}</p>
+  {% if gri %}
+    <span class="badge">GRI Standards Framework</span>
+  {% else %}
+    <span class="badge">Narrative Report</span>
+  {% endif %}
+  {% if archive.generated_by %}
+    <p style="margin-top:32px; font-size:8pt; color:#888;">Prepared by: {{ archive.generated_by.name }}</p>
+  {% endif %}
+</div>
+
+<!-- ======================================================= -->
+<!-- 2. Executive Summary                                    -->
+<!-- ======================================================= -->
+<h2>Executive Summary</h2>
+{% if ledger_rows %}
+  {% with last=ledger_rows|last %}
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="value">{{ last.total_co2e_kg|floatformat:1 }}<span style="font-size:10pt;"> kg</span></div>
+      <div class="label">Total CO₂e (all scopes)</div>
+    </div>
+    <div class="kpi">
+      <div class="value">{{ last.scope1_co2e_kg|floatformat:1 }}<span style="font-size:10pt;"> kg</span></div>
+      <div class="label">Scope 1 (Direct)</div>
+    </div>
+    <div class="kpi">
+      <div class="value">{{ last.scope2_co2e_kg|floatformat:1 }}<span style="font-size:10pt;"> kg</span></div>
+      <div class="label">Scope 2 (Electricity)</div>
+    </div>
+    <div class="kpi">
+      <div class="value">{{ last.scope3_co2e_kg|floatformat:1 }}<span style="font-size:10pt;"> kg</span></div>
+      <div class="label">Scope 3 (Value Chain)</div>
+    </div>
+    <div class="kpi">
+      <div class="value">{{ last.offset_co2e_kg|floatformat:1 }}<span style="font-size:10pt;"> kg</span></div>
+      <div class="label">Offsets Purchased</div>
+    </div>
+  </div>
+  {% endwith %}
+{% else %}
+  <div class="note">No ledger data available for this period.</div>
+{% endif %}
+
+<!-- ======================================================= -->
+<!-- 3. Scope 1 — Direct Emissions                          -->
+<!-- ======================================================= -->
+<h2>Scope 1 — Direct Emissions</h2>
+{% if scope1_data %}
+<table>
+  <tr><th>Date</th><th>Source</th><th>Fuel Type</th><th>Quantity</th><th>Unit</th><th>Factor (kgCO₂e/unit)</th><th>kgCO₂e</th></tr>
+  {% for r in scope1_data %}
+  <tr>
+    <td>{{ r.date }}</td>
+    <td>{{ r.get_source_display }}</td>
+    <td>{{ r.fuel_type }}</td>
+    <td>{{ r.quantity }}</td>
+    <td>{{ r.unit }}</td>
+    <td>{{ r.emission_factor.kg_co2e_per_unit }}</td>
+    <td><strong>{{ r.co2e_kg }}</strong></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p style="color:#888;">No Scope 1 records for this period.</p>
+{% endif %}
+
+<!-- ======================================================= -->
+<!-- 4. Scope 2 — Grid Electricity                          -->
+<!-- ======================================================= -->
+<h2>Scope 2 — Grid Electricity</h2>
+{% if scope2_data %}
+<table>
+  <tr><th>Period</th><th>kWh Consumed</th><th>Grid Intensity (kgCO₂e/kWh)</th><th>Data Source</th><th>kgCO₂e</th></tr>
+  {% for r in scope2_data %}
+  <tr>
+    <td>{{ r.period }}</td>
+    <td>{{ r.kwh_consumed }}</td>
+    <td>{{ r.kg_co2e_per_kwh_used }}</td>
+    <td>{{ r.get_data_source_display }}</td>
+    <td><strong>{{ r.co2e_kg }}</strong></td>
+  </tr>
+  {% endfor %}
+{% else %}
+<p style="color:#888;">No Scope 2 records for this period.</p>
+{% endif %}
+</table>
+
+<!-- ======================================================= -->
+<!-- 5. Scope 3 — Value Chain                               -->
+<!-- ======================================================= -->
+<h2>Scope 3 — Value Chain Emissions</h2>
+{% if scope3_data %}
+<table>
+  <tr><th>Period</th><th>Category</th><th>Fuel Type</th><th>Quantity</th><th>Unit</th><th>Data Source</th><th>kgCO₂e</th></tr>
+  {% for r in scope3_data %}
+  <tr>
+    <td>{{ r.period }}</td>
+    <td>{{ r.get_category_display }}</td>
+    <td>{{ r.fuel_type|default:"—" }}</td>
+    <td>{{ r.quantity }}</td>
+    <td>{{ r.unit }}</td>
+    <td>{{ r.get_data_source_display }}</td>
+    <td><strong>{{ r.co2e_kg }}</strong></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p style="color:#888;">No Scope 3 records for this period.</p>
+{% endif %}
+
+<!-- ======================================================= -->
+<!-- 6. Waste & Disposal                                     -->
+<!-- ======================================================= -->
+<h2>Waste & Disposal</h2>
+{% if waste_data %}
+<table>
+  <tr><th>Date</th><th>Category</th><th>Quantity</th><th>Unit</th><th>Disposal Method</th><th>Carrier</th></tr>
+  {% for w in waste_data %}
+  <tr>
+    <td>{{ w.date }}</td>
+    <td>{{ w.get_category_display }}</td>
+    <td>{{ w.quantity }}</td>
+    <td>{{ w.unit }}</td>
+    <td>{{ w.get_disposal_method_display }}</td>
+    <td>{{ w.waste_carrier|default:"—" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p>Waste diversion rate: <strong>{{ diversion_rate }}%</strong></p>
+{% else %}
+<p style="color:#888;">No waste log records for this period.</p>
+{% endif %}
+
+<!-- ======================================================= -->
+<!-- 7. Carbon Offsets                                       -->
+<!-- ======================================================= -->
+<h2>Carbon Offsets</h2>
+{% if offset_data %}
+<table>
+  <tr><th>Partner</th><th>Amount (£)</th><th>Units</th><th>Unit Type</th><th>CO₂e Offset (kg)</th><th>Certificate</th></tr>
+  {% for o in offset_data %}
+  <tr>
+    <td>{{ o.get_partner_display }}</td>
+    <td>{{ o.amount_gbp }}</td>
+    <td>{{ o.units_purchased|default:"—" }}</td>
+    <td>{{ o.unit_type|default:"—" }}</td>
+    <td>{{ o.co2e_offset_kg|default:"—" }}</td>
+    <td>{% if o.certificate_url %}<a href="{{ o.certificate_url }}">View</a>{% else %}Pending{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p style="color:#888;">No offset contributions for this period.</p>
+{% endif %}
+
+<!-- ======================================================= -->
+<!-- 8. Year-on-Year Comparison                             -->
+<!-- ======================================================= -->
+<h2>Year-on-Year Comparison</h2>
+<table>
+  <tr>
+    <th>Metric</th>
+    <th>This Period</th>
+    <th>Prior Year</th>
+  </tr>
+  {% if ledger_rows %}{% with cur=ledger_rows|last %}
+  <tr>
+    <td>Total CO₂e (kg)</td>
+    <td>{{ cur.total_co2e_kg }}</td>
+    <td>{% if prior_year_ledger %}{% with prior_year_ledger|last as prior %}{{ prior.total_co2e_kg }}{% endwith %}{% else %}<span class="prior-na">Not available — module activated {{ module_activated }}</span>{% endif %}</td>
+  </tr>
+  <tr>
+    <td>CO₂e per £ revenue</td>
+    <td>{{ cur.co2e_kg_per_gbp_revenue|default:"—" }}</td>
+    <td>{% if prior_year_ledger %}{% with prior_year_ledger|last as prior %}{{ prior.co2e_kg_per_gbp_revenue|default:"—" }}{% endwith %}{% else %}<span class="prior-na">Not available — module activated {{ module_activated }}</span>{% endif %}</td>
+  </tr>
+  <tr>
+    <td>CO₂e per berth-night (kg)</td>
+    <td>{{ cur.co2e_kg_per_berth_night|default:"—" }}</td>
+    <td>{% if prior_year_ledger %}{% with prior_year_ledger|last as prior %}{{ prior.co2e_kg_per_berth_night|default:"—" }}{% endwith %}{% else %}<span class="prior-na">Not available — module activated {{ module_activated }}</span>{% endif %}</td>
+  </tr>
+  <tr>
+    <td>Waste diversion rate (%)</td>
+    <td>{{ diversion_rate }}</td>
+    <td class="prior-na">Not available</td>
+  </tr>
+  {% endwith %}{% else %}
+  <tr><td colspan="3" class="prior-na">No ledger data available.</td></tr>
+  {% endif %}
+</table>
+
+<!-- ======================================================= -->
+<!-- 9. Methodology Note                                     -->
+<!-- ======================================================= -->
+<h2>Methodology Note</h2>
+<p>
+  Emissions data follows the GHG Protocol Corporate Accounting and Reporting Standard.
+  Emission factors are sourced from DEFRA (UK) and EPA eGRID (US) unless otherwise noted.
+  Scope 2 emissions use the location-based method. Scope 3 category 11 (fuel sold to vessels)
+  is calculated from fuel dock dispensing records. Revenue intensity metrics use recognised
+  revenue where available (DocksBase Track 4 — Deferred Revenue Recognition); otherwise gross
+  invoice totals are used as a proxy.
+</p>
+{% if gri %}
+<p>This report is prepared with reference to GRI Standards 2021. See the GRI Annex for
+  disclosure mapping.</p>
+{% endif %}
+<div class="note">
+  <strong>Known gaps:</strong> Staff commute (Scope 3 category 7) is not captured in this
+  reporting period. Supplier delivery emissions (Scope 3 category 4) are manually entered
+  where data is available.
+</div>
+
+</body>
+</html>

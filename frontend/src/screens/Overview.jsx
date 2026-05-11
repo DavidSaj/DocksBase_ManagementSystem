@@ -3,7 +3,6 @@ import useBookings from '../hooks/useBookings.js';
 import useOverview from '../hooks/useOverview.js';
 import useWeather from '../hooks/useWeather.js';
 import useMarina from '../hooks/useMarina.js';
-import SetupGuide from '../components/onboarding/SetupGuide.jsx';
 
 function relativeTime(isoStr) {
   const diff = Date.now() - new Date(isoStr).getTime();
@@ -22,6 +21,10 @@ function fmt(amount, currency = 'EUR') {
 export default function Overview({ setScreen }) {
   const { counts, loading: bLoading } = useBerths();
   const { bookings: pending, loading: pkLoading, updateBooking } = useBookings({ status: 'pending' });
+  const { bookings: checkedIn, loading: coLoading } = useBookings({ status: 'checked_in' });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const checkingOutToday = checkedIn.filter(b => b.check_out === today);
   const { overview, loading: ovLoading } = useOverview();
   const { marina } = useMarina();
   const { weather, loading: wLoading } = useWeather(marina?.lat, marina?.lng);
@@ -76,7 +79,6 @@ export default function Overview({ setScreen }) {
 
   return (
     <div>
-      <SetupGuide setScreen={setScreen} />
       <div className="stat-row">
         {stats.map(s => (
           <div key={s.label} className="card stat-card">
@@ -177,6 +179,32 @@ export default function Overview({ setScreen }) {
                   <div className="act-text" style={{ fontSize: 11 }}>{a.text}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Checking Out Today */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">Checking Out Today</div>
+              {!coLoading && checkingOutToday.length > 0 && (
+                <span className="badge badge-blue">{checkingOutToday.length}</span>
+              )}
+            </div>
+            <div style={{ padding: '4px 8px 8px' }}>
+              {coLoading ? (
+                <div style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+              ) : checkingOutToday.length === 0 ? (
+                <div style={{ padding: '12px 10px', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No departures today.</div>
+              ) : (
+                checkingOutToday.map(b => (
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: 'var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{b.vessel_name}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>Slip {b.berth_code} · In {b.check_in}</div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

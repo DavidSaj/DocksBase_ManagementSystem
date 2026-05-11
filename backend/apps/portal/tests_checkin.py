@@ -360,15 +360,65 @@ class SelfCheckinViewTest(TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
-from unittest.mock import patch, MagicMock
-import json
+from django.core.files.base import ContentFile
+from apps.documents.models import DocTemplate
+from unittest.mock import patch
 
 
-class WaiverViewTest(TestCase):
+class WaiverViewClickWrapTest(TestCase):
+    """Waiver flow when marina has no DS credentials (click-wrap mode)."""
     def setUp(self):
         self.client = APIClient()
         self.marina = make_marina()
-        self.marina.waiver_template_id = 'tmpl_abc123'
+        self.booking = make_booking(self.marina)
+        session_token = make_portal_token(
+            booking_id=self.booking.id,
+            marina_slug=self.marina.slug,
+            boater_email=self.booking.guest_email,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+        self.template = DocTemplate.objects.create(marina=self.marina, name='Waiver', category='waiver', pages=1)
+        self.template.file.save('waiver.pdf', ContentFile(b'%PDF fake'), save=True)
+        self.marina.waiver_template_id = str(self.template.pk)
+        self.marina.save()
+
+    def test_get_returns_clickwrap_mode(self):
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['mode'], 'clickwrap')
+        self.assertIn('waiver_url', resp.data)
+
+    def test_post_marks_signed_and_pre_cleared(self):
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        self.booking.boat_draft = 1.5
+        self.booking.save()
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.waiver_signed)
+        self.assertTrue(self.booking.pre_cleared)
+
+    def test_post_idempotent(self):
+        self.booking.waiver_signed = True
+        self.booking.save()
+        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_get_400_when_no_template_configured(self):
+        self.marina.waiver_template_id = None
+        self.marina.save()
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        self.assertEqual(resp.status_code, 400)
+
+
+class WaiverViewEsignTest(TestCase):
+    """Waiver flow when marina has DS credentials (esign mode)."""
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.marina.dropboxsign_api_key = 'sk_live_test'
+        self.marina.dropboxsign_client_id = 'client_test'
         self.marina.save()
         self.booking = make_booking(self.marina)
         session_token = make_portal_token(
@@ -377,91 +427,43 @@ class WaiverViewTest(TestCase):
             boater_email=self.booking.guest_email,
         )
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}')
+        self.template = DocTemplate.objects.create(
+            marina=self.marina,
+            name='Waiver',
+            category='waiver',
+            pages=1,
+            dropboxsign_template_id='tmpl_abc',
+        )
+        self.template.file.save('waiver.pdf', ContentFile(b'%PDF fake'), save=True)
+        self.marina.waiver_template_id = str(self.template.pk)
+        self.marina.save()
 
-    @patch('apps.portal.checkin_views.get_sign_url')
-    def test_waiver_view_returns_sign_url(self, mock_get_sign_url):
-        mock_get_sign_url.return_value = ('env_abc', 'https://sign.hellosign.com/...')
-        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+    @patch('apps.portal.checkin_views.create_embedded_sign_url')
+    def test_get_returns_esign_mode_with_sign_url(self, mock_create):
+        mock_create.return_value = ('req_123', 'https://sign.hellosign.com/abc')
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn('sign_url', resp.data)
-        self.booking.refresh_from_db()
-        self.assertEqual(self.booking.waiver_envelope_id, 'env_abc')
+        self.assertEqual(resp.data['mode'], 'esign')
+        self.assertEqual(resp.data['sign_url'], 'https://sign.hellosign.com/abc')
+        self.assertIn('waiver_url', resp.data)
 
-    @patch('apps.portal.checkin_views.get_existing_sign_url')
-    def test_waiver_view_idempotent_when_envelope_exists(self, mock_get_existing):
-        self.booking.waiver_envelope_id = 'existing_env'
+    @patch('apps.portal.checkin_views.get_existing_embedded_sign_url')
+    def test_get_reuses_existing_request(self, mock_existing):
+        self.booking.waiver_envelope_id = 'req_existing'
         self.booking.save()
-        mock_get_existing.return_value = 'https://sign.hellosign.com/existing'
-        resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
+        mock_existing.return_value = 'https://sign.hellosign.com/existing'
+        resp = self.client.get(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn('sign_url', resp.data)
         self.assertEqual(resp.data['sign_url'], 'https://sign.hellosign.com/existing')
 
-    def test_waiver_view_400_when_no_template(self):
-        self.marina.waiver_template_id = None
-        self.marina.save()
+    @patch('apps.portal.checkin_views.create_embedded_sign_url')
+    def test_post_esign_creates_request_and_returns_sign_url(self, mock_create):
+        mock_create.return_value = ('req_new', 'https://sign.hellosign.com/new')
         resp = self.client.post(f'/api/v1/portal/checkin/bookings/{self.booking.id}/waiver/')
-        self.assertEqual(resp.status_code, 400)
-
-
-class DropboxSignWebhookTest(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.marina = make_marina()
-        self.booking = make_booking(self.marina)
-        self.booking.waiver_envelope_id = 'env_xyz'
-        self.booking.boat_loa = 10
-        self.booking.boat_beam = 3
-        self.booking.boat_draft = 1.5
-        self.booking.save()
-
-    def _make_payload(self, event_type, booking_id):
-        return json.dumps({
-            'event': {
-                'event_type': event_type,
-                'event_time': '1649948325',
-                'event_hash': 'ignored-in-tests',
-            },
-            'signature_request': {
-                'signature_request_id': 'env_xyz',
-                'metadata': {'booking_id': str(booking_id)},
-            },
-        })
-
-    @patch('apps.portal.checkin_views.is_valid_dropbox_sign_request', return_value=True)
-    def test_webhook_sets_waiver_signed_and_pre_cleared(self, _mock):
-        payload = self._make_payload('signature_request_all_signed', self.booking.id)
-        resp = self.client.post(
-            '/api/v1/portal/checkin/webhooks/dropbox-sign/',
-            data=payload,
-            content_type='application/json',
-        )
         self.assertEqual(resp.status_code, 200)
+        self.assertIn('sign_url', resp.data)
         self.booking.refresh_from_db()
-        self.assertTrue(self.booking.waiver_signed)
-        self.assertTrue(self.booking.pre_cleared)
-
-    @patch('apps.portal.checkin_views.is_valid_dropbox_sign_request', return_value=False)
-    def test_webhook_rejects_invalid_hmac(self, _mock):
-        payload = self._make_payload('signature_request_all_signed', self.booking.id)
-        resp = self.client.post(
-            '/api/v1/portal/checkin/webhooks/dropbox-sign/',
-            data=payload,
-            content_type='application/json',
-        )
-        self.assertEqual(resp.status_code, 403)
-
-    @patch('apps.portal.checkin_views.is_valid_dropbox_sign_request', return_value=True)
-    def test_webhook_ignores_other_event_types(self, _mock):
-        payload = self._make_payload('signature_request_viewed', self.booking.id)
-        resp = self.client.post(
-            '/api/v1/portal/checkin/webhooks/dropbox-sign/',
-            data=payload,
-            content_type='application/json',
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.booking.refresh_from_db()
-        self.assertFalse(self.booking.waiver_signed)
+        self.assertEqual(self.booking.waiver_envelope_id, 'req_new')
 
 
 from django.core.files.uploadedfile import SimpleUploadedFile

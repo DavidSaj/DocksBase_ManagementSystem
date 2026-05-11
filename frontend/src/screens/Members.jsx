@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import useMembers from '../hooks/useMembers.js';
-import useSegments from '../hooks/useSegments.js';
 import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
@@ -58,6 +57,110 @@ function NewMemberModal({ onClose, onCreate }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Member'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BerthContractModal({ member, onClose }) {
+  const [berths, setBerths] = useState([]);
+  const [berthId, setBerthId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [annualRate, setAnnualRate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    api.get('/berths/').then(r => {
+      setBerths(r.data?.results ?? r.data ?? []);
+    }).catch(() => setBerths([]));
+  }, []);
+
+  async function handleGenerate(e) {
+    e.preventDefault();
+    if (!berthId || !startDate || !endDate || !annualRate) {
+      setErr('All fields except Notes are required.');
+      return;
+    }
+    setGenerating(true);
+    setErr(null);
+    try {
+      const params = new URLSearchParams({
+        berth_id: berthId,
+        start_date: startDate,
+        end_date: endDate,
+        annual_rate: annualRate,
+        ...(notes ? { notes } : {}),
+      });
+      const response = await api.get(
+        `/members/${member.id}/berth-agreement-pdf/?${params.toString()}`,
+        { responseType: 'blob' }
+      );
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const year = startDate.slice(0, 4);
+      a.download = `berth-agreement-${member.name.replace(/\s+/g, '-')}-${year}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (ex) {
+      const detail = ex?.response?.data?.detail ?? ex?.message ?? 'PDF generation failed.';
+      setErr(detail);
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ width: 500, padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Download Berth Contract</div>
+        <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 18 }}>{member.name}</div>
+        <form onSubmit={handleGenerate}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Berth</label>
+              <select required value={berthId} onChange={e => setBerthId(e.target.value)}>
+                <option value="">Select berth…</option>
+                {berths.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.code}{b.pier_name ? ` — ${b.pier_name}` : ''}{b.length_m ? ` (${b.length_m}m)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Start Date</label>
+                <input required type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>End Date</label>
+                <input required type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Annual Rate (&euro;)</label>
+              <input required type="number" min="0" step="0.01" placeholder="e.g. 3500.00" value={annualRate} onChange={e => setAnnualRate(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes (optional)</label>
+              <textarea rows={3} placeholder="Any additional terms or remarks…" value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical' }} />
+            </div>
+            {err && <div style={{ fontSize: 12, color: 'var(--red)' }}>{err}</div>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={generating}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={generating}>
+              {generating ? 'Generating…' : 'Generate PDF'}
+            </button>
           </div>
         </form>
       </div>
@@ -153,6 +256,7 @@ export default function Members({ setScreen }) {
   const [payNotes, setPayNotes]           = useState('');
   const [payLoading, setPayLoading]       = useState(false);
   const [payError, setPayError]           = useState(null);
+  const [showContractModal, setShowContractModal] = useState(false);
 
   async function handleSendPortalLink() {
     if (!sel?.id) return;
@@ -207,13 +311,12 @@ export default function Members({ setScreen }) {
 
   const { members: raw, loading, createMember } = useMembers();
   const members = raw.map(fmt);
-  const { segments, loading: segsLoading } = useSegments();
   const { memberDocs, loading: docsLoading, uploadDoc, updateDoc } = useMemberDocuments();
 
   return (
     <div>
       <div className="tabs">
-        {[['members','Members & Owners'],['docs','Document Vault'],['comms','Communications'],['segments','Segments']].map(([v,l]) => (
+        {[['members','Members & Owners'],['docs','Document Vault'],['compliance','Compliance']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -224,6 +327,7 @@ export default function Members({ setScreen }) {
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <div className="search"><Ic n="search" s={13} /><input placeholder="Search owner or vessel…" /></div>
               <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic n="plus" s={12} />Add Member</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setScreen('communications')}>Communications →</button>
             </div>
             <div className="card" style={{ overflow: 'hidden' }}>
               <table className="tbl">
@@ -330,6 +434,14 @@ export default function Members({ setScreen }) {
                   type="button"
                   className="btn btn-ghost"
                   style={{ justifyContent: 'center' }}
+                  onClick={() => setShowContractModal(true)}
+                >
+                  Download Contract
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ justifyContent: 'center' }}
                   onClick={handleSendPortalLink}
                   disabled={linkSending || !sel?.email}
                   title={sel?.email ? undefined : 'Member has no email address'}
@@ -394,75 +506,100 @@ export default function Members({ setScreen }) {
         </div>
       )}
 
-      {tab === 'comms' && (
-        <div className="card" style={{ padding: 24, maxWidth: 600 }}>
-          <div className="card-header-title" style={{ marginBottom: 16 }}>Send Blast Message</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              { label: 'Recipients', el: <select><option>All berth holders ({members.length})</option><option>Seasonal only</option><option>Transient only</option><option>Custom selection</option></select> },
-              { label: 'Channel',    el: <select><option>Email</option><option>SMS</option><option>Email + SMS</option></select> },
-              { label: 'Subject',    el: <input type="text" placeholder="e.g. Storm Warning — Secure Your Lines" /> },
-              { label: 'Message',    el: <textarea rows={5} placeholder="Type your message to all berth holders…" style={{ resize: 'vertical' }} /> },
-            ].map(({ label, el }) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</label>
-                {el}
-              </div>
-            ))}
-            <button className="btn btn-primary" style={{ justifyContent: 'center', padding: '9px' }}>Send Message</button>
-          </div>
-        </div>
-      )}
+      {tab === 'compliance' && (() => {
+        const total      = members.length;
+        const docOk      = members.filter(m => m.docs === 'complete').length;
+        const docMissing = members.filter(m => m.docs === 'missing').length;
+        const docPending = members.filter(m => m.docs === 'pending').length;
+        const needsAction = members.filter(m => m.docs !== 'complete');
+        const pct = total > 0 ? Math.round((docOk / total) * 100) : 0;
 
-      {tab === 'segments' && (
-        <div>
-          <div className="sec-hdr">
-            <div className="sec-hdr-title">Member Segments</div>
-            <button className="btn btn-primary btn-sm"><Ic n="plus" s={11}/>New Segment</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {segsLoading ? (
-              <div style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</div>
-            ) : segments.map(seg => (
-              <div key={seg.id} className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{seg.name}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', fontFamily: 'monospace', letterSpacing: '0.2px' }}>{seg.description}</div>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* KPI row */}
+            <div className="kpi-row" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+              {[
+                { label: 'Docs Complete',   val: `${docOk}/${total}`, sub: 'Signed & verified' },
+                { label: 'Docs Missing',    val: docMissing,          sub: docMissing > 0 ? 'Require immediate action' : 'None missing' },
+                { label: 'Docs Pending',    val: docPending,          sub: docPending > 0 ? 'Awaiting review' : 'None pending' },
+                { label: 'Fully Compliant', val: `${docOk}/${total}`, sub: `${pct}% compliance rate` },
+              ].map(k => (
+                <div key={k.label} className="kpi-card">
+                  <div className="kpi-label">{k.label}</div>
+                  <div className="kpi-val" style={{ color: (k.label === 'Docs Missing' || k.label === 'Docs Pending') && k.val > 0 ? 'var(--orange)' : undefined }}>{k.val}</div>
+                  <div className="kpi-sub">{k.sub}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy)', lineHeight: 1 }}>{seg.count ?? '—'}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', marginTop: 2 }}>members</div>
+              ))}
+            </div>
+
+            <div className="grid-2" style={{ alignItems: 'start' }}>
+              {/* Bar chart */}
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Document Compliance Overview</div>
+                {loading ? (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {[
+                      { label: 'Documents Complete', val: docOk, color: 'var(--green)' },
+                    ].map(({ label, val, color }) => {
+                      const barPct = total > 0 ? Math.round((val / total) * 100) : 0;
+                      return (
+                        <div key={label}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 12 }}>
+                            <span style={{ color: 'rgba(0,0,0,0.6)' }}>{label}</span>
+                            <span style={{ fontWeight: 600 }}>{val}/{total}</span>
+                          </div>
+                          <div style={{ height: 8, borderRadius: 4, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${barPct}%`, background: color, borderRadius: 4, transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
-                    <button className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>Send Message</button>
-                    <button className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }}>View Members</button>
-                  </div>
+                )}
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginTop: 8 }}>Insurance tracked in Vessels → Insurance Tracker</div>
+              </div>
+
+              {/* Members requiring action */}
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                  Members Requiring Action
+                  {needsAction.length > 0 && <span className="badge badge-orange" style={{ marginLeft: 8 }}>{needsAction.length}</span>}
                 </div>
-              </div>
-            ))}
-          </div>
-          <div className="card" style={{ padding: 20, marginTop: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Build a Segment</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select style={{ flex: 1 }}><option>Member Type</option><option>Insurance Status</option><option>Document Status</option><option>Tags</option><option>Member Since</option></select>
-                <select style={{ flex: 1 }}><option>is</option><option>is not</option><option>contains</option><option>expires within</option></select>
-                <input type="text" placeholder="Value…" style={{ flex: 1 }} />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="Segment name…" style={{ flex: 1 }} />
-                <button className="btn btn-primary">Save Segment</button>
+                {loading ? (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</div>
+                ) : needsAction.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>All members have complete documents.</div>
+                ) : needsAction.map(m => (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{m.name}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 1 }}>{m.vessel}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {m.docs === 'missing' && <span className="badge badge-orange">Docs Missing</span>}
+                      {m.docs === 'pending' && <span className="badge badge-gold">Docs Pending</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {showAdd && (
         <NewMemberModal
           onClose={() => setShowAdd(false)}
           onCreate={async (payload) => { await createMember(payload); setShowAdd(false); }}
+        />
+      )}
+
+      {showContractModal && sel && (
+        <BerthContractModal
+          member={sel}
+          onClose={() => setShowContractModal(false)}
         />
       )}
 

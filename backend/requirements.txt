@@ -18,3 +18,11 @@ django-csp>=3.8,<4.0
 icalendar>=5.0,<6.0
 
 python-dotenv>=1.0,<2.0
+
+# ERP track dependencies
+celery[redis]>=5.3
+redis>=5.0
+django-celery-beat>=2.6,<3.0
+django-model-utils>=4.3
+requests>=2.31
+python-dateutil>=2.8

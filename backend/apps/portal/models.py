@@ -52,3 +52,20 @@ class CraneRequest(models.Model):
 
     def __str__(self):
         return f"CraneRequest({self.member.name}, {self.service_type}, {self.requested_date})"
+
+
+# ── Track 7 — Booking widget config ──────────────────────────────────────────
+
+class BookingWidgetConfig(models.Model):
+    marina          = models.OneToOneField('accounts.Marina', on_delete=models.CASCADE, related_name='widget_config')
+    is_enabled      = models.BooleanField(default=False)
+    primary_color   = models.CharField(max_length=7, default='#1a3a5c')
+    button_text     = models.CharField(max_length=100, default='Check Availability')
+    logo_url        = models.URLField(blank=True)
+    show_extras     = models.JSONField(default=list)
+    allowed_origins = models.JSONField(default=list)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    updated_at      = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'BookingWidgetConfig — {self.marina}'

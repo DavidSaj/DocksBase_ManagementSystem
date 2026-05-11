@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import Ic from '../ui/Icon.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import useSearch from '../../hooks/useSearch.js';
+import useNotifications from '../../hooks/useNotifications.js';
+import SearchDropdown from './SearchDropdown.jsx';
 
 const TITLE_MAP = {
   overview:     'Overview',
@@ -20,13 +23,6 @@ const TITLE_MAP = {
   sales:        'Boat Sales & Brokerage',
 };
 
-const MOCK_NOTIFS = [
-  { id: 1, title: 'New reservation request', sub: 'Vessel Lady K, 3 nights from 4 May', unread: true },
-  { id: 2, title: 'Invoice overdue', sub: 'INV-0042 — €1,840 — 5 days overdue', unread: true },
-  { id: 3, title: 'Maintenance task completed', sub: 'Engine room bilge pump serviced', unread: false },
-  { id: 4, title: 'Fuel dock: low stock alert', sub: 'Diesel below 500L threshold', unread: true },
-];
-
 function getInitials(user) {
   if (!user) return '?';
   const first = (user.first_name || '').trim();
@@ -37,17 +33,24 @@ function getInitials(user) {
   return '?';
 }
 
-export default function Topbar({ screen }) {
+export default function Topbar({ screen, setScreen }) {
   const { user, signOut } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const accountRef = useRef(null);
   const notifRef = useRef(null);
+  const searchRef = useRef(null);
+
+  const { results, loading: searchLoading } = useSearch(searchQuery);
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
 
   const now = new Date();
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dateStr = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} · ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const dateStr = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   useEffect(() => {
     function handleMouseDown(e) {
@@ -57,16 +60,43 @@ export default function Topbar({ screen }) {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
         setNotifOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
     }
-    if (accountOpen || notifOpen) {
+    if (accountOpen || notifOpen || searchOpen) {
       document.addEventListener('mousedown', handleMouseDown);
     }
     return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [accountOpen, notifOpen]);
+  }, [accountOpen, notifOpen, searchOpen]);
 
   function handleSignOut() {
     signOut();
     window.location.href = '/login';
+  }
+
+  function handleSearchSelect(item) {
+    if (item.screen && setScreen) {
+      setScreen(item.screen);
+    }
+    setSearchOpen(false);
+    setSearchQuery('');
+  }
+
+  function handleSearchKeyDown(e) {
+    if (e.key === 'Escape') {
+      setSearchOpen(false);
+      setSearchQuery('');
+    }
+  }
+
+  function handleNotifClick(n) {
+    markRead(n.id);
+    if (n.link_screen && setScreen) {
+      setScreen(n.link_screen);
+    }
+    setNotifOpen(false);
   }
 
   const initials = getInitials(user);
@@ -87,9 +117,42 @@ export default function Topbar({ screen }) {
           <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.38)', fontWeight: 500 }}>All systems normal</span>
         </div>
 
-        {/* Search button */}
-        <div className="topbar-icon-btn" onClick={() => alert('Search coming soon')}>
-          <Ic n="search" s={14} />
+        {/* Search */}
+        <div ref={searchRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          {searchOpen ? (
+            <div style={{ position: 'relative' }}>
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search…"
+                style={{
+                  width: 220,
+                  height: 28,
+                  padding: '0 10px',
+                  fontSize: 12,
+                  border: 'var(--border)',
+                  borderRadius: 6,
+                  outline: 'none',
+                  background: 'var(--bg)',
+                  color: 'rgba(0,0,0,0.85)',
+                }}
+              />
+              <SearchDropdown
+                results={results}
+                loading={searchLoading}
+                onSelect={handleSearchSelect}
+              />
+            </div>
+          ) : (
+            <div
+              className="topbar-icon-btn"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Ic n="search" s={14} />
+            </div>
+          )}
         </div>
 
         {/* Notifications bell */}
@@ -100,7 +163,7 @@ export default function Topbar({ screen }) {
             onClick={() => { setNotifOpen(o => !o); setAccountOpen(false); }}
           >
             <Ic n="bell" s={14} />
-            <div className="notif-dot" />
+            {unreadCount > 0 && <div className="notif-dot" />}
           </div>
           {notifOpen && (
             <div style={{
@@ -125,12 +188,18 @@ export default function Topbar({ screen }) {
                 borderBottom: 'var(--border)',
               }}>
                 <span style={{ fontWeight: 600, fontSize: 13 }}>Notifications</span>
-                <button className="btn btn-ghost btn-sm">Mark all read</button>
+                <button className="btn btn-ghost btn-sm" onClick={markAllRead}>Mark all read</button>
               </div>
               {/* Notification items */}
-              {MOCK_NOTIFS.map(n => (
+              {notifications.length === 0 && (
+                <div style={{ padding: '16px', fontSize: 12, color: 'rgba(0,0,0,0.45)', textAlign: 'center' }}>
+                  No notifications
+                </div>
+              )}
+              {notifications.map(n => (
                 <div
                   key={n.id}
+                  onClick={() => handleNotifClick(n)}
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -146,13 +215,13 @@ export default function Topbar({ screen }) {
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    background: n.unread ? '#dd5b00' : 'rgba(0,0,0,0.2)',
+                    background: !n.read ? '#dd5b00' : 'rgba(0,0,0,0.2)',
                     flexShrink: 0,
                     marginTop: 4,
                   }} />
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 500, color: 'rgba(0,0,0,0.85)' }}>{n.title}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{n.sub}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{n.body}</div>
                   </div>
                 </div>
               ))}

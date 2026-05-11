@@ -1,6 +1,11 @@
 import datetime
+import threading
+import uuid as _uuid
+import logging
 from decimal import Decimal
 from django.conf import settings
+
+_logger = logging.getLogger(__name__)
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db.models import Sum, Q
@@ -35,6 +40,53 @@ def _log(admin_user, action, marina=None, **detail):
         target_marina=marina,
         detail=detail,
     )
+
+
+def _dispatch_break_glass_alerts(marina_email, marina_name, admin_email, bypass_reason):
+    import datetime
+    import requests
+    from django.core.mail import send_mail
+    from django.conf import settings as _s
+
+    timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+
+    if marina_email:
+        try:
+            send_mail(
+                subject='DocksBase Emergency Support Access',
+                message=(
+                    f'A DocksBase support agent has accessed your marina via Emergency Override.\n\n'
+                    f'Marina: {marina_name}\n'
+                    f'Accessed by: {admin_email}\n'
+                    f'Time: {timestamp}\n'
+                    f'Justification: {bypass_reason}\n\n'
+                    f'If this was unexpected, contact support@docksbase.com immediately.'
+                ),
+                from_email='security@docksbase.com',
+                recipient_list=[marina_email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            _logger.error('Break-glass email failed: %s', e)
+    else:
+        _logger.warning('Break-glass override on %s but no contact_email set', marina_name)
+
+    webhook_url = getattr(_s, 'SECURITY_SLACK_WEBHOOK_URL', '')
+    if webhook_url:
+        try:
+            requests.post(
+                webhook_url,
+                json={
+                    'text': (
+                        f':rotating_light: *Break-Glass Override*\n'
+                        f'`{admin_email}` accessed *{marina_name}* without consent.\n'
+                        f'Time: {timestamp} | Reason: {bypass_reason}'
+                    )
+                },
+                timeout=3,
+            )
+        except Exception as e:
+            _logger.error('Break-glass Slack alert failed: %s', e)
 
 
 # ── Overview ──────────────────────────────────────────────────────────────────
@@ -164,7 +216,9 @@ class AdminMarinaImpersonateView(APIView):
     permission_classes = [IsPlatformAdmin]
 
     def post(self, request, pk):
+        from django.utils import timezone as _tz
         marina = get_object_or_404(Marina, pk=pk)
+
         target_user = User.objects.filter(
             marina=marina, role__in=['owner', 'manager'], is_active=True
         ).first()
@@ -174,19 +228,57 @@ class AdminMarinaImpersonateView(APIView):
                 status=http_status.HTTP_404_NOT_FOUND,
             )
 
+        platform_role = getattr(request.user, 'platform_role', '')
+        consent_valid = (
+            marina.support_access_granted_until is not None
+            and marina.support_access_granted_until > _tz.now()
+        )
+        is_override = False
+
+        if platform_role == 'support' and not consent_valid:
+            return Response(
+                {'detail': 'This marina has not granted support access.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+
+        if platform_role == 'admin' and not consent_valid:
+            bypass_reason = request.data.get('bypass_reason', '').strip()
+            if not bypass_reason:
+                return Response(
+                    {'detail': 'bypass_reason is required when overriding consent.'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+            is_override = True
+
+        session_id = str(_uuid.uuid4())
         refresh = RefreshToken.for_user(target_user)
         refresh['is_safe_mode'] = True
         refresh['impersonated_marina'] = marina.name
+        refresh['impersonated_marina_id'] = marina.pk
+        refresh['impersonator_user_id'] = request.user.pk
+        refresh['impersonation_session_id'] = session_id
         refresh['role'] = target_user.role
         refresh['is_platform_admin'] = False
 
-        _log(request.user, 'impersonate', marina, target_user=target_user.email)
+        action = 'impersonate_override' if is_override else 'impersonate'
+        detail = {'target_user': target_user.email, 'session_id': session_id}
+        if is_override:
+            detail['bypass_reason'] = bypass_reason
+        _log(request.user, action, marina, **detail)
+
+        if is_override:
+            threading.Thread(
+                target=_dispatch_break_glass_alerts,
+                args=(marina.contact_email, marina.name, request.user.email, bypass_reason),
+                daemon=True,
+            ).start()
 
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'marina_name': marina.name,
             'user_email': target_user.email,
+            'session_id': session_id,
         })
 
 

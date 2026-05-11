@@ -7,6 +7,7 @@ import LogTaskFlow from './field/LogTaskFlow.jsx';
 import CraneApprovalFlow from './field/CraneApprovalFlow.jsx';
 import ArrivalsList from './field/ArrivalsList.jsx';
 import ChannelManagementFlow from './field/ChannelManagementFlow.jsx';
+import MessageGuestFlow from './field/MessageGuestFlow.jsx';
 
 const ACTIONS = [
   { id: 'checkin',  label: 'Check in vessel',  icon: '✅' },
@@ -16,6 +17,7 @@ const ACTIONS = [
   { id: 'arrivals', label: "Today's arrivals",  icon: '🚢' },
   { id: 'mytasks',  label: 'My tasks',          icon: '📋' },
   { id: 'channels', label: 'Channels',          icon: '⚓' },
+  { id: 'message',  label: 'Message guest',     icon: '💬' },
 ];
 
 function ActionGrid({ onSelect }) {
@@ -69,6 +71,7 @@ export default function Field() {
   if (flow === 'crane')    return <CraneApprovalFlow onBack={() => setFlow(null)} />;
   if (flow === 'arrivals') return <ArrivalsList onBack={() => setFlow(null)} />;
   if (flow === 'channels') return <ChannelManagementFlow onBack={() => setFlow(null)} />;
+  if (flow === 'message')  return <MessageGuestFlow onBack={() => setFlow(null)} />;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f4f6f8', paddingBottom: 60 }}>

@@ -14,8 +14,9 @@ function StatusBadge({ status }) {
 }
 
 function DetailPanel({ marina, onClose, onUpdate }) {
-  const [acting, setActing] = useState(false);
-  const [detail, setDetail] = useState(null);
+  const [acting, setActing]         = useState(false);
+  const [detail, setDetail]         = useState(null);
+  const [bypassReason, setBypassReason] = useState('');
 
   useEffect(() => {
     if (!marina) { setDetail(null); return; }
@@ -62,6 +63,29 @@ function DetailPanel({ marina, onClose, onUpdate }) {
       onUpdate(data);
     } catch { /* ignore */ } finally { setActing(false); }
   }
+
+  async function handleImpersonate() {
+    const hasConsent = m.support_access_granted_until && new Date(m.support_access_granted_until) > new Date();
+    const body = {};
+    if (!hasConsent) {
+      if (!bypassReason.trim()) return;
+      body.bypass_reason = bypassReason.trim();
+    }
+    setActing(true);
+    try {
+      const { data } = await api.post(`admin/marinas/${m.id}/impersonate/`, body);
+      // Store impersonation token so the marina frontend can pick it up
+      const adminUrl = import.meta.env.VITE_MARINA_URL || 'http://localhost:5173';
+      const params = new URLSearchParams({ impersonate_token: data.access, marina: m.slug || m.id });
+      window.open(`${adminUrl}?${params.toString()}`, '_blank');
+    } catch (e) {
+      const msg = e.response?.data?.detail || 'Impersonation failed.';
+      window.alert(msg);
+    } finally { setActing(false); }
+  }
+
+  const consentExpiry = m.support_access_granted_until ? new Date(m.support_access_granted_until) : null;
+  const hasConsent = consentExpiry && consentExpiry > new Date();
 
   return (
     <div className="detail-panel">
@@ -117,6 +141,43 @@ function DetailPanel({ marina, onClose, onUpdate }) {
           <button type="button" className="btn btn-primary btn-sm" disabled={acting} onClick={handleConvert} style={{ justifyContent: 'flex-start', gap: 8 }}>
             <Ic n="tag" s={12} /> Convert to paid
           </button>
+        )}
+      </div>
+
+      {/* Impersonation */}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Support Access</div>
+        {hasConsent ? (
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--green, #2e7d32)', marginBottom: 8 }}>
+              <Ic n="check" s={11} /> Consent granted until {consentExpiry.toLocaleString()}
+            </div>
+            <button type="button" className="btn btn-primary btn-sm" disabled={acting} onClick={handleImpersonate} style={{ justifyContent: 'flex-start', gap: 8 }}>
+              <Ic n="log-in" s={12} /> Open support session
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginBottom: 8 }}>
+              No active consent. Provide a break-glass reason to override.
+            </div>
+            <input
+              type="text"
+              placeholder="Override reason (required)"
+              value={bypassReason}
+              onChange={e => setBypassReason(e.target.value)}
+              style={{ marginBottom: 8, fontSize: 12, width: '100%', boxSizing: 'border-box' }}
+            />
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              disabled={acting || !bypassReason.trim()}
+              onClick={handleImpersonate}
+              style={{ justifyContent: 'flex-start', gap: 8 }}
+            >
+              <Ic n="alert-tri" s={12} /> Break-glass access
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import useBerths from '../hooks/useBerths.js';
+import { useState, useEffect, useCallback } from 'react';
 import useLogicalPiers from '../hooks/useLogicalPiers.js';
 import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import MapBuilder from '../components/harbor-map/MapBuilder.jsx';
@@ -12,6 +11,47 @@ const STATUS_BADGE = {
   reserved:    'badge-gold',
   maintenance: 'badge-red',
 };
+
+const OP_TYPE_BADGE = {
+  permanent:  'badge-blue',
+  transient:  'badge-gray',
+  reserved:   'badge-gold',
+};
+
+function StatusToggle({ berth, onUpdated }) {
+  const [busy, setBusy] = useState(false);
+  const canToggle = berth.status === 'available' || berth.status === 'maintenance';
+  const nextStatus = berth.status === 'available' ? 'maintenance' : 'available';
+
+  async function toggle(e) {
+    e.stopPropagation();
+    if (!canToggle || busy) return;
+    setBusy(true);
+    try {
+      await api.patch(`/berths/${berth.id}/`, { status: nextStatus });
+      onUpdated();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={!canToggle || busy}
+      title={canToggle ? `Set to ${nextStatus}` : 'Cannot toggle occupied/reserved berths'}
+      style={{
+        fontSize: 11, padding: '3px 8px', borderRadius: 4,
+        border: 'var(--border)', background: canToggle ? '#fff' : 'transparent',
+        cursor: canToggle ? 'pointer' : 'default',
+        color: canToggle ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.25)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {busy ? '…' : canToggle ? `→ ${nextStatus}` : berth.status}
+    </button>
+  );
+}
 
 const AMENITY_OPTIONS = ['electricity', 'water', 'wifi', 'pump_out', 'fuel', 'security', 'cctv'];
 
@@ -345,39 +385,74 @@ function BulkCreateModal({ onClose, onCreated }) {
 }
 
 function BerthsTable() {
-  const { berths, loading, refetch } = useBerths();
+  const [berths,        setBerths]        = useState([]);
+  const [piers,         setPiers]         = useState([]);
+  const [loading,       setLoading]       = useState(true);
   const [bulkOpen,      setBulkOpen]      = useState(false);
   const [selectedBerth, setSelectedBerth] = useState(null);
-  const [typeFilter,    setTypeFilter]    = useState('');   // '' = all
+  const [search,        setSearch]        = useState('');
+  const [pierFilter,    setPierFilter]    = useState('');
+  const [statusFilter,  setStatusFilter]  = useState('');
+  const [opTypeFilter,  setOpTypeFilter]  = useState('');
 
-  if (loading) return <div className="empty"><div className="empty-title">Loading…</div></div>;
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      if (pierFilter)   params.pier   = pierFilter;
+      const [bRes, pRes] = await Promise.all([
+        api.get('/berths/', { params }),
+        api.get('/piers/'),
+      ]);
+      setBerths(Array.isArray(bRes.data) ? bRes.data : (bRes.data?.results ?? []));
+      setPiers(Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results ?? []));
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, pierFilter]);
 
-  // Distinct berth types for filter buttons
-  const types = [...new Set(berths.map(b => b.berth_type).filter(Boolean))].sort();
-  const displayed = typeFilter ? berths.filter(b => b.berth_type === typeFilter) : berths;
+  useEffect(() => { load(); }, [load]);
+
+  const displayed = berths.filter(b => {
+    if (search && !b.code?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (opTypeFilter && b.operational_type !== opTypeFilter) return false;
+    return true;
+  });
+
+  const thSt = { padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' };
+  const tdSt = { padding: '10px 14px', fontSize: 13, color: 'rgba(0,0,0,0.55)' };
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)' }}>{displayed.length} of {berths.length} berths</div>
-
-        {/* Type filter pills */}
-        {types.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button
-              className={typeFilter === '' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
-              onClick={() => setTypeFilter('')}
-            >All</button>
-            {types.map(t => (
-              <button
-                key={t}
-                className={typeFilter === t ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
-                onClick={() => setTypeFilter(t)}
-              >{t}</button>
-            ))}
-          </div>
-        )}
-
+      {/* Filter + actions bar */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search berth code…"
+          style={{ padding: '6px 10px', border: 'var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--font)', width: 180 }}
+        />
+        <select value={pierFilter} onChange={e => setPierFilter(e.target.value)}
+          style={{ padding: '6px 10px', border: 'var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--font)' }}>
+          <option value="">All Piers</option>
+          {piers.map(p => <option key={p.id} value={p.id}>{p.name || p.code}</option>)}
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          style={{ padding: '6px 10px', border: 'var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--font)' }}>
+          <option value="">All Statuses</option>
+          {['available','occupied','reserved','maintenance'].map(s => (
+            <option key={s} value={s} style={{ textTransform: 'capitalize' }}>{s}</option>
+          ))}
+        </select>
+        <select value={opTypeFilter} onChange={e => setOpTypeFilter(e.target.value)}
+          style={{ padding: '6px 10px', border: 'var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--font)' }}>
+          <option value="">All Op. Types</option>
+          {['permanent','transient','reserved'].map(t => (
+            <option key={t} value={t} style={{ textTransform: 'capitalize' }}>{t}</option>
+          ))}
+        </select>
+        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>{displayed.length} of {berths.length}</div>
         <div style={{ marginLeft: 'auto' }}>
           <button className="btn btn-primary" onClick={() => setBulkOpen(true)}>
             <Ic n="plus" s={12} /> Bulk Create
@@ -385,57 +460,71 @@ function BerthsTable() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: 'var(--border)', background: 'var(--bg)' }}>
-              {['Code', 'Type', 'Pier', 'Status', 'Length', 'Beam', 'Max Draft', 'Side', 'Rate'].map(h => (
-                <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {displayed.map((b, i) => (
-              <tr key={b.id}
-                style={{ borderBottom: i < displayed.length - 1 ? 'var(--border)' : 'none', cursor: 'pointer' }}
-                onClick={() => setSelectedBerth(b)}
-                onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <td style={{ padding: '10px 14px', fontWeight: 600 }}>{b.code}</td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>
-                  {b.berth_type ? <span className="badge badge-gray">{b.berth_type}</span> : '—'}
-                </td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{b.pier_code || '—'}</td>
-                <td style={{ padding: '10px 14px' }}>
-                  <span className={`badge ${STATUS_BADGE[b.status] ?? 'badge-gray'}`}>{b.status}</span>
-                </td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{b.length_m ? `${b.length_m}m` : '—'}</td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{b.max_beam_m ? `${b.max_beam_m}m` : '—'}</td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>{b.max_draft_m ? `${b.max_draft_m}m` : '—'}</td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)', textTransform: 'capitalize' }}>{b.side || '—'}</td>
-                <td style={{ padding: '10px 14px', color: 'rgba(0,0,0,0.55)' }}>
-                  {b.pricing_tier ? <span className="badge badge-gold">Rate set</span> : <span style={{ color: 'rgba(0,0,0,0.3)' }}>—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {displayed.length === 0 && (
-          <div className="empty">
-            <div className="empty-title">No berths yet</div>
-            <div className="empty-sub">Use Bulk Create to add your first berths.</div>
-            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setBulkOpen(true)}>Bulk Create</button>
+      {loading ? (
+        <div className="empty"><div className="empty-title">Loading…</div></div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: 'var(--border)', background: 'var(--bg)' }}>
+                  {['Code','Pier','Type','Op. Type','Status','Rate','Length','Beam','Draft','Side',''].map(h => (
+                    <th key={h} style={thSt}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {displayed.map((b, i) => (
+                  <tr
+                    key={b.id}
+                    style={{ borderBottom: i < displayed.length - 1 ? 'var(--border)' : 'none', cursor: 'pointer' }}
+                    onClick={() => setSelectedBerth(b)}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ ...tdSt, fontWeight: 700, color: 'var(--navy)' }}>{b.code}</td>
+                    <td style={tdSt}>{b.pier_code || b.pier_name || '—'}</td>
+                    <td style={tdSt}>
+                      {b.berth_type ? <span className="badge badge-gray">{b.berth_type}</span> : <span style={{ color: 'rgba(0,0,0,0.25)' }}>—</span>}
+                    </td>
+                    <td style={tdSt}>
+                      {b.operational_type
+                        ? <span className={`badge ${OP_TYPE_BADGE[b.operational_type] ?? 'badge-gray'}`} style={{ textTransform: 'capitalize' }}>{b.operational_type}</span>
+                        : <span style={{ color: 'rgba(0,0,0,0.25)' }}>—</span>}
+                    </td>
+                    <td style={tdSt}>
+                      <span className={`badge ${STATUS_BADGE[b.status] ?? 'badge-gray'}`} style={{ textTransform: 'capitalize' }}>{b.status}</span>
+                    </td>
+                    <td style={tdSt}>
+                      {b.pricing_tier ? <span className="badge badge-gold">Rate set</span> : <span style={{ color: 'rgba(0,0,0,0.3)' }}>—</span>}
+                    </td>
+                    <td style={tdSt}>{b.length_m    ? `${b.length_m}m`    : '—'}</td>
+                    <td style={tdSt}>{b.max_beam_m  ? `${b.max_beam_m}m`  : '—'}</td>
+                    <td style={tdSt}>{b.max_draft_m ? `${b.max_draft_m}m` : '—'}</td>
+                    <td style={{ ...tdSt, textTransform: 'capitalize' }}>{b.side || '—'}</td>
+                    <td style={{ ...tdSt, whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                      <StatusToggle berth={b} onUpdated={load} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+          {displayed.length === 0 && (
+            <div className="empty">
+              <div className="empty-title">No berths match your filters</div>
+              <div className="empty-sub">Try adjusting the filters, or use Bulk Create to add berths.</div>
+            </div>
+          )}
+        </div>
+      )}
 
-      {bulkOpen && <BulkCreateModal onClose={() => setBulkOpen(false)} onCreated={refetch} />}
+      {bulkOpen && <BulkCreateModal onClose={() => setBulkOpen(false)} onCreated={load} />}
       {selectedBerth && (
         <BerthDetailModal
           berth={selectedBerth}
           onClose={() => setSelectedBerth(null)}
-          onSaved={refetch}
+          onSaved={load}
         />
       )}
     </div>
