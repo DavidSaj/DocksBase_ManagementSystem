@@ -91,7 +91,46 @@ class Command(BaseCommand):
         return total
 
     def _sanitize_marinas(self):
-        return 0
+        from faker import Faker
+        from apps.accounts.models import Marina
+
+        fake = Faker('en_GB')
+        qs = Marina.objects.all()
+        total = 0
+        batch_size = 500
+
+        for offset in range(0, qs.count(), batch_size):
+            batch = list(qs[offset:offset + batch_size])
+            for m in batch:
+                m.contact_email = fake.unique.company_email()
+                m.phone = fake.phone_number()[:30]
+                # Stripe IDs must be cleared — fake strings would hit real Stripe API
+                m.stripe_account_id = ''
+                m.stripe_customer_id = None
+                m.stripe_subscription_id = None
+            Marina.objects.bulk_update(
+                batch,
+                ['contact_email', 'phone', 'stripe_account_id', 'stripe_customer_id', 'stripe_subscription_id'],
+            )
+            total += len(batch)
+
+        return total
 
     def _sanitize_vessels(self):
-        return 0
+        from faker import Faker
+        from apps.vessels.models import Vessel
+
+        fake = Faker('en_GB')
+        qs = Vessel.objects.all()
+        total = 0
+        batch_size = 500
+
+        for offset in range(0, qs.count(), batch_size):
+            batch = list(qs[offset:offset + batch_size])
+            for v in batch:
+                v.name = f'{fake.color_name()} {fake.last_name()}'
+                v.reg = fake.bothify(text='??-###-??').upper()
+            Vessel.objects.bulk_update(batch, ['name', 'reg'])
+            total += len(batch)
+
+        return total
