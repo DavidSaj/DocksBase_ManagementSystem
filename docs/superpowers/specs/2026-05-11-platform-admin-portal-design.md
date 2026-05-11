@@ -112,11 +112,40 @@ Modified `AdminMarinaImpersonateView`:
 
 ### JWT Claims
 
-No changes needed. The existing impersonation JWT already includes:
+The impersonation JWT issued by `AdminMarinaImpersonateView` must include:
 - `is_safe_mode = True`
 - `impersonated_marina = <marina name>`
+- `impersonated_marina_id = <marina pk>`
+- `impersonator_user_id = <admin user pk>` ← NEW
+- `impersonation_session_id = <uuid>` ← NEW (moved here from AuditLog section)
 - `role = <target user role>`
 - `is_platform_admin = False`
+
+`impersonator_user_id` lets the backend identify the DocksBase employee on every request without a database lookup. `is_platform_admin=False` is correct — the token must not grant admin portal access — but identity must be preserved separately.
+
+### Impersonation Audit Middleware
+
+A new Django middleware `ImpersonationAuditMiddleware` sits after authentication middleware. On every request it reads the decoded JWT (available via DRF's `request.auth`) and checks for `is_safe_mode=True`. If present, it writes `impersonator_user_id` and `impersonation_session_id` to thread-local storage (using `threading.local()`).
+
+The `AuditLog._log()` helper is updated to always read from thread-local storage. If impersonation context is present, it appends `impersonator_user_id` and `impersonation_session_id` to every `detail` dict, regardless of which view called `_log()`.
+
+This means every POST/PATCH/DELETE that already calls `_log()` (billing, reservations, boatyard, etc.) automatically captures the impersonator's identity during a session — without modifying those views.
+
+`AuditLog` model additions:
+
+```python
+impersonation_session_id = models.UUIDField(null=True, blank=True, db_index=True)
+impersonator_user_id     = models.IntegerField(null=True, blank=True)
+```
+
+### Break-Glass Active Alerting
+
+When `action='impersonate_override'` is triggered (admin bypasses absent/expired consent), `AdminMarinaImpersonateView` fires two synchronous notifications inside a `try/except` so a failed alert never blocks the override:
+
+1. **Slack webhook** — POST to `settings.SECURITY_SLACK_WEBHOOK_URL` with: admin name, marina name, timestamp, `bypass_reason`. If the env var is unset, this step is skipped silently (logged to Django logger at WARNING level).
+2. **Marina owner email** — `send_mail()` to `marina.contact_email` stating: `"DocksBase Support accessed your instance via Emergency Override at [timestamp]. Justification: [bypass_reason]. Contact support@docksbase.com if this was unexpected."`
+
+Note: Celery is not currently set up in the project. Override events are rare; synchronous notification is sufficient. Celery can be introduced later if background task volume grows.
 
 ### Impersonation Banner (main marina frontend)
 
@@ -127,16 +156,6 @@ No changes needed. The existing impersonation JWT already includes:
 - Content: `⚠ IMPERSONATING [marina name] — ALL ACTIONS ARE AUDITED`
 - Right side: `Exit Session` button → calls `signOut()` and redirects to `VITE_ADMIN_URL` env var (defaults to `http://localhost:5174` in dev)
 - The banner cannot be dismissed or hidden
-
-### Audit Log Enrichment
-
-Add one field to `AuditLog`:
-
-```python
-impersonation_session_id = models.UUIDField(null=True, blank=True, db_index=True)
-```
-
-Set on session start (impersonate view generates a UUID and returns it in the response). The `frontend-admin` stores this UUID in session storage and is available for future per-session audit queries. The audit log screen in `frontend-admin` can group/filter by session.
 
 ---
 
@@ -165,7 +184,7 @@ If either guard triggers, it exits with a clear error and zero writes.
 |---|---|
 | `User` | `email`, `first_name`, `last_name`, `password` (set to unusable via `set_unusable_password()`) |
 | `Member` | `first_name`, `last_name`, `email`, `phone`, `address` |
-| `Marina` | `contact_email`, `phone`, `stripe_account_id`, `stripe_customer_id`, `stripe_subscription_id` |
+| `Marina` | `contact_email` (Faker email), `phone` (Faker phone), `stripe_account_id` → `null`, `stripe_customer_id` → `null`, `stripe_subscription_id` → `null` |
 | `Vessel` | `name`, `registration_number` |
 
 Financial records (`Invoice`, `PlatformPayment`) are left as-is — amounts and dates are not PII.
@@ -181,7 +200,7 @@ Financial records (`Invoice`, `PlatformPayment`) are left as-is — amounts and 
 
 ## What Is Not In Scope
 
-- Per-click action logging during an impersonation session (session-level grouping via `impersonation_session_id` is sufficient for audit purposes)
+- A dedicated UI for per-action impersonation replay (the audit log table with `impersonation_session_id` filtering is sufficient; a full session-replay UI is a future hardening item)
 - A UI for creating or editing `GlobalFeatureFlag` records (toggle only; creation is done via Django shell or migration)
 - Multi-factor authentication for platform admin login (deferred — noted as a future hardening item)
 - Automated weekly DB clone and sanitization pipeline (Level 3 is a CLI tool only; scheduling is an ops concern)
