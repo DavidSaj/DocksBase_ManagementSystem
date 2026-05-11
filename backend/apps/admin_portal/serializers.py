@@ -43,7 +43,10 @@ class MarinaDetailSerializer(MarinaListSerializer):
     active_bookings = serializers.SerializerMethodField()
 
     class Meta(MarinaListSerializer.Meta):
-        fields = MarinaListSerializer.Meta.fields + ['staff', 'active_bookings', 'address', 'phone', 'currency']
+        fields = MarinaListSerializer.Meta.fields + [
+            'staff', 'active_bookings', 'address', 'phone', 'currency',
+            'support_access_granted_until',
+        ]
 
     def get_staff(self, obj):
         users = obj.users.filter(role__in=['owner', 'manager', 'staff']).order_by('role')
