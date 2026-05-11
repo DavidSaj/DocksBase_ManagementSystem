@@ -337,6 +337,57 @@ function OTAConnectionsCard() {
   );
 }
 
+// ── Support Access Section ─────────────────────────────────────────────────
+
+function SupportAccessSection() {
+  const { marina } = useMarina();
+  const [grantedUntil, setGrantedUntil] = useState(marina?.support_access_granted_until || null);
+  const [loading, setLoading] = useState(false);
+
+  const isActive = grantedUntil && new Date(grantedUntil) > new Date();
+
+  async function handleGrant() {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/marina/grant-support-access/');
+      setGrantedUntil(data.support_access_granted_until);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRevoke() {
+    setLoading(true);
+    try {
+      await api.delete('/marina/grant-support-access/');
+      setGrantedUntil(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">DocksBase Support Access</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+          Allow DocksBase support agents to access your account for troubleshooting.
+          Access automatically expires after 48 hours.
+        </div>
+      </div>
+      <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Toggle on={isActive} onChange={isActive ? handleRevoke : handleGrant} />
+        <span style={{ fontSize: 13, color: 'var(--text-secondary, rgba(0,0,0,0.5))' }}>
+          {isActive
+            ? `Access granted — expires ${formatDate(grantedUntil)}`
+            : 'Support access not granted'}
+        </span>
+        {loading && <span style={{ fontSize: 12, color: 'var(--text-secondary, rgba(0,0,0,0.4))' }}>Saving…</span>}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -1071,6 +1122,9 @@ export default function Settings() {
               </div>
               <OTAConnectionsCard />
             </div>
+
+            {/* Support Access */}
+            <SupportAccessSection />
 
           </div>
 
