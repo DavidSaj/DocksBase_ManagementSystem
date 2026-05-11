@@ -40,6 +40,7 @@ function ClickWrapUI({ waiverUrl, bookingId, onUpdate }) {
       onUpdate();
     } catch {
       setError('Something went wrong. Please try again.');
+    } finally {
       setSubmitting(false);
     }
   }
