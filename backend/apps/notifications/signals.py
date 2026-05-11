@@ -1,12 +1,17 @@
 """
-Signal handlers for action-required notifications.
+Signal handlers for action-triggered notifications.
 
 Registered via:
   - apps.notifications.apps.NotificationsConfig.ready()
   - apps.reservations.apps.ReservationsConfig.ready()
   - apps.maintenance.apps.MaintenanceConfig.ready()
+
+Signals only enqueue a Celery task via transaction.on_commit().
+The Celery worker handles all notify() calls, keeping the HTTP
+request thread free of Redis latency.
 """
 
+from django.db import transaction
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 
@@ -19,30 +24,8 @@ from django.dispatch import receiver
 def on_booking_request_created(sender, instance, created, **kwargs):
     if not created:
         return
-    from apps.accounts.models import User
-    from apps.notifications.utils import notify
-
-    recipients = User.objects.filter(
-        marina=instance.marina, role__in=['manager', 'admin', 'owner']
-    )
-    vessel_label = (
-        instance.vessel.name if instance.vessel else instance.guest_name or 'Unknown'
-    )
-    booking_type = (
-        instance.get_booking_type_display()
-        if hasattr(instance, 'get_booking_type_display')
-        else ''
-    )
-    for user in recipients:
-        notify(
-            marina=instance.marina,
-            recipient=user,
-            kind='booking_request',
-            title='New booking request',
-            body=f'{vessel_label} · {booking_type}',
-            link_screen='reservations',
-            link_id=instance.pk,
-        )
+    from apps.notifications.tasks import dispatch_booking_request
+    transaction.on_commit(lambda: dispatch_booking_request.delay(instance.pk))
 
 
 # ---------------------------------------------------------------------------
@@ -67,20 +50,5 @@ def on_maintenance_task_assigned(sender, instance, created, **kwargs):
     old = getattr(instance, '_old_assigned_to', '')
     if created or not instance.assigned_to or old:
         return
-
-    from apps.accounts.models import User
-    from apps.notifications.utils import notify
-
-    recipients = User.objects.filter(
-        marina=instance.marina, role__in=['manager', 'admin', 'owner']
-    )
-    for user in recipients:
-        notify(
-            marina=instance.marina,
-            recipient=user,
-            kind='maintenance_assigned',
-            title='Maintenance task assigned',
-            body=f'{instance.assigned_to} · {instance.text[:80]}',
-            link_screen='maintenance',
-            link_id=instance.pk,
-        )
+    from apps.notifications.tasks import dispatch_maintenance_assigned
+    transaction.on_commit(lambda: dispatch_maintenance_assigned.delay(instance.pk))

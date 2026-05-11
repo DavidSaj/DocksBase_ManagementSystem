@@ -1,6 +1,6 @@
 from datetime import date
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.notifications.models import Notification
@@ -134,8 +134,9 @@ class NotificationViewTests(TestCase):
         self.assertEqual(r.json()['updated'], unread_count)
 
 
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 @patch('apps.notifications.utils.get_channel_layer', return_value=None)
-class NotificationSignalTests(TestCase):
+class NotificationSignalTests(TransactionTestCase):
     """
     Tests for signal handlers wired in apps/notifications/signals.py.
 
