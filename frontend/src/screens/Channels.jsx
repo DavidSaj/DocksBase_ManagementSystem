@@ -333,7 +333,8 @@ export default function Channels() {
   const { connections, setConnections, loading: connsLoading } = useOTAConnections();
   const [berths, setBerths] = useState([]);
   const [berthsLoading, setBerthsLoading] = useState(true);
-  const [pierFilter, setPierFilter] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   useEffect(() => {
     api.get('/berths/')
@@ -342,7 +343,14 @@ export default function Channels() {
       .finally(() => setBerthsLoading(false));
   }, []);
 
-  if (marinaLoading || connsLoading || berthsLoading) {
+  useEffect(() => {
+    api.get('/berths/berth-categories/')
+      .then(r => setCategories(r.data.results ?? r.data))
+      .catch(() => {})
+      .finally(() => setCategoriesLoading(false));
+  }, []);
+
+  if (marinaLoading || connsLoading || berthsLoading || categoriesLoading) {
     return <div style={{ padding: 40, color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>Loading…</div>;
   }
 
@@ -372,8 +380,7 @@ export default function Channels() {
           berths={berths}
           setBerths={setBerths}
           connections={connections}
-          piersFilter={pierFilter}
-          setPiersFilter={setPierFilter}
+          categories={categories}
         />
       </div>
     </div>
