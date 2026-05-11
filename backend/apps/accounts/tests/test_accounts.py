@@ -325,3 +325,19 @@ class LoginUnverifiedTest(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 401)
         self.assertNotEqual(resp.data.get('code'), 'email_not_verified')
+
+
+class SupportAccessFieldTest(TestCase):
+    def test_field_exists_and_defaults_null(self):
+        marina = Marina.objects.create(name='Test')
+        self.assertIsNone(marina.support_access_granted_until)
+
+    def test_field_accepts_datetime(self):
+        from django.utils import timezone
+        import datetime
+        marina = Marina.objects.create(name='Test2')
+        future = timezone.now() + datetime.timedelta(hours=48)
+        marina.support_access_granted_until = future
+        marina.save()
+        marina.refresh_from_db()
+        self.assertIsNotNone(marina.support_access_granted_until)

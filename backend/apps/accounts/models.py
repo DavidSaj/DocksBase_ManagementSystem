@@ -66,6 +66,7 @@ class Marina(models.Model):
     wallet_vhf_channel = models.CharField(max_length=10, null=True, blank=True)
     wallet_office_hours = models.CharField(max_length=100, null=True, blank=True)
     waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
+    support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
     require_manager_approval_loa_m = models.DecimalField(
