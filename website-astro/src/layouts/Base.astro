@@ -1,0 +1,47 @@
+---
+import '../styles/global.css'
+import type { LangCode } from '../i18n/strings'
+import { LANGUAGES, getLangPath } from '../i18n/strings'
+
+interface Props {
+  lang: LangCode
+  title?: string
+  description?: string
+}
+
+const {
+  lang,
+  title = 'DocksBase — The Complete Harbor Management Platform',
+  description = 'From berth assignments to billing, DocksBase gives harbor masters every operational tool in one cloud-based system.',
+} = Astro.props
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!-- hreflang tags for SEO -->
+    {LANGUAGES.map(l => (
+      <link rel="alternate" hreflang={l.code} href={`https://docksbase.io${getLangPath(l.code)}`} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href="https://docksbase.io/en/" />
+  </head>
+  <body>
+    <slot />
+
+    <!-- ScrollReveal: applies .sr-in to .sr elements as they enter viewport -->
+    <script>
+      const obs = new IntersectionObserver(
+        (entries) => entries.forEach(e => {
+          if (e.isIntersecting) { e.target.classList.add('sr-in'); obs.unobserve(e.target) }
+        }),
+        { threshold: 0.08 }
+      )
+      document.querySelectorAll('.sr').forEach(el => obs.observe(el))
+    </script>
+  </body>
+</html>
