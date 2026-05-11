@@ -27,7 +27,25 @@ class Command(BaseCommand):
             sys.exit(1)
 
     def _sanitize_users(self):
-        return 0
+        from faker import Faker
+        from apps.accounts.models import User
+
+        fake = Faker('en_GB')
+        qs = User.objects.all()
+        total = 0
+        batch_size = 500
+
+        for offset in range(0, qs.count(), batch_size):
+            batch = list(qs[offset:offset + batch_size])
+            for u in batch:
+                u.first_name = fake.first_name()
+                u.last_name = fake.last_name()
+                u.email = fake.unique.email()
+                u.set_unusable_password()
+            User.objects.bulk_update(batch, ['first_name', 'last_name', 'email', 'password'])
+            total += len(batch)
+
+        return total
 
     def _sanitize_members(self):
         return 0

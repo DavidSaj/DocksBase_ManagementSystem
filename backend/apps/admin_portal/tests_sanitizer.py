@@ -3,6 +3,8 @@ from django.test import TestCase, override_settings
 from django.core.management import call_command
 from io import StringIO
 
+from apps.accounts.models import User, Marina
+
 
 class SanitizeDbSafetyGuardTest(TestCase):
 
@@ -27,3 +29,35 @@ class SanitizeDbSafetyGuardTest(TestCase):
         out = StringIO()
         call_command('sanitize_db', stdout=out, stderr=StringIO())
         self.assertIn('Sanitized', out.getvalue())
+
+
+class SanitizeUsersTest(TestCase):
+
+    @override_settings(DEBUG=True)
+    def test_user_pii_is_scrambled(self):
+        marina = Marina.objects.create(name='Test Marina')
+        u = User.objects.create_user(
+            email='john.doe@realmail.com',
+            first_name='John',
+            last_name='Doe',
+            password='realpassword',
+            marina=marina,
+        )
+        call_command('sanitize_db', stdout=StringIO(), stderr=StringIO())
+        u.refresh_from_db()
+        self.assertNotEqual(u.email, 'john.doe@realmail.com')
+        self.assertNotEqual(u.first_name, 'John')
+        self.assertNotEqual(u.last_name, 'Doe')
+        self.assertFalse(u.has_usable_password())
+
+    @override_settings(DEBUG=True)
+    def test_platform_admin_is_also_sanitized(self):
+        u = User.objects.create_user(
+            email='admin@docksbase.com',
+            is_platform_admin=True,
+            password='secret',
+        )
+        call_command('sanitize_db', stdout=StringIO(), stderr=StringIO())
+        u.refresh_from_db()
+        self.assertNotEqual(u.email, 'admin@docksbase.com')
+        self.assertFalse(u.has_usable_password())
