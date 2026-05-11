@@ -16,6 +16,14 @@ class SearchViewTests(TestCase):
         self.vessel = Vessel.objects.create(marina=self.marina, name='Lady Katherine', reg='UK123')
         self.member = Member.objects.create(marina=self.marina, name='John Smith', email='john@test.com')
 
+        from apps.search.index_helpers import upsert
+        upsert(marina=self.marina, target_model='vessel', target_id=self.vessel.pk,
+               search_text=self.vessel.name, display_label=self.vessel.name,
+               display_sub='', screen='vessels', link_id=self.vessel.pk)
+        upsert(marina=self.marina, target_model='member', target_id=self.member.pk,
+               search_text=self.member.name, display_label=self.member.name,
+               display_sub=self.member.email or '', screen='members', link_id=self.member.pk)
+
     def test_requires_auth(self):
         c = APIClient()
         r = c.get('/api/v1/search/?q=lady')
@@ -36,6 +44,7 @@ class SearchViewTests(TestCase):
     def test_other_marina_not_returned(self):
         other = Marina.objects.create(name='Other Marina')
         Vessel.objects.create(marina=other, name='Secret Vessel', reg='XX999')
+        # Intentionally NOT adding 'Secret Vessel' to the index
         r = self.client.get('/api/v1/search/?q=secret')
         self.assertEqual(r.status_code, 200)
         labels = [item['label'] for item in r.json()]
