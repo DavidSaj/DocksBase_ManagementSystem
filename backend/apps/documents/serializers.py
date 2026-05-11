@@ -3,14 +3,21 @@ from .models import DocTemplate, Envelope, MemberDocument
 
 
 class DocTemplateSerializer(serializers.ModelSerializer):
+    is_active_waiver = serializers.SerializerMethodField()
+
     class Meta:
         model = DocTemplate
         fields = [
             'id', 'name', 'category', 'pages', 'fields_count',
             'uses_count', 'last_used', 'created_at',
-            'file', 'dropboxsign_template_id',
+            'file', 'dropboxsign_template_id', 'is_active_waiver',
         ]
-        read_only_fields = ['uses_count', 'last_used', 'created_at', 'dropboxsign_template_id']
+        read_only_fields = ['uses_count', 'last_used', 'created_at', 'dropboxsign_template_id', 'is_active_waiver']
+
+    def get_is_active_waiver(self, obj):
+        if not obj.dropboxsign_template_id:
+            return False
+        return obj.dropboxsign_template_id == obj.marina.waiver_template_id
 
     def validate_file(self, value):
         if not value.name.lower().endswith('.pdf'):

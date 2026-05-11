@@ -41,6 +41,34 @@ class DocTemplatePrepare(APIView):
         return Response({'edit_url': edit_url})
 
 
+class DocTemplateSetWaiver(APIView):
+    def post(self, request, pk):
+        try:
+            template = DocTemplate.objects.get(pk=pk, marina=request.user.marina)
+        except DocTemplate.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not template.dropboxsign_template_id:
+            return Response(
+                {'detail': 'Template must be prepared for eSign before it can be set as the marina waiver.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        marina = request.user.marina
+        marina.waiver_template_id = template.dropboxsign_template_id
+        marina.save(update_fields=['waiver_template_id'])
+        return Response({'waiver_template_id': marina.waiver_template_id})
+
+    def delete(self, request, pk):
+        try:
+            template = DocTemplate.objects.get(pk=pk, marina=request.user.marina)
+        except DocTemplate.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        marina = request.user.marina
+        if marina.waiver_template_id == template.dropboxsign_template_id:
+            marina.waiver_template_id = None
+            marina.save(update_fields=['waiver_template_id'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class EnvelopeList(generics.ListCreateAPIView):
     serializer_class = EnvelopeSerializer
 

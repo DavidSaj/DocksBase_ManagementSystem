@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 
 export default function useDocTemplates() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
+    setLoading(true);
     api.get('/doc-templates/').then(r => {
       setTemplates(r.data.results ?? r.data);
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   async function uploadTemplate(formData) {
     const { data } = await api.post('/doc-templates/', formData, {
@@ -24,5 +27,15 @@ export default function useDocTemplates() {
     return data.edit_url;
   }
 
-  return { templates, loading, uploadTemplate, prepareTemplate };
+  async function setWaiver(id) {
+    await api.post(`/doc-templates/${id}/set-waiver/`);
+    reload();
+  }
+
+  async function clearWaiver(id) {
+    await api.delete(`/doc-templates/${id}/set-waiver/`);
+    reload();
+  }
+
+  return { templates, loading, uploadTemplate, prepareTemplate, setWaiver, clearWaiver };
 }
