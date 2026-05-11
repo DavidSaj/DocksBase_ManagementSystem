@@ -319,6 +319,21 @@ class GlobalFeatureFlagTest(TestCase):
 
 # ── Audit Log ─────────────────────────────────────────────────────────────────
 
+class AuditLogImpersonationFieldsTest(TestCase):
+    def test_impersonation_fields_exist(self):
+        marina = make_marina()
+        admin = make_user(None, is_platform_admin=True)
+        log = AuditLog.objects.create(
+            admin_user=admin,
+            action='test',
+            target_marina=marina,
+            impersonation_session_id='550e8400-e29b-41d4-a716-446655440000',
+            impersonator_user_id=admin.pk,
+        )
+        self.assertEqual(str(log.impersonation_session_id), '550e8400-e29b-41d4-a716-446655440000')
+        self.assertEqual(log.impersonator_user_id, admin.pk)
+
+
 class AuditLogTest(TestCase):
     def setUp(self):
         self.admin = make_user(None, is_platform_admin=True)
