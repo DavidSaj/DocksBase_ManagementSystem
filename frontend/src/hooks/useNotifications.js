@@ -6,7 +6,7 @@ export default function useNotifications() {
 
   // Fetch initial list
   useEffect(() => {
-    api.get('/notifications/').then(r => setNotifications(r.data)).catch(() => {});
+    api.get('/notifications/').then(r => setNotifications(r.data)).catch(err => console.error('[useNotifications] fetch failed', err));
   }, []);
 
   // WebSocket connection
@@ -15,6 +15,12 @@ export default function useNotifications() {
     if (!token) return;
     const wsBase = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
     const ws = new WebSocket(`${wsBase}/ws/notifications/?token=${token}`);
+    ws.onerror = () => {
+      console.error('[useNotifications] WebSocket error');
+    };
+    ws.onclose = () => {
+      // Normal close on unmount — no action needed
+    };
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
@@ -36,12 +42,12 @@ export default function useNotifications() {
   }, []);
 
   const markRead = useCallback(async (id) => {
-    await api.patch(`/notifications/${id}/read/`).catch(() => {});
+    await api.patch(`/notifications/${id}/read/`).catch(err => console.error('[useNotifications] markRead failed', err));
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, []);
 
   const markAllRead = useCallback(async () => {
-    await api.post('/notifications/mark-all-read/').catch(() => {});
+    await api.post('/notifications/mark-all-read/').catch(err => console.error('[useNotifications] markAllRead failed', err));
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 

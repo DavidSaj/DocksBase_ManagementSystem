@@ -50,8 +50,11 @@ export default function useSearch(query) {
             }));
           setResults([...apiResults, ...navItems]);
         }
-      } catch {
-        if (!aborted) setResults([]);
+      } catch (err) {
+        if (!aborted) {
+          console.error('[useSearch] search failed', err);
+          setResults([]);
+        }
       } finally {
         if (!aborted) setLoading(false);
       }
