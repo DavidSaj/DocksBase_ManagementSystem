@@ -197,6 +197,15 @@ class WaiverView(PortalBookingMixin, APIView):
 
 
 
+class DropboxSignWebhookView(APIView):
+    """Stub — full implementation pending Dropbox Sign webhook handling work."""
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        return Response({'detail': 'not implemented'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+
 class InsuranceUploadView(PortalBookingMixin, APIView):
     parser_classes = [MultiPartParser]
 
