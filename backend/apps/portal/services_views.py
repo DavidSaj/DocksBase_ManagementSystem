@@ -143,11 +143,11 @@ class PortalMemberExtendStayView(APIView):
             return Response({'detail': 'new_check_out is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
         try:
-            dt.date.fromisoformat(new_check_out)
+            new_check_out_date = dt.date.fromisoformat(new_check_out)
         except ValueError:
             return Response({'detail': 'new_check_out must be a valid ISO date (YYYY-MM-DD).'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        return Response({'available': not self._has_conflict(booking, new_check_out)})
+        return Response({'available': not self._has_conflict(booking, new_check_out_date)})
 
     def post(self, request):
         member = _get_member(request)
@@ -187,7 +187,7 @@ class PortalMemberExtendStayView(APIView):
             berth=booking.berth,
             vessel=booking.vessel,
             check_in=booking.check_out,
-            check_out=new_check_out,
+            check_out=check_out_date,
             nights=nights,
             status='pending',
             booking_source='portal_member',
