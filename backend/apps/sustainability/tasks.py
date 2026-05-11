@@ -1,44 +1,9 @@
-"""
-apps/sustainability/tasks.py
-
-All tasks are plain functions. Uncomment @shared_task when Celery is wired.
-
-Beat schedule (add to CELERY_BEAT_SCHEDULE in settings/base.py):
-    'fetch-grid-intensity': {
-        'task': 'sustainability.fetch_grid_intensity',
-        'schedule': crontab(hour=2, minute=0),          # daily at 02:00 UTC
-    },
-    'calculate-scope3-fuel-dock': {
-        'task': 'sustainability.calculate_scope3_fuel_dock',
-        'schedule': crontab(day_of_month=1, hour=3, minute=0),  # monthly
-    },
-    'roll-sustainability-ledger': {
-        'task': 'sustainability.roll_sustainability_ledger',
-        'schedule': crontab(hour=4, minute=0),          # nightly at 04:00 UTC
-    },
-    'sync-play-it-green': {
-        'task': 'sustainability.sync_play_it_green',
-        'schedule': crontab(day_of_week=0, hour=5, minute=0),   # weekly Sunday 05:00 UTC
-    },
-
-Celery task routes (add to settings/base.py):
-    CELERY_TASK_ROUTES = {
-        'sustainability.generate_esg_report_async': {'queue': 'pdf_generation'},
-    }
-
-PDF generation worker (run SEPARATELY from main worker):
-    celery -A backend worker \\
-        --queues pdf_generation \\
-        --concurrency 1 \\
-        --max-tasks-per-child 1 \\
-        --max-memory-per-child 512000
-"""
-
 import logging
 import time
 import requests
 from datetime import date, timedelta
 from decimal import Decimal
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +76,7 @@ def calculate_scope3_fuel_dock_for_period(marina, period: str):
 # Task 1: fetch_grid_intensity()  — daily at 02:00 UTC
 # ---------------------------------------------------------------------------
 
-# @shared_task
+@shared_task(name='sustainability.fetch_grid_intensity')
 def fetch_grid_intensity():
     """
     Fetch yesterday's grid carbon intensity from National Grid ESO API (UK)
@@ -167,7 +132,7 @@ def fetch_grid_intensity():
 # Task 2: calculate_scope3_fuel_dock()  — 1st of month at 03:00 UTC
 # ---------------------------------------------------------------------------
 
-# @shared_task
+@shared_task(name='sustainability.calculate_scope3_fuel_dock')
 def calculate_scope3_fuel_dock():
     """Monthly Scope 3 fuel dock aggregation for all ESG-enabled marinas."""
     from apps.accounts.models import Marina
@@ -188,7 +153,7 @@ def calculate_scope3_fuel_dock():
 # Task 3: roll_sustainability_ledger()  — nightly at 04:00 UTC
 # ---------------------------------------------------------------------------
 
-# @shared_task
+@shared_task(name='sustainability.roll_sustainability_ledger')
 def roll_sustainability_ledger():
     """
     Nightly ledger roll-up for all ESG-enabled marinas.
@@ -236,7 +201,7 @@ def roll_sustainability_ledger():
 # Task 4: recalculate_ledger_period()  — on-demand (triggered by staleness signals)
 # ---------------------------------------------------------------------------
 
-# @shared_task
+@shared_task(name='sustainability.recalculate_ledger_period')
 def recalculate_ledger_period(marina_id: int, period: str):
     """
     On-demand recalculation for a specific marina/period.
@@ -265,7 +230,7 @@ def recalculate_ledger_period(marina_id: int, period: str):
 # Task 5: sync_play_it_green()  — weekly Sunday at 05:00 UTC
 # ---------------------------------------------------------------------------
 
-# @shared_task
+@shared_task(name='sustainability.sync_play_it_green')
 def sync_play_it_green():
     """
     Sync OffsetContribution records with Play It Green API.
@@ -337,7 +302,7 @@ def sync_play_it_green():
 # Task 6: create_offset_contribution()  — on-demand (invoice paid signal)
 # ---------------------------------------------------------------------------
 
-# @shared_task
+@shared_task(name='sustainability.create_offset_contribution')
 def create_offset_contribution(line_item_id: int):
     """
     Create OffsetContribution for a paid InvoiceLineItem with category='offset'.
@@ -379,12 +344,12 @@ def create_offset_contribution(line_item_id: int):
 # Task 7: generate_esg_report_async()  — on-demand, pdf_generation queue
 # ---------------------------------------------------------------------------
 
-# @shared_task(
-#     name='sustainability.generate_esg_report_async',
-#     queue='pdf_generation',      # MANDATORY: dedicated queue
-#     acks_late=True,              # requeue if worker killed mid-task
-#     reject_on_worker_lost=True,  # requeue on OOM kill
-# )
+@shared_task(
+    name='sustainability.generate_esg_report_async',
+    queue='pdf_generation',
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def generate_esg_report_async(archive_id: int):
     """
     Generate ESG report PDF for the given ESGReportArchive.
