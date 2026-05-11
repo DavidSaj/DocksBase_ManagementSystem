@@ -122,8 +122,8 @@ export default function CraneRequestScreen({ onBack }) {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div className="p-svc-card">
-              <label className="p-form-label">Service type</label>
+            <fieldset className="p-svc-card" style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend className="p-form-label">Service type</legend>
               {SERVICE_OPTIONS.map(({ value, label, Icon, desc }) => {
                 const selected = serviceType === value;
                 return (
@@ -142,7 +142,7 @@ export default function CraneRequestScreen({ onBack }) {
                   </button>
                 );
               })}
-            </div>
+            </fieldset>
 
             <div className="p-svc-card">
               <label className="p-form-label" htmlFor="crane-date">Preferred date</label>
