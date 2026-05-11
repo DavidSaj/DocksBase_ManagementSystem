@@ -39,7 +39,12 @@ class DocTemplatePrepare(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not template.file:
             return Response({'detail': 'No file uploaded yet.'}, status=status.HTTP_400_BAD_REQUEST)
-        edit_url = create_embedded_template_draft(template, template.file.path)
+        edit_url = create_embedded_template_draft(
+            template,
+            template.file.path,
+            api_key=request.user.marina.dropboxsign_api_key,
+            client_id=request.user.marina.dropboxsign_client_id,
+        )
         return Response({'edit_url': edit_url})
 
 
@@ -49,13 +54,13 @@ class DocTemplateSetWaiver(APIView):
             template = DocTemplate.objects.get(pk=pk, marina=request.user.marina)
         except DocTemplate.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        if not template.dropboxsign_template_id:
+        if not template.file:
             return Response(
-                {'detail': 'Template must be prepared for eSign before it can be set as the marina waiver.'},
+                {'detail': 'Template must have a PDF file before it can be set as the marina waiver.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         marina = request.user.marina
-        marina.waiver_template_id = template.dropboxsign_template_id
+        marina.waiver_template_id = str(template.pk)
         marina.save(update_fields=['waiver_template_id'])
         return Response({'waiver_template_id': marina.waiver_template_id})
 
@@ -65,7 +70,7 @@ class DocTemplateSetWaiver(APIView):
         except DocTemplate.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         marina = request.user.marina
-        if marina.waiver_template_id == template.dropboxsign_template_id:
+        if marina.waiver_template_id == str(template.pk):
             marina.waiver_template_id = None
             marina.save(update_fields=['waiver_template_id'])
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -79,7 +84,10 @@ class EnvelopeList(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         envelope = serializer.save(marina=self.request.user.marina)
-        request_id = send_envelope(envelope)
+        request_id = send_envelope(
+            envelope,
+            api_key=self.request.user.marina.dropboxsign_api_key,
+        )
         envelope.dropboxsign_request_id = request_id
         envelope.save(update_fields=['dropboxsign_request_id'])
 
@@ -99,7 +107,10 @@ class EnvelopeDownload(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if envelope.status != 'completed':
             return Response({'detail': 'Not yet signed.'}, status=status.HTTP_400_BAD_REQUEST)
-        url = get_signed_pdf_url(envelope.dropboxsign_request_id)
+        url = get_signed_pdf_url(
+            envelope.dropboxsign_request_id,
+            api_key=request.user.marina.dropboxsign_api_key,
+        )
         return Response({'url': url})
 
 

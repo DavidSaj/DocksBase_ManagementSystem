@@ -1,29 +1,26 @@
 from django.conf import settings
 
-# Imported lazily so tests can patch without installing the SDK.
-# In production, `pip install dropbox-sign` must be run first.
 try:
     import dropbox_sign
 except ImportError:
     dropbox_sign = None  # type: ignore[assignment]
 
 
-def _api_client():
-    configuration = dropbox_sign.Configuration(username=settings.DROPBOX_SIGN_API_KEY)
+def _api_client(api_key: str):
+    configuration = dropbox_sign.Configuration(username=api_key)
     return dropbox_sign.ApiClient(configuration)
 
 
-def create_embedded_template_draft(template, file_path: str) -> str:
-    """Upload PDF to Dropbox Sign embedded editor. Returns edit_url.
+def _resolve_api_key(api_key):
+    """Use marina key if provided, fall back to global setting."""
+    return api_key or getattr(settings, 'DROPBOX_SIGN_API_KEY', '')
 
-    The Dropbox Sign SDK accepts a file path string or a file-like object
-    for the `files` parameter; passing the path string directly avoids
-    holding an open file handle across the API call.
-    """
-    with _api_client() as client:
+
+def create_embedded_template_draft(template, file_path: str, *, api_key: str, client_id: str) -> str:
+    with _api_client(_resolve_api_key(api_key)) as client:
         api = dropbox_sign.TemplateApi(client)
         data = dropbox_sign.EmbeddedCreateEmbeddedTemplateDraftRequest(
-            client_id=settings.DROPBOX_SIGN_CLIENT_ID,
+            client_id=client_id or getattr(settings, 'DROPBOX_SIGN_CLIENT_ID', ''),
             files=[file_path],
             title=template.name,
             signer_roles=[{'name': 'Member', 'order': 0}],
@@ -36,9 +33,8 @@ def create_embedded_template_draft(template, file_path: str) -> str:
         return result.embedded_template.edit_url
 
 
-def send_envelope(envelope) -> str:
-    """Send signature request. Returns dropboxsign_request_id."""
-    with _api_client() as client:
+def send_envelope(envelope, *, api_key: str, client_id: str = '') -> str:
+    with _api_client(_resolve_api_key(api_key)) as client:
         api = dropbox_sign.SignatureRequestApi(client)
         signer = dropbox_sign.SubSignatureRequestTemplateSigner(
             role='Member',
@@ -57,9 +53,58 @@ def send_envelope(envelope) -> str:
         return result.signature_request.signature_request_id
 
 
-def get_signed_pdf_url(signature_request_id: str) -> str:
-    """Fetch the signed PDF download URL from Dropbox Sign."""
-    with _api_client() as client:
+def get_signed_pdf_url(signature_request_id: str, *, api_key: str) -> str:
+    with _api_client(_resolve_api_key(api_key)) as client:
         api = dropbox_sign.SignatureRequestApi(client)
         result = api.get(signature_request_id)
         return result.signature_request.signing_url
+
+
+def create_embedded_sign_url(
+    booking,
+    ds_template_id: str,
+    *,
+    api_key: str,
+    client_id: str,
+    envelope_pk=None,
+) -> tuple[str, str]:
+    """Create an embedded signature request for the boater waiver.
+
+    Returns (signature_request_id, sign_url).
+    """
+    with _api_client(_resolve_api_key(api_key)) as client:
+        sig_api = dropbox_sign.SignatureRequestApi(client)
+        embedded_api = dropbox_sign.EmbeddedApi(client)
+
+        metadata = {'booking_id': str(booking.id)}
+        if envelope_pk is not None:
+            metadata['envelope_pk'] = str(envelope_pk)
+
+        data = dropbox_sign.SignatureRequestCreateEmbeddedWithTemplateRequest(
+            client_id=client_id or getattr(settings, 'DROPBOX_SIGN_CLIENT_ID', ''),
+            template_ids=[ds_template_id],
+            subject='Marina Waiver',
+            signers=[
+                dropbox_sign.SubSignatureRequestTemplateSigner(
+                    role='Boater',
+                    name=booking.guest_name or 'Boater',
+                    email_address=booking.guest_email,
+                )
+            ],
+            metadata=metadata,
+        )
+        sig_response = sig_api.signature_request_create_embedded_with_template(data)
+        request_id = sig_response.signature_request.signature_request_id
+        signature_id = sig_response.signature_request.signatures[0].signature_id
+        url_response = embedded_api.embedded_sign_url(signature_id)
+        return request_id, url_response.embedded.sign_url
+
+
+def get_existing_embedded_sign_url(signature_request_id: str, *, api_key: str) -> str:
+    with _api_client(_resolve_api_key(api_key)) as client:
+        sig_api = dropbox_sign.SignatureRequestApi(client)
+        embedded_api = dropbox_sign.EmbeddedApi(client)
+        sig_response = sig_api.signature_request_get(signature_request_id)
+        signature_id = sig_response.signature_request.signatures[0].signature_id
+        url_response = embedded_api.embedded_sign_url(signature_id)
+        return url_response.embedded.sign_url
