@@ -240,29 +240,30 @@ function AllocationCard({ conn, berths, onUpdate }) {
 
 // ── Section 4: Berth Assignment Grid ──────────────────────────────────────
 
-function BerthGrid({ berths, setBerths, connections, piersFilter, setPiersFilter }) {
-  const piers = [...new Set(berths.map(b => b.pier_code).filter(Boolean))].sort();
-  const [saving, setSaving] = useState(null);
+function BerthGrid({ berths, setBerths, connections, categories }) {
+  const [saving, setSaving] = useState(null); // category id while saving
 
-  const filtered = piersFilter ? berths.filter(b => b.pier_code === piersFilter) : berths;
-
-  async function handleChannelChange(berth, connId) {
-    setSaving(berth.id);
-    try {
-      const { data } = await api.patch(`/berths/${berth.id}/`, {
-        ota_connection: connId || null,
-      });
-      setBerths(prev => prev.map(b => b.id === berth.id ? { ...b, ...data } : b));
-    } finally {
-      setSaving(null);
-    }
+  function getCategoryValue(catId) {
+    const catBerths = berths.filter(b => b.category === catId);
+    if (catBerths.length === 0) return '';
+    const unique = [...new Set(catBerths.map(b => b.ota_connection))];
+    if (unique.length > 1) return '__mixed__';
+    return unique[0] == null ? '' : String(unique[0]);
   }
 
-  async function handleUnlock(berth) {
-    setSaving(berth.id);
+  async function handleCategoryChange(catId, connId) {
+    setSaving(catId);
+    const catBerths = berths.filter(b => b.category === catId);
     try {
-      const { data } = await api.patch(`/berths/${berth.id}/`, { channel_locked: false });
-      setBerths(prev => prev.map(b => b.id === berth.id ? { ...b, ...data } : b));
+      await Promise.all(
+        catBerths.map(b =>
+          api.patch(`/berths/${b.id}/`, { ota_connection: connId })
+            .then(({ data }) => data)
+        )
+      );
+      setBerths(prev =>
+        prev.map(b => b.category === catId ? { ...b, ota_connection: connId } : b)
+      );
     } finally {
       setSaving(null);
     }
@@ -272,55 +273,37 @@ function BerthGrid({ berths, setBerths, connections, piersFilter, setPiersFilter
     <div className="card">
       <div className="card-header">
         <div className="card-header-title">Berth Assignment</div>
-        <select
-          value={piersFilter}
-          onChange={e => setPiersFilter(e.target.value)}
-          style={{ fontSize: 12, padding: '4px 8px', borderRadius: 5, border: 'var(--border)' }}
-        >
-          <option value="">All piers</option>
-          {piers.map(p => <option key={p} value={p}>Pier {p}</option>)}
-        </select>
       </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table className="tbl">
-          <thead>
-            <tr><th>Berth</th><th>Pier</th><th>Channel</th><th>Locked</th></tr>
-          </thead>
-          <tbody>
-            {filtered.map(b => (
-              <tr key={b.id} style={{ background: b.channel_locked ? 'rgba(26,45,74,0.03)' : undefined }}>
-                <td style={{ fontWeight: 600 }}>{b.code}</td>
-                <td style={{ color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>{b.pier_code || '—'}</td>
-                <td>
-                  <select
-                    value={b.ota_connection ?? ''}
-                    disabled={saving === b.id}
-                    onChange={e => handleChannelChange(b, e.target.value ? Number(e.target.value) : null)}
-                    style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: 'var(--border)' }}
-                  >
-                    <option value="">Direct</option>
-                    {connections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </td>
-                <td>
-                  {b.channel_locked ? (
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      style={{ fontSize: 11, padding: '2px 8px' }}
-                      onClick={() => handleUnlock(b)}
-                      disabled={saving === b.id}
-                      title="Unlock — let allocator manage this berth"
-                    >
-                      🔒 Unlock
-                    </button>
-                  ) : (
-                    <span style={{ color: 'rgba(0,0,0,0.25)', fontSize: 12 }}>—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {categories.map(cat => {
+          const val = getCategoryValue(cat.id);
+          const isMixed = val === '__mixed__';
+          const isSaving = saving === cat.id;
+          return (
+            <div
+              key={cat.id}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{cat.name}</div>
+              <select
+                value={val}
+                disabled={isSaving}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '__mixed__') return;
+                  handleCategoryChange(cat.id, v ? Number(v) : null);
+                }}
+                style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: 'var(--border)' }}
+              >
+                {isMixed && <option value="__mixed__" disabled>Mixed</option>}
+                <option value="">Direct</option>
+                {connections.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
