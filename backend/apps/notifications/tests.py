@@ -97,3 +97,37 @@ class NotificationViewTests(TestCase):
         )
         r = self.client.get('/api/v1/notifications/')
         self.assertEqual(len(r.json()), 1)  # only own
+
+    def test_unauthenticated_cannot_list(self):
+        anon = APIClient()
+        r = anon.get('/api/v1/notifications/')
+        self.assertEqual(r.status_code, 401)
+
+    def test_mark_read_returns_404_for_nonexistent(self):
+        r = self.client.patch('/api/v1/notifications/99999/read/')
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.json()['detail'], 'Not found.')
+
+    def test_mark_read_returns_404_for_other_users_notification(self):
+        other = User.objects.create_user(
+            email='other2@test.com', password='pass', marina=self.marina, role='staff'
+        )
+        other_notif = Notification.objects.create(
+            marina=self.marina, recipient=other,
+            kind='booking_request', title='Other', body='OB',
+            link_screen='reservations',
+        )
+        r = self.client.patch(f'/api/v1/notifications/{other_notif.pk}/read/')
+        self.assertEqual(r.status_code, 404)
+
+    def test_mark_all_read_response_structure(self):
+        # Create a second unread notification (setUp already created one)
+        Notification.objects.create(
+            marina=self.marina, recipient=self.user,
+            kind='overdue_invoice', title='T2', body='B2',
+            link_screen='billing',
+        )
+        unread_count = Notification.objects.filter(recipient=self.user, read=False).count()
+        r = self.client.post('/api/v1/notifications/mark-all-read/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['updated'], unread_count)
