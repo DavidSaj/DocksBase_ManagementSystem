@@ -255,15 +255,19 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
     setSaving(catId);
     const catBerths = berths.filter(b => b.category === catId);
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         catBerths.map(b =>
-          api.patch(`/berths/${b.id}/`, { ota_connection: connId })
-            .then(({ data }) => data)
+          api.patch(`/berths/${b.id}/`, { ota_connection: connId }).then(({ data }) => ({ id: b.id, data }))
         )
       );
-      setBerths(prev =>
-        prev.map(b => b.category === catId ? { ...b, ota_connection: connId } : b)
+      const succeededIds = new Set(
+        results.filter(r => r.status === 'fulfilled').map(r => r.value.id)
       );
+      if (succeededIds.size > 0) {
+        setBerths(prev =>
+          prev.map(b => succeededIds.has(b.id) ? { ...b, ota_connection: connId } : b)
+        );
+      }
     } finally {
       setSaving(null);
     }
