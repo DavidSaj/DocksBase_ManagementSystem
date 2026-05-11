@@ -1,5 +1,6 @@
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
+from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.notifications.models import Notification
 from apps.notifications.utils import notify
@@ -48,3 +49,51 @@ class NotifyHelperTests(TestCase):
             link_screen='billing',
         )
         send_fn.assert_called_once()
+
+
+class NotificationViewTests(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='View Test Marina')
+        self.user = User.objects.create_user(
+            email='view@test.com', password='pass', marina=self.marina, role='manager'
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.notif = Notification.objects.create(
+            marina=self.marina, recipient=self.user,
+            kind='booking_request', title='Test', body='Body',
+            link_screen='reservations',
+        )
+
+    def test_list_returns_own_notifications(self):
+        r = self.client.get('/api/v1/notifications/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 1)
+
+    def test_mark_one_read(self):
+        r = self.client.patch(f'/api/v1/notifications/{self.notif.pk}/read/')
+        self.assertEqual(r.status_code, 200)
+        self.notif.refresh_from_db()
+        self.assertTrue(self.notif.read)
+
+    def test_mark_all_read(self):
+        Notification.objects.create(
+            marina=self.marina, recipient=self.user,
+            kind='overdue_invoice', title='T2', body='B2',
+            link_screen='billing',
+        )
+        r = self.client.post('/api/v1/notifications/mark-all-read/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Notification.objects.filter(recipient=self.user, read=False).count(), 0)
+
+    def test_cannot_see_other_users_notifications(self):
+        other = User.objects.create_user(
+            email='other@test.com', password='pass', marina=self.marina, role='staff'
+        )
+        Notification.objects.create(
+            marina=self.marina, recipient=other,
+            kind='booking_request', title='Other', body='OB',
+            link_screen='reservations',
+        )
+        r = self.client.get('/api/v1/notifications/')
+        self.assertEqual(len(r.json()), 1)  # only own
