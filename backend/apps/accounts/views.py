@@ -611,3 +611,28 @@ class GrantSupportAccessView(APIView):
         marina.support_access_granted_until = None
         marina.save(update_fields=['support_access_granted_until'])
         return Response({'support_access_granted_until': None})
+
+
+class DropboxSignSettingsView(APIView):
+    def get(self, request):
+        marina = request.user.marina
+        key = marina.dropboxsign_api_key or ''
+        return Response({
+            'connected': bool(key and marina.dropboxsign_client_id),
+            'client_id': marina.dropboxsign_client_id or '',
+            'api_key_tail': key[-4:] if key else '',
+        })
+
+    def patch(self, request):
+        marina = request.user.marina
+        api_key   = request.data.get('api_key', marina.dropboxsign_api_key)
+        client_id = request.data.get('client_id', marina.dropboxsign_client_id)
+        marina.dropboxsign_api_key   = api_key   or ''
+        marina.dropboxsign_client_id = client_id or ''
+        marina.save(update_fields=['dropboxsign_api_key', 'dropboxsign_client_id'])
+        key = marina.dropboxsign_api_key
+        return Response({
+            'connected': bool(key and marina.dropboxsign_client_id),
+            'client_id': marina.dropboxsign_client_id,
+            'api_key_tail': key[-4:] if key else '',
+        })

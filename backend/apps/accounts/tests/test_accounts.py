@@ -348,3 +348,60 @@ class MarinaDropboxSignFieldsTest(TestCase):
         m = Marina.objects.create(name='Test', slug='test-ds-fields')
         self.assertEqual(m.dropboxsign_api_key, '')
         self.assertEqual(m.dropboxsign_client_id, '')
+
+
+class DropboxSignSettingsViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = Marina.objects.create(name='Test Marina DS', slug='test-ds-settings-view')
+        # Create a manager user for this marina
+        self.user = User.objects.create_user(
+            email='mgr-ds@test.com',
+            password='pw',
+            marina=self.marina,
+            role='manager',
+            is_active=True,
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_get_returns_masked_key_and_client_id(self):
+        self.marina.dropboxsign_api_key = 'sk_live_abc123456789'
+        self.marina.dropboxsign_client_id = 'client_xyz'
+        self.marina.save()
+        resp = self.client.get('/api/v1/marina/integrations/dropbox-sign/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('sk_live_abc123456789', str(resp.data))
+        self.assertEqual(resp.data['api_key_tail'], '6789')
+        self.assertEqual(resp.data['client_id'], 'client_xyz')
+        self.assertTrue(resp.data['connected'])
+
+    def test_get_returns_not_connected_when_empty(self):
+        resp = self.client.get('/api/v1/marina/integrations/dropbox-sign/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.data['connected'])
+        self.assertEqual(resp.data['api_key_tail'], '')
+
+    def test_patch_saves_credentials(self):
+        resp = self.client.patch(
+            '/api/v1/marina/integrations/dropbox-sign/',
+            {'api_key': 'sk_live_newkey', 'client_id': 'new_client'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.marina.refresh_from_db()
+        self.assertEqual(self.marina.dropboxsign_api_key, 'sk_live_newkey')
+        self.assertEqual(self.marina.dropboxsign_client_id, 'new_client')
+
+    def test_patch_empty_strings_clears_integration(self):
+        self.marina.dropboxsign_api_key = 'old_key'
+        self.marina.dropboxsign_client_id = 'old_client'
+        self.marina.save()
+        resp = self.client.patch(
+            '/api/v1/marina/integrations/dropbox-sign/',
+            {'api_key': '', 'client_id': ''},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.marina.refresh_from_db()
+        self.assertEqual(self.marina.dropboxsign_api_key, '')
+        self.assertFalse(resp.data['connected'])

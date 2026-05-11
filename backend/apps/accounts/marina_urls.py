@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import MarinaProfileView, MarinaUsersView, InviteUserView, UserDetailView, MarinaOverviewView, GrantSupportAccessView
+from .views import MarinaProfileView, MarinaUsersView, InviteUserView, UserDetailView, MarinaOverviewView, GrantSupportAccessView, DropboxSignSettingsView
 
 urlpatterns = [
     path('profile/', MarinaProfileView.as_view(), name='marina_profile'),
@@ -8,4 +8,5 @@ urlpatterns = [
     path('users/invite/', InviteUserView.as_view(), name='invite_user'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user_detail'),
     path('grant-support-access/', GrantSupportAccessView.as_view(), name='grant_support_access'),
+    path('integrations/dropbox-sign/', DropboxSignSettingsView.as_view(), name='dropboxsign_settings'),
 ]
