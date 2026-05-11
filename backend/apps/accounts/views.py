@@ -1,8 +1,10 @@
 import datetime
+import datetime as _dt
 import stripe
 from django.conf import settings
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.utils import timezone
+from django.utils import timezone as _tz
 from django.core.mail import send_mail
 from django.core.cache import cache
 from django.db.models import Sum
@@ -578,3 +580,34 @@ class ResumeView(APIView):
             'marina_name':   marina.name,
             'plan':          marina.plan,
         })
+
+
+class GrantSupportAccessView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_marina(self, request):
+        if not request.user.marina:
+            return None
+        return request.user.marina
+
+    def post(self, request):
+        if request.user.role != 'owner':
+            return Response({'detail': 'Only marina owners can grant support access.'}, status=status.HTTP_403_FORBIDDEN)
+        marina = self._get_marina(request)
+        if not marina:
+            return Response({'detail': 'No marina found.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina.support_access_granted_until = _tz.now() + _dt.timedelta(hours=48)
+        marina.save(update_fields=['support_access_granted_until'])
+        return Response({
+            'support_access_granted_until': marina.support_access_granted_until.isoformat(),
+        })
+
+    def delete(self, request):
+        if request.user.role != 'owner':
+            return Response({'detail': 'Only marina owners can revoke support access.'}, status=status.HTTP_403_FORBIDDEN)
+        marina = self._get_marina(request)
+        if not marina:
+            return Response({'detail': 'No marina found.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina.support_access_granted_until = None
+        marina.save(update_fields=['support_access_granted_until'])
+        return Response({'support_access_granted_until': None})
