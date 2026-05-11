@@ -4,6 +4,7 @@ from django.core.management import call_command
 from io import StringIO
 
 from apps.accounts.models import User, Marina
+from apps.members.models import Member
 
 
 class SanitizeDbSafetyGuardTest(TestCase):
@@ -61,3 +62,19 @@ class SanitizeUsersTest(TestCase):
         u.refresh_from_db()
         self.assertNotEqual(u.email, 'admin@docksbase.com')
         self.assertFalse(u.has_usable_password())
+
+
+class SanitizeMembersTest(TestCase):
+
+    @override_settings(DEBUG=True)
+    def test_member_pii_is_scrambled(self):
+        marina = Marina.objects.create(name='Test Marina 2')
+        m = Member.objects.create(
+            marina=marina,
+            name='Jane Smith',
+            email='jane.smith@real.com',
+        )
+        call_command('sanitize_db', stdout=StringIO(), stderr=StringIO())
+        m.refresh_from_db()
+        self.assertNotEqual(m.email, 'jane.smith@real.com')
+        self.assertNotEqual(m.name, 'Jane Smith')
