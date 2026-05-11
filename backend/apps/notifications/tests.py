@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -131,3 +132,103 @@ class NotificationViewTests(TestCase):
         r = self.client.post('/api/v1/notifications/mark-all-read/')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['updated'], unread_count)
+
+
+@patch('apps.notifications.utils.get_channel_layer', return_value=None)
+class NotificationSignalTests(TestCase):
+    """
+    Tests for signal handlers wired in apps/notifications/signals.py.
+
+    get_channel_layer is patched to None so _push_to_ws exits early and
+    we don't need a real channel layer in the test runner.
+    """
+
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Signal Marina')
+        self.manager = User.objects.create_user(
+            email='mgr2@test.com', password='pass', marina=self.marina, role='manager'
+        )
+
+    # ------------------------------------------------------------------
+    # BookingRequest signal
+    # ------------------------------------------------------------------
+
+    def test_booking_request_notifies_managers(self, _mock_gcl):
+        from apps.berths.models import Berth
+        from apps.reservations.models import BookingRequest
+        berth = Berth.objects.create(marina=self.marina, code='A1')
+        BookingRequest.objects.create(
+            marina=self.marina,
+            guest_name='Test Guest',
+            booking_type='transient',
+            start_date=date.today(),
+            end_date=date.today(),
+            berth=berth,
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.manager, kind='booking_request'
+            ).exists()
+        )
+
+    def test_booking_request_no_duplicate_on_update(self, _mock_gcl):
+        """Updating a BookingRequest must not fire a new notification."""
+        from apps.berths.models import Berth
+        from apps.reservations.models import BookingRequest
+        berth = Berth.objects.create(marina=self.marina, code='A2')
+        br = BookingRequest.objects.create(
+            marina=self.marina,
+            guest_name='Guest 2',
+            booking_type='transient',
+            start_date=date.today(),
+            end_date=date.today(),
+            berth=berth,
+        )
+        count_after_create = Notification.objects.filter(kind='booking_request').count()
+        br.notes = 'Updated note'
+        br.save()
+        self.assertEqual(
+            Notification.objects.filter(kind='booking_request').count(),
+            count_after_create,
+        )
+
+    # ------------------------------------------------------------------
+    # Maintenance Task signal
+    # ------------------------------------------------------------------
+
+    def test_maintenance_task_assigned_notifies(self, _mock_gcl):
+        from apps.maintenance.models import Task
+        task = Task.objects.create(
+            marina=self.marina, text='Fix pump', priority='medium'
+        )
+        task.assigned_to = 'John'
+        task.save()
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.manager, kind='maintenance_assigned'
+            ).exists()
+        )
+
+    def test_maintenance_task_no_notify_if_already_assigned(self, _mock_gcl):
+        """Re-assignment (non-blank → non-blank) should NOT fire again."""
+        from apps.maintenance.models import Task
+        task = Task.objects.create(
+            marina=self.marina, text='Fix pump', assigned_to='John', priority='medium'
+        )
+        count_before = Notification.objects.filter(kind='maintenance_assigned').count()
+        task.assigned_to = 'Jane'
+        task.save()
+        self.assertEqual(
+            Notification.objects.filter(kind='maintenance_assigned').count(),
+            count_before,
+        )
+
+    def test_maintenance_task_no_notify_if_created_unassigned(self, _mock_gcl):
+        """Creating a task with no assignee should produce no notification."""
+        from apps.maintenance.models import Task
+        Task.objects.create(
+            marina=self.marina, text='Unassigned task', priority='low'
+        )
+        self.assertFalse(
+            Notification.objects.filter(kind='maintenance_assigned').exists()
+        )

@@ -117,3 +117,16 @@ def send_overdue_invoice_alerts(self):
                 'send_overdue_invoice_alerts: failed to send for marina %s: %s',
                 marina, exc,
             )
+
+        # notify managers/owners via in-app notifications
+        from apps.notifications.utils import notify
+        notif_users = list(User.objects.filter(marina=marina, role__in=['owner', 'manager', 'admin']))
+        for user in notif_users:
+            notify(
+                marina=marina,
+                recipient=user,
+                kind='overdue_invoice',
+                title=f"{count} overdue invoice{'s' if count != 1 else ''}",
+                body=marina.name,
+                link_screen='billing',
+            )
