@@ -1,0 +1,25 @@
+.bar {
+  background: var(--navy); border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 28px 48px;
+  display: flex; align-items: center; justify-content: center; gap: 48px;
+  flex-wrap: wrap;
+}
+.label {
+  font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.35);
+  letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap;
+}
+.names {
+  display: flex; gap: 0; align-items: center; flex-wrap: wrap; justify-content: center;
+}
+.name {
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.45);
+  letter-spacing: 0.5px; white-space: nowrap;
+}
+.dot {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(255,255,255,0.18); margin: 0 18px;
+}
+
+@media (max-width: 900px) {
+  .bar { padding: 20px 24px; gap: 24px; }
+}

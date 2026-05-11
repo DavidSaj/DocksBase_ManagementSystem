@@ -1,0 +1,179 @@
+/* ── Shared layout ── */
+.inner {
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+}
+
+/* ── Boater section (light) ── */
+.sectionLight {
+  background: var(--cream);
+  padding: 100px 48px;
+}
+.copyLeft {}
+.phoneRight { display: flex; justify-content: center; }
+
+.eyebrowLight {
+  font-size: 11px; font-weight: 600; letter-spacing: 3.5px;
+  text-transform: uppercase; color: var(--teal);
+  margin-bottom: 16px;
+}
+.titleLight {
+  font-family: var(--font-serif);
+  font-size: clamp(36px, 4vw, 52px);
+  font-weight: 700; color: var(--navy);
+  line-height: 1.05; letter-spacing: -0.5px;
+  margin-bottom: 20px;
+}
+.bodyLight {
+  font-size: 17px; color: var(--text-sec);
+  line-height: 1.65; margin-bottom: 28px;
+}
+
+/* ── Staff section (dark) ── */
+.sectionDark {
+  background: #0c1f3d;
+  padding: 100px 48px;
+}
+.phoneLeft { display: flex; justify-content: center; }
+.copyRight {}
+
+.eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: 3.5px;
+  text-transform: uppercase; color: #d4b07a;
+  margin-bottom: 16px;
+}
+.title {
+  font-family: var(--font-serif);
+  font-size: clamp(36px, 4vw, 52px);
+  font-weight: 700; color: #fff;
+  line-height: 1.05; letter-spacing: -0.5px;
+  margin-bottom: 20px;
+}
+.body {
+  font-size: 17px; color: rgba(255,255,255,0.65);
+  line-height: 1.65; margin-bottom: 28px;
+}
+
+/* ── Phone mockup ── */
+.phone {
+  width: 260px;
+  background: #111827;
+  border-radius: 36px;
+  border: 2px solid rgba(255,255,255,0.1);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.35), 0 0 0 6px rgba(255,255,255,0.04);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.phoneTop {
+  padding: 14px 0 8px;
+  display: flex; justify-content: center;
+}
+.phoneSpeaker {
+  width: 60px; height: 5px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 3px;
+}
+.phoneScreen {
+  background: #0f172a;
+  margin: 0 6px;
+  border-radius: 12px;
+  padding: 16px 14px 20px;
+  flex: 1;
+}
+.phoneBottom {
+  padding: 10px 0 14px;
+  display: flex; justify-content: center;
+}
+.phoneBar {
+  width: 80px; height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+}
+
+.screenHeader {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.screenTitle {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700; color: #fff;
+  font-family: var(--font-sans);
+}
+.screenBadge {
+  font-size: 9px; font-weight: 700; color: #38a860;
+  background: rgba(56,168,96,0.15);
+  border: 1px solid rgba(56,168,96,0.3);
+  border-radius: 4px; padding: 2px 6px;
+  letter-spacing: 0.5px;
+}
+.screenGreeting {
+  font-size: 15px; font-weight: 700; color: #fff;
+  font-family: var(--font-serif);
+  margin-bottom: 2px;
+}
+.screenSub {
+  font-size: 10px; color: rgba(255,255,255,0.4);
+  margin-bottom: 14px;
+}
+.screenCards { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.screenCard {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.screenCardLabel { font-size: 10px; color: rgba(255,255,255,0.55); }
+.screenCardRight { display: flex; align-items: center; gap: 6px; }
+.screenCardValue { font-size: 11px; font-weight: 600; color: #fff; }
+.dot { width: 7px; height: 7px; border-radius: 50%; }
+.dot_green { background: #38a860; }
+.dot_gold { background: #d4b07a; }
+.dot_red { background: #e05555; }
+
+.screenActions { display: flex; gap: 6px; }
+.screenBtn {
+  flex: 1; font-size: 10px; font-weight: 600; padding: 7px 0;
+  background: #d4b07a; color: #0c1f3d;
+  border: none; border-radius: 6px; cursor: pointer;
+}
+.screenBtnGhost {
+  flex: 1; font-size: 10px; font-weight: 600; padding: 7px 0;
+  background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; cursor: pointer;
+}
+
+/* ── Feature lists ── */
+.features { list-style: none; padding: 0; margin: 0 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.feature {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 15px; color: rgba(255,255,255,0.8);
+}
+.featureLight { color: var(--text-sec); }
+
+.featureIcon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(212,176,122,0.12);
+  border: 1px solid rgba(212,176,122,0.2);
+  border-radius: 8px;
+  color: #d4b07a;
+}
+.featureIconLight {
+  background: rgba(12,31,61,0.06);
+  border-color: rgba(12,31,61,0.1);
+  color: var(--teal);
+}
+
+.note {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: rgba(255,255,255,0.4);
+}
+.noteLight { color: var(--text-muted); }
+
+@media (max-width: 900px) {
+  .sectionLight, .sectionDark { padding: 72px 24px; }
+  .inner { grid-template-columns: 1fr; gap: 48px; }
+  .phoneRight, .phoneLeft { order: 2; }
+  .copyLeft, .copyRight { order: 1; }
+}

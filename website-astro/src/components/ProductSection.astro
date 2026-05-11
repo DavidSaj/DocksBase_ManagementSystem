@@ -1,0 +1,26 @@
+---
+import styles from './ProductSection.module.css'
+---
+<section class={styles.section} id="product">
+  <div class={styles.inner}>
+    <div class={styles.layout}>
+      <div class={styles.text}>
+        <div class={styles.eyebrow}>Live Platform</div>
+        <h2 class={styles.title}>Built for the dock. Ready on day one.</h2>
+        <p class={styles.sub}>
+          No training weeks. No consultants. Onboard your harbor in under 4 hours and have your full operation visible from one screen — berths, arrivals, payments, and alerts, all live.
+        </p>
+        <div style="margin-top:32px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class={styles.demoBtn}>Try the live demo</button>
+        </div>
+      </div>
+      <div class={styles.screenshot}>
+        <img
+          src="/images/app-overview.png"
+          alt="DocksBase — Overview dashboard showing berths, arrivals, weather and urgent panel"
+          class={styles.img}
+        />
+      </div>
+    </div>
+  </div>
+</section>

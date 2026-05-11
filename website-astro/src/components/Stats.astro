@@ -1,0 +1,20 @@
+---
+import styles from './Stats.module.css'
+
+const stats = [
+  { num: '18', suffix: '', desc: 'Operational modules built and ready to use' },
+  { num: '30', suffix: '-day', desc: 'Free trial — get started today' },
+  { num: '99', suffix: '.9%', desc: 'Platform uptime — even in peak season' },
+  { num: '4', suffix: 'hrs', desc: 'Average onboarding time for new harbors' },
+]
+---
+<section class={styles.section}>
+  <div class={styles.grid}>
+    {stats.map(s => (
+      <div class={styles.item}>
+        <div class={styles.num}>{s.num}<span>{s.suffix}</span></div>
+        <div class={styles.desc}>{s.desc}</div>
+      </div>
+    ))}
+  </div>
+</section>
