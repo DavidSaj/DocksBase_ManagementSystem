@@ -194,3 +194,53 @@ def test_extend_stay_post_409_on_conflict(member_factory, booking_factory):
         **_auth_headers(member),
     )
     assert resp.status_code == 409
+
+
+# ── Report Issue ───────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_issue_requires_auth():
+    resp = Client().post(
+        '/api/v1/portal/member/issues/',
+        {},
+        content_type='application/json',
+    )
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.django_db
+def test_issue_creates_work_order(member_factory):
+    member = member_factory()
+    resp = Client().post(
+        '/api/v1/portal/member/issues/',
+        {'category': 'berth', 'description': 'Cleat is broken.'},
+        content_type='application/json',
+        **_auth_headers(member),
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data['ref'].startswith('WO-')
+
+
+@pytest.mark.django_db
+def test_issue_rejects_invalid_category(member_factory):
+    member = member_factory()
+    resp = Client().post(
+        '/api/v1/portal/member/issues/',
+        {'category': 'not_a_category', 'description': 'Something broke.'},
+        content_type='application/json',
+        **_auth_headers(member),
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_issue_rejects_empty_description(member_factory):
+    member = member_factory()
+    resp = Client().post(
+        '/api/v1/portal/member/issues/',
+        {'category': 'facility', 'description': '   '},
+        content_type='application/json',
+        **_auth_headers(member),
+    )
+    assert resp.status_code == 400

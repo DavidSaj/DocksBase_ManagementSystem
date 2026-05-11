@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.members.models import Member
 from apps.reservations.models import Booking
+from apps.boatyard.models import WorkOrder
 
 from .member_auth import PortalMemberAuthentication
 from .models import CraneRequest
@@ -192,3 +193,39 @@ class PortalMemberExtendStayView(APIView):
             booking_source='portal_member',
         )
         return Response({'id': new_booking.id}, status=http_status.HTTP_201_CREATED)
+
+
+class PortalMemberIssueView(APIView):
+    authentication_classes = [PortalMemberAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    VALID_CATEGORIES = {'berth', 'facility', 'vessel', 'other'}
+    CATEGORY_TITLES = {
+        'berth':    'Berth / Pontoon issue reported by member',
+        'facility': 'Facility issue reported by member',
+        'vessel':   'Vessel issue reported by member',
+        'other':    'Issue reported by member',
+    }
+
+    def post(self, request):
+        member = _get_member(request)
+        if member is None:
+            return Response({'detail': 'Member not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        category = request.data.get('category', '')
+        raw_desc = request.data.get('description')
+        description = raw_desc.strip() if isinstance(raw_desc, str) else ''
+
+        if category not in self.VALID_CATEGORIES:
+            return Response({'detail': 'Invalid category.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        if not description:
+            return Response({'detail': 'description is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        work_order = WorkOrder.objects.create(
+            marina=member.marina,
+            title=self.CATEGORY_TITLES[category],
+            category=category,
+            description=description,
+            status='pending_auth',
+        )
+        return Response({'ref': f'WO-{work_order.id}'}, status=http_status.HTTP_201_CREATED)

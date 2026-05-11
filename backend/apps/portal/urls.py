@@ -6,6 +6,7 @@ from .services_views import (
     PortalMemberCraneRequestView,
     PortalMemberBookingView,
     PortalMemberExtendStayView,
+    PortalMemberIssueView,
 )
 from .views import (
     PortalInvoiceListView, AbsenceReportCreateView, CraneRequestListCreateView,
@@ -26,4 +27,5 @@ urlpatterns = member_auth_urls + [
     path('portal/member/crane-requests/',                 PortalMemberCraneRequestView.as_view(), name='portal_member_crane_requests'),
     path('portal/member/booking/',                        PortalMemberBookingView.as_view(),       name='portal_member_booking'),
     path('portal/member/extend-stay/',                    PortalMemberExtendStayView.as_view(),    name='portal_member_extend_stay'),
+    path('portal/member/issues/',                         PortalMemberIssueView.as_view(),         name='portal_member_issues'),
 ]
