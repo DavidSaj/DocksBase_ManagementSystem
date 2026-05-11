@@ -38,6 +38,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         payload = {k: v for k, v in event.items() if k != 'type'}
         await self.send(text_data=json.dumps({'type': 'notification', **payload}))
 
+    async def receive(self, text_data=None, bytes_data=None):
+        pass
+
     @database_sync_to_async
     def _get_user(self, token_str):
         try:
@@ -50,5 +53,5 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     def _get_recent(self, user):
         from .models import Notification
         from .serializers import NotificationSerializer
-        qs = Notification.objects.filter(recipient=user).order_by('-created_at')[:20]
+        qs = Notification.objects.filter(recipient=user, read=False).order_by('-created_at')[:20]
         return NotificationSerializer(qs, many=True).data

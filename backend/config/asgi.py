@@ -10,7 +10,7 @@ from django.urls import re_path
 from apps.berths.routing import websocket_urlpatterns as berths_ws
 from apps.notifications.consumers import NotificationConsumer
 
-websocket_urlpatterns = berths_ws + [
+websocket_urlpatterns = list(berths_ws) + [
     re_path(r'^ws/notifications/$', NotificationConsumer.as_asgi()),
 ]
 
