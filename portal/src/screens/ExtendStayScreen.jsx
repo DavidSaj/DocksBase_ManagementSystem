@@ -21,9 +21,9 @@ function CheckCircleIcon() {
 }
 
 function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d + n);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export default function ExtendStayScreen({ onBack }) {
