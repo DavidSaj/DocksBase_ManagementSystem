@@ -1,4 +1,5 @@
 # backend/apps/portal/services_views.py
+import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status as http_status
@@ -35,19 +36,25 @@ class PortalMemberCraneRequestView(APIView):
             )
 
         service_type = request.data.get('service_type', '')
-        requested_date = request.data.get('requested_date', '')
-        notes = request.data.get('notes', '').strip()
 
         if service_type not in self.VALID_SERVICE_TYPES:
             return Response(
                 {'detail': 'Invalid service_type.'},
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
-        if not requested_date:
+
+        try:
+            requested_date = datetime.date.fromisoformat(
+                str(request.data.get('requested_date') or '')
+            )
+        except ValueError:
             return Response(
-                {'detail': 'requested_date is required.'},
+                {'detail': 'requested_date must be a valid ISO date (YYYY-MM-DD).'},
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
+
+        raw_notes = request.data.get('notes')
+        notes = raw_notes.strip() if isinstance(raw_notes, str) else ''
 
         crane_req = CraneRequest.objects.create(
             member=member,

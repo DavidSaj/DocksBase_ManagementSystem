@@ -1,8 +1,11 @@
 import datetime
 import hmac
 import hashlib
+import logging
 
 import dropbox_sign
+
+_log = logging.getLogger(__name__)
 from dropbox_sign import ApiClient, Configuration, apis, models as ds_models
 
 from django.conf import settings
@@ -33,15 +36,18 @@ class MagicAuthView(APIView):
             return Response({'detail': 'token required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             payload = decode_magic_token(token)
-        except signing.BadSignature:
+        except signing.BadSignature as e:
+            _log.warning('MagicAuth BAD_SIGNATURE: %s | token_prefix=%s', e, (token or '')[:30])
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_401_UNAUTHORIZED)
 
+        _log.info('MagicAuth decoded OK: booking_id=%s email=%s', payload.get('booking_id'), payload.get('boater_email'))
         try:
             booking = Booking.objects.select_related('marina').get(
                 pk=payload['booking_id'],
                 guest_email=payload['boater_email'],
             )
         except Booking.DoesNotExist:
+            _log.warning('MagicAuth BOOKING_NOT_FOUND: booking_id=%s email=%s', payload.get('booking_id'), payload.get('boater_email'))
             return Response({'detail': 'Booking not found.'}, status=status.HTTP_401_UNAUTHORIZED)
 
         session_token = make_portal_token(

@@ -255,20 +255,26 @@ function BerthDetailModal({ berth, bookings, onClose, onJumpToMap, onSelectBooki
 
 // ── Main calendar ───────────────────────────────────────────────────────────
 
-export default function BerthCalendar({ onJumpToMap }) {
+export default function BerthCalendar({ onJumpToMap, initialFrom = '', initialTo = '', initialLoa = '', initialAvailOnly = false, onSelectBerth }) {
   const { berths, loading: berthsLoading } = useBerths()
   const { bookings, loading: bookingsLoading } = useBookings()
 
   const [period, setPeriod]             = useState(PERIODS[2])
-  const [anchor, setAnchor]             = useState(() => startOfDay(new Date()))
-  const [searchFrom, setSearchFrom]     = useState('')
-  const [searchTo,   setSearchTo]       = useState('')
+  // In picker mode shift 7 days back so the range isn't flush-left and can be centred
+  const [anchor, setAnchor]             = useState(() =>
+    initialFrom
+      ? startOfDay(addDays(new Date(initialFrom + 'T00:00:00'), -7))
+      : startOfDay(new Date())
+  )
+  const [searchFrom, setSearchFrom]     = useState(initialFrom)
+  const [searchTo,   setSearchTo]       = useState(initialTo)
   const [filterType, setFilterType]     = useState('all')
-  const [filterAvailOnly, setFilterAvailOnly] = useState(false)
-  const [boatLoa,    setBoatLoa]        = useState('')
+  const [filterAvailOnly, setFilterAvailOnly] = useState(initialAvailOnly)
+  const [boatLoa,    setBoatLoa]        = useState(initialLoa ? String(initialLoa) : '')
   const [selectedBerth,   setSelectedBerth]   = useState(null)
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [labelWidth, setLabelWidth]     = useState(100)
+  const [hoveredBerthId, setHoveredBerthId]   = useState(null)
 
   const gridRef       = useRef(null)
   const resizeDrag    = useRef(null)
@@ -307,6 +313,21 @@ export default function BerthCalendar({ onJumpToMap }) {
     const w = el.getBoundingClientRect().width
     if (w > 0) setPeriod(periodForWidth(w - labelWidth))
   }, [labelWidth])
+
+  // Centre the pre-seeded date range when the calendar opens in picker mode
+  useEffect(() => {
+    if (!onSelectBerth || !initialFrom || !gridRef.current) return
+    const el = gridRef.current
+    const id = requestAnimationFrame(() => {
+      const rangeDays = initialTo
+        ? Math.max(0, Math.round((new Date(initialTo) - new Date(initialFrom)) / 86400000))
+        : 0
+      // anchor was shifted -7 days, so initialFrom is at column index 7
+      const rangeMidPx = labelWidthRef.current + (7 + rangeDays / 2) * COL_W
+      el.scrollLeft = Math.max(0, rangeMidPx - el.clientWidth / 2)
+    })
+    return () => cancelAnimationFrame(id)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mouse-wheel horizontal scroll (vertical wheel → scroll left/right) ────
   useEffect(() => {
@@ -441,8 +462,19 @@ export default function BerthCalendar({ onJumpToMap }) {
   const windowStart = days.length ? isoDate(days[0]) : ''
   const windowEnd   = days.length ? isoDate(addDays(days[days.length - 1], 1)) : ''
 
+  function dayIdxFromWindow(iso) {
+    const dt = new Date(iso + 'T00:00:00')
+    const w0 = new Date(windowStart + 'T00:00:00')
+    return Math.round((dt - w0) / 86400000)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {onSelectBerth && (
+        <div style={{ background: '#dbeeff', borderBottom: '1px solid rgba(0,117,222,0.2)', padding: '7px 16px', fontSize: 12, color: '#004fa3', fontWeight: 600, flexShrink: 0 }}>
+          Click any berth row to select it
+        </div>
+      )}
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: 'var(--border)', flexWrap: 'wrap', background: '#fff', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -583,8 +615,8 @@ export default function BerthCalendar({ onJumpToMap }) {
                 {/* Label with resizer */}
                 <div data-interactive
                   style={{ width: labelWidth, minWidth: labelWidth, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', borderRight: '1px solid rgba(0,0,0,0.08)', cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => setSelectedBerth(berth)}
-                  title="View berth details"
+                  onClick={() => onSelectBerth ? onSelectBerth(berth) : setSelectedBerth(berth)}
+                  title={onSelectBerth ? 'Click to select this berth' : 'View berth details'}
                 >
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {berth.code}
@@ -608,7 +640,13 @@ export default function BerthCalendar({ onJumpToMap }) {
                 </div>
 
                 {/* Day cells + booking bars */}
-                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                <div
+                  data-interactive={onSelectBerth ? '' : undefined}
+                  style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: onSelectBerth && searchFrom && searchTo ? 'pointer' : undefined }}
+                  onMouseEnter={() => { if (onSelectBerth) setHoveredBerthId(berth.id) }}
+                  onMouseLeave={() => { if (onSelectBerth) setHoveredBerthId(null) }}
+                  onClick={() => { if (onSelectBerth && searchFrom && searchTo) onSelectBerth(berth) }}
+                >
                   <div style={{ display: 'flex', height: '100%' }}>
                     {days.map(d => {
                       const iso = isoDate(d)
@@ -635,21 +673,15 @@ export default function BerthCalendar({ onJumpToMap }) {
                     const clampedStart = bk.check_in  > windowStart ? bk.check_in  : windowStart
                     const clampedEnd   = bk.check_out < windowEnd   ? bk.check_out : windowEnd
 
-                    const dayIdx = iso => {
-                      const dt = new Date(iso + 'T00:00:00')
-                      const w0 = new Date(windowStart + 'T00:00:00')
-                      return Math.round((dt - w0) / 86400000)
-                    }
-
-                    const barLeft  = dayIdx(clampedStart) * COL_W + 1
-                    const barWidth = (dayIdx(clampedEnd) - dayIdx(clampedStart)) * COL_W - 2
+                    const barLeft  = dayIdxFromWindow(clampedStart) * COL_W + 1
+                    const barWidth = (dayIdxFromWindow(clampedEnd) - dayIdxFromWindow(clampedStart)) * COL_W - 2
                     if (barWidth <= 0) return null
 
                     return (
                       <div
                         key={bk.id}
                         data-interactive
-                        onClick={() => setSelectedBooking(bk)}
+                        onClick={() => { if (onSelectBerth) onSelectBerth(berth); else setSelectedBooking(bk) }}
                         title={`${bk.vessel_name || bk.guest_name || 'Booking'} · ${bk.check_in} → ${bk.check_out}`}
                         style={{
                           position: 'absolute', top: 4, bottom: 4, left: barLeft, width: barWidth,
@@ -666,6 +698,31 @@ export default function BerthCalendar({ onJumpToMap }) {
                       </div>
                     )
                   })}
+
+                  {/* Ghost bar — shows where the booking would land in picker mode */}
+                  {onSelectBerth && hoveredBerthId === berth.id && searchFrom && searchTo && (() => {
+                    const ghostLeft  = dayIdxFromWindow(searchFrom) * COL_W + 1
+                    const ghostWidth = (dayIdxFromWindow(searchTo) - dayIdxFromWindow(searchFrom)) * COL_W - 2
+                    if (ghostWidth <= 0) return null
+                    return (
+                      <div
+                        key="ghost"
+                        style={{
+                          position: 'absolute', top: 3, bottom: 3, left: ghostLeft, width: ghostWidth,
+                          background: 'rgba(0,117,222,0.18)',
+                          border: '2px dashed rgba(0,117,222,0.65)',
+                          borderRadius: 4,
+                          pointerEvents: 'none',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#004fa3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 6px' }}>
+                          {berth.code}
+                        </span>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )

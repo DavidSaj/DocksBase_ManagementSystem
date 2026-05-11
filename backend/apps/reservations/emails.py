@@ -1,7 +1,11 @@
+import logging
+
 from django.conf import settings
 from django.core.mail import send_mail
 
 from apps.portal.checkin_utils import make_magic_url
+
+_log = logging.getLogger(__name__)
 
 
 def send_booking_request_boater_email(booking):
@@ -91,6 +95,7 @@ def send_booking_confirmed_email(booking):
     from apps.accounts.emails import _base, _h1, _p, _btn, _divider, _small, _NAVY, _MUTED, _TEXT
     marina    = booking.marina
     magic_url = make_magic_url(booking)
+    print(f'\n{"="*60}\nBOARDING PASS URL (copy exactly):\n{magic_url}\n{"="*60}\n', flush=True)
     guest     = booking.guest_name or 'there'
     berth     = booking.berth.code if booking.berth else '—'
     check_in  = booking.check_in.strftime('%d %B %Y')

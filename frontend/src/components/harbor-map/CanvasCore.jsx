@@ -289,7 +289,7 @@ export default function CanvasCore({
         <circle
           cx={drawCursor.gx * GRID}
           cy={drawCursor.gy * GRID}
-          r={Math.max(5, Math.round(16 / zoom))}
+          r={Math.max(3, Math.round(5 / zoom))}
           fill={drawTool?.border ?? '#5a9850'}
           fillOpacity={0.7}
           stroke="white"

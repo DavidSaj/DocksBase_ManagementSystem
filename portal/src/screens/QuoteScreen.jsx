@@ -11,12 +11,53 @@ function formatDate(iso) {
 }
 
 const AMENITY_LABELS = {
-  power_30a:   '⚡ 30A Power',
-  power_50a:   '⚡ 50A Power',
-  water:       '💧 Water',
-  wifi:        '📶 WiFi',
-  fuel_nearby: '⛽ Fuel Nearby',
-  pump_out:    '🔄 Pump-out',
+  power_30a:   '30A Power',
+  power_50a:   '50A Power',
+  water:       'Water',
+  wifi:        'WiFi',
+  fuel_nearby: 'Fuel Nearby',
+  pump_out:    'Pump-out',
+};
+
+const AMENITY_ICONS = {
+  power_30a: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  ),
+  power_50a: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  ),
+  water: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+    </svg>
+  ),
+  wifi: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+      <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+      <line x1="12" y1="20" x2="12.01" y2="20"/>
+    </svg>
+  ),
+  fuel_nearby: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="22" x2="15" y2="22"/>
+      <line x1="4" y1="9" x2="14" y2="9"/>
+      <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/>
+      <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>
+    </svg>
+  ),
+  pump_out: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1 4 1 10 7 10"/>
+      <polyline points="23 20 23 14 17 14"/>
+      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+    </svg>
+  ),
 };
 
 const MOORING_LABELS = {
@@ -46,7 +87,8 @@ function ReceiptCard({ category, nights, total, checkIn, checkOut, marina }) {
       {category.amenities?.length > 0 && (
         <div className="q-receipt-amenities">
           {category.amenities.map(a => (
-            <span key={a} className="q-receipt-amenity">
+            <span key={a} className="q-receipt-amenity" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {AMENITY_ICONS[a]}
               {AMENITY_LABELS[a] || a}
             </span>
           ))}
@@ -159,7 +201,7 @@ function PayForm({ state, navigate, onSuccess }) {
       </div>
       <div className="p-field" style={{ maxWidth: 200 }}>
         <label className="p-label">Estimated arrival time</label>
-        <input className="p-input" type="time" value={form.eta} onChange={e => set('eta', e.target.value)} />
+        <input className="p-input" type="time" step="300" value={form.eta} onChange={e => set('eta', e.target.value)} />
       </div>
 
       <hr className="q-checkout-divider" />

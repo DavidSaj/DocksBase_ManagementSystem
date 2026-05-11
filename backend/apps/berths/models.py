@@ -59,7 +59,9 @@ class BerthCategory(models.Model):
     ]
     marina       = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='berth_categories')
     name         = models.CharField(max_length=100)
+    tagline      = models.CharField(max_length=200, blank=True)
     description  = models.TextField(blank=True)
+    highlights   = models.JSONField(default=list, blank=True)
     mooring_type = models.CharField(max_length=20, choices=MOORING_CHOICES, default='finger')
     amenities    = models.JSONField(default=list)
     pricing_tier = models.ForeignKey(

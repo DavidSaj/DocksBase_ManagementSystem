@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
     Pier, Berth, MarinaMapConfig, Amenity, LogicalPier,
+    BerthCategory,
     # Track 2
     BerthScoreWeights, TemporaryDeparture, SubLetBooking,
     FleetAssignJob, DockWalkSession, DockWalkEntry,
@@ -14,10 +15,35 @@ class PierAdmin(admin.ModelAdmin):
     list_filter = ['marina']
 
 
+class BerthInline(admin.TabularInline):
+    model = Berth
+    fields = ['code', 'berth_class', 'status', 'length_m', 'max_beam_m']
+    extra = 0
+    show_change_link = True
+
+
+@admin.register(BerthCategory)
+class BerthCategoryAdmin(admin.ModelAdmin):
+    list_display  = ['name', 'marina', 'mooring_type', 'sort_order', 'is_active', 'berth_count']
+    list_filter   = ['marina', 'is_active', 'mooring_type']
+    ordering      = ['marina', 'sort_order']
+    inlines       = [BerthInline]
+    fieldsets = [
+        (None, {'fields': ['marina', 'name', 'tagline', 'is_active', 'sort_order']}),
+        ('Content', {'fields': ['description', 'highlights'], 'description': 'highlights: JSON list of short bullet strings, e.g. ["Shore power included", "Bow-to mooring"]'}),
+        ('Berth type', {'fields': ['mooring_type', 'amenities']}),
+        ('Pricing', {'fields': ['pricing_tier']}),
+    ]
+
+    def berth_count(self, obj):
+        return obj.berths.count()
+    berth_count.short_description = 'Berths'
+
+
 @admin.register(Berth)
 class BerthAdmin(admin.ModelAdmin):
-    list_display = ['code', 'pier', 'marina', 'status', 'vessel']
-    list_filter = ['marina', 'status']
+    list_display = ['code', 'pier', 'marina', 'berth_class', 'status', 'category', 'length_m', 'vessel']
+    list_filter  = ['marina', 'status', 'berth_class', 'category']
 
 
 @admin.register(Amenity)

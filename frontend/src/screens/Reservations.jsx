@@ -7,6 +7,7 @@ import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
 import PendingRequestsTab from '../components/reservations/PendingRequestsTab.jsx';
+import BerthCalendar from '../components/harbor-map/BerthCalendar.jsx';
 
 const filterMap = {
   all:       {},
@@ -111,6 +112,32 @@ function BerthSelect({ value, onChange, check_in, check_out, boat_loa, boat_beam
 }
 
 // ---------------------------------------------------------------------------
+// BerthPickerOverlay — full-screen calendar for selecting a berth
+// ---------------------------------------------------------------------------
+function BerthPickerOverlay({ initialFrom, initialTo, initialLoa, onSelectBerth, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', background: '#f4f6f8' }}>
+      <div style={{ background: '#1a2d4a', color: '#fff', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>←</button>
+        <span style={{ fontWeight: 700, fontSize: 15 }}>Select a Berth</span>
+        {initialFrom && initialTo && (
+          <span style={{ fontSize: 12, opacity: 0.6 }}>{initialFrom} → {initialTo}{initialLoa ? ` · LOA ${initialLoa}m` : ''}</span>
+        )}
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <BerthCalendar
+          initialFrom={initialFrom}
+          initialTo={initialTo}
+          initialLoa={initialLoa}
+          initialAvailOnly={!!(initialFrom && initialTo)}
+          onSelectBerth={onSelectBerth}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SmartBookingModal
 // ---------------------------------------------------------------------------
 function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }) {
@@ -139,6 +166,7 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [berthPicker, setBerthPicker] = useState(null); // { from, to, loa, onSelect } | null
 
   // Hover state for result rows
   const [hoveredIdx, setHoveredIdx] = useState(null);
@@ -305,6 +333,16 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
   });
 
   return (
+    <>
+    {berthPicker && (
+      <BerthPickerOverlay
+        initialFrom={berthPicker.from}
+        initialTo={berthPicker.to}
+        initialLoa={berthPicker.loa}
+        onSelectBerth={berthPicker.onSelect}
+        onClose={() => setBerthPicker(null)}
+      />
+    )}
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div className="card" style={{ width: 480, padding: 24, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
 
@@ -415,32 +453,50 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
                 </label>
               </div>
 
-              <label style={LABEL}>
-                Berth
-                <select
-                  className="input"
-                  value={mForm.berth}
-                  onChange={e => handleMBerthChange(e, mBerths.berths)}
-                  required
-                  disabled={mBerths.noDatesYet || mBerths.loading}
-                  style={{ marginTop: 4, width: '100%', fontWeight: 400 }}
-                >
-                  <option value="">
-                    {mBerths.noDatesYet
-                      ? 'Set check-in & check-out first'
-                      : mBerths.loading
-                        ? 'Checking availability…'
-                        : mBerths.berths.length === 0
-                          ? 'No berths available for these dates'
-                          : 'Select berth…'}
-                  </option>
-                  {mBerths.berths.map(b => (
-                    <option key={b.id} value={b.id}>
-                      {b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}
+              <div>
+                <div style={LABEL}>Berth</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'flex-start' }}>
+                  <select
+                    className="input"
+                    value={mForm.berth}
+                    onChange={e => handleMBerthChange(e, mBerths.berths)}
+                    required
+                    disabled={mBerths.noDatesYet || mBerths.loading}
+                    style={{ flex: 1, fontWeight: 400 }}
+                  >
+                    <option value="">
+                      {mBerths.noDatesYet
+                        ? 'Set check-in & check-out first'
+                        : mBerths.loading
+                          ? 'Checking availability…'
+                          : mBerths.berths.length === 0
+                            ? 'No berths available for these dates'
+                            : 'Select berth…'}
                     </option>
-                  ))}
-                </select>
-              </label>
+                    {mBerths.berths.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.code}{b.price_per_night ? ` — €${b.price_per_night}/night` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={mBerths.noDatesYet}
+                    onClick={() => setBerthPicker({
+                      from: mForm.check_in, to: mForm.check_out, loa: '',
+                      onSelect: (berth) => {
+                        setMForm(f => ({ ...f, berth: String(berth.id) }));
+                        setSelectedBerthMeta({ id: berth.id, price_per_night: berth.price_per_night });
+                        setBerthPicker(null);
+                      },
+                    })}
+                    style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    Browse calendar
+                  </button>
+                </div>
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f5f8ff', borderRadius: 6 }}>
                 <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Estimated amount</span>
@@ -488,18 +544,35 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
                 </label>
               </div>
 
-              <label style={LABEL}>
-                Berth
-                <BerthSelect
-                  value={qForm.berth}
-                  onChange={e => setQForm(f => ({ ...f, berth: e.target.value }))}
-                  check_in={qForm.check_in}
-                  check_out={qForm.check_out}
-                  boat_loa={qForm.guest_loa || undefined}
-                  required
-                  style={{ marginTop: 4, width: '100%', fontWeight: 400 }}
-                />
-              </label>
+              <div>
+                <div style={LABEL}>Berth</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'flex-start' }}>
+                  <BerthSelect
+                    value={qForm.berth}
+                    onChange={e => setQForm(f => ({ ...f, berth: e.target.value }))}
+                    check_in={qForm.check_in}
+                    check_out={qForm.check_out}
+                    boat_loa={qForm.guest_loa || undefined}
+                    required
+                    style={{ flex: 1, fontWeight: 400 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={!qForm.check_in || !qForm.check_out}
+                    onClick={() => setBerthPicker({
+                      from: qForm.check_in, to: qForm.check_out, loa: qForm.guest_loa || '',
+                      onSelect: (berth) => {
+                        setQForm(f => ({ ...f, berth: String(berth.id) }));
+                        setBerthPicker(null);
+                      },
+                    })}
+                    style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    Browse calendar
+                  </button>
+                </div>
+              </div>
 
               <label style={LABEL}>
                 Type
@@ -567,19 +640,36 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
                 </label>
               </div>
 
-              <label style={LABEL}>
-                Berth
-                <BerthSelect
-                  value={fForm.berth}
-                  onChange={e => setFForm(f => ({ ...f, berth: e.target.value }))}
-                  check_in={fForm.check_in}
-                  check_out={fForm.check_out}
-                  boat_loa={fForm.loa || undefined}
-                  boat_draft={fForm.draft || undefined}
-                  required
-                  style={{ marginTop: 4, width: '100%', fontWeight: 400 }}
-                />
-              </label>
+              <div>
+                <div style={LABEL}>Berth</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'flex-start' }}>
+                  <BerthSelect
+                    value={fForm.berth}
+                    onChange={e => setFForm(f => ({ ...f, berth: e.target.value }))}
+                    check_in={fForm.check_in}
+                    check_out={fForm.check_out}
+                    boat_loa={fForm.loa || undefined}
+                    boat_draft={fForm.draft || undefined}
+                    required
+                    style={{ flex: 1, fontWeight: 400 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={!fForm.check_in || !fForm.check_out}
+                    onClick={() => setBerthPicker({
+                      from: fForm.check_in, to: fForm.check_out, loa: fForm.loa || '',
+                      onSelect: (berth) => {
+                        setFForm(f => ({ ...f, berth: String(berth.id) }));
+                        setBerthPicker(null);
+                      },
+                    })}
+                    style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    Browse calendar
+                  </button>
+                </div>
+              </div>
 
               <label style={LABEL}>
                 Type
@@ -597,6 +687,7 @@ function SmartBookingModal({ onClose, onCreated, createRequest, convertRequest }
         )}
       </div>
     </div>
+    </>
   );
 }
 

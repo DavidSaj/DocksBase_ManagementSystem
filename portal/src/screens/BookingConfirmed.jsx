@@ -53,14 +53,6 @@ export default function BookingConfirmed({ marina, bookingId, cancelled }) {
               {cancelled ? 'Payment cancelled' : 'Booking confirmed'}
             </div>
 
-            {!cancelled && bookingId && (
-              <div style={{
-                fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 700,
-                letterSpacing: 3, color: '#1a1a1a',
-              }}>
-                #{bookingId}
-              </div>
-            )}
           </div>
 
           {cancelled ? (
