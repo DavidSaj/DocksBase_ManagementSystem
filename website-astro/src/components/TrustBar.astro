@@ -1,0 +1,16 @@
+---
+import styles from './TrustBar.module.css'
+
+const marinas = ['Harwich Marina', 'Port Vauban', 'Gibraltar Yacht Marina', 'Zea Marina', 'Royal Harbour', 'Palma de Mallorca']
+---
+<div class={styles.bar}>
+  <span class={styles.label}>Trusted by 200+ marinas worldwide</span>
+  <div class={styles.names}>
+    {marinas.map((name, i) => (
+      <span style="display:flex;align-items:center;gap:36px">
+        <span class={styles.name}>{name}</span>
+        {i < marinas.length - 1 && <span class={styles.dot} />}
+      </span>
+    ))}
+  </div>
+</div>

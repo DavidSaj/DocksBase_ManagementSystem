@@ -1,0 +1,221 @@
+---
+import styles from './Features.module.css'
+import AnchorDivider from './AnchorDivider.astro'
+
+const TABS = [
+  {
+    label: 'Operations',
+    modules: [
+      {
+        title: 'Overview Dashboard',
+        desc: 'Live stat cards, activity log, weather widget, urgent alerts, and pending bookings — your entire harbor at a glance every morning.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+      },
+      {
+        title: 'Harbour Map',
+        desc: 'Interactive digital-twin harbor map — drag berths onto the canvas, color-coded by status, click any slip for vessel detail. Real-time and always accurate.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.657 16.657L13.414 20.9a2 2 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0z"/><circle cx="12" cy="11" r="3"/></svg>`,
+      },
+      {
+        title: 'Reservations',
+        desc: 'Transient, seasonal, pending, overdue, and wait-list bookings — all booking types with one-click confirm, approval workflow, and side detail panels.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+      },
+      {
+        title: 'Booking Engine',
+        desc: 'Online self-service booking portal with Stripe payments. A gap-minimisation algorithm assigns the most efficient berth automatically, or you approve manually.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
+      },
+      {
+        title: 'Berth Intelligence',
+        desc: 'Occupancy rates, berth utilisation breakdowns, length-of-stay analysis, and availability forecasting — turn your berth data into commercial insight.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+      },
+      {
+        title: 'Daily Operations',
+        desc: 'Fuel dock queue management, point-of-sale for on-site services, and shift handover log — everything the dock team needs to run a smooth day.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`,
+      },
+    ],
+  },
+  {
+    label: 'Yard & Services',
+    modules: [
+      {
+        title: 'Boatyard',
+        desc: 'Haul-out schedule, launch queue, dry storage map, work orders, parts & inventory, tools, contractors, and facility log. Complete yard visibility in one place.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+      },
+      {
+        title: 'Maintenance',
+        desc: 'Staff task checklists, incident reporting, asset register with service dates, and defect log with severity tracking and work order escalation.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+      },
+      {
+        title: 'Activities & Housekeeping',
+        desc: 'Schedule and track shore-side activities, cleaning rounds, and housekeeping tasks. Assign to staff, monitor completion, and maintain service standards across the site.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+      },
+      {
+        title: 'Utilities & Drystack',
+        desc: 'Meter reading imports, utility billing per berth, and drystack slot management. Track power and water consumption and invoice automatically.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+      },
+      {
+        title: 'Charter & Harbour',
+        desc: 'Manage charter bookings, vessel availability, skipper assignments, and harbour-hire agreements. Full calendar view for your charter fleet.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+      },
+    ],
+  },
+  {
+    label: 'Finance',
+    modules: [
+      {
+        title: 'Billing & POS',
+        desc: 'Auto-invoices on departure, utility meter billing, point-of-sale for dockside services, aged debtor chase workflow, and batch exports in CSV/PDF/XLSX.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+      },
+      {
+        title: 'Revenue Intelligence',
+        desc: 'Revenue trends, market rate comparators, yield analytics, and forward-looking occupancy forecasts. Price your berths competitively and spot revenue gaps.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+      },
+      {
+        title: 'Accounting',
+        desc: 'General ledger overview, payment reconciliation, VAT summary, and export-ready journals. Keeps your finance team in sync without leaving the platform.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+      },
+      {
+        title: 'Reports & Analytics',
+        desc: 'Revenue summaries, occupancy trends, and yard throughput charts. Exportable for end-of-month reporting and board presentations.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+      },
+    ],
+  },
+  {
+    label: 'Directory',
+    modules: [
+      {
+        title: 'Members',
+        desc: 'Member and vessel-owner registry with full detail panels, document vault, communication history, and segment builder for targeted outreach.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+      },
+      {
+        title: 'Vessels',
+        desc: 'Full vessel registry with AIS tracker, certificate expiry monitoring, owner contacts, specs, and arrival/departure logs. Find any vessel in seconds.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
+      },
+      {
+        title: 'Documents & eSign',
+        desc: 'Manage document templates, send signature envelopes, track completion, and mass-send forms to member segments — paperwork handled from your desk.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+      },
+      {
+        title: 'Communications',
+        desc: 'Email and SMS broadcast to member segments, automated transactional messages, and a full outbox log. Stay in contact without switching tools.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+      },
+    ],
+  },
+  {
+    label: 'Management',
+    modules: [
+      {
+        title: 'Staff & Rota',
+        desc: 'Staff register, rota planning, time tracking, certifications, and skills matrix. Assign crew to jobs and get full accountability over who did what and when.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+      },
+      {
+        title: 'Harbor Infrastructure',
+        desc: 'Visual map builder to lay out piers, berths, and facilities. Configure logical pier groups, berth categories, and pricing tiers — the foundation everything runs on.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+      },
+      {
+        title: 'Channels & OTA',
+        desc: 'Connect your marina to online travel agents and booking platforms. Manage channel allocations, sync availability, and control how your berths appear to the world.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+      },
+      {
+        title: 'Service Catalog',
+        desc: 'Central registry of every chargeable service — berth rates, crane lifts, pump-out, power connections, and add-ons. One place to manage all your pricing.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+      },
+      {
+        title: 'Loyalty Programme',
+        desc: 'Points-based loyalty scheme for repeat visitors and long-stay members. Configure earn rates, rewards, and tier thresholds — then watch retention improve.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>`,
+      },
+      {
+        title: 'Security & Access',
+        desc: 'Role-based access control for staff, gate and barrier integration, visitor logs, and key-card management. Know exactly who accessed what and when.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      },
+      {
+        title: 'Sustainability',
+        desc: 'Track energy and water consumption, carbon footprint, and ESG metrics across your marina. Generate reports for accreditation bodies and board reporting.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.97 0 9-4.03 9-9-4.97 0-9 4.03-9 9z"/><path d="M5.6 10.25a9 9 0 0 0 16.15 3.9"/><path d="M12 22C7.03 22 3 17.97 3 13c4.97 0 9 4.03 9 9z"/></svg>`,
+      },
+      {
+        title: 'Tenants & Marketplace',
+        desc: 'Manage on-site tenants — chandleries, workshops, cafés. Track leases, invoices, and marketplace listings. Turn your marina into a full commercial hub.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+      },
+    ],
+  },
+  {
+    label: 'Mobile',
+    modules: [
+      {
+        title: 'Field App',
+        desc: 'Full harbor management from any phone or tablet — no app download needed. Staff check reservations, log maintenance, update berth status, and handle crane requests right from the dock.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`,
+      },
+      {
+        title: 'Offline Mode',
+        desc: 'Critical data cached locally — berth assignments, work orders, and arrivals list stay accessible even without a signal. Changes sync automatically when back online.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l11 11L23 6"/><path d="M1 1l22 22"/></svg>`,
+      },
+      {
+        title: 'Push Notifications',
+        desc: 'Instant alerts for new bookings, overdue invoices, maintenance escalations, and arrival check-ins — delivered directly to staff phones wherever they are on site.',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+      },
+    ],
+  },
+]
+
+const MODULE_COUNT = TABS.reduce((sum, t) => sum + t.modules.length, 0)
+// Static render: show first tab (Operations) by default
+const activeTab = 0
+const modules = TABS[activeTab].modules
+---
+<section class={styles.section} id="features">
+  <div class={styles.inner}>
+    <div class={styles.header}>
+      <div class={styles.eyebrow}>The full platform</div>
+      <h2 class={styles.title}>{MODULE_COUNT} modules. One platform.</h2>
+      <p class={styles.sub}>Every tool a harbor needs — built in, not bolted on.</p>
+    </div>
+    <AnchorDivider />
+    <div class={styles.tabs}>
+      {TABS.map((tab, i) => (
+        <button class={`${styles.tab} ${i === activeTab ? styles.tabActive : ''}`}>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+    <div class={styles.grid}>
+      {modules.map(m => (
+        <div class={styles.card}>
+          <div class={styles.icon} set:html={m.icon} />
+          <div class={styles.cardTitle}>{m.title}</div>
+          <p class={styles.desc}>{m.desc}</p>
+        </div>
+      ))}
+    </div>
+    <p class={styles.allModules}>
+      <span class={styles.badge}>{MODULE_COUNT} modules included</span> — Operations · Yard & Services · Finance · Directory · Management · Mobile
+    </p>
+  </div>
+</section>

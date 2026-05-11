@@ -1,0 +1,153 @@
+---
+import styles from './MobileApp.module.css'
+
+const boaterRows = [
+  { label: 'My Berth', value: 'A-14 · Pier 2', dot: 'green' },
+  { label: 'Check-out', value: '16 Aug 2026', dot: 'gold' },
+  { label: 'Outstanding', value: '€320', dot: 'red' },
+  { label: 'Fuel (last fill)', value: '42 L', dot: 'green' },
+]
+
+const boaterFeatures = [
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`, label: 'View and manage berth bookings' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`, label: 'Pay invoices from the phone' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`, label: 'Request fuel, water & shore services' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`, label: 'Download & eSign marina documents' },
+]
+
+const staffRows = [
+  { label: 'Reservations', value: '12 active', dot: 'green' },
+  { label: 'Pending crane req.', value: '3', dot: 'gold' },
+  { label: 'Maintenance tasks', value: '7 open', dot: 'red' },
+  { label: 'Invoices today', value: '€2,840', dot: 'green' },
+]
+
+const staffFeatures = [
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`, label: 'Check & manage reservations' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`, label: 'Log maintenance & incidents' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`, label: 'Approve crane & haul-out requests' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`, label: 'Issue invoices from the dock' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`, label: 'View member & vessel details' },
+  { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`, label: 'Receive push alerts instantly' },
+]
+---
+
+<!-- Boater section -->
+<section class={styles.sectionDark}>
+  <div class={styles.inner}>
+    <div class={styles.copyLeft}>
+      <div class={styles.eyebrow}>Boater app</div>
+      <h2 class={styles.title}>A great experience<br />for your customers.</h2>
+      <p class={styles.body}>
+        Every boater gets their own portal — no app store needed. They can check in with a QR code, pay invoices, request services, and message your team directly from their phone.
+      </p>
+      <ul class={styles.features}>
+        {boaterFeatures.map(f => (
+          <li class={styles.feature}>
+            <span class={styles.featureIcon} set:html={f.icon} />
+            <span>{f.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+    <div class={styles.phoneRight}>
+      <!-- Phone mockup: boater -->
+      <div class={styles.phone}>
+        <div class={styles.phoneTop}><div class={styles.phoneSpeaker} /></div>
+        <div class={styles.phoneScreen}>
+          <div class={styles.screenHeader}>
+            <div class={styles.screenTitle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4b07a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
+                <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
+              </svg>
+              <span>DocksBase</span>
+            </div>
+            <div class={styles.screenBadge}>Live</div>
+          </div>
+          <div class={styles.screenGreeting}>Welcome back, Marco</div>
+          <div class={styles.screenSub}>Berth A-14 · Harbour View Marina</div>
+          <div class={styles.screenCards}>
+            {boaterRows.map(r => (
+              <div class={styles.screenCard}>
+                <span class={styles.screenCardLabel}>{r.label}</span>
+                <div class={styles.screenCardRight}>
+                  <span class={styles.screenCardValue}>{r.value}</span>
+                  <span class={`${styles.dot} ${styles['dot_' + r.dot]}`} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div class={styles.screenActions}>
+            <button class={styles.screenBtn}>Pay invoice</button>
+            <button class={styles.screenBtnGhost}>Request fuel</button>
+          </div>
+        </div>
+        <div class={styles.phoneBottom}><div class={styles.phoneBar} /></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Staff section -->
+<section class={styles.sectionLight}>
+  <div class={styles.inner}>
+    <div class={styles.phoneLeft}>
+      <!-- Phone mockup: staff -->
+      <div class={styles.phone}>
+        <div class={styles.phoneTop}><div class={styles.phoneSpeaker} /></div>
+        <div class={styles.phoneScreen}>
+          <div class={styles.screenHeader}>
+            <div class={styles.screenTitle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4b07a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
+                <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
+              </svg>
+              <span>DocksBase</span>
+            </div>
+            <div class={styles.screenBadge}>Live</div>
+          </div>
+          <div class={styles.screenGreeting}>Good morning, David</div>
+          <div class={styles.screenSub}>Harbor Master · Harbour View</div>
+          <div class={styles.screenCards}>
+            {staffRows.map(r => (
+              <div class={styles.screenCard}>
+                <span class={styles.screenCardLabel}>{r.label}</span>
+                <div class={styles.screenCardRight}>
+                  <span class={styles.screenCardValue}>{r.value}</span>
+                  <span class={`${styles.dot} ${styles['dot_' + r.dot]}`} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div class={styles.screenActions}>
+            <button class={styles.screenBtn}>New arrival</button>
+            <button class={styles.screenBtnGhost}>Work orders</button>
+          </div>
+        </div>
+        <div class={styles.phoneBottom}><div class={styles.phoneBar} /></div>
+      </div>
+    </div>
+    <div class={styles.copyRight}>
+      <div class={styles.eyebrowLight}>Staff app</div>
+      <h2 class={styles.titleLight}>Your whole harbor.<br />In your pocket.</h2>
+      <p class={styles.bodyLight}>
+        Harbor masters and dock staff get the full management platform on any device — no installation. Log arrivals, manage work orders, and issue invoices from the pier.
+      </p>
+      <ul class={styles.features}>
+        {staffFeatures.map(f => (
+          <li class={`${styles.feature} ${styles.featureLight}`}>
+            <span class={`${styles.featureIcon} ${styles.featureIconLight}`} set:html={f.icon} />
+            <span>{f.label}</span>
+          </li>
+        ))}
+      </ul>
+      <div class={`${styles.note} ${styles.noteLight}`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 6l11 11L23 6"/><path d="M1 1l22 22"/>
+        </svg>
+        Works offline — syncs automatically when back online
+      </div>
+    </div>
+  </div>
+</section>

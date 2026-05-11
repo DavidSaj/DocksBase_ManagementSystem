@@ -1,0 +1,51 @@
+---
+import styles from './Footer.module.css'
+---
+<footer class={styles.footer}>
+  <div class={styles.inner}>
+    <div class={styles.top}>
+      <div>
+        <div class={styles.brandLogo}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#62aef0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <path d="M5 12 Q3 18 7 20"/><path d="M19 12 Q21 18 17 20"/>
+            <path d="M7 20 Q12 23 17 20"/>
+          </svg>
+          <div style="width:1px;height:28px;background:rgba(255,255,255,0.18);flex-shrink:0;margin:0 2px" />
+          <div style="display:flex;flex-direction:column;line-height:1;gap:3px">
+            <span style="font-family:'Jost',sans-serif;font-weight:600;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#fff">DOCKS</span>
+            <span style="font-family:'Jost',sans-serif;font-weight:300;font-size:12px;letter-spacing:3px;color:#c9a84c">Base</span>
+          </div>
+        </div>
+        <p class={styles.tagline}>The complete service management platform for modern harbors and marinas.</p>
+      </div>
+      <div>
+        <div class={styles.colTitle}>Product</div>
+        <ul class={styles.links}>
+          {['Features','Pricing','Changelog','Roadmap','API Docs'].map(l => <li><a href="#">{l}</a></li>)}
+        </ul>
+      </div>
+      <div>
+        <div class={styles.colTitle}>Company</div>
+        <ul class={styles.links}>
+          {['About','Blog','Careers','Press','Contact'].map(l => <li><a href="#">{l}</a></li>)}
+        </ul>
+      </div>
+      <div>
+        <div class={styles.colTitle}>Support</div>
+        <ul class={styles.links}>
+          {['Help Center','Onboarding','Status','Security','GDPR'].map(l => <li><a href="#">{l}</a></li>)}
+        </ul>
+      </div>
+    </div>
+    <div class={styles.bottom}>
+      <span class={styles.copy}>© 2026 DocksBase. All rights reserved.</span>
+      <div class={styles.legal}>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Cookies</a>
+      </div>
+    </div>
+  </div>
+</footer>
