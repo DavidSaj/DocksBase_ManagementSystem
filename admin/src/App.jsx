@@ -6,10 +6,16 @@ import Marinas       from './screens/Marinas.jsx';
 import Subscriptions from './screens/Subscriptions.jsx';
 import Finance       from './screens/Finance.jsx';
 import Settings      from './screens/Settings.jsx';
+import FeatureFlags  from './screens/FeatureFlags.jsx';
+import AuditLog      from './screens/AuditLog.jsx';
 import Login         from './screens/Login.jsx';
 import { isAdminAuthenticated, adminLogout, getAdminUser } from './api.js';
 
-const SCREENS = { overview: Overview, marinas: Marinas, subscriptions: Subscriptions, finance: Finance, settings: Settings };
+const SCREENS = {
+  overview: Overview, marinas: Marinas, subscriptions: Subscriptions,
+  finance: Finance, settings: Settings,
+  'feature-flags': FeatureFlags, 'audit-log': AuditLog,
+};
 
 export default function App() {
   const [authed, setAuthed]   = useState(() => isAdminAuthenticated());
