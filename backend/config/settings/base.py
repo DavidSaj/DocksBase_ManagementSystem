@@ -53,6 +53,7 @@ LOCAL_APPS = [
     'apps.sales',
     'apps.reports',
     'apps.fuel_dock',
+    'apps.search',
     'apps.portal',
     'apps.admin_portal',
     'apps.mobile',
