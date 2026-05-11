@@ -14,7 +14,7 @@ export default function useNotifications() {
     const token = localStorage.getItem('access_token');
     if (!token) return;
     const wsBase = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
-    const ws = new WebSocket(`${wsBase}/ws/notifications/?token=${token}`);
+    const ws = new WebSocket(`${wsBase}/ws/notifications/`, [token]);
     ws.onerror = () => {
       console.error('[useNotifications] WebSocket error');
     };

@@ -11,10 +11,8 @@ User = get_user_model()
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        token_str = self.scope['query_string'].decode()
-        token_str = dict(
-            part.split('=', 1) for part in token_str.split('&') if '=' in part
-        ).get('token', '')
+        subprotocols = self.scope.get('subprotocols', [])
+        token_str = subprotocols[0] if subprotocols else ''
 
         user = await self._get_user(token_str)
         if user is None:
@@ -24,11 +22,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         self.user = user
         self.group_name = f'notif_user_{user.pk}'
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
-
-        # Send last 20 unread notifications on connect
-        notifs = await self._get_recent(user)
-        await self.send(text_data=json.dumps({'type': 'initial', 'notifications': notifs}))
+        await self.accept(subprotocol=token_str if token_str else None)
 
     async def disconnect(self, code):
         if hasattr(self, 'group_name'):
@@ -49,9 +43,3 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception:
             return None
 
-    @database_sync_to_async
-    def _get_recent(self, user):
-        from .models import Notification
-        from .serializers import NotificationSerializer
-        qs = Notification.objects.filter(recipient=user, read=False).order_by('-created_at')[:20]
-        return NotificationSerializer(qs, many=True).data
