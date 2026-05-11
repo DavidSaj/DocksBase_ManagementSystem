@@ -189,21 +189,62 @@ input, select, textarea { font-family: inherit; }
 .p-cat-avail { font-size: 11px; color: var(--muted); }
 
 /* ── Category cards (light, for white background) ────────────────────── */
+.p-options-grid {
+  display: flex; flex-direction: column; gap: 16px;
+  margin-bottom: 32px;
+}
 .p-cat-card-light {
   background: #fff;
   border: 1px solid #e8e8e8;
-  border-radius: 10px; padding: 24px;
-  display: flex; flex-direction: column; gap: 10px;
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   transition: border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
 }
 .p-cat-card-light:hover { border-color: rgba(184,150,90,0.45); box-shadow: 0 4px 20px rgba(0,0,0,0.09); }
-.p-cat-card-light .p-cat-name { color: var(--navy); }
-.p-cat-card-light .p-cat-desc { color: rgba(0,0,0,0.55); }
-.p-cat-card-light .p-cat-avail { color: rgba(0,0,0,0.4); }
-.p-cat-card-light .p-amenity-pill {
-  background: rgba(12,31,61,0.05); border-color: rgba(12,31,61,0.12); color: var(--navy);
+.p-cat-card-body {
+  padding: 24px 28px;
+  display: flex; flex-direction: column; gap: 8px;
 }
+.p-cat-card-sidebar {
+  padding: 24px 24px;
+  border-left: 1px solid #f0ebe0;
+  background: #faf8f4;
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between;
+  min-width: 180px;
+}
+.p-cat-name { font-family: var(--font-serif); font-size: 24px; font-weight: 600; color: var(--navy); line-height: 1.15; }
+.p-cat-tagline { font-size: 14px; color: rgba(0,0,0,0.55); font-style: italic; margin-top: -2px; }
+.p-cat-mooring {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--gold);
+  border: 1px solid rgba(184,150,90,0.35); border-radius: 3px; padding: 2px 7px;
+  width: fit-content;
+}
+.p-cat-desc { font-size: 13px; color: rgba(0,0,0,0.55); line-height: 1.6; }
+.p-cat-highlights {
+  list-style: none; display: flex; flex-direction: column; gap: 4px; margin-top: 2px;
+}
+.p-cat-highlights li {
+  font-size: 13px; color: rgba(0,0,0,0.65);
+  display: flex; align-items: flex-start; gap: 7px;
+}
+.p-cat-highlights li::before {
+  content: ''; flex-shrink: 0;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--gold); margin-top: 5px;
+}
+.p-amenity-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.p-amenity-pill {
+  font-size: 11px; color: var(--navy);
+  background: rgba(12,31,61,0.05); border: 1px solid rgba(12,31,61,0.12);
+  border-radius: 20px; padding: 3px 9px;
+}
+.p-cat-price { font-family: var(--font-serif); font-size: 28px; color: var(--gold); line-height: 1; text-align: right; }
+.p-cat-price span { font-family: var(--font); font-size: 12px; color: rgba(0,0,0,0.4); display: block; margin-top: 2px; }
+.p-cat-avail { font-size: 11px; color: rgba(0,0,0,0.4); text-align: right; margin-top: 4px; }
 
 /* ── Summary bar ─────────────────────────────────────────────────────── */
 .p-summary {
@@ -950,6 +991,7 @@ input, select, textarea { font-family: inherit; }
   width: 100%;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
 }
 .p-service-row:active { opacity: 0.75; }
 .p-service-row--disabled { opacity: 0.45; cursor: default; pointer-events: none; }
@@ -1030,7 +1072,7 @@ input, select, textarea { font-family: inherit; }
 .p-subscreen__body { padding: 16px 16px 48px; }
 
 /* ── Form card (generic white card for service screens) ─────────────────── */
-.p-form-card {
+.p-svc-card {
   background: #fff;
   border-radius: 14px;
   padding: 20px;
@@ -1056,7 +1098,7 @@ input, select, textarea { font-family: inherit; }
   gap: 14px;
   padding: 14px 16px;
   border-radius: 10px;
-  border: 1.5px solid #d0d6de;
+  border: 2px solid #d0d6de;
   background: #fff;
   cursor: pointer;
   text-align: left;
