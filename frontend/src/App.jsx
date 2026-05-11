@@ -31,6 +31,7 @@ class ScreenErrorBoundary extends Component {
 }
 import Sidebar from './components/layout/Sidebar.jsx';
 import Topbar  from './components/layout/Topbar.jsx';
+import ImpersonationBanner from './components/layout/ImpersonationBanner.jsx';
 import SetupGuide from './components/onboarding/SetupGuide.jsx';
 
 import Overview     from './screens/Overview.jsx';
@@ -115,9 +116,19 @@ function DesktopApp() {
     setShowWelcome(false);
   }
 
+  const token = localStorage.getItem('access_token');
+  const isSafeMode = (() => {
+    try {
+      if (!token) return false;
+      const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(atob(part)).is_safe_mode === true;
+    } catch { return false; }
+  })();
+
   const Screen = SCREEN_MAP[screen] || ComingSoon;
   return (
     <>
+      <ImpersonationBanner />
       <AnimatePresence>
         {showWelcome && (
           <WelcomeScreen
@@ -126,7 +137,7 @@ function DesktopApp() {
           />
         )}
       </AnimatePresence>
-      <div className="app">
+      <div className="app" style={isSafeMode ? { paddingTop: 36 } : {}}>
         <Sidebar screen={screen} setScreen={setScreen} />
         <div className="main">
           <Topbar screen={screen} />
