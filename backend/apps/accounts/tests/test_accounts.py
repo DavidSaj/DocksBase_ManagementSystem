@@ -341,3 +341,10 @@ class SupportAccessFieldTest(TestCase):
         marina.save()
         marina.refresh_from_db()
         self.assertIsNotNone(marina.support_access_granted_until)
+
+
+class MarinaDropboxSignFieldsTest(TestCase):
+    def test_fields_exist_and_default_blank(self):
+        m = Marina.objects.create(name='Test', slug='test-ds-fields')
+        self.assertEqual(m.dropboxsign_api_key, '')
+        self.assertEqual(m.dropboxsign_client_id, '')

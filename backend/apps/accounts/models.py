@@ -66,6 +66,8 @@ class Marina(models.Model):
     wallet_vhf_channel = models.CharField(max_length=10, null=True, blank=True)
     wallet_office_hours = models.CharField(max_length=100, null=True, blank=True)
     waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
+    dropboxsign_api_key    = models.CharField(max_length=255, blank=True, default='')
+    dropboxsign_client_id  = models.CharField(max_length=255, blank=True, default='')
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
