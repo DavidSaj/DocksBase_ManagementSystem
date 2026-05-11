@@ -8,8 +8,6 @@ import CountdownView from '../../components/portal/CountdownView';
 import ArrivalView   from '../../components/portal/ArrivalView';
 import WalletCard    from '../../components/portal/WalletCard';
 import InstallBanner from '../../components/portal/InstallBanner';
-import ExtendStayScreen  from '../ExtendStayScreen';
-import CraneRequestScreen from '../CraneRequestScreen';
 import MemberHomeScreen from './MemberHomeScreen';
 
 // --- Guest checkin flow ---
@@ -19,7 +17,6 @@ function GuestCheckinFlow() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
-  const [subScreen, setSubScreen] = useState(null);
 
   function reload() {
     setLoading(true);
@@ -63,41 +60,17 @@ function GuestCheckinFlow() {
     );
   }
 
-  if (subScreen === 'extend-stay') {
-    return <ExtendStayScreen booking={booking} onBack={() => setSubScreen(null)} />;
-  }
-  if (subScreen === 'crane-request') {
-    return <CraneRequestScreen booking={booking} onBack={() => setSubScreen(null)} />;
-  }
-
   const state = deriveState(booking);
 
   return (
     <>
       {state === 'wallet' && (
-        <>
-          <WalletCard booking={booking} />
-          <div style={{ padding: '0 16px 32px' }}>
-            <button className="p-btn p-btn--outline" style={{ marginBottom: 10 }} onClick={() => setSubScreen('extend-stay')}>
-              Extend stay
-            </button>
-            <button className="p-btn p-btn--outline" onClick={() => setSubScreen('crane-request')}>
-              Request crane / lift
-            </button>
-          </div>
-        </>
+        <WalletCard booking={booking} />
       )}
       {state === 'arrival'   && <ArrivalView booking={booking} onCheckedIn={reload} />}
       {state === 'countdown' && <CountdownView booking={booking} />}
       {state === 'checklist' && (
-        <>
-          <ChecklistView booking={booking} onUpdate={reload} />
-          <div style={{ padding: '0 16px 32px' }}>
-            <button className="p-btn p-btn--outline" onClick={() => setSubScreen('crane-request')}>
-              Request crane / lift
-            </button>
-          </div>
-        </>
+        <ChecklistView booking={booking} onUpdate={reload} />
       )}
       <InstallBanner />
     </>
