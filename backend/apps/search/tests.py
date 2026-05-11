@@ -52,5 +52,5 @@ class SearchViewTests(TestCase):
         data = r.json()
         self.assertTrue(len(data) > 0)
         item = data[0]
-        for field in ('type', 'id', 'label', 'sub', 'screen'):
+        for field in ('type', 'id', 'label', 'sub', 'screen', 'link_id'):
             self.assertIn(field, item)
