@@ -1,26 +1,62 @@
+// portal/src/screens/CraneRequestScreen.jsx
 import { useState } from 'react';
 import api from '../api';
 
-const HDR = { background: '#1a2d4a', padding: '20px 20px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 14 };
-const CARD = { background: '#fff', borderRadius: 14, padding: 20, marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
-const BTN_PRIMARY = {
-  display: 'block', width: '100%', padding: '15px 0', background: '#1a2d4a', color: '#fff',
-  border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 8,
-};
-const BTN_GHOST = {
-  display: 'block', width: '100%', padding: '13px 0', background: 'transparent', color: '#1a2d4a',
-  border: '1.5px solid #1a2d4a', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 8,
-};
-const LABEL = { fontSize: 12, fontWeight: 700, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 };
-const INPUT = {
-  width: '100%', padding: '12px 14px', fontSize: 16, borderRadius: 8,
-  border: '1.5px solid #d0d6de', boxSizing: 'border-box', outline: 'none',
-};
+function ArrowLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  );
+}
+
+function LaunchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function HaulOutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+function BothIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <polyline points="18 15 12 9 6 15" />
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
 
 const SERVICE_OPTIONS = [
-  { value: 'launch',   label: 'Launch',   icon: '⬇️', desc: 'Put your vessel in the water' },
-  { value: 'haul_out', label: 'Haul-Out', icon: '⬆️', desc: 'Lift your vessel out of the water' },
-  { value: 'both',     label: 'Both',     icon: '↕️', desc: 'Haul-out and re-launch' },
+  { value: 'launch',   label: 'Launch',   Icon: LaunchIcon,  desc: 'Put your vessel in the water' },
+  { value: 'haul_out', label: 'Haul-Out', Icon: HaulOutIcon, desc: 'Lift your vessel out of the water' },
+  { value: 'both',     label: 'Both',     Icon: BothIcon,    desc: 'Haul-out and re-launch' },
 ];
 
 function todayPlusOne() {
@@ -29,9 +65,9 @@ function todayPlusOne() {
   return d.toISOString().slice(0, 10);
 }
 
-export default function CraneRequestScreen({ booking, onBack }) {
+export default function CraneRequestScreen({ onBack }) {
   const [serviceType, setServiceType] = useState('');
-  const [preferredDate, setPreferredDate] = useState('');
+  const [requestedDate, setRequestedDate] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
@@ -40,16 +76,14 @@ export default function CraneRequestScreen({ booking, onBack }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!serviceType || !preferredDate) return;
+    if (!serviceType || !requestedDate) return;
     setStatus('submitting');
     setErrorMsg('');
-
     try {
-      await api.post('/portal/crane-requests/', {
+      await api.post('/portal/member/crane-requests/', {
         service_type: serviceType,
-        preferred_date: preferredDate,
+        requested_date: requestedDate,
         notes: notes.trim() || undefined,
-        booking: booking.id,
       });
       setStatus('success');
     } catch (err) {
@@ -59,88 +93,76 @@ export default function CraneRequestScreen({ booking, onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
-      <div style={HDR}>
-        <button
-          onClick={onBack}
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}
-          aria-label="Back"
-        >
-          ←
+    <div className="p-subscreen">
+      <div className="p-subscreen__header">
+        <button className="p-subscreen__back" onClick={onBack} aria-label="Back">
+          <ArrowLeftIcon />
         </button>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Crane / Lift Request</div>
-          <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>Request a hoist service from the harbour team</div>
+          <div className="p-subscreen__title">Crane / Lift Request</div>
+          <div className="p-subscreen__subtitle">Request a hoist service from the harbour team</div>
         </div>
       </div>
 
-      <div style={{ padding: '16px 16px 48px' }}>
-
+      <div className="p-subscreen__body">
         {status === 'success' ? (
-          <div style={CARD}>
-            <div style={{ fontSize: 32, marginBottom: 12, textAlign: 'center' }}>✅</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1a2d4a', textAlign: 'center', marginBottom: 8 }}>
-              Request submitted
-            </div>
-            <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', textAlign: 'center', lineHeight: 1.6 }}>
+          <div className="p-svc-card p-success-card">
+            <div className="p-success-card__icon"><CheckCircleIcon /></div>
+            <div className="p-success-card__title">Request submitted</div>
+            <div className="p-success-card__body">
               The harbour team will contact you to confirm the time.
             </div>
-            <button style={BTN_GHOST} onClick={onBack}>Back to my booking</button>
+            <button
+              className="p-btn p-btn--outline"
+              style={{ marginTop: 20 }}
+              onClick={onBack}
+            >
+              Back to Services
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-
-            <div style={CARD}>
-              <div style={LABEL}>Service type</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {SERVICE_OPTIONS.map(opt => {
-                  const selected = serviceType === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setServiceType(opt.value)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 14,
-                        padding: '14px 16px',
-                        borderRadius: 10,
-                        border: selected ? '2px solid #1a2d4a' : '1.5px solid #d0d6de',
-                        background: selected ? '#eef1f7' : '#fff',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'border 0.15s, background 0.15s',
-                      }}
-                    >
-                      <span style={{ fontSize: 26, lineHeight: 1 }}>{opt.icon}</span>
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a2d4a' }}>{opt.label}</div>
-                        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>{opt.desc}</div>
-                      </div>
-                      {selected && (
-                        <span style={{ marginLeft: 'auto', color: '#1a2d4a', fontSize: 18, fontWeight: 700 }}>✓</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="p-svc-card">
+              <label className="p-form-label">Service type</label>
+              {SERVICE_OPTIONS.map(({ value, label, Icon, desc }) => {
+                const selected = serviceType === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`p-service-option${selected ? ' p-service-option--selected' : ''}`}
+                    onClick={() => setServiceType(value)}
+                  >
+                    <div className="p-service-option__icon"><Icon /></div>
+                    <div>
+                      <div className="p-service-option__label">{label}</div>
+                      <div className="p-service-option__desc">{desc}</div>
+                    </div>
+                    {selected && <div className="p-service-option__check"><CheckIcon /></div>}
+                  </button>
+                );
+              })}
             </div>
 
-            <div style={CARD}>
-              <div style={LABEL}>Preferred date</div>
+            <div className="p-svc-card">
+              <label className="p-form-label" htmlFor="crane-date">Preferred date</label>
               <input
+                id="crane-date"
                 type="date"
-                style={INPUT}
-                value={preferredDate}
+                className="p-input"
+                value={requestedDate}
                 min={minDate}
-                onChange={e => setPreferredDate(e.target.value)}
+                onChange={e => setRequestedDate(e.target.value)}
                 required
               />
             </div>
 
-            <div style={CARD}>
-              <div style={LABEL}>Notes (optional)</div>
+            <div className="p-svc-card">
+              <label className="p-form-label" htmlFor="crane-notes">Notes (optional)</label>
               <textarea
-                style={{ ...INPUT, minHeight: 80, resize: 'vertical', fontFamily: 'inherit' }}
+                id="crane-notes"
+                className="p-input"
+                style={{ minHeight: 80, resize: 'vertical' }}
                 placeholder="e.g. hull inspection needed, preferred time of day…"
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
@@ -148,19 +170,22 @@ export default function CraneRequestScreen({ booking, onBack }) {
             </div>
 
             {status === 'error' && errorMsg && (
-              <div style={{ background: '#fdf2f2', borderRadius: 8, padding: '10px 14px', marginBottom: 8, fontSize: 13, color: '#c0392b' }}>
-                {errorMsg}
-              </div>
+              <div className="p-banner p-banner--error">{errorMsg}</div>
             )}
 
             <button
               type="submit"
-              style={{ ...BTN_PRIMARY, opacity: (!serviceType || !preferredDate || status === 'submitting') ? 0.5 : 1 }}
-              disabled={!serviceType || !preferredDate || status === 'submitting'}
+              className="p-btn p-btn--primary"
+              disabled={!serviceType || !requestedDate || status === 'submitting'}
             >
               {status === 'submitting' ? 'Submitting…' : 'Submit request'}
             </button>
-            <button type="button" style={BTN_GHOST} onClick={onBack}>
+            <button
+              type="button"
+              className="p-btn p-btn--outline"
+              style={{ marginTop: 8 }}
+              onClick={onBack}
+            >
               Cancel
             </button>
           </form>
