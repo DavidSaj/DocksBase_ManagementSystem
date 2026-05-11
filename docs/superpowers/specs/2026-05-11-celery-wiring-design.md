@@ -13,7 +13,6 @@ Celery infrastructure is already partially in place: `config/celery.py`, `config
 2. `sustainability/tasks.py` — all `@shared_task` decorators commented out
 3. Two beat schedule entries point at task names that don't exist
 4. Eight tasks documented in their own docstrings as beat-scheduled are absent from `CELERY_BEAT_SCHEDULE`
-5. Break-glass override in `admin_portal/views.py` uses a bare `threading.Thread`
 
 ---
 
@@ -33,22 +32,27 @@ Three services. Django `runserver` runs natively (not in Docker) so engineers ke
 **celery_worker**
 - Build context: `./backend`
 - Working dir: `/app`
-- Volume mount: `./backend:/app` (hot-reload on file save — no rebuild needed)
-- Command: `celery -A config worker -l info`
+- Volume mount: `./backend:/app` (source changes visible immediately inside container)
+- Command: `watchmedo auto-restart --directory=./ --pattern=*.py --recursive -- celery -A config worker -l info`
+  - `watchmedo` watches for `.py` file changes and restarts the worker automatically — no `docker compose restart` required
 - Depends on: `redis`
 - Env file: `./backend/.env`
+- Environment override: `REDIS_URL=redis://redis:6379/0` (uses Docker internal DNS — see networking note below)
 
 **celery_beat**
 - Same image and volume mount as `celery_worker`
 - Command: `celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler`
 - Depends on: `redis`
 - Env file: `./backend/.env`
+- Environment override: `REDIS_URL=redis://redis:6379/0`
 
 ### Beat scheduler
 
 Uses `django_celery_beat`'s database scheduler so beat schedule state survives container restarts and can be inspected/edited via Django admin.
 
 **`requirements.txt` addition:** `django-celery-beat>=2.6,<3.0`
+
+**`requirements-dev.txt` addition:** `watchdog>=4.0,<5.0` (provides `watchmedo`)
 
 **`INSTALLED_APPS` addition** (in `base.py`): `'django_celery_beat'`
 
@@ -57,6 +61,12 @@ Uses `django_celery_beat`'s database scheduler so beat schedule state survives c
 REDIS_URL=redis://localhost:6379/0
 ```
 (The existing `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` already read from `REDIS_URL`.)
+
+### Docker networking note
+
+The `.env` file uses `redis://localhost:6379/0`. This is correct for the native Django server (which connects via the port mapped to the host machine). However, Celery runs inside Docker containers — from their perspective, `localhost` is the container itself, not the host. Without an override they would crash immediately with `Connection refused`.
+
+The fix: both `celery_worker` and `celery_beat` explicitly set `REDIS_URL=redis://redis:6379/0` in their `environment:` block inside `docker-compose.yml`. Docker's internal DNS resolves `redis` to the Redis container's IP automatically. The native Django server is unaffected — it reads only the `.env` file.
 
 ### Dev workflow
 
@@ -120,40 +130,13 @@ The two `channels` tasks also get explicit `name=` parameters added to their `@s
 
 ---
 
-## Section 4 — Break-glass override: threading → Celery task
+## Section 4 — Break-glass override: keep threading.Thread (no change)
 
-### New file: `apps/admin_portal/tasks.py`
+The break-glass override in `admin_portal/views.py` **must remain on `threading.Thread`** and is explicitly out of scope for this PR.
 
-```python
-from celery import shared_task
+**Why:** Moving it to `dispatch_break_glass_alerts.delay()` would tie the emergency support login to the health of Redis and the Celery queue. If Redis runs out of memory, is restarting, or the queue is gridlocked, `.delay()` throws `redis.exceptions.ConnectionError` during the impersonation view — causing a Django 500 and permanently locking support engineers out during a Severity-1 infrastructure outage. The native OS thread has zero external dependencies and cannot be blocked by broker state.
 
-@shared_task(
-    name='admin_portal.dispatch_break_glass_alerts',
-    max_retries=3,
-    default_retry_delay=30,
-    acks_late=True,
-)
-def dispatch_break_glass_alerts(marina_email, marina_name, admin_email, bypass_reason):
-    # body moved verbatim from _dispatch_break_glass_alerts in views.py
-    ...
-```
-
-All parameters are primitives (strings) — JSON-serialisable through Celery.
-
-### Changes in `apps/admin_portal/views.py`
-
-- Remove `import threading`
-- Delete `_dispatch_break_glass_alerts` function
-- Replace the `threading.Thread(...).start()` block with:
-
-```python
-from apps.admin_portal.tasks import dispatch_break_glass_alerts
-dispatch_break_glass_alerts.delay(
-    marina.contact_email, marina.name, request.user.email, bypass_reason
-)
-```
-
-No logic changes. The function body moves as-is.
+**Rule:** The break-glass override must be decoupled from all message brokers. `threading.Thread` achieves this and stays.
 
 ---
 
@@ -161,15 +144,15 @@ No logic changes. The function body moves as-is.
 
 | File | Change |
 |---|---|
-| `DocksBase_ManagementSystem/docker-compose.yml` | New file |
+| `DocksBase_ManagementSystem/docker-compose.yml` | New file — Redis + worker (watchmedo) + beat; worker/beat override `REDIS_URL` to Docker DNS |
 | `backend/requirements.txt` | Add `django-celery-beat>=2.6,<3.0` |
+| `backend/requirements-dev.txt` | Add `watchdog>=4.0,<5.0` |
 | `backend/.env.example` | Add `REDIS_URL=redis://localhost:6379/0` |
 | `backend/config/settings/base.py` | Add `django_celery_beat` to INSTALLED_APPS; fix 2 beat entries; add 8 beat entries |
 | `backend/apps/sustainability/tasks.py` | Uncomment 7 `@shared_task` decorators; remove setup docblock |
 | `backend/apps/communications/tasks.py` | Add `name='communications.run_journey_enrollments'` to `evaluate_journey_steps` |
 | `backend/apps/channels/tasks.py` | Add explicit `name=` to `push_ota_availability` and `pull_ota_bookings` |
-| `backend/apps/admin_portal/views.py` | Remove threading import, delete helper function, call `.delay()` |
-| `backend/apps/admin_portal/tasks.py` | New file — `dispatch_break_glass_alerts` Celery task |
+| `backend/apps/admin_portal/views.py` | No change — break-glass stays on `threading.Thread` |
 
 ---
 
