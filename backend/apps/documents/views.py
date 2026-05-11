@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 from .models import DocTemplate, Envelope, MemberDocument
 from .serializers import DocTemplateSerializer, EnvelopeSerializer, MemberDocumentSerializer
 from .services import create_embedded_template_draft, send_envelope, get_signed_pdf_url
+from apps.reservations.models import Booking
+from apps.portal.checkin_utils import evaluate_pre_cleared
 
 
 class DocTemplateList(generics.ListCreateAPIView):
@@ -164,15 +166,26 @@ class DropboxSignWebhook(APIView):
             metadata = sig_req.get('metadata', {})
             marina_id = metadata.get('marina_id')
             envelope_pk = metadata.get('envelope_pk')
-            if not marina_id or not envelope_pk:
-                return Response({'detail': 'Missing metadata.'}, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                envelope = Envelope.objects.get(pk=envelope_pk, marina_id=marina_id)
-            except Envelope.DoesNotExist:
-                return Response({'detail': 'Envelope not found.'}, status=status.HTTP_400_BAD_REQUEST)
-            envelope.status = 'completed'
-            envelope.completed_at = timezone.now()
-            envelope.save(update_fields=['status', 'completed_at'])
+            booking_id = metadata.get('booking_id')
+
+            # Mark the Envelope record completed (general docs and waiver both use envelope_pk when available)
+            if envelope_pk:
+                qs = Envelope.objects.filter(pk=envelope_pk)
+                if marina_id:
+                    qs = qs.filter(marina_id=marina_id)
+                now = timezone.now()
+                qs.update(status='completed', completed_at=now)
+
+            # Mark the booking's waiver as signed (waiver flow passes booking_id)
+            if booking_id:
+                try:
+                    booking = Booking.objects.get(pk=int(booking_id))
+                    if not booking.waiver_signed:
+                        booking.waiver_signed = True
+                        booking.save(update_fields=['waiver_signed'])
+                        evaluate_pre_cleared(booking)
+                except (Booking.DoesNotExist, ValueError):
+                    pass
 
         elif event_type == 'template_created':
             template_data = event.get('template', {})

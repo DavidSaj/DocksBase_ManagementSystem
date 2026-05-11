@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.reservations.models import Booking
+from apps.documents.models import DocTemplate, Envelope as DocEnvelope
 from .checkin_auth import PortalTokenAuthentication
 from .checkin_serializers import PortalBookingSerializer
 from .checkin_utils import (
@@ -130,11 +131,15 @@ def is_valid_dropbox_sign_request(request_body: bytes, secret: str) -> bool:
         return False
 
 
-def get_sign_url(booking, template_id, client_id, api_key):
+def get_sign_url(booking, template_id, client_id, api_key, envelope_pk=None):
     configuration = Configuration(username=api_key)
     with ApiClient(configuration) as api_client:
         sig_api = apis.SignatureRequestApi(api_client)
         embedded_api = apis.EmbeddedApi(api_client)
+
+        metadata = {'booking_id': str(booking.id)}
+        if envelope_pk is not None:
+            metadata['envelope_pk'] = str(envelope_pk)
 
         data = ds_models.SignatureRequestCreateEmbeddedWithTemplateRequest(
             client_id=client_id,
@@ -147,7 +152,7 @@ def get_sign_url(booking, template_id, client_id, api_key):
                     email_address=booking.guest_email,
                 )
             ],
-            metadata={'booking_id': str(booking.id)},
+            metadata=metadata,
         )
         sig_response = sig_api.signature_request_create_embedded_with_template(data)
         envelope_id = sig_response.signature_request.signature_request_id
@@ -185,14 +190,41 @@ class WaiverView(PortalBookingMixin, APIView):
         api_key = settings.DROPBOX_SIGN_API_KEY
         client_id = settings.DROPBOX_SIGN_CLIENT_ID
 
+        waiver_tpl = DocTemplate.objects.filter(
+            marina=booking.marina,
+            dropboxsign_template_id=booking.marina.waiver_template_id,
+        ).first()
+
         if booking.waiver_envelope_id:
             sign_url = get_existing_sign_url(booking.waiver_envelope_id, api_key)
+            # Backfill Envelope record for sessions created before this fix
+            if waiver_tpl:
+                DocEnvelope.objects.get_or_create(
+                    dropboxsign_request_id=booking.waiver_envelope_id,
+                    defaults={
+                        'marina': booking.marina,
+                        'template': waiver_tpl,
+                        'status': 'pending',
+                    },
+                )
         else:
+            # Create Envelope record first to get its PK for Dropbox Sign metadata
+            db_envelope = DocEnvelope.objects.create(
+                marina=booking.marina,
+                template=waiver_tpl,
+                status='pending',
+            ) if waiver_tpl else None
+
             envelope_id, sign_url = get_sign_url(
-                booking, booking.marina.waiver_template_id, client_id, api_key
+                booking, booking.marina.waiver_template_id, client_id, api_key,
+                envelope_pk=db_envelope.pk if db_envelope else None,
             )
             booking.waiver_envelope_id = envelope_id
             booking.save(update_fields=['waiver_envelope_id'])
+
+            if db_envelope:
+                db_envelope.dropboxsign_request_id = envelope_id
+                db_envelope.save(update_fields=['dropboxsign_request_id'])
 
         return Response({'sign_url': sign_url})
 
@@ -211,18 +243,30 @@ class DropboxSignWebhookView(APIView):
         if event_type != 'signature_request_all_signed':
             return Response({'status': 'ignored'})
 
-        booking_id = payload.get('signature_request', {}).get('metadata', {}).get('booking_id')
-        if not booking_id:
-            return Response({'status': 'no booking_id in metadata'})
+        metadata = payload.get('signature_request', {}).get('metadata', {})
+        booking_id = metadata.get('booking_id')
+        envelope_pk = metadata.get('envelope_pk')
 
-        try:
-            booking = Booking.objects.get(pk=int(booking_id))
-        except (Booking.DoesNotExist, ValueError):
-            return Response({'status': 'booking not found'})
+        # Mark booking waiver as signed
+        if booking_id:
+            try:
+                booking = Booking.objects.get(pk=int(booking_id))
+                if not booking.waiver_signed:
+                    booking.waiver_signed = True
+                    booking.save(update_fields=['waiver_signed'])
+                    evaluate_pre_cleared(booking)
+            except (Booking.DoesNotExist, ValueError):
+                pass
 
-        booking.waiver_signed = True
-        booking.save(update_fields=['waiver_signed'])
-        evaluate_pre_cleared(booking)
+        # Mark the Envelope record completed
+        if envelope_pk:
+            from apps.documents.models import Envelope as DocEnvelope
+            DocEnvelope.objects.filter(pk=envelope_pk).update(
+                status='completed', completed_at=timezone.now(),
+            )
+
+        if not booking_id and not envelope_pk:
+            return Response({'status': 'no relevant metadata'})
 
         return Response({'status': 'ok'})
 
