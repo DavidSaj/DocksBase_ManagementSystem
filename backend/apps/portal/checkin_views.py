@@ -133,6 +133,23 @@ class WaiverView(PortalBookingMixin, APIView):
             and tpl.dropboxsign_template_id
         )
 
+    def _get_or_create_sign_url(self, booking, tpl) -> str:
+        marina = booking.marina
+        if booking.waiver_envelope_id:
+            return get_existing_embedded_sign_url(
+                booking.waiver_envelope_id,
+                api_key=marina.dropboxsign_api_key,
+            )
+        request_id, sign_url = create_embedded_sign_url(
+            booking,
+            tpl.dropboxsign_template_id,
+            api_key=marina.dropboxsign_api_key,
+            client_id=marina.dropboxsign_client_id,
+        )
+        booking.waiver_envelope_id = request_id
+        booking.save(update_fields=['waiver_envelope_id'])
+        return sign_url
+
     def get(self, request, pk):
         booking, err = self.get_booking(request, pk)
         if err:
@@ -150,22 +167,7 @@ class WaiverView(PortalBookingMixin, APIView):
         if not self._uses_esign(booking.marina, tpl):
             return Response({'mode': 'clickwrap', 'waiver_url': waiver_url})
 
-        marina = booking.marina
-        if booking.waiver_envelope_id:
-            sign_url = get_existing_embedded_sign_url(
-                booking.waiver_envelope_id,
-                api_key=marina.dropboxsign_api_key,
-            )
-        else:
-            request_id, sign_url = create_embedded_sign_url(
-                booking,
-                tpl.dropboxsign_template_id,
-                api_key=marina.dropboxsign_api_key,
-                client_id=marina.dropboxsign_client_id,
-            )
-            booking.waiver_envelope_id = request_id
-            booking.save(update_fields=['waiver_envelope_id'])
-
+        sign_url = self._get_or_create_sign_url(booking, tpl)
         return Response({'mode': 'esign', 'waiver_url': waiver_url, 'sign_url': sign_url})
 
     def post(self, request, pk):
@@ -181,21 +183,7 @@ class WaiverView(PortalBookingMixin, APIView):
             )
 
         if self._uses_esign(booking.marina, tpl):
-            marina = booking.marina
-            if booking.waiver_envelope_id:
-                sign_url = get_existing_embedded_sign_url(
-                    booking.waiver_envelope_id,
-                    api_key=marina.dropboxsign_api_key,
-                )
-            else:
-                request_id, sign_url = create_embedded_sign_url(
-                    booking,
-                    tpl.dropboxsign_template_id,
-                    api_key=marina.dropboxsign_api_key,
-                    client_id=marina.dropboxsign_client_id,
-                )
-                booking.waiver_envelope_id = request_id
-                booking.save(update_fields=['waiver_envelope_id'])
+            sign_url = self._get_or_create_sign_url(booking, tpl)
             return Response({'sign_url': sign_url})
 
         # Click-wrap path
