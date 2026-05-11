@@ -614,13 +614,15 @@ class GrantSupportAccessView(APIView):
 
 
 class DropboxSignSettingsView(APIView):
+    permission_classes = [IsMarinaStaff]
+
     def get(self, request):
         marina = request.user.marina
         key = marina.dropboxsign_api_key or ''
         return Response({
             'connected': bool(key and marina.dropboxsign_client_id),
             'client_id': marina.dropboxsign_client_id or '',
-            'api_key_tail': key[-4:] if key else '',
+            'api_key_tail': key[-4:] if len(key) >= 4 else '',
         })
 
     def patch(self, request):
@@ -634,5 +636,5 @@ class DropboxSignSettingsView(APIView):
         return Response({
             'connected': bool(key and marina.dropboxsign_client_id),
             'client_id': marina.dropboxsign_client_id,
-            'api_key_tail': key[-4:] if key else '',
+            'api_key_tail': key[-4:] if len(key) >= 4 else '',
         })
