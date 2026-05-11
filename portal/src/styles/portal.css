@@ -920,3 +920,222 @@ input, select, textarea { font-family: inherit; }
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ── Services Tab ─────────────────────────────────────────────────────── */
+.p-service-list { padding: 16px 16px 96px; }
+
+.p-service-section { margin-bottom: 28px; }
+
+.p-service-section__header {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 0 4px;
+  margin-bottom: 10px;
+}
+
+.p-service-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.p-service-row:active { opacity: 0.75; }
+.p-service-row--disabled { opacity: 0.45; cursor: default; pointer-events: none; }
+.p-service-row__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.p-service-row__icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: #fff;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.p-service-row__text { flex: 1; min-width: 0; }
+.p-service-row__label { font-size: 15px; font-weight: 600; color: var(--navy); }
+.p-service-row__sub { font-size: 12px; color: rgba(0,0,0,0.4); margin-top: 2px; }
+.p-service-row__chevron {
+  width: 18px;
+  height: 18px;
+  stroke: rgba(0,0,0,0.25);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.p-service-row__badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.35);
+  background: rgba(0,0,0,0.06);
+  border-radius: 20px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+/* ── Sub-screens (full-screen overlays) ────────────────────────────────── */
+.p-subscreen { min-height: 100vh; background: var(--bg); }
+.p-subscreen__header {
+  background: var(--navy);
+  padding: 20px 20px 16px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.p-subscreen__back {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.p-subscreen__back svg {
+  width: 22px;
+  height: 22px;
+  stroke: #fff;
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.p-subscreen__title { font-size: 20px; font-weight: 700; line-height: 1.2; }
+.p-subscreen__subtitle { font-size: 13px; opacity: 0.6; margin-top: 2px; }
+.p-subscreen__body { padding: 16px 16px 48px; }
+
+/* ── Form card (generic white card for service screens) ─────────────────── */
+.p-form-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+
+/* ── Form label ─────────────────────────────────────────────────────────── */
+.p-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+/* ── Service option picker (crane service type selector) ─────────────────── */
+.p-service-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1.5px solid #d0d6de;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 8px;
+  transition: border 0.15s, background 0.15s;
+}
+.p-service-option:last-child { margin-bottom: 0; }
+.p-service-option--selected {
+  border: 2px solid var(--navy);
+  background: rgba(12,31,61,0.04);
+}
+.p-service-option__icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.p-service-option__icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: var(--navy);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.p-service-option__label { font-size: 15px; font-weight: 700; color: var(--navy); }
+.p-service-option__desc { font-size: 13px; color: rgba(0,0,0,0.5); margin-top: 2px; }
+.p-service-option__check { margin-left: auto; flex-shrink: 0; }
+.p-service-option__check svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--navy);
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Status banners ─────────────────────────────────────────────────────── */
+.p-banner {
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.p-banner--success { background: rgba(26,140,46,0.08); color: var(--green); }
+.p-banner--error   { background: rgba(192,57,43,0.08); color: var(--red); }
+.p-banner--info    { background: rgba(12,31,61,0.06); color: var(--navy); }
+
+/* ── Success card (shared across all service sub-screens) ────────────────── */
+.p-success-card { text-align: center; }
+.p-success-card__icon { margin-bottom: 12px; display: flex; justify-content: center; }
+.p-success-card__icon svg {
+  width: 48px;
+  height: 48px;
+  stroke: var(--green);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.p-success-card__title { font-size: 18px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+.p-success-card__body { font-size: 14px; color: rgba(0,0,0,0.55); line-height: 1.6; }
+.p-success-card__ref {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(12,31,61,0.06);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+/* ── Native select fix: restore arrow removed by .p-input's -webkit-appearance:none ── */
+select.p-input { -webkit-appearance: auto; appearance: auto; }
