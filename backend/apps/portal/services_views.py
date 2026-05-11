@@ -123,7 +123,7 @@ class PortalMemberExtendStayView(APIView):
             berth=booking.berth,
             status__in=['pending', 'confirmed', 'checked_in'],
             check_in__lt=new_check_out,
-            check_out__gt=str(booking.check_out),
+            check_out__gt=booking.check_out,
         ).exclude(id=booking.id).exists()
 
     def get(self, request):
@@ -140,6 +140,11 @@ class PortalMemberExtendStayView(APIView):
         new_check_out = request.query_params.get('new_check_out', '')
         if not new_check_out:
             return Response({'detail': 'new_check_out is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        try:
+            dt.date.fromisoformat(new_check_out)
+        except ValueError:
+            return Response({'detail': 'new_check_out must be a valid ISO date (YYYY-MM-DD).'}, status=http_status.HTTP_400_BAD_REQUEST)
 
         return Response({'available': not self._has_conflict(booking, new_check_out)})
 
@@ -163,7 +168,13 @@ class PortalMemberExtendStayView(APIView):
         except ValueError:
             return Response({'detail': 'Invalid date format.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        if self._has_conflict(booking, new_check_out):
+        if check_out_date <= booking.check_out:
+            return Response(
+                {'detail': 'New check-out must be after the current check-out.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        if self._has_conflict(booking, check_out_date):
             return Response(
                 {'detail': 'Berth not available for these dates.'},
                 status=http_status.HTTP_409_CONFLICT,
