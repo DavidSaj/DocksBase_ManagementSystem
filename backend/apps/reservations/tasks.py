@@ -43,6 +43,21 @@ def send_overstay_alerts(self):
         .order_by('marina_id', 'check_out')
     )
 
+    # Mutate status to 'overstay' before emailing, so the database reflects reality.
+    overstay_ids = list(overstays.values_list('pk', flat=True))
+    if not overstay_ids:
+        logger.info('send_overstay_alerts: no overstays detected for %s', today)
+        return
+    Booking.objects.filter(pk__in=overstay_ids, status='checked_in').update(status='overstay')
+    logger.info('send_overstay_alerts: marked %d checked_in bookings as overstay', len(overstay_ids))
+
+    overstays = (
+        Booking.objects
+        .filter(pk__in=overstay_ids)
+        .select_related('marina', 'berth', 'vessel')
+        .order_by('marina_id', 'check_out')
+    )
+
     if not overstays.exists():
         logger.info('send_overstay_alerts: no overstays detected for %s', today)
         return
@@ -262,3 +277,34 @@ def send_prearival_reminders(self):
         'send_prearival_reminders: completed for %s — sent=%d skipped=%d',
         tomorrow, sent, skipped,
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 3: auto_no_show  (daily, 22:00 UTC)
+# ---------------------------------------------------------------------------
+
+@shared_task(bind=True, name='reservations.auto_no_show')
+def auto_no_show(self):
+    """
+    Nightly at 22:00 UTC: transient bookings still in 'confirmed' state whose
+    check_in date is today or earlier are marked 'no_show'.
+
+    The marina keeps the payment. The berth is immediately released back into
+    inventory so late walk-up arrivals can be assigned the slip.
+
+    Only affects transient bookings — seasonal contracts are never auto-voided.
+    """
+    from apps.reservations.models import Booking
+
+    today = timezone.now().date()
+
+    updated = (
+        Booking.objects
+        .filter(status='confirmed', booking_type='transient', check_in__lte=today)
+        .update(status='no_show')
+    )
+
+    if updated:
+        logger.info('auto_no_show: marked %d booking(s) as no_show for date %s', updated, today)
+    else:
+        logger.info('auto_no_show: no confirmed transient arrivals to mark for %s', today)

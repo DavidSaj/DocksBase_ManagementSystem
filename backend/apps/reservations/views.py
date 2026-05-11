@@ -65,6 +65,17 @@ class BookingDetailView(generics.RetrieveUpdateAPIView):
         return Booking.objects.filter(marina=self.request.user.marina)
 
     def perform_update(self, serializer):
+        current = self.get_object()
+        new_status = serializer.validated_data.get('status', current.status)
+
+        # Enforce state machine for the two operational transitions staff can trigger.
+        if new_status == 'checked_in' and current.status not in ('confirmed', 'pending', 'no_show'):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'status': f'Cannot check in from status "{current.status}".'})
+        if new_status == 'checked_out' and current.status not in ('checked_in', 'overstay'):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'status': f'Cannot check out from status "{current.status}".'})
+
         with transaction.atomic():
             instance = serializer.save()
             if instance.status == 'checked_out':

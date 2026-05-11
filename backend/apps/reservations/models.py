@@ -17,6 +17,7 @@ class Booking(models.Model):
         ('checked_in',   'Checked In'),
         ('checked_out',  'Checked Out'),
         ('overstay',     'Overstay'),
+        ('no_show',      'No Show'),
         ('cancelled',    'Cancelled'),
     ]
 
