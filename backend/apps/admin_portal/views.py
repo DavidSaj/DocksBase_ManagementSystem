@@ -50,23 +50,26 @@ def _dispatch_break_glass_alerts(marina_email, marina_name, admin_email, bypass_
 
     timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
 
-    try:
-        send_mail(
-            subject='DocksBase Emergency Support Access',
-            message=(
-                f'A DocksBase support agent has accessed your marina via Emergency Override.\n\n'
-                f'Marina: {marina_name}\n'
-                f'Accessed by: {admin_email}\n'
-                f'Time: {timestamp}\n'
-                f'Justification: {bypass_reason}\n\n'
-                f'If this was unexpected, contact support@docksbase.com immediately.'
-            ),
-            from_email='security@docksbase.com',
-            recipient_list=[marina_email],
-            fail_silently=False,
-        )
-    except Exception as e:
-        _logger.error('Break-glass email failed: %s', e)
+    if marina_email:
+        try:
+            send_mail(
+                subject='DocksBase Emergency Support Access',
+                message=(
+                    f'A DocksBase support agent has accessed your marina via Emergency Override.\n\n'
+                    f'Marina: {marina_name}\n'
+                    f'Accessed by: {admin_email}\n'
+                    f'Time: {timestamp}\n'
+                    f'Justification: {bypass_reason}\n\n'
+                    f'If this was unexpected, contact support@docksbase.com immediately.'
+                ),
+                from_email='security@docksbase.com',
+                recipient_list=[marina_email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            _logger.error('Break-glass email failed: %s', e)
+    else:
+        _logger.warning('Break-glass override on %s but no contact_email set', marina_name)
 
     webhook_url = getattr(_s, 'SECURITY_SLACK_WEBHOOK_URL', '')
     if webhook_url:
