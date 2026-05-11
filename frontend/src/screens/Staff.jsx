@@ -37,6 +37,20 @@ const CERT_STATUS_CLASS = { valid: 'badge-green', due_soon: 'badge-orange', expi
 const CONTRACT_CLASS = { full_time: 'badge-teal', seasonal: 'badge-gold' };
 const CONTRACT_LABEL = { full_time: 'Full Time', part_time: 'Part Time', seasonal: 'Seasonal', contractor: 'Contractor' };
 
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <div className="modal-hdr">
+          <span className="modal-title">{title}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function InviteModal({ onClose, onSave }) {
   const [form, setForm] = useState({ name: '', email: '', role: 'staff' });
   const [saving, setSaving] = useState(false);
@@ -49,25 +63,25 @@ function InviteModal({ onClose, onSave }) {
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-hdr"><span className="modal-title">Invite Staff</span><button className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button></div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label className="field-label">Full Name<input className="input" value={form.name} onChange={set('name')} required/></label>
-          <label className="field-label">Email<input className="input" type="email" value={form.email} onChange={set('email')} required/></label>
-          <label className="field-label">Role
-            <select className="input" value={form.role} onChange={set('role')}>
-              <option value="staff">Staff</option>
-              <option value="manager">Manager</option>
-            </select>
-          </label>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Sending…' : 'Send Invite'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal title="Invite Staff" onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="modal-body">
+          <label className="field-label">Full Name</label>
+          <input className="input" value={form.name} onChange={set('name')} placeholder="e.g. Jane Smith" required/>
+          <label className="field-label">Email</label>
+          <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="jane@marina.com" required/>
+          <label className="field-label">Role</label>
+          <select className="input" value={form.role} onChange={set('role')}>
+            <option value="staff">Staff</option>
+            <option value="manager">Manager</option>
+          </select>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Sending…' : 'Send Invite'}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -87,31 +101,35 @@ function EditStaffModal({ staff, onClose, onSave }) {
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-hdr"><span className="modal-title">Edit Profile</span><button className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button></div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label className="field-label">Full Name<input className="input" value={form.name} onChange={set('name')} required/></label>
-          <label className="field-label">Role<input className="input" value={form.role} onChange={set('role')}/></label>
-          <label className="field-label">Department<input className="input" value={form.department} onChange={set('department')}/></label>
-          <label className="field-label">Email<input className="input" type="email" value={form.email} onChange={set('email')}/></label>
-          <label className="field-label">Phone<input className="input" value={form.phone} onChange={set('phone')}/></label>
-          <label className="field-label">Start Date<input className="input" type="date" value={form.start_date} onChange={set('start_date')}/></label>
-          <label className="field-label">Contract
-            <select className="input" value={form.contract} onChange={set('contract')}>
-              <option value="full_time">Full Time</option>
-              <option value="part_time">Part Time</option>
-              <option value="seasonal">Seasonal</option>
-              <option value="contractor">Contractor</option>
-            </select>
-          </label>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal title="Edit Profile" onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="modal-body">
+          <label className="field-label">Full Name</label>
+          <input className="input" value={form.name} onChange={set('name')} required/>
+          <label className="field-label">Role</label>
+          <input className="input" value={form.role} onChange={set('role')}/>
+          <label className="field-label">Department</label>
+          <input className="input" value={form.department} onChange={set('department')}/>
+          <label className="field-label">Email</label>
+          <input className="input" type="email" value={form.email} onChange={set('email')}/>
+          <label className="field-label">Phone</label>
+          <input className="input" value={form.phone} onChange={set('phone')}/>
+          <label className="field-label">Start Date</label>
+          <input className="input" type="date" value={form.start_date} onChange={set('start_date')}/>
+          <label className="field-label">Contract</label>
+          <select className="input" value={form.contract} onChange={set('contract')}>
+            <option value="full_time">Full Time</option>
+            <option value="part_time">Part Time</option>
+            <option value="seasonal">Seasonal</option>
+            <option value="contractor">Contractor</option>
+          </select>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -140,34 +158,36 @@ function CertModal({ staffList, certToEdit, onClose, onSave }) {
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-hdr"><span className="modal-title">{certToEdit ? 'Edit Certification' : 'Add Certification'}</span><button className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button></div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {!certToEdit && (
-            <label className="field-label">Staff Member
-              <select className="input" value={form.staff_member} onChange={set('staff_member')} required>
-                <option value="">Select…</option>
-                {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </label>
-          )}
-          <label className="field-label">Certification Name<input className="input" value={form.name} onChange={set('name')} required/></label>
-          <label className="field-label">Issuing Body<input className="input" value={form.issuing_body} onChange={set('issuing_body')}/></label>
-          <label className="field-label">Issued<input className="input" type="date" value={form.issued} onChange={set('issued')}/></label>
-          <label className="field-label">Expires<input className="input" type="date" value={form.expires} onChange={set('expires')}/></label>
+    <Modal title={certToEdit ? 'Edit Certification' : 'Add Certification'} onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="modal-body">
+          {!certToEdit && (<>
+            <label className="field-label">Staff Member</label>
+            <select className="input" value={form.staff_member} onChange={set('staff_member')} required>
+              <option value="">Select…</option>
+              {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </>)}
+          <label className="field-label">Certification Name</label>
+          <input className="input" value={form.name} onChange={set('name')} required/>
+          <label className="field-label">Issuing Body</label>
+          <input className="input" value={form.issuing_body} onChange={set('issuing_body')}/>
+          <label className="field-label">Issued</label>
+          <input className="input" type="date" value={form.issued} onChange={set('issued')}/>
+          <label className="field-label">Expires</label>
+          <input className="input" type="date" value={form.expires} onChange={set('expires')}/>
           <label className="field-label">
             {certToEdit?.pdf_file ? 'Replace PDF' : 'Upload PDF'}
             {certToEdit?.pdf_file && <a href={certToEdit.pdf_file} target="_blank" rel="noreferrer" style={{ fontSize: 11, marginLeft: 8, color: 'var(--blue)' }}>View current</a>}
-            <input type="file" accept=".pdf" onChange={e => setPdfFile(e.target.files[0] || null)} style={{ marginTop: 4 }}/>
           </label>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <input type="file" accept=".pdf" onChange={e => setPdfFile(e.target.files[0] || null)}/>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -196,36 +216,36 @@ function AddShiftModal({ staffList, weekStart, onClose, onSave, prefill }) {
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-hdr"><span className="modal-title">Add Shift</span><button className="btn btn-ghost btn-sm" onClick={onClose}><Ic n="x" s={13}/></button></div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label className="field-label">Staff Member
-            <select className="input" value={form.staff_member} onChange={set('staff_member')} required>
-              <option value="">Select…</option>
-              {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
-          <label className="field-label">Day
-            <select className="input" value={form.day} onChange={set('day')}>
-              {DAY_KEYS.map((d, i) => <option key={d} value={d}>{DAYS[i]}</option>)}
-            </select>
-          </label>
+    <Modal title="Add Shift" onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="modal-body">
+          <label className="field-label">Staff Member</label>
+          <select className="input" value={form.staff_member} onChange={set('staff_member')} required>
+            <option value="">Select…</option>
+            {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <label className="field-label">Day</label>
+          <select className="input" value={form.day} onChange={set('day')}>
+            {DAY_KEYS.map((d, i) => <option key={d} value={d}>{DAYS[i]}</option>)}
+          </select>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
             <input type="checkbox" checked={form.is_off} onChange={set('is_off')}/> Day Off
           </label>
           {!form.is_off && <>
-            <label className="field-label">Start Time<input className="input" type="time" value={form.start_time} onChange={set('start_time')} required/></label>
-            <label className="field-label">End Time<input className="input" type="time" value={form.end_time} onChange={set('end_time')} required/></label>
-            <label className="field-label">Department<input className="input" value={form.department} onChange={set('department')}/></label>
+            <label className="field-label">Start Time</label>
+            <input className="input" type="time" value={form.start_time} onChange={set('start_time')} required/>
+            <label className="field-label">End Time</label>
+            <input className="input" type="time" value={form.end_time} onChange={set('end_time')} required/>
+            <label className="field-label">Department</label>
+            <input className="input" value={form.department} onChange={set('department')}/>
           </>}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Shift'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Shift'}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
