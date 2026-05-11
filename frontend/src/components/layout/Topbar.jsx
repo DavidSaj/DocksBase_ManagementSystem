@@ -37,7 +37,7 @@ function getInitials(user) {
   return '?';
 }
 
-export default function Topbar({ screen }) {
+export default function Topbar({ screen, setScreen }) {
   const { user, signOut } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);

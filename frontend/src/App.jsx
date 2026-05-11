@@ -140,7 +140,7 @@ function DesktopApp() {
       <div className="app" style={isSafeMode ? { paddingTop: 36 } : {}}>
         <Sidebar screen={screen} setScreen={setScreen} />
         <div className="main">
-          <Topbar screen={screen} />
+          <Topbar screen={screen} setScreen={setScreen} />
           <div className="content">
             <ScreenErrorBoundary key={screen} setScreen={setScreen}>
               <Screen setScreen={setScreen} />
