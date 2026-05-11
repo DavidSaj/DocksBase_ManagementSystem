@@ -54,6 +54,7 @@ LOCAL_APPS = [
     'apps.reports',
     'apps.fuel_dock',
     'apps.search',
+    'apps.notifications',
     'apps.portal',
     'apps.admin_portal',
     'apps.mobile',
