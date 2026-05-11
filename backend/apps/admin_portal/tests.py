@@ -71,12 +71,12 @@ class PlatformAdminGateTest(TestCase):
 
     def test_regular_user_cannot_access_admin_overview(self):
         auth(self.client, self.regular)
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         self.assertEqual(resp.status_code, 403)
 
     def test_platform_admin_can_access_admin_overview(self):
         auth(self.client, self.admin)
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         self.assertEqual(resp.status_code, 200)
 
 
@@ -93,32 +93,32 @@ class AdminOverviewTest(TestCase):
         self.m4 = make_marina(name='Suspended1', status='suspended', suspend_reason='Overdue')
 
     def test_overview_mrr_sums_active_plans(self):
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         # professional=349 + starter=149 = 498
         self.assertEqual(data['mrr'], 498)
 
     def test_overview_counts(self):
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         data = resp.json()
         self.assertEqual(data['active_marinas'], 2)
         self.assertEqual(data['trial_marinas'], 1)
 
     def test_overview_alerts_contain_trials_ending_soon(self):
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         data = resp.json()
         names = [m['name'] for m in data['alerts']['trials_ending_soon']]
         self.assertIn('Trial1', names)
 
     def test_overview_alerts_contain_suspended(self):
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         data = resp.json()
         names = [m['name'] for m in data['alerts']['suspended']]
         self.assertIn('Suspended1', names)
 
     def test_overview_recent_signups(self):
-        resp = self.client.get('/api/admin/overview/')
+        resp = self.client.get('/api/v1/admin/overview/')
         data = resp.json()
         self.assertIn('recent_signups', data)
         self.assertGreater(len(data['recent_signups']), 0)
@@ -135,14 +135,14 @@ class AdminMarinaListTest(TestCase):
         self.m2 = make_marina(name='Beta', status='trial')
 
     def test_list_returns_all_marinas(self):
-        resp = self.client.get('/api/admin/marinas/')
+        resp = self.client.get('/api/v1/admin/marinas/')
         self.assertEqual(resp.status_code, 200)
         names = [m['name'] for m in resp.json()]
         self.assertIn('Alpha', names)
         self.assertIn('Beta', names)
 
     def test_filter_by_status(self):
-        resp = self.client.get('/api/admin/marinas/?status=trial')
+        resp = self.client.get('/api/v1/admin/marinas/?status=trial')
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(len(data), 1)
@@ -151,14 +151,14 @@ class AdminMarinaListTest(TestCase):
     def test_detail_returns_feature_toggles(self):
         self.m1.features = {'restaurant': True, 'boatyard': False}
         self.m1.save()
-        resp = self.client.get(f'/api/admin/marinas/{self.m1.id}/')
+        resp = self.client.get(f'/api/v1/admin/marinas/{self.m1.id}/')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['features']['restaurant'], True)
 
     def test_detail_returns_staff_list(self):
         make_user(self.m1, role='manager')
         make_user(self.m1, role='staff')
-        resp = self.client.get(f'/api/admin/marinas/{self.m1.id}/')
+        resp = self.client.get(f'/api/v1/admin/marinas/{self.m1.id}/')
         self.assertEqual(len(resp.json()['staff']), 2)
 
 
@@ -173,7 +173,7 @@ class AdminMarinaActionsTest(TestCase):
 
     def test_suspend_marina(self):
         resp = self.client.post(
-            f'/api/admin/marinas/{self.marina.id}/suspend/',
+            f'/api/v1/admin/marinas/{self.marina.id}/suspend/',
             {'reason': 'Payment overdue'}
         )
         self.assertEqual(resp.status_code, 200)
@@ -182,14 +182,14 @@ class AdminMarinaActionsTest(TestCase):
         self.assertEqual(self.marina.suspend_reason, 'Payment overdue')
 
     def test_suspend_creates_audit_log(self):
-        self.client.post(f'/api/admin/marinas/{self.marina.id}/suspend/', {'reason': 'Test'})
+        self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/suspend/', {'reason': 'Test'})
         self.assertTrue(AuditLog.objects.filter(action='suspend_marina', target_marina=self.marina).exists())
 
     def test_reinstate_marina(self):
         self.marina.status = 'suspended'
         self.marina.suspend_reason = 'Old reason'
         self.marina.save()
-        resp = self.client.post(f'/api/admin/marinas/{self.marina.id}/reinstate/')
+        resp = self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/reinstate/')
         self.assertEqual(resp.status_code, 200)
         self.marina.refresh_from_db()
         self.assertEqual(self.marina.status, 'active')
@@ -198,19 +198,19 @@ class AdminMarinaActionsTest(TestCase):
     def test_convert_trial_to_active(self):
         self.marina.status = 'trial'
         self.marina.save()
-        resp = self.client.post(f'/api/admin/marinas/{self.marina.id}/convert/')
+        resp = self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/convert/')
         self.assertEqual(resp.status_code, 200)
         self.marina.refresh_from_db()
         self.assertEqual(self.marina.status, 'active')
 
     def test_convert_non_trial_returns_400(self):
         # self.marina has status='active' from setUp
-        resp = self.client.post(f'/api/admin/marinas/{self.marina.id}/convert/')
+        resp = self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/convert/')
         self.assertEqual(resp.status_code, 400)
 
     def test_update_features_toggle(self):
         resp = self.client.patch(
-            f'/api/admin/marinas/{self.marina.id}/',
+            f'/api/v1/admin/marinas/{self.marina.id}/',
             {'features': {'restaurant': False, 'boatyard': True}},
             format='json'
         )
@@ -230,7 +230,7 @@ class AdminImpersonateTest(TestCase):
         self.owner = make_user(self.marina, role='owner')
 
     def test_impersonate_returns_safe_mode_token(self):
-        resp = self.client.post(f'/api/admin/marinas/{self.marina.id}/impersonate/')
+        resp = self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/impersonate/')
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn('access', data)
@@ -238,18 +238,18 @@ class AdminImpersonateTest(TestCase):
 
     def test_impersonate_token_has_safe_mode_claim(self):
         import jwt as pyjwt
-        resp = self.client.post(f'/api/admin/marinas/{self.marina.id}/impersonate/')
+        resp = self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/impersonate/')
         token = resp.json()['access']
         payload = pyjwt.decode(token, options={'verify_signature': False})
         self.assertTrue(payload['is_safe_mode'])
 
     def test_impersonate_creates_audit_log(self):
-        self.client.post(f'/api/admin/marinas/{self.marina.id}/impersonate/')
+        self.client.post(f'/api/v1/admin/marinas/{self.marina.id}/impersonate/')
         self.assertTrue(AuditLog.objects.filter(action='impersonate', target_marina=self.marina).exists())
 
     def test_impersonate_no_owner_returns_404(self):
         empty_marina = make_marina(name='Empty')
-        resp = self.client.post(f'/api/admin/marinas/{empty_marina.id}/impersonate/')
+        resp = self.client.post(f'/api/v1/admin/marinas/{empty_marina.id}/impersonate/')
         self.assertEqual(resp.status_code, 404)
 
 
@@ -271,18 +271,18 @@ class AdminFinanceTest(TestCase):
         )
 
     def test_payments_list(self):
-        resp = self.client.get('/api/admin/payments/')
+        resp = self.client.get('/api/v1/admin/payments/')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()), 2)
 
     def test_payments_filter_by_status(self):
-        resp = self.client.get('/api/admin/payments/?status=overdue')
+        resp = self.client.get('/api/v1/admin/payments/?status=overdue')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()), 1)
         self.assertEqual(resp.json()[0]['status'], 'overdue')
 
     def test_finance_overview(self):
-        resp = self.client.get('/api/admin/finance/')
+        resp = self.client.get('/api/v1/admin/finance/')
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn('mrr', data)
@@ -302,18 +302,18 @@ class GlobalFeatureFlagTest(TestCase):
         GlobalFeatureFlag.objects.create(name='restaurant', enabled=False)
 
     def test_list_flags(self):
-        resp = self.client.get('/api/admin/feature-flags/')
+        resp = self.client.get('/api/v1/admin/feature-flags/')
         self.assertEqual(resp.status_code, 200)
         names = [f['name'] for f in resp.json()]
         self.assertIn('boatyard', names)
 
     def test_toggle_flag(self):
-        resp = self.client.patch('/api/admin/feature-flags/boatyard/', {'enabled': False})
+        resp = self.client.patch('/api/v1/admin/feature-flags/boatyard/', {'enabled': False})
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(GlobalFeatureFlag.objects.get(name='boatyard').enabled)
 
     def test_toggle_creates_audit_log(self):
-        self.client.patch('/api/admin/feature-flags/boatyard/', {'enabled': False})
+        self.client.patch('/api/v1/admin/feature-flags/boatyard/', {'enabled': False})
         self.assertTrue(AuditLog.objects.filter(action='toggle_global_flag').exists())
 
 
@@ -344,7 +344,7 @@ class AuditLogTest(TestCase):
         AuditLog.objects.create(admin_user=self.admin, action='impersonate', target_marina=self.marina)
 
     def test_audit_log_list(self):
-        resp = self.client.get('/api/admin/audit-logs/')
+        resp = self.client.get('/api/v1/admin/audit-logs/')
         self.assertEqual(resp.status_code, 200)
         actions = [e['action'] for e in resp.json()]
         self.assertIn('suspend_marina', actions)
@@ -353,10 +353,10 @@ class AuditLogTest(TestCase):
     def test_audit_log_filter_by_marina(self):
         other = make_marina(name='Other')
         AuditLog.objects.create(admin_user=self.admin, action='reinstate_marina', target_marina=other)
-        resp = self.client.get(f'/api/admin/audit-logs/?marina={self.marina.id}')
+        resp = self.client.get(f'/api/v1/admin/audit-logs/?marina={self.marina.id}')
         data = resp.json()
         self.assertEqual(len(data), 2)
 
     def test_audit_log_is_read_only(self):
-        resp = self.client.post('/api/admin/audit-logs/', {'action': 'hack'})
+        resp = self.client.post('/api/v1/admin/audit-logs/', {'action': 'hack'})
         self.assertEqual(resp.status_code, 405)
