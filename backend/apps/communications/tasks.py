@@ -1,7 +1,7 @@
 from celery import shared_task
 
 
-@shared_task
+@shared_task(name='communications.run_journey_enrollments')
 def evaluate_journey_steps():
     from apps.communications.services.journey import evaluate_all_due_enrollments
     evaluate_all_due_enrollments()

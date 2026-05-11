@@ -1,7 +1,7 @@
 from celery import shared_task
 
 
-@shared_task
+@shared_task(name='channels.push_ota_availability')
 def push_ota_availability():
     from apps.channels.models import OTAChannel
     from apps.channels.ota.factory import get_adapter
@@ -43,7 +43,7 @@ def push_ota_availability_delta(self, berth_id, date_from, date_to):
             raise self.retry(exc=exc)
 
 
-@shared_task
+@shared_task(name='channels.pull_ota_bookings')
 def pull_ota_bookings():
     from apps.channels.models import OTAChannel
     from apps.channels.ota.factory import get_adapter
