@@ -2,6 +2,7 @@ from django.urls import path
 
 from .feed_views import FeedView
 from .member_auth_urls import urlpatterns as member_auth_urls
+from .services_views import PortalMemberCraneRequestView
 from .views import (
     PortalInvoiceListView, AbsenceReportCreateView, CraneRequestListCreateView,
     CraneRequestStaffListView, CraneRequestStaffDetailView,
@@ -18,4 +19,5 @@ urlpatterns = member_auth_urls + [
     path('portal/crane-requests/<int:pk>/staff-update/',  CraneRequestStaffDetailView.as_view(), name='portal_crane_staff_detail'),
     path('portal/berth/',                                 PortalBerthView.as_view(),             name='portal_berth'),
     path('portal/vessel/',                                PortalVesselView.as_view(),            name='portal_vessel'),
+    path('portal/member/crane-requests/',                 PortalMemberCraneRequestView.as_view(), name='portal_member_crane_requests'),
 ]
