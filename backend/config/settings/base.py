@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.notifications',
     'apps.portal',
     'apps.admin_portal',
+    'apps.enterprise',
     'apps.mobile',
     # ERP tracks
     'apps.revenue',
