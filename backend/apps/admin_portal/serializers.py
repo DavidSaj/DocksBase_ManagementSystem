@@ -90,15 +90,7 @@ class GlobalFeatureFlagSerializer(serializers.ModelSerializer):
         read_only_fields = ['updated_at']
 
 
-from apps.accounts.models import MarinaGroup, MarinaGroupMembership
-
-
-class MarinaGroupMemberSerializer(serializers.ModelSerializer):
-    group_name = serializers.CharField(source='group.name', read_only=True)
-
-    class Meta:
-        model = MarinaGroupMembership
-        fields = ['id', 'marina_id', 'group_name']
+from apps.accounts.models import MarinaGroup
 
 
 class MarinaGroupSerializer(serializers.ModelSerializer):

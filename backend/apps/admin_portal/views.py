@@ -461,6 +461,7 @@ class AdminGroupDetailView(APIView):
 
     def delete(self, request, pk):
         g = get_object_or_404(MarinaGroup, pk=pk)
+        _log(request.user, 'delete_group', group_id=pk, group_name=g.name)
         g.delete()
         return Response(status=http_status.HTTP_204_NO_CONTENT)
 
