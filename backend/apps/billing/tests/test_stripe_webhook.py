@@ -11,10 +11,15 @@ from apps.reservations.models import Booking
 
 
 def _setup():
+    from apps.billing.service import seed_default_tax_rates
+    from apps.billing.models import TaxRate
     marina = Marina.objects.create(name='Test Marina')
+    seed_default_tax_rates(marina)
+    tax_cat = TaxRate.objects.get(marina=marina, name='Standard — 20.00%')
     tier = ChargeableItem.objects.create(
         marina=marina, name='Berth Night', category='berth',
         pricing_model='per_night', unit_price=100,
+        tax_category=tax_cat,
     )
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
     berth = Berth.objects.create(marina=marina, pier=pier, code='A1', pricing_tier=tier)

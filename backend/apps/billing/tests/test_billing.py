@@ -13,11 +13,24 @@ from apps.billing.models import ChargeableItem
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def make_marina(vat_rate='8.10', stripe_account_id='acct_test123'):
-    return Marina.objects.create(
+def make_marina(stripe_account_id='acct_test123'):
+    from apps.billing.service import seed_default_tax_rates
+    marina = Marina.objects.create(
         name='Test Marina',
-        vat_rate=Decimal(vat_rate),
         stripe_account_id=stripe_account_id,
+    )
+    seed_default_tax_rates(marina)
+    return marina
+
+
+def make_item(marina, name='Test Berth', category='berth', pricing_model='per_night',
+              unit_price='50.00', rate_name='Standard — 20.00%'):
+    from apps.billing.models import TaxRate
+    tax_cat = TaxRate.objects.get(marina=marina, name=rate_name)
+    return ChargeableItem.objects.create(
+        marina=marina, name=name, category=category,
+        pricing_model=pricing_model, unit_price=Decimal(unit_price),
+        tax_category=tax_cat,
     )
 
 
@@ -33,24 +46,6 @@ def make_member(marina, email='hans@boat.ch'):
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
 
-class MarinaFieldsTest(TestCase):
-    def test_vat_rate_and_stripe_account_id_exist(self):
-        marina = Marina.objects.create(
-            name='Marina A', vat_rate=Decimal('7.70'), stripe_account_id='acct_abc'
-        )
-        marina.refresh_from_db()
-        self.assertEqual(marina.vat_rate, Decimal('7.70'))
-        self.assertEqual(marina.stripe_account_id, 'acct_abc')
-
-    def test_vat_rate_defaults_to_zero(self):
-        marina = Marina.objects.create(name='Marina B')
-        self.assertEqual(marina.vat_rate, Decimal('0.00'))
-
-    def test_stripe_account_id_defaults_blank(self):
-        marina = Marina.objects.create(name='Marina C')
-        self.assertEqual(marina.stripe_account_id, '')
-
-
 from apps.billing.models import Invoice, InvoiceLineItem, Payment
 
 
@@ -65,7 +60,6 @@ class BillingModelTest(TestCase):
             status='draft',
             source_type='berth_booking',
             source_id='42',
-            vat_rate=Decimal('8.10'),
         )
         invoice.refresh_from_db()
         self.assertEqual(invoice.invoice_number, 'INV-2026-0001')
@@ -82,7 +76,7 @@ class BillingModelTest(TestCase):
     def test_invoice_line_item_fields(self):
         invoice = Invoice.objects.create(
             marina=self.marina, invoice_number='INV-2026-0002',
-            status='draft', vat_rate=Decimal('8.10'),
+            status='draft',
         )
         item = InvoiceLineItem.objects.create(
             invoice=invoice,
@@ -97,7 +91,7 @@ class BillingModelTest(TestCase):
     def test_payment_fields(self):
         invoice = Invoice.objects.create(
             marina=self.marina, invoice_number='INV-2026-0003',
-            status='open', vat_rate=Decimal('0.00'),
+            status='open',
         )
         payment = Payment.objects.create(
             invoice=invoice, method='cash', amount=Decimal('50.00'),
@@ -131,7 +125,7 @@ class ServiceLayerTest(TestCase):
         self.marina = make_marina()
         self.member = make_member(self.marina)
 
-    def test_create_invoice_snapshots_vat_rate_and_member(self):
+    def test_create_invoice_snapshots_member(self):
         inv = billing_service.create_invoice(
             self.marina, member=self.member,
             source_type='berth_booking', source_id='10',
@@ -139,7 +133,6 @@ class ServiceLayerTest(TestCase):
         self.assertEqual(inv.status, 'draft')
         self.assertEqual(inv.member, self.member)
         self.assertEqual(inv.source_id, '10')
-        self.assertIsNone(inv.vat_rate)   # per-line-item tax rates, not invoice-level
 
     def test_add_line_item_calculates_total_price(self):
         inv = billing_service.create_invoice(self.marina, source_type='berth_booking', source_id='11')
@@ -223,10 +216,7 @@ from apps.reservations.models import Booking
 
 def make_berth(marina, price=Decimal('50.00')):
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
-    tier = ChargeableItem.objects.create(
-        marina=marina, name='Berth Night', category='berth',
-        pricing_model='per_night', unit_price=price,
-    )
+    tier = make_item(marina, name='Berth Night', unit_price=str(price))
     return Berth.objects.create(
         marina=marina, pier=pier, code='A1',
         pricing_tier=tier, status='available',
@@ -508,14 +498,8 @@ class ChargeableItemBerthAssignmentTest(TestCase):
         self.client.force_authenticate(user=self.user)
 
         pier = Pier.objects.create(marina=self.marina, code='A', label='Pier A')
-        self.tier_a = ChargeableItem.objects.create(
-            marina=self.marina, name='Standard Rate', category='berth',
-            pricing_model='per_night', unit_price=Decimal('50'),
-        )
-        self.tier_b = ChargeableItem.objects.create(
-            marina=self.marina, name='Premium Rate', category='berth',
-            pricing_model='per_night', unit_price=Decimal('80'),
-        )
+        self.tier_a = make_item(self.marina, name='Standard Rate', unit_price='50.00')
+        self.tier_b = make_item(self.marina, name='Premium Rate', unit_price='80.00')
         self.berth1 = Berth.objects.create(marina=self.marina, pier=pier, code='A1', pricing_tier=self.tier_a)
         self.berth2 = Berth.objects.create(marina=self.marina, pier=pier, code='A2', pricing_tier=self.tier_a)
         self.berth3 = Berth.objects.create(marina=self.marina, pier=pier, code='A3', pricing_tier=self.tier_b)
@@ -558,12 +542,11 @@ class ChargeableItemBerthAssignmentTest(TestCase):
         self.assertEqual(self.berth2.pricing_tier_id, self.tier_a.id)
 
     def test_patch_berth_ids_restricted_to_own_marina(self):
+        from apps.billing.service import seed_default_tax_rates
         other_marina = Marina.objects.create(name='Other Marina')
+        seed_default_tax_rates(other_marina)
         other_pier = Pier.objects.create(marina=other_marina, code='B', label='Pier B')
-        other_tier = ChargeableItem.objects.create(
-            marina=other_marina, name='Other Rate', category='berth',
-            pricing_model='per_night', unit_price=Decimal('60'),
-        )
+        other_tier = make_item(other_marina, name='Other Rate', unit_price='60.00')
         other_berth = Berth.objects.create(
             marina=other_marina, pier=other_pier, code='B1', pricing_tier=other_tier
         )
