@@ -12,6 +12,7 @@ export default function WorkOrderScreen({ onBack }) {
   function submit(e) {
     e.preventDefault();
     if (!description.trim()) return;
+    setError(null);
     setSubmitting(true);
     submitWorkOrder({ description: description.trim(), urgency })
       .then(r => setRef(r.data.ref))
@@ -38,8 +39,9 @@ export default function WorkOrderScreen({ onBack }) {
       <div className="p-wo-card">
         <div className="p-wo-title">Boatyard Work Request</div>
         <form onSubmit={submit}>
-          <label className="p-wo-label">Describe the work needed</label>
+          <label className="p-wo-label" htmlFor="wo-description">Describe the work needed</label>
           <textarea
+            id="wo-description"
             className="p-wo-textarea"
             rows={5}
             placeholder="e.g. Engine making a knocking sound when starting. Needs inspection."
@@ -47,8 +49,9 @@ export default function WorkOrderScreen({ onBack }) {
             onChange={e => setDescription(e.target.value)}
             required
           />
-          <label className="p-wo-label">Urgency</label>
+          <label className="p-wo-label" htmlFor="wo-urgency">Urgency</label>
           <select
+            id="wo-urgency"
             className="p-wo-select"
             value={urgency}
             onChange={e => setUrgency(e.target.value)}
