@@ -20,6 +20,7 @@ class StaffUserSerializer(serializers.ModelSerializer):
 class MarinaListSerializer(serializers.ModelSerializer):
     mrr = serializers.SerializerMethodField()
     user_count = serializers.SerializerMethodField()
+    group_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Marina
@@ -28,7 +29,7 @@ class MarinaListSerializer(serializers.ModelSerializer):
             'total_berths', 'mrr', 'user_count',
             'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'features', 'mrr_override', 'max_staff',
-            'created_at',
+            'created_at', 'group_name',
         ]
 
     def get_mrr(self, obj):
@@ -36,6 +37,10 @@ class MarinaListSerializer(serializers.ModelSerializer):
 
     def get_user_count(self, obj):
         return obj.users.filter(is_active=True).count()
+
+    def get_group_name(self, obj):
+        membership = obj.group_memberships.select_related('group').first()
+        return membership.group.name if membership else None
 
 
 class MarinaDetailSerializer(MarinaListSerializer):
