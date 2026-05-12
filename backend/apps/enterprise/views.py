@@ -192,3 +192,28 @@ class GroupExchangeTokenView(APIView):
             'access': str(access),
             'marina_slug': marina.slug,
         })
+
+
+class GroupSettingsView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def _data(self, group):
+        return {
+            'id':                     group.id,
+            'name':                   group.name,
+            'billing_contact_email':  group.billing_contact_email,
+            'vat_number':             group.vat_number,
+            'base_currency':          group.base_currency,
+        }
+
+    def get(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        return Response(self._data(group))
+
+    def patch(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        allowed = {'name', 'billing_contact_email', 'vat_number', 'base_currency'}
+        for field in allowed & set(request.data.keys()):
+            setattr(group, field, request.data[field])
+        group.save()
+        return Response(self._data(group))
