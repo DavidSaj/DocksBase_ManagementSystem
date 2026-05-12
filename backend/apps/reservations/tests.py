@@ -1061,6 +1061,31 @@ def berth_factory():
 
 
 @pytest.mark.django_db
+class TestInvoiceReservationFK:
+    def test_invoice_reservation_field_exists(self, marina_factory, berth_factory):
+        from apps.billing.models import Invoice
+        from apps.reservations.models import Reservation
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Invoice Test',
+            guest_email='inv@test.com',
+            status='confirmed',
+            total_price=Decimal('150.00'),
+        )
+        inv = Invoice.objects.create(
+            marina=marina,
+            invoice_number='INV-2026-9999',
+            status='draft',
+            reservation=res,
+        )
+        assert Invoice.objects.get(pk=inv.pk).reservation_id == res.pk
+
+
+@pytest.mark.django_db
 class TestReservationModel:
     def test_reservation_str(self, marina_factory):
         from apps.reservations.models import Reservation

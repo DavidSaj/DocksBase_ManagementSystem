@@ -56,6 +56,13 @@ class Invoice(models.Model):
         blank=True,
         related_name='invoices',
     )
+    reservation = models.ForeignKey(
+        'reservations.Reservation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices',
+    )
     invoice_type = models.CharField(
         max_length=20,
         choices=[('invoice', 'Invoice'), ('credit_note', 'Credit Note')],
