@@ -2,6 +2,7 @@ import { useState } from 'react';
 import CraneRequestScreen from '../CraneRequestScreen';
 import ExtendStayScreen from '../ExtendStayScreen';
 import ReportIssueScreen from '../ReportIssueScreen';
+import WorkOrderScreen from '../WorkOrderScreen';
 
 function ChevronIcon() {
   return (
@@ -42,23 +43,32 @@ function AlertIcon() {
   );
 }
 
+function WrenchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+    </svg>
+  );
+}
+
 const SERVICES = [
-  { id: 'crane',  label: 'Crane / Lift Request', sub: 'Request a hoist service from the harbour team', Icon: CraneIcon },
-  { id: 'extend', label: 'Extend Stay',           sub: 'Request additional nights at your berth',       Icon: CalendarIcon },
-  { id: 'issue',  label: 'Report an Issue',       sub: 'Berth, facility or vessel problem',             Icon: AlertIcon },
+  { id: 'crane',     label: 'Crane / Lift Request',    sub: 'Request a hoist service from the harbour team',       Icon: CraneIcon },
+  { id: 'extend',    label: 'Extend Stay',              sub: 'Request additional nights at your berth',             Icon: CalendarIcon },
+  { id: 'issue',     label: 'Report an Issue',          sub: 'Berth, facility or vessel problem',                   Icon: AlertIcon },
+  { id: 'workorder', label: 'Boatyard Work Request',    sub: 'Request maintenance or repair work on your vessel',   Icon: WrenchIcon },
 ];
 
 const STUBS = [
-  { label: 'Maintenance Request', sub: 'Coming soon' },
-  { label: 'Activities',          sub: 'Coming soon' },
+  { label: 'Activities', sub: 'Coming soon' },
 ];
 
 export default function ServicesTab() {
   const [active, setActive] = useState(null);
 
-  if (active === 'crane')  return <CraneRequestScreen onBack={() => setActive(null)} />;
-  if (active === 'extend') return <ExtendStayScreen   onBack={() => setActive(null)} />;
-  if (active === 'issue')  return <ReportIssueScreen  onBack={() => setActive(null)} />;
+  if (active === 'crane')     return <CraneRequestScreen onBack={() => setActive(null)} />;
+  if (active === 'extend')    return <ExtendStayScreen   onBack={() => setActive(null)} />;
+  if (active === 'issue')     return <ReportIssueScreen  onBack={() => setActive(null)} />;
+  if (active === 'workorder') return <WorkOrderScreen    onBack={() => setActive(null)} />;
 
   return (
     <div className="p-service-list">

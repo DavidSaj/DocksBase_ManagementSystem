@@ -1254,3 +1254,40 @@ select.p-input { -webkit-appearance: auto; appearance: auto; }
 .p-util-note        { font-size: 12px; color: rgba(0,0,0,0.35); padding: 0 16px; line-height: 1.5; }
 .p-tab-loading      { padding: 32px 16px; text-align: center; color: rgba(0,0,0,0.4); font-size: 14px; }
 .p-tab-stub         { padding: 32px 16px; text-align: center; color: rgba(0,0,0,0.4); font-size: 14px; }
+
+/* ── Work Order Screen ──────────────────────────────────────────── */
+.p-wo-root          { min-height: 100vh; background: #f4f6f8; padding: 0 0 80px; }
+.p-wo-back          { background: none; border: none; padding: 16px; font-size: 15px; font-weight: 600; color: var(--color-primary); cursor: pointer; }
+.p-wo-card          { background: #fff; border-radius: 12px; padding: 20px; margin: 0 16px; box-shadow: var(--shadow-card, 0 1px 4px rgba(0,0,0,0.08)); }
+.p-wo-title         { font-size: 18px; font-weight: 700; color: #1a2d4a; margin-bottom: 20px; }
+.p-wo-label         { display: block; font-size: 12px; font-weight: 700; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; margin-top: 16px; }
+.p-wo-label:first-of-type { margin-top: 0; }
+.p-wo-textarea      { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-size: 15px; resize: vertical; box-sizing: border-box; }
+.p-wo-select        { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-size: 15px; background: #fff; box-sizing: border-box; }
+.p-wo-submit        { width: 100%; margin-top: 20px; padding: 14px; background: var(--color-primary); color: #fff; border: none; border-radius: 3px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.p-wo-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.p-wo-error         { color: #c0392b; font-size: 14px; margin-top: 8px; }
+.p-wo-confirm-card  { background: #fff; border-radius: 12px; padding: 28px 20px; margin: 0 16px; text-align: center; box-shadow: var(--shadow-card, 0 1px 4px rgba(0,0,0,0.08)); }
+.p-wo-confirm-ref   { font-size: 28px; font-weight: 800; color: var(--color-primary); margin-bottom: 8px; }
+.p-wo-confirm-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.p-wo-confirm-sub   { font-size: 14px; color: rgba(0,0,0,0.55); line-height: 1.6; }
+
+/* ── Account Tab ────────────────────────────────────────────────── */
+.p-acct-root          { min-height: 100vh; background: #f4f6f8; padding: 0 0 80px; }
+.p-acct-section-title { font-size: 13px; font-weight: 700; color: rgba(0,0,0,0.4); text-transform: uppercase; letter-spacing: 0.5px; padding: 20px 16px 6px; }
+.p-acct-card          { background: #fff; border-radius: 12px; margin: 0 16px 12px; box-shadow: var(--shadow-card, 0 1px 4px rgba(0,0,0,0.08)); overflow: hidden; }
+.p-acct-empty         { padding: 16px; font-size: 14px; color: rgba(0,0,0,0.4); }
+.p-acct-invoice-row   { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.p-acct-invoice-row:last-child { border-bottom: none; }
+.p-acct-invoice-num   { font-size: 14px; font-weight: 600; color: #1a2d4a; }
+.p-acct-invoice-date  { font-size: 12px; color: rgba(0,0,0,0.4); margin-top: 2px; }
+.p-acct-invoice-right { text-align: right; }
+.p-acct-invoice-amount { font-size: 16px; font-weight: 700; color: #1a2d4a; margin-bottom: 4px; }
+.p-acct-doc-row       { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.p-acct-doc-row:last-child { border-bottom: none; }
+.p-acct-doc-type      { font-size: 14px; font-weight: 600; color: #1a2d4a; }
+.p-acct-doc-status    { font-size: 12px; font-weight: 600; margin-top: 2px; }
+.p-acct-doc-expiry    { font-size: 12px; color: rgba(0,0,0,0.4); margin-top: 2px; }
+.p-acct-doc-actions   { display: flex; gap: 8px; }
+.p-acct-doc-btn       { background: #f4f6f8; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: #1a2d4a; text-decoration: none; }
+.p-acct-logout        { width: 100%; padding: 14px 16px; background: none; border: none; text-align: left; font-size: 15px; color: #c0392b; font-weight: 600; cursor: pointer; }

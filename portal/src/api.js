@@ -76,3 +76,32 @@ export function fetchMemberGate() {
 export function fetchMemberUtilities() {
   return api.get('/portal/member/utilities/');
 }
+
+export function fetchWorkOrders() {
+  return api.get('/portal/member/work-orders/');
+}
+
+export function submitWorkOrder(data) {
+  return api.post('/portal/member/work-orders/', data);
+}
+
+export function fetchInvoices() {
+  return api.get('/portal/invoices/');
+}
+
+export function fetchDocuments() {
+  return api.get('/portal/member/documents/');
+}
+
+export function uploadDocument(docType, file) {
+  const form = new FormData();
+  form.append('doc_type', docType);
+  form.append('file', file);
+  return api.post('/portal/member/documents/', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
+export function deleteDocument(id) {
+  return api.delete(`/portal/member/documents/${id}/`);
+}
