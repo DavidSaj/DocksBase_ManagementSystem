@@ -1024,3 +1024,72 @@ class FindDateAlternativesTest(TestCase):
         for r in results:
             self.assertGreaterEqual(r['check_in'], timezone.localdate())
 
+
+import pytest
+import datetime as _dt
+from decimal import Decimal as _Decimal
+
+
+@pytest.mark.django_db
+class TestReservationModel:
+    def test_reservation_str(self, marina_factory):
+        from apps.reservations.models import Reservation
+        marina = marina_factory()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Alice',
+            guest_email='alice@test.com',
+            status='confirmed',
+            total_price=_Decimal('200.00'),
+        )
+        assert 'RES-' in str(res)
+        assert 'Alice' in str(res)
+
+    def test_reservation_item_str(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = _dt.date.today()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Bob',
+            guest_email='bob@test.com',
+            status='confirmed',
+            total_price=_Decimal('100.00'),
+        )
+        item = ReservationItem.objects.create(
+            reservation=res,
+            berth=berth,
+            check_in=today,
+            check_out=today + _dt.timedelta(days=2),
+            nights=2,
+            item_price=_Decimal('100.00'),
+        )
+        assert berth.code in str(item)
+
+    def test_reservation_total_price_sum_of_items(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        marina = marina_factory()
+        berth1 = berth_factory(marina=marina)
+        berth2 = berth_factory(marina=marina)
+        today = _dt.date.today()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Fleet Owner',
+            guest_email='fleet@test.com',
+            status='confirmed',
+            total_price=_Decimal('0.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth1,
+            check_in=today, check_out=today + _dt.timedelta(days=2),
+            nights=2, item_price=_Decimal('150.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth2,
+            check_in=today, check_out=today + _dt.timedelta(days=2),
+            nights=2, item_price=_Decimal('90.00'),
+        )
+        total = sum(i.item_price for i in res.items.all())
+        assert total == _Decimal('240.00')
+
