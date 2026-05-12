@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import useSearch from '../../hooks/useSearch.js';
 import useNotifications from '../../hooks/useNotifications.js';
 import SearchDropdown from './SearchDropdown.jsx';
+import BugReportModal from './BugReportModal.jsx';
 
 const TITLE_MAP = {
   overview:     'Overview',
@@ -39,6 +40,7 @@ export default function Topbar({ screen, setScreen }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [bugOpen, setBugOpen] = useState(false);
 
   const accountRef = useRef(null);
   const notifRef = useRef(null);
@@ -242,6 +244,16 @@ export default function Topbar({ screen, setScreen }) {
             </div>
           )}
         </div>
+
+        {/* Report bug */}
+        <div
+          className="topbar-icon-btn"
+          onClick={() => { setBugOpen(true); setNotifOpen(false); setAccountOpen(false); }}
+          title="Report a bug"
+        >
+          <Ic n="alert-tri" s={14} />
+        </div>
+        <BugReportModal open={bugOpen} onClose={() => setBugOpen(false)} screen={screen} />
 
         {/* Account avatar */}
         <div style={{ position: 'relative' }} ref={accountRef}>
