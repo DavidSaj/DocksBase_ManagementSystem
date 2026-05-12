@@ -23,10 +23,12 @@ def make_marina(timezone='UTC'):
 
 
 def make_booking(marina, check_in=None, check_out=None):
+    from apps.billing.models import TaxRate
     pier, _ = Pier.objects.get_or_create(marina=marina, code='A', defaults={'label': 'Pier A'})
+    tax, _ = TaxRate.objects.get_or_create(marina=marina, name='Standard', defaults={'rate': 0})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Berth Night',
-        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50},
+        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50, 'tax_category': tax},
     )
     berth, _ = Berth.objects.get_or_create(marina=marina, pier=pier, code='A1', defaults={'pricing_tier': tier, 'status': 'available'})
     today = datetime.date.today()
@@ -499,3 +501,143 @@ class InsuranceUploadViewTest(TestCase):
             format='multipart',
         )
         self.assertEqual(resp.status_code, 400)
+
+
+import hashlib
+import hmac as _hmac
+import json as _json
+
+
+def _ds_payload(api_key, event_type, booking_id=None, event_time='1700000000'):
+    """Build a form-encoded Dropbox Sign webhook body with a valid HMAC."""
+    msg = (event_time + event_type).encode()
+    event_hash = _hmac.new(api_key.encode(), msg, hashlib.sha256).hexdigest()
+    payload = {
+        'event': {
+            'event_type': event_type,
+            'event_time': event_time,
+            'event_hash': event_hash,
+        },
+        'signature_request': {
+            'metadata': {'booking_id': str(booking_id)} if booking_id is not None else {},
+        },
+    }
+    return {'json': _json.dumps(payload)}
+
+
+def _ds_payload_bad_hmac(event_type, booking_id=None):
+    """Build a payload whose event_hash is intentionally wrong."""
+    payload = {
+        'event': {
+            'event_type': event_type,
+            'event_time': '1700000000',
+            'event_hash': 'deadbeef' * 8,
+        },
+        'signature_request': {
+            'metadata': {'booking_id': str(booking_id)} if booking_id is not None else {},
+        },
+    }
+    return {'json': _json.dumps(payload)}
+
+
+_DS_URL = '/api/v1/portal/checkin/webhooks/dropbox-sign/{slug}/'
+
+
+class DropboxSignWebhookViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.marina = make_marina()
+        self.marina.dropboxsign_api_key = 'test_api_key_secret'
+        self.marina.save()
+        self.booking = make_booking(self.marina)
+        self.url = _DS_URL.format(slug=self.marina.slug)
+
+    # --- Happy path ---
+
+    def test_all_signed_sets_waiver_signed(self):
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', self.booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'Hello API Event Received', resp.content)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.waiver_signed)
+
+    def test_all_signed_with_complete_dimensions_sets_pre_cleared(self):
+        self.booking.boat_loa = 10
+        self.booking.boat_beam = 3
+        self.booking.boat_draft = 1.5
+        self.booking.save()
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', self.booking.id)
+        self.client.post(self.url, data, format='multipart')
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.pre_cleared)
+
+    def test_all_signed_idempotent(self):
+        self.booking.waiver_signed = True
+        self.booking.save()
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', self.booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertTrue(self.booking.waiver_signed)
+
+    def test_non_target_event_acknowledged_without_changes(self):
+        data = _ds_payload('test_api_key_secret', 'signature_request_viewed', self.booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.waiver_signed)
+
+    def test_unknown_booking_id_returns_200_ack(self):
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', booking_id=99999)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_missing_booking_id_returns_200_ack(self):
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', booking_id=None)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 200)
+
+    # --- Security: no API key ---
+
+    def test_marina_with_no_api_key_returns_401_and_does_not_modify_booking(self):
+        self.marina.dropboxsign_api_key = ''
+        self.marina.save()
+        data = _ds_payload('', 'signature_request_all_signed', self.booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 401)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.waiver_signed)
+
+    # --- Security: forged HMAC ---
+
+    def test_forged_signature_returns_401_and_does_not_modify_booking(self):
+        data = _ds_payload_bad_hmac('signature_request_all_signed', self.booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 401)
+        self.booking.refresh_from_db()
+        self.assertFalse(self.booking.waiver_signed)
+
+    def test_wrong_api_key_returns_401(self):
+        data = _ds_payload('wrong_key', 'signature_request_all_signed', self.booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 401)
+
+    # --- Unknown marina ---
+
+    def test_unknown_marina_slug_returns_404(self):
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', self.booking.id)
+        resp = self.client.post(_DS_URL.format(slug='no-such-marina'), data, format='multipart')
+        self.assertEqual(resp.status_code, 404)
+
+    # --- Cross-marina isolation ---
+
+    def test_booking_from_different_marina_not_modified(self):
+        other_marina = make_marina()
+        other_booking = make_booking(other_marina)
+        # Valid HMAC for self.marina's key but booking belongs to other_marina
+        data = _ds_payload('test_api_key_secret', 'signature_request_all_signed', other_booking.id)
+        resp = self.client.post(self.url, data, format='multipart')
+        self.assertEqual(resp.status_code, 200)
+        other_booking.refresh_from_db()
+        self.assertFalse(other_booking.waiver_signed)

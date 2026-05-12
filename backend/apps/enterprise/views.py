@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from decimal import Decimal
 
-from apps.accounts.models import MarinaGroup, MarinaGroupUserRole, Marina
+from apps.accounts.models import MarinaGroup, MarinaGroupUserRole, Marina, User
 from apps.billing.models import Invoice
 from .permissions import IsGroupAdmin
 from .serializers import GroupSummarySerializer, build_marina_card
@@ -192,3 +192,81 @@ class GroupExchangeTokenView(APIView):
             'access': str(access),
             'marina_slug': marina.slug,
         })
+
+
+class GroupSettingsView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def _data(self, group):
+        return {
+            'id':                     group.id,
+            'name':                   group.name,
+            'billing_contact_email':  group.billing_contact_email,
+            'vat_number':             group.vat_number,
+            'base_currency':          group.base_currency,
+        }
+
+    def get(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        return Response(self._data(group))
+
+    def patch(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        allowed = {'name', 'billing_contact_email', 'vat_number', 'base_currency'}
+        updated_fields = list(allowed & set(request.data.keys()))
+        for field in updated_fields:
+            setattr(group, field, request.data[field])
+        if updated_fields:
+            group.save(update_fields=updated_fields)
+        return Response(self._data(group))
+
+
+class GroupStaffInviteView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def post(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        email = request.data.get('email', '').strip().lower()
+        marina_id = request.data.get('marina_id')
+        if not email or not marina_id:
+            return Response(
+                {'detail': 'email and marina_id are required.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        if not group.memberships.filter(marina_id=marina_id).exists():
+            return Response(
+                {'detail': 'Marina not in group.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        marina = get_object_or_404(Marina, pk=marina_id)
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={'marina': marina, 'role': 'manager', 'is_active': True},
+        )
+        if not created and not user.is_active:
+            user.marina = marina
+            user.role = 'manager'
+            user.is_active = True
+            user.save(update_fields=['marina', 'role', 'is_active'])
+        response_status = http_status.HTTP_201_CREATED if created else http_status.HTTP_200_OK
+        return Response(
+            {'id': user.id, 'email': user.email, 'marina_id': marina.id, 'marina_name': marina.name},
+            status=response_status,
+        )
+
+
+class GroupStaffRemoveView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def post(self, request, pk, user_id):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        user = get_object_or_404(User, pk=user_id)
+        marina_ids = list(group.memberships.values_list('marina_id', flat=True))
+        if user.marina_id not in marina_ids:
+            return Response(
+                {'detail': 'User not in this group.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+        return Response({'detail': 'Staff removed.'})

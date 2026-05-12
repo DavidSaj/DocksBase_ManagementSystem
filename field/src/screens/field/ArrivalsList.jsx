@@ -54,12 +54,15 @@ export default function ArrivalsList({ onBack }) {
   const tomorrow = dateStr(1);
 
   useEffect(() => {
-    api.get('/bookings/', { params: { status: 'pending' } })
-      .then(r => {
-        const all = r.data.results ?? r.data;
-        setBookings(all.filter(b => b.check_in === today || b.check_in === tomorrow));
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get('/bookings/', { params: { status: 'pending',   check_in: today } }),
+      api.get('/bookings/', { params: { status: 'confirmed', check_in: today } }),
+      api.get('/bookings/', { params: { status: 'pending',   check_in: tomorrow } }),
+      api.get('/bookings/', { params: { status: 'confirmed', check_in: tomorrow } }),
+    ]).then(results => {
+      const all = results.flatMap(r => r.data.results ?? r.data);
+      setBookings(all);
+    }).finally(() => setLoading(false));
   }, []);
 
   const todayList    = bookings.filter(b => b.check_in === today);

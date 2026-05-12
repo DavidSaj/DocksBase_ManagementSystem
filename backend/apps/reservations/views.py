@@ -35,7 +35,7 @@ from .serializers import (
 class BookingListCreateView(generics.ListCreateAPIView):
     serializer_class = BookingSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['status', 'booking_type', 'paid']
+    filterset_fields = ['status', 'booking_type', 'paid', 'check_in']
     search_fields = ['vessel__name', 'berth__code', 'guest_name']
 
     def get_queryset(self):

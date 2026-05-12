@@ -234,6 +234,7 @@ class MarinaGroup(models.Model):
     slug                  = models.SlugField(unique=True)
     max_marinas           = models.IntegerField(default=1)
     billing_contact_email = models.EmailField(blank=True)
+    vat_number            = models.CharField(max_length=50, blank=True)
     stripe_customer_id    = models.CharField(max_length=64, blank=True)
     base_currency         = models.CharField(max_length=3, default='EUR')
     created_at            = models.DateTimeField(auto_now_add=True)
