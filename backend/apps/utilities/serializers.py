@@ -204,3 +204,38 @@ class WashTokenRedeemSerializer(serializers.Serializer):
                 'token_code must be 4–20 uppercase alphanumeric characters.'
             )
         return value.upper()
+
+
+# ---------------------------------------------------------------------------
+# Dockwalk — meter list for staff pier-walk
+# ---------------------------------------------------------------------------
+
+class DockwalkMeterSerializer(serializers.ModelSerializer):
+    berth_code       = serializers.CharField(source='berth.code', read_only=True, default=None)
+    pier_label       = serializers.CharField(source='berth.pier.label', read_only=True, default=None)
+    last_reading_kwh = serializers.SerializerMethodField()
+    last_reading_m3  = serializers.SerializerMethodField()
+    last_recorded_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = SmartMeter
+        fields = [
+            'id', 'device_id', 'label', 'meter_type', 'vendor',
+            'berth_code', 'pier_label',
+            'last_reading_kwh', 'last_reading_m3', 'last_recorded_at',
+        ]
+
+    def _last(self, meter):
+        return meter.readings.order_by('-recorded_at').first()
+
+    def get_last_reading_kwh(self, meter):
+        r = self._last(meter)
+        return str(r.reading_kwh) if r and r.reading_kwh is not None else None
+
+    def get_last_reading_m3(self, meter):
+        r = self._last(meter)
+        return str(r.reading_m3) if r and r.reading_m3 is not None else None
+
+    def get_last_recorded_at(self, meter):
+        r = self._last(meter)
+        return r.recorded_at if r else None
