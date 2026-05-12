@@ -3,6 +3,7 @@ import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
+import MobileConfigTab from './settings/MobileConfigTab.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -623,6 +624,7 @@ export default function Settings() {
           ['tax-rates',     'Tax Rates',        false],
           ['notifications', 'Notifications',    true],
           ['integrations',  'Integrations',     false],
+          ['mobile-app',    'Mobile App',       false],
           ['system',        'System',           false],
         ].map(([v, l, cs]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>
@@ -1271,6 +1273,13 @@ export default function Settings() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* ── MOBILE APP ──────────────────────────────────────────────── */}
+      {tab === 'mobile-app' && (
+        <div style={{ maxWidth: 560 }}>
+          <MobileConfigTab marina={marina} />
         </div>
       )}
 

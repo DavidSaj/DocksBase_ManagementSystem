@@ -1432,6 +1432,19 @@ class TestReservationCheckoutFields:
         field = ReservationItem._meta.get_field('status')
         assert field.default == 'confirmed'
 
+    @pytest.mark.django_db
+    def test_pending_review_status_is_valid_choice(self):
+        from apps.reservations.models import Reservation
+        choices = [c[0] for c in Reservation.STATUS_CHOICES]
+        assert 'pending_review' in choices
+
+    @pytest.mark.django_db
+    def test_unassigned_item_status_is_valid_choice(self):
+        from apps.reservations.models import ReservationItem
+        field = ReservationItem._meta.get_field('status')
+        valid = [c[0] for c in field.choices]
+        assert 'unassigned' in valid
+
 
 # ── Fixtures for assign_berth tests ─────────────────────────────────────────
 
@@ -1659,13 +1672,15 @@ class TestReservationIntentView:
         assert Reservation.objects.count() == before  # no partial records left
 
     @pytest.mark.django_db
-    def test_intent_rejects_non_auto_tetris_marina(self):
+    def test_intent_manual_marina_returns_pending_review(self):
         from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
         from django.test import Client
-        Marina.objects.create(
+        marina = Marina.objects.create(
             name='Manual Marina', slug='intent-manual',
             booking_mode='manual',
         )
+        seed_default_tax_rates(marina)
         client = Client()
         resp = client.post(
             self.BASE_URL,
@@ -1677,7 +1692,10 @@ class TestReservationIntentView:
             content_type='application/json',
             HTTP_X_MARINA_SLUG='intent-manual',
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data['requires_payment'] is False
+        assert data['status'] == 'pending_review'
 
 
 def _make_pending_reservation(marina):
@@ -1833,6 +1851,78 @@ class TestReservationConfirmView:
                 HTTP_X_MARINA_SLUG='conf-d',
             )
         assert resp.status_code == 402
+
+
+class TestReservationIntentManualMarina:
+    BASE_URL = '/api/v1/public/reservations/intent/'
+
+    @pytest.mark.django_db
+    def test_manual_marina_returns_requires_payment_false(self):
+        from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(
+            name='Manual Marina', slug='manual-m', booking_mode='manual',
+        )
+        seed_default_tax_rates(marina)
+
+        client = APIClient()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2028-06-01',
+                'check_out': '2028-06-04',
+                'guest_name': 'Manual Guest',
+                'guest_email': 'manual@test.com',
+                'items': [{'boat_loa': '12.0'}],
+            },
+            format='json',
+            headers={'X-Marina-Slug': 'manual-m'},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data['requires_payment'] is False
+        assert 'reservation_id' in data
+        assert data['reference'].startswith('RES-')
+        assert 'client_secret' not in data
+
+    @pytest.mark.django_db
+    def test_manual_marina_creates_pending_review_reservation(self):
+        from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
+        from apps.reservations.models import Reservation, ReservationItem
+
+        marina = Marina.objects.create(
+            name='Manual Marina 2', slug='manual-m2', booking_mode='manual',
+        )
+        seed_default_tax_rates(marina)
+
+        client = APIClient()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2028-07-01',
+                'check_out': '2028-07-03',
+                'guest_name': 'Request Guest',
+                'guest_email': 'req@test.com',
+                'items': [
+                    {'boat_loa': '10.0', 'vessel_name': 'My Yacht'},
+                    {'boat_loa': '5.0',  'vessel_name': 'Tender'},
+                ],
+            },
+            format='json',
+            headers={'X-Marina-Slug': 'manual-m2'},
+        )
+        assert resp.status_code == 201
+        res_id = resp.json()['reservation_id']
+        res = Reservation.objects.get(pk=res_id)
+        assert res.status == 'pending_review'
+        assert res.paid is False
+        items = ReservationItem.objects.filter(reservation=res)
+        assert items.count() == 2
+        assert all(i.status == 'unassigned' for i in items)
+        assert all(i.berth_id is None for i in items)
 
 
 class TestExpireReservationsCommand(TestCase):

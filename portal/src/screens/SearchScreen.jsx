@@ -3,54 +3,67 @@ import api from '../api';
 import DateRangePicker from '../components/portal/DateRangePicker';
 import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
 
-export default function SearchScreen({ state, navigate, marina }) {
-  const [form, setForm] = useState({
-    checkIn:   state.checkIn   || '',
-    checkOut:  state.checkOut  || '',
-    boatLoa:   state.boatLoa   || '',
-    boatBeam:  state.boatBeam  || '',
-    boatDraft: state.boatDraft || '',
-  });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+const EMPTY_BOAT = { loa: '', beam: '', draft: '', category: null, categories: [] };
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+export default function SearchScreen({ state, navigate, marina }) {
+  const initialBoats = state.boats?.length
+    ? state.boats.map(b => ({ ...EMPTY_BOAT, loa: b.loa || '', beam: b.beam || '', draft: b.draft || '' }))
+    : [{ ...EMPTY_BOAT }];
+
+  const [checkIn,  setCheckIn]  = useState(state.checkIn  || '');
+  const [checkOut, setCheckOut] = useState(state.checkOut || '');
+  const [boats,    setBoats]    = useState(initialBoats);
+  const [busy,     setBusy]     = useState(false);
+  const [error,    setError]    = useState('');
 
   const nights =
-    form.checkIn && form.checkOut
-      ? Math.round((new Date(form.checkOut) - new Date(form.checkIn)) / 86400000)
+    checkIn && checkOut
+      ? Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000)
       : 0;
+
+  const updateBoat = (idx, field, value) =>
+    setBoats(bs => bs.map((b, i) => i === idx ? { ...b, [field]: value } : b));
+
+  const addBoat = () => setBoats(bs => [...bs, { ...EMPTY_BOAT }]);
+
+  const removeBoat = (idx) =>
+    setBoats(bs => bs.filter((_, i) => i !== idx));
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (!form.checkIn || !form.checkOut) return;
+    if (!checkIn || !checkOut) return;
     setBusy(true); setError('');
-    const params = new URLSearchParams({ check_in: form.checkIn, check_out: form.checkOut });
-    if (form.boatLoa)   params.set('boat_loa',   form.boatLoa);
-    if (form.boatBeam)  params.set('boat_beam',  form.boatBeam);
-    if (form.boatDraft) params.set('boat_draft', form.boatDraft);
 
     try {
-      const { data: cats } = await api.get(`/public/bookings/berth-categories/?${params}`);
-      if (cats.length > 0) { navigate('options', { ...form, categories: cats }); return; }
+      const catResults = await Promise.all(
+        boats.map(boat => {
+          const params = new URLSearchParams({ check_in: checkIn, check_out: checkOut });
+          if (boat.loa)   params.set('boat_loa',   boat.loa);
+          if (boat.beam)  params.set('boat_beam',  boat.beam);
+          if (boat.draft) params.set('boat_draft', boat.draft);
+          return api.get(`/public/bookings/berth-categories/?${params}`)
+            .then(r => r.data)
+            .catch(() => []);
+        })
+      );
 
-      const { data: berths } = await api.get(`/public/bookings/available-berths/?${params}`);
-      if (berths.length > 0) {
-        const price = parseFloat(berths[0].pricing_tier_unit_price || 0);
-        navigate('quote', { ...form, quotedPrice: price, quotedTotal: price * nights, selectedCategory: null });
-        return;
+      const updatedBoats = boats.map((boat, i) => ({ ...boat, categories: catResults[i] }));
+      const hasAnyCategories = updatedBoats.some(b => b.categories.length > 0);
+
+      if (hasAnyCategories) {
+        navigate('options', { checkIn, checkOut, boats: updatedBoats });
+      } else {
+        navigate('quote', { checkIn, checkOut, boats: updatedBoats });
       }
-      const { data: alts } = await api.get(`/public/bookings/availability-alternatives/?${params}`);
-      if (alts.length > 0) { navigate('alternatives', { ...form, alternatives: alts }); return; }
-      setError('No availability for those dates or vessel size. Please contact the marina directly.');
     } catch (err) {
       setError(err.response?.data?.detail || 'Something went wrong. Please try again.');
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div>
-      {/* Dark hero */}
       <div className="p-hero" style={{ minHeight: 360 }}>
         <nav style={{
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
@@ -60,72 +73,96 @@ export default function SearchScreen({ state, navigate, marina }) {
             {marina?.name || 'Your Marina'}
           </span>
         </nav>
-
         <div className="p-hero-inner">
           <div className="p-eyebrow">Online Reservations</div>
           <h1 className="p-title">Book a Berth</h1>
           <p className="p-sub">Check real-time availability and reserve your spot.</p>
         </div>
-
         <HarbourScene />
       </div>
 
-      {/* White background section — wave lines sit here, behind the card */}
       <div style={{ position: 'relative', background: 'linear-gradient(to bottom, #0c1f3d 0, #0c1f3d 40px, #fff 40px)', paddingBottom: 280 }}>
         <WaveLines />
 
-      {/* White form card — overlaps hero bottom */}
-      <div className="p-form-card">
-        <div className="p-form-card-inner" style={{ position: 'relative' }}>
+        <div className="p-form-card">
+          <div className="p-form-card-inner" style={{ position: 'relative' }}>
+            {state.errorBanner && (
+              <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 16 }}>{state.errorBanner}</p>
+            )}
 
-          {state.errorBanner && (
-            <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 16, position: 'relative' }}>{state.errorBanner}</p>
-          )}
+            <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                <DateRangePicker
+                  checkIn={checkIn}
+                  checkOut={checkOut}
+                  onChange={({ checkIn: ci, checkOut: co }) => { setCheckIn(ci); setCheckOut(co); }}
+                />
+              </div>
 
-          <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
-            {/* Date range picker spans both columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <DateRangePicker
-                checkIn={form.checkIn}
-                checkOut={form.checkOut}
-                onChange={({ checkIn, checkOut }) => setForm(f => ({ ...f, checkIn, checkOut }))}
-              />
-              <div className="p-field" style={{ marginBottom: 0 }}>
-                <label className="p-label">Vessel length (m) *</label>
-                <input className="p-input" type="number" step="0.1" min="1" placeholder="e.g. 12"
-                  required value={form.boatLoa} onChange={e => set('boatLoa', e.target.value)} />
-              </div>
-            </div>
+              {boats.map((boat, idx) => (
+                <div key={idx} style={{ marginBottom: 16 }}>
+                  {boats.length > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        Boat {idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeBoat(idx)}
+                        style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <div className="p-field" style={{ marginBottom: 0 }}>
+                      <label className="p-label">Length (m) *</label>
+                      <input className="p-input" type="number" step="0.1" min="1" placeholder="e.g. 12"
+                        required value={boat.loa} onChange={e => updateBoat(idx, 'loa', e.target.value)} />
+                    </div>
+                    <div className="p-field" style={{ marginBottom: 0 }}>
+                      <label className="p-label">Beam (m)</label>
+                      <input className="p-input" type="number" step="0.1" min="0" placeholder="e.g. 4.2"
+                        value={boat.beam} onChange={e => updateBoat(idx, 'beam', e.target.value)} />
+                    </div>
+                    <div className="p-field" style={{ marginBottom: 0 }}>
+                      <label className="p-label">Draft (m)</label>
+                      <input className="p-input" type="number" step="0.1" min="0" placeholder="e.g. 1.8"
+                        value={boat.draft} onChange={e => updateBoat(idx, 'draft', e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              ))}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'flex-end' }}>
-              <div className="p-field" style={{ marginBottom: 0 }}>
-                <label className="p-label">Beam (m) — optional</label>
-                <input className="p-input" type="number" step="0.1" min="0" placeholder="e.g. 4.2"
-                  value={form.boatBeam} onChange={e => set('boatBeam', e.target.value)} />
-              </div>
-              <div className="p-field" style={{ marginBottom: 0 }}>
-                <label className="p-label">Draft (m) — optional</label>
-                <input className="p-input" type="number" step="0.1" min="0" placeholder="e.g. 1.8"
-                  value={form.boatDraft} onChange={e => set('boatDraft', e.target.value)} />
-              </div>
-              <button type="submit" className="p-btn-gold" disabled={busy || !form.checkIn || !form.checkOut || !form.boatLoa}
-                style={{ whiteSpace: 'nowrap', height: 41 }}>
+              <button
+                type="button"
+                onClick={addBoat}
+                style={{ fontSize: 12, color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 16px', display: 'block' }}
+              >
+                + Add another boat
+              </button>
+
+              {nights > 0 && (
+                <p className="p-nights-note">{nights} night{nights !== 1 ? 's' : ''}</p>
+              )}
+
+              <button
+                type="submit"
+                className="p-btn-gold"
+                disabled={busy || !checkIn || !checkOut || boats.some(b => !b.loa)}
+                style={{ width: '100%', marginTop: 8 }}
+              >
                 {busy ? 'Checking…' : 'Check availability →'}
               </button>
-            </div>
 
-            {nights > 0 && (
-              <p className="p-nights-note" style={{ marginTop: 10 }}>
-                {nights} night{nights !== 1 ? 's' : ''}
-              </p>
-            )}
-            {error && <p style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{error}</p>}
-          </form>
+              {error && <p style={{ fontSize: 13, color: '#dc2626', marginTop: 12 }}>{error}</p>}
+            </form>
+          </div>
         </div>
-      </div>
 
-      <p className="p-powered">Powered by DocksBase</p>
-      </div> {/* end white section */}
+        <p className="p-powered">Powered by DocksBase</p>
+      </div>
     </div>
   );
 }

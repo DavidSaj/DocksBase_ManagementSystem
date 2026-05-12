@@ -32,6 +32,7 @@ export function detectTenant() {
 export function TenantProvider({ children }) {
   const tenant = detectTenant();
   const [marina, setMarina] = useState(null);
+  const [appConfig, setAppConfig] = useState({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -41,7 +42,10 @@ export function TenantProvider({ children }) {
       : { 'X-Marina-Domain': tenant.customDomain };
     const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
     axios.get(`${base}/public/marina/`, { headers })
-      .then(res => setMarina(res.data))
+      .then(res => {
+        setMarina(res.data);
+        setAppConfig(res.data.app_config || {});
+      })
       .catch(() => setMarina(null))
       .finally(() => setIsLoading(false));
   }, []);
@@ -52,6 +56,7 @@ export function TenantProvider({ children }) {
       customDomain: tenant?.customDomain ?? null,
       prefill:      tenant?.prefill      ?? {},
       marina,
+      appConfig,
       isLoading,
     }}>
       {children}

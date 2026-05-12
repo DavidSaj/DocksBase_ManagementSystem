@@ -93,3 +93,19 @@ class GuestMapViewTest(TestCase):
         response = client_no_header.get('/api/v1/portal/checkin/map/')
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.data)
+
+
+class TenantConfigAppConfigTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(
+            name='AC Marina', slug='ac-marina',
+            app_config={'brand_color': '#abc123', 'enable_boatyard': True},
+        )
+        self.client = APIClient()
+        self.client.defaults['HTTP_X_MARINA_SLUG'] = 'ac-marina'
+
+    def test_config_endpoint_includes_app_config(self):
+        response = self.client.get('/api/v1/public/marina/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('app_config', response.data)
+        self.assertEqual(response.data['app_config']['brand_color'], '#abc123')

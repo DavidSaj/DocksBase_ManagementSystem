@@ -1,12 +1,9 @@
+import { useState } from 'react';
 import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
 
 const AMENITY_LABELS = {
-  power_30a:   '30A Power',
-  power_50a:   '50A Power',
-  water:       'Water',
-  wifi:        'WiFi',
-  fuel_nearby: 'Fuel Nearby',
-  pump_out:    'Pump-out',
+  power_30a: '30A Power', power_50a: '50A Power', water: 'Water',
+  wifi: 'WiFi', fuel_nearby: 'Fuel Nearby', pump_out: 'Pump-out',
 };
 
 const AMENITY_ICONS = {
@@ -51,29 +48,27 @@ const AMENITY_ICONS = {
 };
 
 const MOORING_LABELS = {
-  finger:       'Finger Pontoon',
-  alongside:    'Alongside',
-  stern_to:     'Stern-to',
-  mooring_ball: 'Mooring Ball',
+  finger: 'Finger Pontoon', alongside: 'Alongside',
+  stern_to: 'Stern-to', mooring_ball: 'Mooring Ball',
 };
 
 export default function OptionsScreen({ state, navigate, marina }) {
-  const nights = Math.round(
-    (new Date(state.checkOut) - new Date(state.checkIn)) / 86400000
-  );
+  const nights = Math.round((new Date(state.checkOut) - new Date(state.checkIn)) / 86400000);
 
-  function handleSelect(cat) {
-    navigate('quote', {
-      ...state,
-      selectedCategory: cat,
-      quotedPrice: parseFloat(cat.price_per_night),
-      quotedTotal: parseFloat(cat.price_per_night) * nights,
-    });
-  }
+  const [boats, setBoats] = useState(state.boats.map(b => ({ ...b })));
+
+  const selectCategory = (boatIdx, cat) => {
+    setBoats(bs => bs.map((b, i) => i === boatIdx ? { ...b, category: cat } : b));
+  };
+
+  const canContinue = boats.every(b => b.categories.length === 0 || b.category !== null);
+
+  const handleContinue = () => {
+    navigate('quote', { ...state, boats });
+  };
 
   return (
     <div>
-      {/* Dark hero */}
       <div className="p-hero" style={{ minHeight: 360 }}>
         <nav style={{
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
@@ -87,78 +82,92 @@ export default function OptionsScreen({ state, navigate, marina }) {
             {marina?.name || 'Your Marina'}
           </span>
         </nav>
-
         <div className="p-hero-inner" style={{ paddingBottom: 64 }}>
           <div className="p-eyebrow">Available options</div>
           <h1 className="p-title">Choose your berth.</h1>
           <p className="p-sub">
             {state.checkIn} → {state.checkOut} · {nights} night{nights !== 1 ? 's' : ''}
-            {state.boatLoa ? ` · Vessel ${state.boatLoa}m` : ''}
           </p>
         </div>
-
         <HarbourScene />
       </div>
 
-      {/* White section */}
       <div style={{ position: 'relative', background: 'linear-gradient(to bottom, #0c1f3d 0, #0c1f3d 40px, #fff 40px)' }}>
         <WaveLines />
 
-        <div style={{ maxWidth: 880, margin: '-36px auto 0', padding: '0 32px 48px', position: 'relative', zIndex: 2 }}>
-          <div className="p-options-grid">
-            {state.categories.map(cat => (
-              <div key={cat.id ?? '__uncat'} className="p-cat-card-light">
-                {/* Left body */}
-                <div className="p-cat-card-body">
-                  {cat.tier_note && (
-                    <div style={{ fontSize: 11, color: '#b8965a', fontWeight: 600, letterSpacing: '0.3px', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                      </svg>
-                      {cat.tier_note}
-                    </div>
-                  )}
-                  <div className="p-cat-name">{cat.name}</div>
-                  {cat.tagline && <div className="p-cat-tagline">{cat.tagline}</div>}
-                  {cat.mooring_type && (
-                    <div className="p-cat-mooring">{MOORING_LABELS[cat.mooring_type] ?? cat.mooring_type}</div>
-                  )}
-                  {cat.description && <p className="p-cat-desc">{cat.description}</p>}
-                  {cat.highlights?.length > 0 && (
-                    <ul className="p-cat-highlights">
-                      {cat.highlights.map((h, i) => <li key={i}>{h}</li>)}
-                    </ul>
-                  )}
-                  {cat.amenities.length > 0 && (
-                    <div className="p-amenity-pills" style={{ marginTop: 4 }}>
-                      {cat.amenities.map(a => (
-                        <span key={a} className="p-amenity-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          {AMENITY_ICONS[a]}
-                          {AMENITY_LABELS[a] ?? a}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right sidebar */}
-                <div className="p-cat-card-sidebar">
-                  <div>
-                    <div className="p-cat-price">
-                      €{cat.price_per_night}
-                      <span>/night</span>
-                    </div>
-                    {nights > 1 && (
-                      <div className="p-cat-avail">€{(parseFloat(cat.price_per_night) * nights).toFixed(2)} total</div>
-                    )}
-                    <div className="p-cat-avail" style={{ marginTop: 6 }}>{cat.available_count} berth{cat.available_count !== 1 ? 's' : ''} available</div>
+        <div style={{ maxWidth: 880, margin: '-36px auto 0', padding: '0 32px 24px', position: 'relative', zIndex: 2 }}>
+          {boats.map((boat, boatIdx) => (
+            boat.categories.length === 0 ? null : (
+              <div key={boatIdx} style={{ marginBottom: 32 }}>
+                {boats.length > 1 && (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)', marginBottom: 12, opacity: 0.7 }}>
+                    Boat {boatIdx + 1} — {boat.loa}m
                   </div>
-                  <button className="p-btn-gold" onClick={() => handleSelect(cat)} style={{ marginTop: 16, whiteSpace: 'nowrap' }}>
-                    Select →
-                  </button>
+                )}
+                <div className="p-options-grid">
+                  {boat.categories.map(cat => {
+                    const selected = boat.category?.id === cat.id;
+                    return (
+                      <div key={cat.id ?? '__uncat'}
+                        className="p-cat-card-light"
+                        style={selected ? { outline: '2px solid var(--gold)' } : {}}
+                      >
+                        <div className="p-cat-card-body">
+                          {cat.tier_note && (
+                            <div style={{ fontSize: 11, color: '#b8965a', fontWeight: 600, letterSpacing: '0.3px', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                              </svg>
+                              {cat.tier_note}
+                            </div>
+                          )}
+                          <div className="p-cat-name">{cat.name}</div>
+                          {cat.tagline && <div className="p-cat-tagline">{cat.tagline}</div>}
+                          {cat.mooring_type && <div className="p-cat-mooring">{MOORING_LABELS[cat.mooring_type] ?? cat.mooring_type}</div>}
+                          {cat.description && <p className="p-cat-desc">{cat.description}</p>}
+                          {cat.highlights?.length > 0 && (
+                            <ul className="p-cat-highlights">{cat.highlights.map((h, i) => <li key={i}>{h}</li>)}</ul>
+                          )}
+                          {cat.amenities?.length > 0 && (
+                            <div className="p-amenity-pills" style={{ marginTop: 4 }}>
+                              {cat.amenities.map(a => (
+                                <span key={a} className="p-amenity-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  {AMENITY_ICONS[a]}{AMENITY_LABELS[a] ?? a}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-cat-card-sidebar">
+                          <div>
+                            <div className="p-cat-price">€{cat.price_per_night}<span>/night</span></div>
+                            {nights > 1 && (
+                              <div className="p-cat-avail">€{(parseFloat(cat.price_per_night) * nights).toFixed(2)} total</div>
+                            )}
+                            <div className="p-cat-avail" style={{ marginTop: 6 }}>{cat.available_count} berth{cat.available_count !== 1 ? 's' : ''} available</div>
+                          </div>
+                          <button className="p-btn-gold" onClick={() => selectCategory(boatIdx, cat)}
+                            style={{ marginTop: 16, whiteSpace: 'nowrap', opacity: selected ? 0.5 : 1 }}>
+                            {selected ? 'Selected ✓' : 'Select →'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+            )
+          ))}
+
+          <div style={{ textAlign: 'right', marginTop: 8 }}>
+            <button
+              className="p-btn-gold"
+              disabled={!canContinue}
+              onClick={handleContinue}
+              style={{ minWidth: 160 }}
+            >
+              Continue →
+            </button>
           </div>
         </div>
 
