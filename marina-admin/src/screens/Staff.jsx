@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
 
@@ -10,20 +10,31 @@ export default function Staff({ group }) {
   const [acting, setActing]             = useState(false);
   const [inviteEmail, setInviteEmail]   = useState('');
   const [inviteMarinaId, setInviteMarinaId] = useState('');
+  const loadIgnoreRef = useRef(false);
 
   const load = useCallback(() => {
+    loadIgnoreRef.current = false;
     setLoading(true);
     setLoadError(false);
     return Promise.all([
       api.get(`enterprise/groups/${group.id}/staff/`),
       api.get(`enterprise/groups/${group.id}/overview/`),
     ]).then(([s, o]) => {
-      setStaff(s.data);
-      setMarinas(o.data.marinas);
-    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
+      if (!loadIgnoreRef.current) {
+        setStaff(s.data);
+        setMarinas(o.data.marinas);
+      }
+    }).catch(() => {
+      if (!loadIgnoreRef.current) setLoadError(true);
+    }).finally(() => {
+      if (!loadIgnoreRef.current) setLoading(false);
+    });
   }, [group.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => { loadIgnoreRef.current = true; };
+  }, [load]);
 
   async function handleInvite(e) {
     e.preventDefault();
