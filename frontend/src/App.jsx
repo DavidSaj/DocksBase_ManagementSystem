@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { MarinaProvider } from './context/MarinaContext.jsx';
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
-import { useState, Component } from 'react';
+import { useState, useEffect, Component } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import WelcomeScreen from './components/WelcomeScreen.jsx';
 
@@ -154,6 +154,18 @@ function DesktopApp() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ssoToken = params.get('sso_token');
+    if (ssoToken) {
+      localStorage.setItem('access_token', ssoToken);
+      params.delete('sso_token');
+      const newSearch = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
+      window.location.reload();
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <Routes>
