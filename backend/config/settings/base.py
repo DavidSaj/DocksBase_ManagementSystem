@@ -78,6 +78,7 @@ LOCAL_APPS = [
     'apps.channels',
     'apps.tenants',
     'apps.marketplace',
+    'apps.tickets',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -152,6 +153,7 @@ PLATFORM_FEE_RATE = '0.01'  # 1% of GMV
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_CONNECT_WEBHOOK_SECRET = os.environ.get('STRIPE_CONNECT_WEBHOOK_SECRET', '')
+INGRESS_WEBHOOK_SECRET = os.environ.get('INGRESS_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')
 
