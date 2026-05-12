@@ -67,3 +67,8 @@ class OverviewViewTest(TestCase):
         c.force_authenticate(other)
         resp = c.get(f'/api/v1/enterprise/groups/{self.g.pk}/overview/')
         self.assertEqual(resp.status_code, 403)
+
+    def test_overview_unauthenticated(self):
+        c = APIClient()
+        resp = c.get(f'/api/v1/enterprise/groups/{self.g.pk}/overview/')
+        self.assertEqual(resp.status_code, 401)

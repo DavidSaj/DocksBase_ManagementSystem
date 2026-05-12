@@ -24,7 +24,7 @@ class MeView(APIView):
 
 
 class GroupOverviewView(APIView):
-    permission_classes = [IsGroupAdmin]
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
 
     def get(self, request, pk):
         group = get_object_or_404(MarinaGroup, pk=pk)
@@ -46,7 +46,7 @@ class GroupOverviewView(APIView):
             'kpis': {
                 'total_berths': total_berths,
                 'total_active_bookings': total_active,
-                'total_mrr': total_mrr,
+                'total_mrr': str(total_mrr),
                 'total_outstanding': str(total_outstanding),
             },
             'marinas': cards,
