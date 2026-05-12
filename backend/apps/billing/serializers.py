@@ -2,6 +2,12 @@ from rest_framework import serializers
 from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem, TaxRate
 
 
+class TaxRateSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxRate
+        fields = ['id', 'name', 'rate']
+
+
 class TaxRateSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaxRate
@@ -16,7 +22,7 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
     berth_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False,
     )
-    tax_category = TaxRateSerializer(read_only=True)
+    tax_category = TaxRateSummarySerializer(read_only=True)
     tax_category_id = serializers.PrimaryKeyRelatedField(
         queryset=TaxRate.objects.all(), source='tax_category', write_only=True, required=False, allow_null=True,
     )
@@ -32,6 +38,15 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
             'assigned_berths', 'berth_ids',
         ]
         read_only_fields = ['id', 'created_at', 'pricing_model_display', 'category_display']
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'marina') and request.user.marina:
+            fields['tax_category_id'].queryset = TaxRate.objects.filter(
+                marina=request.user.marina, is_archived=False
+            )
+        return fields
 
     def get_assigned_berths(self, obj):
         from apps.berths.models import Berth
