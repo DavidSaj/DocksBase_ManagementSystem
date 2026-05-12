@@ -22,12 +22,15 @@ class TaxRate(models.Model):
     name        = CharField(max_length=100)   # e.g. "Standard VAT", "Reduced Rate", "Zero Rated", "Exempt"
     rate        = DecimalField(max_digits=5, decimal_places=2)  # e.g. 20.00, 5.00, 0.00
     is_default  = BooleanField(default=False) # pre-selected when creating a new ChargeableItem
+    is_archived = BooleanField(default=False) # hidden from UI dropdowns; never deleted
     created_at  = DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = [('marina', 'name')]
         ordering = ['-rate']
 ```
+
+**`TaxRate` is immutable once created.** The `rate` decimal field must never be updated after a record exists. When a government changes a tax rate, the Harbor Master creates a new `TaxRate` record (e.g. `"Standard 2026 — 21.00%"`), sets it as the new default, and remaps their ChargeableItems to it. The old record is archived (`is_archived=True`) to hide it from dropdowns while preserving the FK relationships — historical ChargeableItems that pointed to it retain their pointer, so an auditor can always answer "what was the tax rate on this item in 2024?"
 
 `is_default` is enforced at the service layer (not DB level): only one TaxRate per marina may have `is_default=True`. Used purely for UI convenience — it pre-selects the most common rate when a Harbor Master creates a new ChargeableItem.
 
@@ -92,6 +95,16 @@ tax_rate=chargeable_item.tax_category.rate,
 
 **`calculate_booking_invoice()`** — same change: `item.tax_rate` → `item.tax_category.rate`.
 
+**Decimal arithmetic rule (mandatory):** Wherever `tax_category.rate` is used in arithmetic, all operands must be explicitly cast to `Decimal` before multiplication. Mixing `float` and `Decimal` in Python raises `TypeError`; even when it doesn't, floats introduce binary rounding errors that produce values like `2.0000000000000004` rather than `2.00`. Stripe requires precise integer cent amounts — any float contamination in the calculation chain will cause payment failures. Every tax multiplication must terminate with `.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)`.
+
+Correct pattern:
+```python
+from decimal import Decimal, ROUND_HALF_UP
+rate = Decimal(str(chargeable_item.tax_category.rate))  # guarantee Decimal, never float
+price = Decimal(str(unit_price))
+tax = (price * rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+```
+
 **`finalize_invoice()`** — no change. It already sums `item.line_tax` across line items. The engine is correct.
 
 **`add_line_item()`** — no change. Signature stays `tax_rate=None` accepting a decimal. This preserves programmatic callers.
@@ -128,11 +141,13 @@ All endpoints are JWT-authenticated (marina staff only).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/v1/billing/tax-rates/` | List all TaxRates for the requesting marina |
-| `POST` | `/api/v1/billing/tax-rates/` | Create a new TaxRate |
-| `PATCH` | `/api/v1/billing/tax-rates/{id}/` | Update name or rate |
-| `DELETE` | `/api/v1/billing/tax-rates/{id}/` | Delete — returns 409 if ChargeableItems are assigned |
+| `GET` | `/api/v1/billing/tax-rates/` | List all non-archived TaxRates for the requesting marina |
+| `POST` | `/api/v1/billing/tax-rates/` | Create a new TaxRate (rate is immutable after creation) |
+| `DELETE` | `/api/v1/billing/tax-rates/{id}/` | Delete — returns 409 if any ChargeableItems are assigned |
 | `POST` | `/api/v1/billing/tax-rates/{id}/set-default/` | Mark as marina default, clears others |
+| `POST` | `/api/v1/billing/tax-rates/{id}/archive/` | Set `is_archived=True` — hides from dropdowns, preserves FK history |
+
+There is no PATCH endpoint. `TaxRate.rate` is write-once. To change a tax rate, create a new record and remap ChargeableItems to it.
 
 **`ChargeableItem` serializer changes:**
 - Remove: `tax_rate` decimal field
@@ -149,19 +164,21 @@ No new ChargeableItem endpoints — the existing create/edit endpoints handle th
 
 Location: **Settings > Tax Rates**
 
-Displays a table of the marina's TaxRate records:
+Displays a table of the marina's active (non-archived) TaxRate records:
 
 | Name | Rate | Default | Actions |
 |------|------|---------|---------|
-| Standard VAT | 20.00% | ★ | Edit / Delete |
-| Reduced Rate | 5.00% | | Edit / Delete |
-| Zero Rated | 0.00% | | Edit / Delete |
-| Exempt | 0.00% | | Edit / Delete |
+| Standard VAT | 20.00% | ★ | Archive / Delete |
+| Reduced Rate | 5.00% | | Archive / Delete |
+| Zero Rated | 0.00% | | Archive / Delete |
+| Exempt | 0.00% | | Archive / Delete |
 
 UI rules:
+- **No edit action.** Rate and name are immutable. There is no edit button or inline edit. To change a rate, use **+ Add Tax Rate**.
 - The `★` Default toggle is single-select — clicking it on one row clears the star on all others
-- Delete is disabled (greyed out, tooltip: "Remove all items using this rate first") if any ChargeableItems reference the record
-- Rate input: numeric, 0–100, two decimal places
+- **Archive** hides the rate from all dropdowns going forward. Archived rates are shown in a collapsed "Archived" section at the bottom of the page for reference. An archived rate cannot be set as default.
+- **Delete** is only available if zero ChargeableItems reference the rate. Returns an error otherwise (tooltip: "Archive this rate instead — items are still using it").
+- Rate input on creation: numeric, 0–100, two decimal places
 
 **Disclaimer banner** (displayed at the top of the screen):
 > "You are responsible for ensuring these rates are correct and up to date. DocksBase applies the rate you set — we do not provide tax advice. Consult your accountant if you are unsure which rate applies to a given item."
@@ -174,7 +191,7 @@ The `tax_rate` decimal input is replaced with a **Tax Treatment** dropdown. Opti
 
 ## 7. Marina Onboarding
 
-`seed_default_tax_rates(marina)` is called as part of the marina signup wizard completion. This ensures every marina has a usable TaxRate set before any ChargeableItems are created. The Harbor Master can rename, adjust, or add rates in Settings > Tax Rates at any time.
+`seed_default_tax_rates(marina)` is called as part of the marina signup wizard completion. This ensures every marina has a usable TaxRate set before any ChargeableItems are created. The Harbor Master can add new rates or archive seed rates in Settings > Tax Rates at any time. They cannot edit the rate decimal on existing records — if the seeded 20% Standard rate is wrong for their jurisdiction, they archive it and create a new one at the correct rate.
 
 ---
 
@@ -197,4 +214,7 @@ The `tax_rate` decimal input is replaced with a **Tax Treatment** dropdown. Opti
 | Zero-rate representation | Mandatory FK to a zero-rate TaxRate record | Explicit declaration of tax treatment (zero-rated ≠ forgot to set a rate) |
 | Default TaxRate | `is_default` flag, single per marina | UX convenience for new item creation; not a billing constraint |
 | Seed rates | Standard 20%, Zero Rated 0%, Exempt 0% | Common UK/EU starting point; Harbor Master adjusts for their jurisdiction |
+| TaxRate immutability | No PATCH on rate; archive instead of edit | Editing a rate retroactively changes the tax treatment shown on historical ChargeableItems — an audit liability |
+| Archived rates | `is_archived` flag, not deletion | PROTECT constraint prevents deletion of in-use rates; archiving hides them from UI while preserving FK history |
+| Decimal arithmetic | All tax math uses `Decimal(str(...))` + `quantize(ROUND_HALF_UP)` | Float/Decimal mixing raises TypeError or introduces binary rounding errors; Stripe requires precise integer cents |
 | Stripe Tax | Deferred | Manual engine must be correct first; Stripe Tax adds cost and complexity |
