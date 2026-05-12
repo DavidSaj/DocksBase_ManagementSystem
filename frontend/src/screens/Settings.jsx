@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
 import Ic from '../components/ui/Icon.jsx';
+import TaxRatesSettings from './TaxRatesSettings.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -619,6 +620,7 @@ export default function Settings() {
           ['marina',        'Marina Profile',   false],
           ['users',         'Users & Roles',    false],
           ['billing',       'Billing',          false],
+          ['tax-rates',     'Tax Rates',        false],
           ['notifications', 'Notifications',    true],
           ['integrations',  'Integrations',     false],
           ['system',        'System',           false],
@@ -987,6 +989,18 @@ export default function Settings() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* ── TAX RATES ───────────────────────────────────────────────── */}
+      {tab === 'tax-rates' && (
+        <div style={{ padding: '24px 0' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Tax Rates</h3>
+          <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 20 }}>
+            Define the tax rates applied to individual items in your service catalog.
+            Rates are immutable once created — to change a rate, create a new one and archive the old.
+          </p>
+          <TaxRatesSettings />
         </div>
       )}
 
