@@ -1154,11 +1154,13 @@ class TestBackfillMigration:
         backfill_booking(b)
 
         res = Reservation.objects.get(legacy_booking=b)
+        res.refresh_from_db()
         assert res.marina_id == marina.pk
         assert res.guest_email == 'test@test.com'
         assert res.total_price == Decimal('300.00')
         assert res.status == 'confirmed'
         assert res.booking_source == 'portal'
+        assert res.created_at.date() == b.created_at.date()
 
         item = res.items.get()
         assert item.berth_id == berth.pk

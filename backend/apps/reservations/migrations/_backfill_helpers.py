@@ -1,6 +1,6 @@
 """
 Shared logic used by both the RunPython migration and the test suite.
-Import via: from apps.reservations.migrations.backfill_helpers import backfill_booking
+Import via: from apps.reservations.migrations._backfill_helpers import backfill_booking
 """
 from django.db import transaction
 
@@ -13,7 +13,7 @@ def backfill_booking(booking):
         return
 
     member = None
-    if booking.vessel_id and hasattr(booking, 'vessel') and booking.vessel_id:
+    if booking.vessel_id and hasattr(booking, 'vessel'):
         try:
             from apps.members.models import Member
             if hasattr(booking.vessel, 'owner_id') and booking.vessel.owner_id:
@@ -38,9 +38,9 @@ def backfill_booking(booking):
             booking_source=booking.booking_source,
             notes=booking.notes,
             legacy_booking=booking,
-            created_at=booking.created_at,
         )
-        ReservationItem.objects.create(
+        Reservation.objects.filter(pk=reservation.pk).update(created_at=booking.created_at)
+        item = ReservationItem.objects.create(
             reservation=reservation,
             berth=booking.berth,
             vessel=booking.vessel,
@@ -69,5 +69,5 @@ def backfill_booking(booking):
             document_gate_cleared=booking.document_gate_cleared,
             document_gate_cleared_by=booking.document_gate_cleared_by,
             document_gate_cleared_at=booking.document_gate_cleared_at,
-            created_at=booking.created_at,
         )
+        ReservationItem.objects.filter(pk=item.pk).update(created_at=booking.created_at)

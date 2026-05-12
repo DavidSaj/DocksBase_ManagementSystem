@@ -3,16 +3,15 @@ from django.db import migrations
 
 def forwards(apps, schema_editor):
     Booking = apps.get_model('reservations', 'Booking')
+    Reservation = apps.get_model('reservations', 'Reservation')
+    ReservationItem = apps.get_model('reservations', 'ReservationItem')
     for booking in Booking.objects.select_related(
         'berth', 'vessel', 'vessel__owner', 'document_gate_cleared_by'
     ).iterator():
-        _backfill_one(apps, booking)
+        _backfill_one(Reservation, ReservationItem, booking)
 
 
-def _backfill_one(apps, booking):
-    Reservation = apps.get_model('reservations', 'Reservation')
-    ReservationItem = apps.get_model('reservations', 'ReservationItem')
-
+def _backfill_one(Reservation, ReservationItem, booking):
     if Reservation.objects.filter(legacy_booking=booking).exists():
         return
 
@@ -41,9 +40,9 @@ def _backfill_one(apps, booking):
         booking_source=booking.booking_source,
         notes=booking.notes,
         legacy_booking=booking,
-        created_at=booking.created_at,
     )
-    ReservationItem.objects.create(
+    Reservation.objects.filter(pk=reservation.pk).update(created_at=booking.created_at)
+    item = ReservationItem.objects.create(
         reservation=reservation,
         berth_id=booking.berth_id,
         vessel_id=booking.vessel_id,
@@ -72,13 +71,13 @@ def _backfill_one(apps, booking):
         document_gate_cleared=booking.document_gate_cleared,
         document_gate_cleared_by_id=booking.document_gate_cleared_by_id,
         document_gate_cleared_at=booking.document_gate_cleared_at,
-        created_at=booking.created_at,
     )
+    ReservationItem.objects.filter(pk=item.pk).update(created_at=booking.created_at)
 
 
 def backwards(apps, schema_editor):
     Reservation = apps.get_model('reservations', 'Reservation')
-    Reservation.objects.all().delete()
+    Reservation.objects.filter(legacy_booking__isnull=False).delete()
 
 
 class Migration(migrations.Migration):
