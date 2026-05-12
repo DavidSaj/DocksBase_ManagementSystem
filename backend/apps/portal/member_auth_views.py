@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from apps.members.models import Member
 from apps.reservations.models import Booking
 
-from .checkin_utils import make_portal_token, make_magic_token
+from .checkin_utils import make_portal_token, make_magic_token, make_reservation_portal_token
 from .member_auth_utils import (
     decode_member_magic_token,
     decode_refresh_token,
@@ -117,6 +117,33 @@ class GuestInstantLoginView(APIView):
                 status=400,
             )
 
+        if ref.startswith('RES-'):
+            # Reservation cart flow — email + RES-{pk} authenticate into a Reservation
+            from apps.reservations.models import Reservation
+            try:
+                res_pk = int(ref[4:])
+            except ValueError:
+                return Response({'detail': 'No booking found.'}, status=401)
+            try:
+                reservation = Reservation.objects.select_related('marina').get(
+                    pk=res_pk,
+                    guest_email__iexact=email,
+                    marina__slug=marina_slug,
+                )
+            except Reservation.DoesNotExist:
+                return Response({'detail': 'No booking found.'}, status=401)
+            session_token = make_reservation_portal_token(
+                reservation_id=reservation.pk,
+                marina_slug=reservation.marina.slug,
+                boater_email=reservation.guest_email,
+            )
+            return Response({
+                'token': session_token,
+                'reservation_id': reservation.pk,
+                'marina_slug': reservation.marina.slug,
+            })
+
+        # Legacy BK- reference (existing Booking)
         if ref.startswith('BK-'):
             ref = ref[3:]
         try:

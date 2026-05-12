@@ -205,6 +205,60 @@ def test_request_link_excludes_past_bookings(guest_booking_factory, marina_facto
     assert len(django_mail.outbox) == 0
 
 
+@pytest.mark.django_db
+def test_guest_instant_res_prefix_success(marina_factory):
+    from apps.reservations.models import Reservation, ReservationItem
+    marina = marina_factory()
+    today = datetime.date.today()
+    res = Reservation.objects.create(
+        marina=marina,
+        guest_email='skipper@test.com',
+        guest_name='Test Sailor',
+        status='confirmed',
+    )
+    ReservationItem.objects.create(
+        reservation=res,
+        check_in=today,
+        check_out=today + datetime.timedelta(days=3),
+        nights=3, status='confirmed',
+    )
+
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/guest-instant/',
+        data={'email': 'skipper@test.com', 'booking_reference': f'RES-{res.pk}'},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=marina.slug,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert 'token' in data
+    assert data['reservation_id'] == res.pk
+    assert data['marina_slug'] == marina.slug
+
+    from apps.portal.checkin_utils import decode_portal_token
+    payload = decode_portal_token(data['token'])
+    assert payload['reservation_id'] == res.pk
+    assert 'booking_id' not in payload
+
+
+@pytest.mark.django_db
+def test_guest_instant_res_wrong_email_returns_401(marina_factory):
+    from apps.reservations.models import Reservation
+    marina = marina_factory()
+    res = Reservation.objects.create(
+        marina=marina, guest_email='real@test.com', status='confirmed',
+    )
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/guest-instant/',
+        data={'email': 'wrong@test.com', 'booking_reference': f'RES-{res.pk}'},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=marina.slug,
+    )
+    assert resp.status_code == 401
+
+
 def test_make_reservation_magic_url_contains_marina_slug_and_token():
     from apps.portal.checkin_utils import make_reservation_magic_url
 
