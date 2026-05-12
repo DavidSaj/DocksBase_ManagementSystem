@@ -553,6 +553,9 @@ class ReservationListView(generics.ListAPIView):
     def get_queryset(self):
         marina_slug = self.request.headers.get('X-Marina-Slug') or self.request.META.get('HTTP_X_MARINA_SLUG')
         marina = get_object_or_404(Marina, slug=marina_slug)
+        if self.request.user.marina_id != marina.pk:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied
         return (
             Reservation.objects.filter(marina=marina)
             .prefetch_related('items__berth', 'items__vessel')
@@ -568,6 +571,9 @@ class ReservationDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         marina_slug = self.request.headers.get('X-Marina-Slug') or self.request.META.get('HTTP_X_MARINA_SLUG')
         marina = get_object_or_404(Marina, slug=marina_slug)
+        if self.request.user.marina_id != marina.pk:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied
         return (
             Reservation.objects.filter(marina=marina)
             .prefetch_related('items__berth', 'items__vessel')
