@@ -24,11 +24,16 @@ export default function LoginScreen({ marina, tokenError }) {
         booking_reference: gRef.trim().toUpperCase(),
       });
       const data = res.data;
-      localStorage.setItem('portal_session_token', data.token);
-      localStorage.setItem('portal_token_type',    'guest');
-      localStorage.setItem('portal_booking_id',    String(data.booking_id));
-      localStorage.setItem('portal_marina_slug',   data.marina_slug);
-      window.location.reload();
+      try {
+        localStorage.setItem('portal_session_token', data.token);
+        localStorage.setItem('portal_token_type',    'guest');
+        localStorage.setItem('portal_booking_id',    String(data.booking_id));
+        localStorage.setItem('portal_marina_slug',   data.marina_slug);
+        window.location.reload();
+      } catch {
+        setGError('Storage is unavailable — please disable private browsing mode and try again.');
+        setGState('error');
+      }
     } catch {
       setGError('No booking found for that email and reference.');
       setGState('error');
@@ -44,6 +49,14 @@ export default function LoginScreen({ marina, tokenError }) {
     } catch {
       setMState('sent');
     }
+  }
+
+  function switchTab(t) {
+    if (t !== tab) {
+      setGState('idle');
+      setGError('');
+    }
+    setTab(t);
   }
 
   const logoUrl = marina?.logo_url;
@@ -65,7 +78,7 @@ export default function LoginScreen({ marina, tokenError }) {
             <button
               key={t}
               type="button"
-              onClick={() => setTab(t)}
+              onClick={() => switchTab(t)}
               style={{
                 flex: 1,
                 padding: '8px 4px',
@@ -120,7 +133,7 @@ export default function LoginScreen({ marina, tokenError }) {
             <button
               type="submit"
               className="p-btn p-btn--primary"
-              disabled={gState === 'submitting' || !gEmail || !gRef}
+              disabled={gState === 'submitting' || !gEmail.trim() || !gRef.trim()}
             >
               {gState === 'submitting' ? 'Looking up…' : 'View Boarding Pass'}
             </button>
