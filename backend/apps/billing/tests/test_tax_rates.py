@@ -130,3 +130,68 @@ class SnapshotTest(TestCase):
     def test_create_invoice_has_no_vat_rate_field(self):
         invoice = create_invoice(marina=self.marina)
         self.assertFalse(hasattr(invoice, 'vat_rate'))
+
+
+from rest_framework.test import APIClient
+from apps.accounts.models import User
+
+
+class TaxRateAPITest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='API Test Marina')
+        seed_default_tax_rates(self.marina)
+        self.user = User.objects.create_user(
+            email='mgr@marina.test', password='pass', marina=self.marina, role='manager',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_list_returns_non_archived(self):
+        archived = TaxRate.objects.get(marina=self.marina, name='Exempt — 0.00%')
+        archived.is_archived = True
+        archived.save()
+        resp = self.client.get('/api/v1/billing/tax-rates/')
+        self.assertEqual(resp.status_code, 200)
+        names = [r['name'] for r in resp.json()]
+        self.assertNotIn('Exempt — 0.00%', names)
+        self.assertIn('Standard — 20.00%', names)
+
+    def test_create_new_rate(self):
+        resp = self.client.post('/api/v1/billing/tax-rates/', {
+            'name': 'Reduced Rate — 5.00%', 'rate': '5.00',
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(TaxRate.objects.filter(marina=self.marina, name='Reduced Rate — 5.00%').exists())
+
+    def test_archive(self):
+        exempt = TaxRate.objects.get(marina=self.marina, name='Exempt — 0.00%')
+        resp = self.client.post(f'/api/v1/billing/tax-rates/{exempt.pk}/archive/')
+        self.assertEqual(resp.status_code, 200)
+        exempt.refresh_from_db()
+        self.assertTrue(exempt.is_archived)
+
+    def test_delete_unused_rate(self):
+        exempt = TaxRate.objects.get(marina=self.marina, name='Exempt — 0.00%')
+        resp = self.client.delete(f'/api/v1/billing/tax-rates/{exempt.pk}/')
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(TaxRate.objects.filter(pk=exempt.pk).exists())
+
+    def test_delete_in_use_rate_returns_409(self):
+        from apps.billing.models import ChargeableItem
+        standard = TaxRate.objects.get(marina=self.marina, name='Standard — 20.00%')
+        ChargeableItem.objects.create(
+            marina=self.marina, name='Test Slip', category='berth',
+            pricing_model='per_night', unit_price=Decimal('50.00'),
+            tax_category=standard,
+        )
+        resp = self.client.delete(f'/api/v1/billing/tax-rates/{standard.pk}/')
+        self.assertEqual(resp.status_code, 409)
+
+    def test_set_default(self):
+        zero = TaxRate.objects.get(marina=self.marina, name='Zero Rated — 0.00%')
+        resp = self.client.post(f'/api/v1/billing/tax-rates/{zero.pk}/set-default/')
+        self.assertEqual(resp.status_code, 200)
+        zero.refresh_from_db()
+        self.assertTrue(zero.is_default)
+        standard = TaxRate.objects.get(marina=self.marina, name='Standard — 20.00%')
+        self.assertFalse(standard.is_default)
