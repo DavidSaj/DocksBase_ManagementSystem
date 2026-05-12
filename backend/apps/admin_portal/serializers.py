@@ -20,6 +20,7 @@ class StaffUserSerializer(serializers.ModelSerializer):
 class MarinaListSerializer(serializers.ModelSerializer):
     mrr = serializers.SerializerMethodField()
     user_count = serializers.SerializerMethodField()
+    group_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Marina
@@ -28,7 +29,7 @@ class MarinaListSerializer(serializers.ModelSerializer):
             'total_berths', 'mrr', 'user_count',
             'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'features', 'mrr_override', 'max_staff',
-            'created_at',
+            'created_at', 'group_name',
         ]
 
     def get_mrr(self, obj):
@@ -36,6 +37,10 @@ class MarinaListSerializer(serializers.ModelSerializer):
 
     def get_user_count(self, obj):
         return obj.users.filter(is_active=True).count()
+
+    def get_group_name(self, obj):
+        membership = obj.group_memberships.select_related('group').first()
+        return membership.group.name if membership else None
 
 
 class MarinaDetailSerializer(MarinaListSerializer):
@@ -88,3 +93,29 @@ class GlobalFeatureFlagSerializer(serializers.ModelSerializer):
         model = GlobalFeatureFlag
         fields = ['name', 'enabled', 'updated_at']
         read_only_fields = ['updated_at']
+
+
+from apps.accounts.models import MarinaGroup
+
+
+class MarinaGroupSerializer(serializers.ModelSerializer):
+    marina_count = serializers.SerializerMethodField()
+    marinas = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MarinaGroup
+        fields = [
+            'id', 'name', 'slug', 'max_marinas', 'base_currency',
+            'billing_contact_email', 'stripe_customer_id',
+            'marina_count', 'marinas', 'created_at',
+        ]
+        read_only_fields = ['id', 'marina_count', 'marinas', 'created_at']
+
+    def get_marina_count(self, obj):
+        return obj.memberships.count()
+
+    def get_marinas(self, obj):
+        return [
+            {'id': m.marina.id, 'name': m.marina.name, 'slug': m.marina.slug}
+            for m in obj.memberships.select_related('marina').all()
+        ]

@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def auto_create_deposit_invoice(tenancy_id: int):
     from apps.tenants.models import Tenancy
     from apps.billing.models import Invoice, InvoiceLineItem
@@ -24,7 +27,7 @@ def auto_create_deposit_invoice(tenancy_id: int):
         quantity=1,
         unit_price=tenancy.deposit_amount,
         total_price=tenancy.deposit_amount,
-        tax_rate=tenancy.deposit_chargeable_item.tax_rate,
+        tax_rate=Decimal(str(tenancy.deposit_chargeable_item.tax_category.rate)),
     )
     invoice.subtotal = tenancy.deposit_amount
     invoice.total = tenancy.deposit_amount

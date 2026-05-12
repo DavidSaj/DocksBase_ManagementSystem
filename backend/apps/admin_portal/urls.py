@@ -9,6 +9,8 @@ from .views import (
     AdminSubscriptionsView,
     AdminFeatureFlagListView, AdminFeatureFlagDetailView,
     AdminAuditLogView,
+    AdminGroupListView, AdminGroupDetailView,
+    AdminGroupAddMarinaView, AdminGroupRemoveMarinaView, AdminGroupSetAdminView,
 )
 
 urlpatterns = [
@@ -26,4 +28,9 @@ urlpatterns = [
     path('feature-flags/',                             AdminFeatureFlagListView.as_view(),     name='admin_feature_flags'),
     path('feature-flags/<str:name>/',                  AdminFeatureFlagDetailView.as_view(),   name='admin_feature_flag_detail'),
     path('audit-logs/',                                AdminAuditLogView.as_view(),            name='admin_audit_logs'),
+    path('groups/',                                    AdminGroupListView.as_view(),           name='admin_group_list'),
+    path('groups/<int:pk>/',                           AdminGroupDetailView.as_view(),         name='admin_group_detail'),
+    path('groups/<int:pk>/add_marina/',                AdminGroupAddMarinaView.as_view(),      name='admin_group_add_marina'),
+    path('groups/<int:pk>/remove_marina/',             AdminGroupRemoveMarinaView.as_view(),   name='admin_group_remove_marina'),
+    path('groups/<int:pk>/set_admin/',                 AdminGroupSetAdminView.as_view(),       name='admin_group_set_admin'),
 ]

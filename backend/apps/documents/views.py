@@ -21,7 +21,11 @@ class DocTemplateList(generics.ListCreateAPIView):
         return DocTemplate.objects.filter(marina=self.request.user.marina)
 
     def perform_create(self, serializer):
-        serializer.save(marina=self.request.user.marina)
+        marina = self.request.user.marina
+        template = serializer.save(marina=marina)
+        if template.category == 'waiver' and template.file:
+            marina.waiver_template_id = str(template.pk)
+            marina.save(update_fields=['waiver_template_id'])
 
 
 class DocTemplateDetail(generics.RetrieveUpdateDestroyAPIView):

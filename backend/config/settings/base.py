@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.notifications',
     'apps.portal',
     'apps.admin_portal',
+    'apps.enterprise',
     'apps.mobile',
     # ERP tracks
     'apps.revenue',
@@ -269,6 +270,10 @@ CELERY_BEAT_SCHEDULE = {
     'send-prearival-reminders': {
         'task': 'reservations.send_prearival_reminders',
         'schedule': crontab(hour=10, minute=0),          # daily 10:00 UTC
+    },
+    'auto-no-show': {
+        'task': 'reservations.auto_no_show',
+        'schedule': crontab(hour=22, minute=0),          # daily 22:00 UTC
     },
     # ── Accounting (Track 4) ─────────────────────────────────────────────────
     'instalment-processor': {

@@ -4,6 +4,7 @@ const NAV = [
   { group: 'Platform', items: [
     { id: 'overview',      icon: 'grid',         label: 'Overview' },
     { id: 'marinas',       icon: 'anchor',       label: 'Marinas' },
+    { id: 'groups',        icon: 'layers',       label: 'Groups' },
     { id: 'subscriptions', icon: 'tag',          label: 'Subscriptions' },
   ]},
   { group: 'Revenue', items: [

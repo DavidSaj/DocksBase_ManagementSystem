@@ -119,8 +119,8 @@ const stMap = {
   expired:   'badge-red',
 };
 
-export default function Documents() {
-  const { templates, loading: tplLoading, uploadTemplate, prepareTemplate, setWaiver, clearWaiver } = useDocTemplates();
+export default function Documents({ setScreen }) {
+  const { templates, loading: tplLoading, uploadTemplate, clearWaiver } = useDocTemplates();
   const { envelopes, loading: envLoading, sendEnvelope, getDownloadUrl } = useEnvelopes();
   const { members } = useMembers();
   const [tab, setTab] = useState('templates');
@@ -128,29 +128,13 @@ export default function Documents() {
   const [selEnv, setSelEnv] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
   const [sendingTemplate, setSendingTemplate] = useState(null);
-  const [preparing, setPreparing] = useState(null);
   const [waiverBusy, setWaiverBusy] = useState(null);
 
   const filteredEnv = envFilter === 'all' ? envelopes : envelopes.filter(e => e.status === envFilter);
 
-  async function handlePrepare(tpl) {
-    setPreparing(tpl.id);
-    try {
-      const url = await prepareTemplate(tpl.id);
-      window.open(url, '_blank');
-    } finally {
-      setPreparing(null);
-    }
-  }
-
   async function handleDownload(env) {
     const url = await getDownloadUrl(env.id);
     window.open(url, '_blank');
-  }
-
-  async function handleSetWaiver(tpl) {
-    setWaiverBusy(tpl.id);
-    try { await setWaiver(tpl.id); } finally { setWaiverBusy(null); }
   }
 
   async function handleClearWaiver(tpl) {
@@ -215,36 +199,23 @@ export default function Documents() {
                         <Ic n="pen" s={11} />Send Contract
                       </button>
                     ) : (
-                      <button className="btn btn-primary btn-sm" onClick={() => handlePrepare(t)} disabled={preparing === t.id}>
-                        {preparing === t.id ? 'Opening…' : 'Prepare for eSign'}
+                      <button className="btn btn-ghost btn-sm" onClick={() => setScreen('infrastructure')}>
+                        Set up eSign
                       </button>
                     )}
                     {t.file && <a className="btn btn-ghost btn-sm" href={t.file} target="_blank" rel="noreferrer">Download</a>}
                   </div>
-                  {t.category === 'waiver' && t.dropboxsign_template_id && (
-                    <div style={{ marginTop: 8 }}>
-                      {t.is_active_waiver ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span className="badge badge-green" style={{ fontSize: 10 }}>Active Marina Waiver</span>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            style={{ fontSize: 11, color: 'var(--red)' }}
-                            onClick={() => handleClearWaiver(t)}
-                            disabled={waiverBusy === t.id}
-                          >
-                            {waiverBusy === t.id ? '…' : 'Remove'}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          style={{ fontSize: 11 }}
-                          onClick={() => handleSetWaiver(t)}
-                          disabled={waiverBusy === t.id}
-                        >
-                          {waiverBusy === t.id ? 'Setting…' : 'Set as Marina Waiver'}
-                        </button>
-                      )}
+                  {t.category === 'waiver' && t.file && t.is_active_waiver && (
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="badge badge-green" style={{ fontSize: 10 }}>Active Marina Waiver</span>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: 11, color: 'var(--red)' }}
+                        onClick={() => handleClearWaiver(t)}
+                        disabled={waiverBusy === t.id}
+                      >
+                        {waiverBusy === t.id ? '…' : 'Remove'}
+                      </button>
                     </div>
                   )}
                 </div>

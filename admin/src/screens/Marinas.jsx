@@ -257,9 +257,15 @@ export default function Marinas() {
                   <tr key={m.id} className={selected?.id === m.id ? 'selected' : ''} onClick={() => setSelected(selected?.id === m.id ? null : m)}>
                     <td>
                       <div className="tbl-name">{m.name}</div>
-                      <div className="tbl-sub">{m.timezone}</div>
+                      {m.group_name
+                        ? <div className="tbl-sub" style={{ color: 'rgba(180,140,0,0.8)' }}>{m.group_name}</div>
+                        : <div className="tbl-sub">{m.timezone}</div>}
                     </td>
-                    <td><PlanBadge plan={m.plan} /></td>
+                    <td>
+                      {m.group_name
+                        ? <span className="badge badge-gold">Enterprise</span>
+                        : <PlanBadge plan={m.plan} />}
+                    </td>
                     <td>
                       <StatusBadge status={m.status} />
                       {m.status === 'trial' && m.trial_ends && (

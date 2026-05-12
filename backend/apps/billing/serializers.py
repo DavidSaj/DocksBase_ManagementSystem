@@ -1,5 +1,18 @@
 from rest_framework import serializers
-from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem
+from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem, TaxRate
+
+
+class TaxRateSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxRate
+        fields = ['id', 'name', 'rate']
+
+
+class TaxRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxRate
+        fields = ['id', 'name', 'rate', 'is_default', 'is_archived', 'created_at']
+        read_only_fields = ['id', 'is_archived', 'created_at']
 
 
 class ChargeableItemSerializer(serializers.ModelSerializer):
@@ -9,18 +22,31 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
     berth_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False,
     )
+    tax_category = TaxRateSummarySerializer(read_only=True)
+    tax_category_id = serializers.PrimaryKeyRelatedField(
+        queryset=TaxRate.objects.all(), source='tax_category', write_only=True, required=False, allow_null=True,
+    )
 
     class Meta:
         model  = ChargeableItem
         fields = [
             'id', 'name', 'category', 'category_display',
             'pricing_model', 'pricing_model_display',
-            'unit_price', 'tax_rate', 'is_active',
+            'unit_price', 'tax_category', 'tax_category_id', 'is_active',
             'show_in_pos', 'fuel_dock_type', 'is_mandatory_transient_fee',
             'created_at',
             'assigned_berths', 'berth_ids',
         ]
         read_only_fields = ['id', 'created_at', 'pricing_model_display', 'category_display']
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'marina') and request.user.marina:
+            fields['tax_category_id'].queryset = TaxRate.objects.filter(
+                marina=request.user.marina, is_archived=False
+            )
+        return fields
 
     def get_assigned_berths(self, obj):
         from apps.berths.models import Berth
@@ -79,7 +105,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = [
             'id', 'invoice_number', 'status', 'source_type', 'source_id',
-            'member', 'member_name', 'subtotal', 'vat_rate', 'tax_total', 'total',
+            'member', 'member_name', 'subtotal', 'tax_total', 'total',
             'billing_period', 'due_date', 'paid_at', 'created_at',
             'items', 'payments',
         ]

@@ -89,7 +89,7 @@ def run_rent_scheduler(marina, year: int, month: int):
                     quantity=1,
                     unit_price=entry.amount,
                     total_price=entry.amount,
-                    tax_rate=tenancy.rent_chargeable_item.tax_rate,
+                    tax_rate=Decimal(str(tenancy.rent_chargeable_item.tax_category.rate)),
                 )
                 invoice.subtotal = entry.amount
                 invoice.total = entry.amount

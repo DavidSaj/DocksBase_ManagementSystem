@@ -4,8 +4,52 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Invoice, InvoiceLineItem, Payment
+from .models import Invoice, InvoiceLineItem, Payment, TaxRate
 from .signals import invoice_paid
+
+
+def seed_default_tax_rates(marina):
+    from decimal import Decimal as D
+    seeds = [
+        ('Standard — 20.00%', D('20.00'), True),
+        ('Zero Rated — 0.00%', D('0.00'), False),
+        ('Exempt — 0.00%',    D('0.00'), False),
+    ]
+    result = []
+    for name, rate, is_default in seeds:
+        obj, _ = TaxRate.objects.get_or_create(
+            marina=marina, name=name,
+            defaults={'rate': rate, 'is_default': is_default},
+        )
+        result.append(obj)
+    return result
+
+
+def create_tax_rate(marina, name, rate, is_default=False):
+    from decimal import Decimal as D
+    with transaction.atomic():
+        if is_default:
+            TaxRate.objects.filter(marina=marina, is_default=True).update(is_default=False)
+        return TaxRate.objects.create(
+            marina=marina, name=name, rate=D(str(rate)), is_default=is_default,
+        )
+
+
+def set_default_tax_rate(tax_rate):
+    with transaction.atomic():
+        TaxRate.objects.filter(marina=tax_rate.marina, is_default=True).update(is_default=False)
+        tax_rate.is_default = True
+        tax_rate.save(update_fields=['is_default'])
+    return tax_rate
+
+
+def delete_tax_rate(tax_rate):
+    if tax_rate.chargeable_items.exists():
+        raise ValueError(
+            f"Cannot delete '{tax_rate.name}' — ChargeableItems are still assigned to it. "
+            "Reassign or archive those items first."
+        )
+    tax_rate.delete()
 
 
 def create_invoice(marina, member=None, source_type='', source_id='', due_date=None, billing_period=''):
@@ -25,7 +69,6 @@ def create_invoice(marina, member=None, source_type='', source_id='', due_date=N
             status='draft',
             source_type=source_type,
             source_id=str(source_id) if source_id else '',
-            vat_rate=None,
             due_date=due_date,
             billing_period=billing_period,
         )
@@ -51,12 +94,13 @@ def add_line_item(invoice, description, quantity, unit_price, tax_rate=None, cha
 
 def add_line_item_from_catalog(invoice, chargeable_item, quantity):
     """Snapshot price and tax from ChargeableItem at the moment of invoicing."""
+    rate = Decimal(str(chargeable_item.tax_category.rate))
     return add_line_item(
         invoice=invoice,
         description=chargeable_item.name,
         quantity=quantity,
         unit_price=chargeable_item.unit_price,
-        tax_rate=chargeable_item.tax_rate,
+        tax_rate=rate,
         chargeable_item=chargeable_item,
     )
 
@@ -121,7 +165,7 @@ def calculate_booking_invoice(booking):
         description=description,
         quantity=quantity,
         unit_price=item.unit_price,
-        tax_rate=item.tax_rate,
+        tax_rate=Decimal(str(item.tax_category.rate)),
         chargeable_item=item,
     )
     return invoice

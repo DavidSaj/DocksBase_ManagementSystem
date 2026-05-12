@@ -1,0 +1,32 @@
+/* ── DocksBase Field App — Design Tokens & Base Styles ────────────────── */
+:root {
+  --navy:       #0c1f3d;
+  --navy2:      #162d52;
+  --gold:       #b8965a;
+  --gold2:      #d4b07a;
+  --cream:      #f5f0e6;
+  --bg:         #f4f3f0;
+  --bg2:        #eceae6;
+  --red:        #c0392b;
+  --orange:     #dd5b00;
+  --green:      #1a8c2e;
+  --border:     rgba(0,0,0,0.08);
+  --shadow:     0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05);
+  --font:       'IBM Plex Sans', system-ui, sans-serif;
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-brand: 'Jost', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: #1a1a1a;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; }
+a { color: inherit; text-decoration: none; }

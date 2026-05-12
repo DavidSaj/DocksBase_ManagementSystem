@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../../api.js';
+import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#1a2d4a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44 };
+const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
+const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const CARD = { background: '#fff', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
 
 const DIRECT_BADGE = { background: '#e8f4ea', color: '#1a6b2e', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none' };
@@ -14,8 +15,8 @@ export default function ChannelManagementFlow({ onBack }) {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
-  const [confirm, setConfirm] = useState(null); // { berth, newConnId }
-  const [error, setError] = useState(null); // fatal (replaces list) or transient (banner)
+  const [confirm, setConfirm] = useState(null);
+  const [error, setError] = useState(null);
   const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
@@ -63,16 +64,15 @@ export default function ChannelManagementFlow({ onBack }) {
   }
 
   function nextConnId(berth) {
-    // Cycle: direct → first conn → second conn → direct
     if (!berth.ota_connection) return connections[0]?.id ?? null;
     const idx = connections.findIndex(c => c.id === berth.ota_connection);
     return idx >= 0 && idx < connections.length - 1 ? connections[idx + 1].id : null;
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
       <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}>←</button>
+        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
         <span style={{ fontSize: 16, fontWeight: 700 }}>Channel Management</span>
       </div>
 
@@ -85,7 +85,7 @@ export default function ChannelManagementFlow({ onBack }) {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirm(null)} style={{ flex: 1, height: 44, borderRadius: 10, border: '1.5px solid #ddd', background: '#fff', fontSize: 14, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleConfirm} style={{ flex: 1, height: 44, borderRadius: 10, border: 'none', background: '#1a2d4a', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Confirm</button>
+              <button onClick={handleConfirm} style={{ flex: 1, height: 44, borderRadius: 10, border: 'none', background: '#0c1f3d', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Confirm</button>
             </div>
           </div>
         </div>
@@ -105,7 +105,7 @@ export default function ChannelManagementFlow({ onBack }) {
           )}
           {berths.map(b => {
             const badge = b.channel_locked
-              ? { style: LOCKED_BADGE, label: `🔒 ${connName(b.ota_connection)}` }
+              ? { style: LOCKED_BADGE, label: `Locked · ${connName(b.ota_connection)}` }
               : b.ota_connection
                 ? { style: OTA_BADGE, label: connName(b.ota_connection) }
                 : { style: DIRECT_BADGE, label: 'Direct' };
