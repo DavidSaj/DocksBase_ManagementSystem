@@ -1833,3 +1833,103 @@ class TestReservationConfirmView:
                 HTTP_X_MARINA_SLUG='conf-d',
             )
         assert resp.status_code == 402
+
+
+class TestExpireReservationsCommand(TestCase):
+    def _setup(self):
+        from apps.billing.service import seed_default_tax_rates
+        from apps.billing.models import TaxRate, ChargeableItem
+        from apps.berths.models import Berth
+        from apps.reservations.models import Reservation, ReservationItem
+
+        marina = Marina.objects.create(name='Expire Marina', slug='expire-m')
+        seed_default_tax_rates(marina)
+        tax = TaxRate.objects.get(marina=marina, name='Zero Rated — 0.00%')
+        tier = ChargeableItem.objects.create(
+            marina=marina, name='Berth', category='berth',
+            pricing_model='per_night', unit_price=50,
+            tax_category=tax,
+        )
+        berth = Berth.objects.create(marina=marina, code='E1', pricing_tier=tier)
+        return marina, berth
+
+    def test_expired_reservation_becomes_abandoned(self):
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.core.management import call_command
+
+        marina, berth = self._setup()
+        past = timezone.now() - datetime.timedelta(minutes=30)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='ex@test.com',
+            status='pending_checkout',
+            locked_until=past,
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2028, 1, 1),
+            check_out=datetime.date(2028, 1, 4),
+            nights=3, status='locked',
+        )
+
+        call_command('expire_reservations')
+
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'abandoned')
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='released').count(), 1
+        )
+
+    def test_not_yet_expired_reservation_is_untouched(self):
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.core.management import call_command
+
+        marina, berth = self._setup()
+        future = timezone.now() + datetime.timedelta(minutes=30)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='future@test.com',
+            status='pending_checkout',
+            locked_until=future,
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2028, 2, 1),
+            check_out=datetime.date(2028, 2, 4),
+            nights=3, status='locked',
+        )
+
+        call_command('expire_reservations')
+
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'pending_checkout')
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='locked').count(), 1
+        )
+
+    def test_dry_run_does_not_mutate(self):
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.core.management import call_command
+
+        marina, berth = self._setup()
+        past = timezone.now() - datetime.timedelta(minutes=30)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='dry@test.com',
+            status='pending_checkout',
+            locked_until=past,
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2028, 3, 1),
+            check_out=datetime.date(2028, 3, 4),
+            nights=3, status='locked',
+        )
+
+        call_command('expire_reservations', dry_run=True)
+
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'pending_checkout')
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='locked').count(), 1
+        )
