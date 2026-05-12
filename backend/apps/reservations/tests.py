@@ -1533,3 +1533,303 @@ class TestSendReservationConfirmedEmail:
         msg = mail.outbox[0]
         assert msg.to == ['sailor@test.com']
         assert f'RES-{res.pk}' in msg.body
+
+
+def _make_intent_marina(slug='intent-marina'):
+    from apps.accounts.models import Marina
+    from apps.billing.models import TaxRate, ChargeableItem
+    from apps.berths.models import Berth
+    marina = Marina.objects.create(
+        name='Intent Marina', slug=slug,
+        booking_mode='auto_tetris',
+    )
+    tax = TaxRate.objects.create(marina=marina, name='Zero', rate=Decimal('0.00'))
+    tier = ChargeableItem.objects.create(
+        marina=marina, name='Berth', category='berth',
+        pricing_model='per_night', unit_price=Decimal('100.00'),
+        tax_category=tax, is_active=True,
+    )
+    berth = Berth.objects.create(
+        marina=marina, code='I01',
+        length_m=Decimal('15.00'), max_beam_m=Decimal('5.00'),
+        pricing_tier=tier,
+    )
+    return marina, berth
+
+
+class TestReservationIntentView:
+    BASE_URL = '/api/v1/public/reservations/intent/'
+
+    @pytest.mark.django_db(transaction=True)
+    def test_intent_creates_reservation_and_items(self):
+        from unittest.mock import patch
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.test import Client
+
+        marina, berth = _make_intent_marina('intent-a')
+        client = Client()
+
+        with patch('apps.billing.service.create_payment_intent', return_value='pi_test_secret_xyz'):
+            resp = client.post(
+                self.BASE_URL,
+                data={
+                    'check_in': '2027-07-01',
+                    'check_out': '2027-07-04',
+                    'guest_name': 'John Smith',
+                    'guest_email': 'john@test.com',
+                    'items': [
+                        {'boat_loa': '12.5', 'vessel_name': 'Sea Breeze'},
+                    ],
+                },
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='intent-a',
+            )
+
+        assert resp.status_code == 201, resp.json()
+        data = resp.json()
+        assert 'reservation_id' in data
+        assert data['client_secret'] == 'pi_test_secret_xyz'
+        assert data['total'] == '300.00'
+        assert len(data['items']) == 1
+
+        res = Reservation.objects.get(pk=data['reservation_id'])
+        assert res.status == 'pending_checkout'
+        assert res.locked_until is not None
+        assert res.total_price == Decimal('300.00')
+
+        items = list(ReservationItem.objects.filter(reservation=res))
+        assert len(items) == 1
+        assert items[0].status == 'locked'
+        assert items[0].berth_id == berth.pk
+
+    @pytest.mark.django_db(transaction=True)
+    def test_intent_returns_409_when_no_berth_available(self):
+        from unittest.mock import patch
+        from django.test import Client
+
+        marina, _ = _make_intent_marina('intent-b')
+        client = Client()
+
+        with patch('apps.billing.service.create_payment_intent', return_value='pi_x'):
+            resp = client.post(
+                self.BASE_URL,
+                data={
+                    'check_in': '2027-08-01',
+                    'check_out': '2027-08-04',
+                    'guest_name': 'Jane Doe',
+                    'guest_email': 'jane@test.com',
+                    'items': [
+                        {'boat_loa': '99.0'},  # too big for any berth
+                    ],
+                },
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='intent-b',
+            )
+
+        assert resp.status_code == 409
+
+    @pytest.mark.django_db(transaction=True)
+    def test_intent_rolls_back_all_items_if_one_fails(self):
+        from unittest.mock import patch
+        from apps.reservations.models import Reservation
+        from django.test import Client
+
+        marina, _ = _make_intent_marina('intent-c')
+        client = Client()
+
+        before = Reservation.objects.count()
+        with patch('apps.billing.service.create_payment_intent', return_value='pi_x'):
+            resp = client.post(
+                self.BASE_URL,
+                data={
+                    'check_in': '2027-09-01',
+                    'check_out': '2027-09-04',
+                    'guest_name': 'Bob',
+                    'guest_email': 'bob@test.com',
+                    'items': [
+                        {'boat_loa': '12.5'},
+                        {'boat_loa': '99.0'},  # second item fails → whole cart rolls back
+                    ],
+                },
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='intent-c',
+            )
+
+        assert resp.status_code == 409
+        assert Reservation.objects.count() == before  # no partial records left
+
+    @pytest.mark.django_db
+    def test_intent_rejects_non_auto_tetris_marina(self):
+        from apps.accounts.models import Marina
+        from django.test import Client
+        Marina.objects.create(
+            name='Manual Marina', slug='intent-manual',
+            booking_mode='manual',
+        )
+        client = Client()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2027-10-01', 'check_out': '2027-10-04',
+                'guest_name': 'X', 'guest_email': 'x@test.com',
+                'items': [{'boat_loa': '10.0'}],
+            },
+            content_type='application/json',
+            HTTP_X_MARINA_SLUG='intent-manual',
+        )
+        assert resp.status_code == 400
+
+
+def _make_pending_reservation(marina):
+    from apps.billing.models import TaxRate, ChargeableItem
+    from apps.berths.models import Berth
+    from apps.reservations.models import Reservation, ReservationItem
+    tax = TaxRate.objects.create(marina=marina, name='ZeroC', rate=Decimal('0.00'))
+    tier = ChargeableItem.objects.create(
+        marina=marina, name='Berth', category='berth',
+        pricing_model='per_night', unit_price=Decimal('100.00'),
+        tax_category=tax, is_active=True,
+    )
+    berth = Berth.objects.create(
+        marina=marina, code='C01',
+        length_m=Decimal('15.00'),
+        pricing_tier=tier,
+    )
+    res = Reservation.objects.create(
+        marina=marina,
+        guest_name='Confirm Sailor',
+        guest_email='confirm@test.com',
+        status='pending_checkout',
+        stripe_payment_intent_id='pi_test123',
+        total_price=Decimal('300.00'),
+    )
+    ReservationItem.objects.create(
+        reservation=res, berth=berth,
+        check_in=datetime.date(2027, 7, 1),
+        check_out=datetime.date(2027, 7, 4),
+        nights=3, status='locked',
+    )
+    return res
+
+
+class TestReservationConfirmView:
+    BASE_URL = '/api/v1/public/reservations/confirm/'
+
+    @pytest.mark.django_db
+    def test_confirm_success_flips_status_and_sends_email(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import Client
+        from apps.accounts.models import Marina
+        from apps.reservations.models import ReservationItem
+
+        marina = Marina.objects.create(
+            name='Conf Marina', slug='conf-a',
+            booking_mode='auto_tetris', stripe_account_id='acct_test',
+        )
+        res = _make_pending_reservation(marina)
+        client = Client()
+
+        mock_pi = MagicMock()
+        mock_pi.status = 'succeeded'
+
+        with patch('apps.reservations.public_reservation_views.stripe') as mock_stripe, \
+             patch('apps.reservations.public_reservation_views.send_reservation_confirmed_email') as mock_email:
+            mock_stripe.PaymentIntent.retrieve.return_value = mock_pi
+            resp = client.post(
+                self.BASE_URL,
+                data={'reservation_id': res.pk, 'payment_intent_id': 'pi_test123'},
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='conf-a',
+            )
+
+        assert resp.status_code == 200, resp.json()
+        data = resp.json()
+        assert data['status'] == 'confirmed'
+        assert data['reference'] == f'RES-{res.pk}'
+
+        res.refresh_from_db()
+        assert res.status == 'confirmed'
+        assert res.paid is True
+        assert ReservationItem.objects.filter(reservation=res, status='confirmed').count() == 1
+        mock_email.assert_called_once_with(res)
+
+    @pytest.mark.django_db
+    def test_confirm_idempotent_if_already_confirmed(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import Client
+        from apps.accounts.models import Marina
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(
+            name='Conf Marina 2', slug='conf-b', stripe_account_id='acct_test',
+        )
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Already Done',
+            guest_email='done@test.com',
+            status='confirmed',
+            stripe_payment_intent_id='pi_already',
+            total_price=Decimal('100.00'),
+            paid=True,
+        )
+        client = Client()
+        mock_pi = MagicMock()
+        mock_pi.status = 'succeeded'
+
+        with patch('apps.reservations.public_reservation_views.stripe') as mock_stripe, \
+             patch('apps.reservations.public_reservation_views.send_reservation_confirmed_email') as mock_email:
+            mock_stripe.PaymentIntent.retrieve.return_value = mock_pi
+            resp = client.post(
+                self.BASE_URL,
+                data={'reservation_id': res.pk, 'payment_intent_id': 'pi_already'},
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='conf-b',
+            )
+
+        assert resp.status_code == 200
+        mock_email.assert_not_called()  # no duplicate email
+
+    @pytest.mark.django_db
+    def test_confirm_returns_409_for_abandoned_reservation(self):
+        from django.test import Client
+        from apps.accounts.models import Marina
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(name='Conf Marina 3', slug='conf-c')
+        res = Reservation.objects.create(
+            marina=marina, guest_email='gone@test.com',
+            status='abandoned', stripe_payment_intent_id='pi_gone',
+            total_price=Decimal('100.00'),
+        )
+        client = Client()
+        resp = client.post(
+            self.BASE_URL,
+            data={'reservation_id': res.pk, 'payment_intent_id': 'pi_gone'},
+            content_type='application/json',
+            HTTP_X_MARINA_SLUG='conf-c',
+        )
+        assert resp.status_code == 409
+
+    @pytest.mark.django_db
+    def test_confirm_returns_402_when_payment_not_yet_succeeded(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import Client
+        from apps.accounts.models import Marina
+
+        marina = Marina.objects.create(
+            name='Conf Marina 4', slug='conf-d', stripe_account_id='acct_test',
+        )
+        res = _make_pending_reservation(marina)
+        client = Client()
+        mock_pi = MagicMock()
+        mock_pi.status = 'requires_payment_method'
+
+        with patch('apps.reservations.public_reservation_views.stripe') as mock_stripe:
+            mock_stripe.PaymentIntent.retrieve.return_value = mock_pi
+            resp = client.post(
+                self.BASE_URL,
+                data={'reservation_id': res.pk, 'payment_intent_id': 'pi_test123'},
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='conf-d',
+            )
+        assert resp.status_code == 402
