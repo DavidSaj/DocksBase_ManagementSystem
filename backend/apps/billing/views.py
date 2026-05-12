@@ -79,6 +79,27 @@ def _handle_marina_payment_failed(obj):
         _send_payment_failed_email(user)
 
 
+def _handle_reservation_payment_succeeded(obj, reservation_id):
+    import logging
+    from apps.reservations.models import Reservation, ReservationItem
+    from apps.reservations.emails import send_reservation_confirmed_email
+    _log = logging.getLogger(__name__)
+
+    updated = Reservation.objects.filter(
+        pk=reservation_id, status='pending_checkout'
+    ).update(status='confirmed', paid=True)
+
+    if updated:
+        ReservationItem.objects.filter(
+            reservation_id=reservation_id, status='locked'
+        ).update(status='confirmed')
+        try:
+            res = Reservation.objects.get(pk=reservation_id)
+            send_reservation_confirmed_email(res)
+        except Exception:
+            _log.exception('Webhook: failed to send reservation confirmation email for pk=%s', reservation_id)
+
+
 def _post_payment_tasks(invoice_id):
     """Fire-and-forget: generate PDF and, if linked, confirm the booking and send the email."""
     _generate_store_and_email_pdf(invoice_id)
@@ -176,6 +197,12 @@ class StripeConnectWebhookView(APIView):
 
         event_type = event['type']
         obj = event['data']['object']
+
+        # Reservation cart flow — PaymentIntent metadata carries reservation_id
+        reservation_id = obj.get('metadata', {}).get('reservation_id')
+        if reservation_id:
+            _handle_reservation_payment_succeeded(obj, reservation_id)
+            return HttpResponse(status=200)
 
         invoice_id = obj.get('metadata', {}).get('invoice_id')
         if not invoice_id:

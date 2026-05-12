@@ -202,6 +202,74 @@ def run_tetris(marina, check_in, check_out, boat_loa, boat_beam, boat_draft=None
         raise NoAvailableBerthError('No compatible berth available for the requested dates.')
 
 
+def assign_berth(marina, check_in, check_out, boat_loa, boat_beam=None,
+                 boat_draft=None, berth_category=None):
+    """
+    Select the best available berth for one cart item.
+    Returns (berth, Decimal price) where price = unit_price × nights.
+    Raises NoAvailableBerthError if no berth fits.
+
+    MUST be called inside an outer transaction.atomic(). The select_for_update()
+    row lock is held until that outer transaction commits or rolls back.
+    If any item in a multi-item cart fails, the caller's transaction rolls back,
+    releasing all locks and creating zero records.
+    """
+    if isinstance(check_in, str):
+        check_in = date.fromisoformat(check_in)
+    if isinstance(check_out, str):
+        check_out = date.fromisoformat(check_out)
+    if check_out <= check_in:
+        raise NoAvailableBerthError('check_out must be after check_in.')
+
+    candidates = compatible_available_berths(
+        marina, check_in, check_out, boat_loa, boat_beam, boat_draft,
+    )
+    if berth_category is not None:
+        candidates = candidates.filter(category=berth_category)
+    scored = _score_berths(candidates, check_in, check_out)
+    if not scored:
+        raise NoAvailableBerthError('No compatible berth available for the requested dates.')
+
+    nights = (check_out - check_in).days or 1
+
+    from .models import ReservationItem  # local import avoids circular
+
+    for _, berth in scored:
+        # Acquire a row-level lock BEFORE conflict checks.
+        # Under PostgreSQL Read Committed isolation, plain .exists() is a
+        # non-locking read — two concurrent transactions both see no conflict
+        # and both write a ReservationItem (double-booking). select_for_update()
+        # serialises concurrent evaluation of the same berth row.
+        Berth.objects.select_for_update().get(pk=berth.pk)
+
+        booking_conflict = Booking.objects.filter(
+            berth=berth,
+            status__in=ACTIVE_STATUSES,
+            check_in__lt=check_out,
+            check_out__gt=check_in,
+        ).exists()
+        if booking_conflict:
+            continue
+
+        item_conflict = ReservationItem.objects.filter(
+            berth=berth,
+            status__in=['locked', 'confirmed'],
+            check_in__lt=check_out,
+            check_out__gt=check_in,
+        ).exists()
+        if item_conflict:
+            continue
+
+        if berth_category is not None:
+            price = Decimal(str(berth_category.pricing_tier.unit_price)) * nights
+        else:
+            price = Decimal(str(berth.pricing_tier.unit_price)) * nights
+
+        return berth, price
+
+    raise NoAvailableBerthError('No compatible berth available for the requested dates.')
+
+
 ALTERNATIVE_SHIFTS = [-2, -1, 1, 2]     # days to shift check_in, same duration
 ALTERNATIVE_DURATIONS = [-1, 1, -2, 2]  # nights delta, same check_in
 

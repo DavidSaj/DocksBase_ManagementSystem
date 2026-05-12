@@ -296,3 +296,38 @@ class WashToken(models.Model):
 
     def __str__(self):
         return f'{self.token_code} ({self.get_facility_display()}, {self.get_status_display()})'
+
+
+# ---------------------------------------------------------------------------
+# Pending Utility Charge (Dockwalk billing staging)
+# ---------------------------------------------------------------------------
+
+class PendingUtilityCharge(models.Model):
+    """
+    Staging ledger for Dockwalk utility charges.
+    Created when a dockhand enters a meter reading. Never touches an active invoice.
+    The monthly billing sweep collects rows where swept_to_invoice is None
+    and attaches them to the new invoice.
+    """
+    marina        = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='pending_utility_charges')
+    member        = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='pending_utility_charges')
+    meter         = models.ForeignKey(SmartMeter, on_delete=models.PROTECT, related_name='pending_charges')
+    meter_reading = models.ForeignKey(MeterReading, on_delete=models.PROTECT, related_name='pending_charges')
+    kwh_delta     = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    m3_delta      = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    unit_price    = models.DecimalField(max_digits=10, decimal_places=4)
+    amount        = models.DecimalField(max_digits=10, decimal_places=2)
+    rollover      = models.BooleanField(default=False)
+    swept_to_invoice = models.ForeignKey(
+        'billing.Invoice',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='utility_charges',
+    )
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'PendingCharge {self.member} {self.amount}'

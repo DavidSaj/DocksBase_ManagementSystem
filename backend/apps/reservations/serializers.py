@@ -1,6 +1,6 @@
 # backend/apps/reservations/serializers.py
 from rest_framework import serializers
-from .models import Booking, BookingRequest
+from .models import Booking, BookingRequest, Reservation, ReservationItem
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -59,3 +59,39 @@ class BookingRequestSerializer(serializers.ModelSerializer):
             'status', 'booking_id', 'created_at',
         ]
         read_only_fields = ['id', 'member_name', 'vessel_name', 'berth_code', 'booking_id', 'created_at']
+
+
+class ReservationItemSerializer(serializers.ModelSerializer):
+    berth_code  = serializers.CharField(source='berth.code',  read_only=True, default=None)
+    vessel_name_resolved = serializers.CharField(source='vessel.name', read_only=True, default=None)
+
+    class Meta:
+        model = ReservationItem
+        fields = [
+            'id', 'berth', 'berth_code', 'vessel', 'vessel_name', 'vessel_name_resolved',
+            'booking_type', 'check_in', 'check_out', 'nights', 'item_price',
+            'boat_loa', 'boat_beam', 'boat_draft', 'eta',
+            'is_sublet', 'is_hourly', 'start_time', 'end_time',
+            'dynamic_price_applied', 'ota_commission_amount',
+            'insurance_verified', 'registration_verified',
+            'waiver_verified', 'document_gate_cleared',
+            'pre_cleared', 'created_at',
+        ]
+        read_only_fields = ['id', 'berth_code', 'vessel_name_resolved', 'nights', 'created_at']
+
+
+class ReservationSerializer(serializers.ModelSerializer):
+    items = ReservationItemSerializer(many=True, read_only=True)
+    member_name = serializers.CharField(source='member.name', read_only=True, default=None)
+
+    class Meta:
+        model = Reservation
+        fields = [
+            'id', 'marina', 'member', 'member_name',
+            'guest_name', 'guest_email', 'guest_phone',
+            'status', 'paid', 'total_price', 'stripe_payment_intent_id',
+            'waiver_signed', 'self_checked_in', 'self_checked_in_at',
+            'booking_source', 'notes', 'created_at',
+            'items',
+        ]
+        read_only_fields = ['id', 'member_name', 'self_checked_in_at', 'created_at']

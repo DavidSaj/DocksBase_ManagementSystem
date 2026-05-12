@@ -7,6 +7,7 @@ from .checkin_views import (
     WaiverView,
     DropboxSignWebhookView,
     InsuranceUploadView,
+    PortalGuestMapView,
 )
 
 urlpatterns = [
@@ -17,4 +18,5 @@ urlpatterns = [
     path('portal/checkin/bookings/<int:pk>/waiver/',                WaiverView.as_view(),               name='portal_waiver'),
     path('portal/checkin/webhooks/dropbox-sign/<str:marina_slug>/', DropboxSignWebhookView.as_view(),   name='portal_dropbox_webhook'),
     path('portal/checkin/bookings/<int:pk>/insurance/',             InsuranceUploadView.as_view(),      name='portal_insurance'),
+    path('portal/checkin/map/',                                     PortalGuestMapView.as_view(),       name='portal_guest_map'),
 ]

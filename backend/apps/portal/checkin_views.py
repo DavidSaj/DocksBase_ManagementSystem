@@ -10,11 +10,12 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Marina
+from apps.berths.models import Amenity
 from apps.reservations.models import Booking
 from apps.documents.models import DocTemplate
 from apps.documents.services import create_embedded_sign_url, get_existing_embedded_sign_url
@@ -22,7 +23,7 @@ from .checkin_auth import PortalTokenAuthentication
 from .checkin_serializers import PortalBookingSerializer
 from .checkin_utils import (
     decode_magic_token, make_portal_token,
-    evaluate_pre_cleared,
+    evaluate_pre_cleared, make_reservation_portal_token,
 )
 
 _DS_ACK = 'Hello API Event Received'
@@ -49,6 +50,29 @@ class MagicAuthView(APIView):
             _log.warning('MagicAuth BAD_SIGNATURE: %s | token_prefix=%s', e, (token or '')[:30])
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_401_UNAUTHORIZED)
 
+        _log.info('MagicAuth decoded OK: payload keys=%s', list(payload.keys()))
+
+        if 'reservation_id' in payload:
+            from apps.reservations.models import Reservation
+            try:
+                reservation = Reservation.objects.select_related('marina').get(
+                    pk=payload['reservation_id'],
+                    guest_email=payload['boater_email'],
+                )
+            except Reservation.DoesNotExist:
+                return Response({'detail': 'Reservation not found.'}, status=status.HTTP_401_UNAUTHORIZED)
+            session_token = make_reservation_portal_token(
+                reservation_id=reservation.pk,
+                marina_slug=reservation.marina.slug,
+                boater_email=reservation.guest_email,
+            )
+            return Response({
+                'token': session_token,
+                'reservation_id': reservation.pk,
+                'marina_slug': reservation.marina.slug,
+            })
+
+        # Legacy: booking_id in payload
         _log.info('MagicAuth decoded OK: booking_id=%s email=%s', payload.get('booking_id'), payload.get('boater_email'))
         try:
             booking = Booking.objects.select_related('marina').get(
@@ -287,3 +311,20 @@ class InsuranceUploadView(PortalBookingMixin, APIView):
         booking.insurance_doc = file
         booking.save(update_fields=['insurance_doc'])
         return Response(PortalBookingSerializer(booking).data)
+
+
+class PortalGuestMapView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'error': 'X-Marina-Slug header is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina = request.tenant
+        amenities = Amenity.objects.filter(marina=marina).values(
+            'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation'
+        )
+        return Response({
+            'app_config': marina.app_config or {},
+            'amenities': list(amenities),
+        })
