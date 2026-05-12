@@ -227,10 +227,17 @@ class GroupStaffInviteView(APIView):
     def post(self, request, pk):
         group = get_object_or_404(MarinaGroup, pk=pk)
         email = request.data.get('email', '').strip().lower()
-        marina_id = request.data.get('marina_id')
-        if not email or not marina_id:
+        marina_id_raw = request.data.get('marina_id')
+        if not email or not marina_id_raw:
             return Response(
                 {'detail': 'email and marina_id are required.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            marina_id = int(marina_id_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'marina_id must be an integer.'},
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
         if not group.memberships.filter(marina_id=marina_id).exists():
@@ -243,11 +250,18 @@ class GroupStaffInviteView(APIView):
             email=email,
             defaults={'marina': marina, 'role': 'manager', 'is_active': True},
         )
-        if not created and not user.is_active:
-            user.marina = marina
-            user.role = 'manager'
-            user.is_active = True
-            user.save(update_fields=['marina', 'role', 'is_active'])
+        if not created:
+            group_marina_ids = list(group.memberships.values_list('marina_id', flat=True))
+            if user.is_active and user.marina_id not in group_marina_ids:
+                return Response(
+                    {'detail': 'Email already in use by an account in another marina.'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+            if not user.is_active:
+                user.marina = marina
+                user.role = 'manager'
+                user.is_active = True
+                user.save(update_fields=['marina', 'role', 'is_active'])
         response_status = http_status.HTTP_201_CREATED if created else http_status.HTTP_200_OK
         return Response(
             {'id': user.id, 'email': user.email, 'marina_id': marina.id, 'marina_name': marina.name},
