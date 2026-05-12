@@ -47,7 +47,7 @@ AI pipeline (CT 100)
 - `description` — textarea (~6 rows). Placeholder: *"Describe what happened, what you expected, and any steps to reproduce. The more detail, the faster we can fix it."*
 
 **Validation:**
-- Description must reach a minimum of 15 words (≈ 2 sentences).
+- Description must reach a minimum of 15 words.
 - Live word count displayed below the textarea (e.g. "8 / 15 words minimum").
 - Submit button is disabled until the minimum is met and title is non-empty.
 
@@ -66,9 +66,11 @@ AI pipeline (CT 100)
 
 **Flow:**
 1. `idle` — form is editable, "Send Report" button active when valid.
-2. `submitting` — button shows spinner, inputs disabled.
+2. `submitting` — button shows spinner, inputs disabled, backdrop click is suppressed (no accidental close mid-request).
 3. `success` — form replaced with: checkmark icon, heading "Report sent", body "We'll look at it within 24 hours. Thank you for helping us improve DocksBase." and a "Close" button.
 4. On error — stays in `idle`, shows inline error message below the button ("Failed to send — please try again.").
+
+**State reset:** Whenever `open` transitions from `true → false` (any close path), all form state resets to `idle` with empty fields, so reopening always shows a fresh form.
 
 **Styling:** Centered fixed overlay with a semi-transparent backdrop. Card is ~420px wide, white background, `var(--shadow2)`, `border-radius: 12px`. Matches existing modal patterns in the codebase.
 
