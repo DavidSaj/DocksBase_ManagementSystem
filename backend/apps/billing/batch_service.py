@@ -113,7 +113,7 @@ def run_batch(marina, billing_period, member_type='all', chargeable_item_id=None
                     description=description,
                     quantity=quantity,
                     unit_price=chargeable_item.unit_price,
-                    tax_rate=chargeable_item.tax_rate,
+                    tax_rate=Decimal(str(chargeable_item.tax_category.rate)),
                     chargeable_item=chargeable_item,
                 )
             else:

@@ -97,7 +97,7 @@ def create_charter_invoice(booking: CharterBooking):
                 quantity=Decimal('1.00'),
                 unit_price=booking.subtotal,
                 total_price=booking.subtotal,
-                tax_rate=rate_item.tax_rate,
+                tax_rate=Decimal(str(rate_item.tax_category.rate)),
             )
 
         if booking.cleaning_fee and vessel.cleaning_fee_item:
@@ -108,7 +108,7 @@ def create_charter_invoice(booking: CharterBooking):
                 quantity=Decimal('1.00'),
                 unit_price=booking.cleaning_fee,
                 total_price=booking.cleaning_fee,
-                tax_rate=vessel.cleaning_fee_item.tax_rate,
+                tax_rate=Decimal(str(vessel.cleaning_fee_item.tax_category.rate)),
             )
 
         if booking.skipper_fee and vessel.skipper_fee_item:
@@ -119,7 +119,7 @@ def create_charter_invoice(booking: CharterBooking):
                 quantity=Decimal('1.00'),
                 unit_price=booking.skipper_fee,
                 total_price=booking.skipper_fee,
-                tax_rate=vessel.skipper_fee_item.tax_rate,
+                tax_rate=Decimal(str(vessel.skipper_fee_item.tax_category.rate)),
             )
 
         subtotal = sum(item.total_price for item in invoice.items.all())

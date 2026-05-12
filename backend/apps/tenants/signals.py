@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -31,7 +33,7 @@ def auto_create_deposit_invoice(sender, instance, created, **kwargs):
             quantity=1,
             unit_price=instance.deposit_amount,
             total_price=instance.deposit_amount,
-            tax_rate=instance.deposit_chargeable_item.tax_rate,
+            tax_rate=Decimal(str(instance.deposit_chargeable_item.tax_category.rate)),
         )
         Tenancy.objects.filter(pk=instance.pk).update(deposit_invoice=invoice)
 
