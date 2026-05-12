@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from decimal import Decimal
 
-from apps.accounts.models import MarinaGroup, MarinaGroupUserRole
+from apps.accounts.models import MarinaGroup, MarinaGroupUserRole, Marina
 from apps.billing.models import Invoice
 from .permissions import IsGroupAdmin
 from .serializers import GroupSummarySerializer, build_marina_card
@@ -134,4 +134,61 @@ class GroupFinancialsView(APIView):
             'mrr':             str(mrr),
             'monthly_revenue': monthly_revenue,
             'missing_fx':      missing_fx,
+        })
+
+
+from rest_framework_simplejwt.tokens import RefreshToken
+
+
+class GroupStaffView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def get(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        marinas = [m.marina for m in group.memberships.select_related('marina').all()]
+        staff = []
+        for marina in marinas:
+            managers = marina.users.filter(
+                role__in=['owner', 'manager'], is_active=True
+            ).values('id', 'email', 'first_name', 'last_name', 'role')
+            for m in managers:
+                staff.append({
+                    **m,
+                    'name': f"{m['first_name']} {m['last_name']}".strip() or m['email'],
+                    'marina_id': marina.id,
+                    'marina_name': marina.name,
+                })
+        return Response(staff)
+
+
+class GroupExchangeTokenView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def post(self, request, pk):
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        marina_id = request.data.get('marina_id')
+        if not marina_id:
+            return Response({'detail': 'marina_id is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        is_member = group.memberships.filter(marina_id=marina_id).exists()
+        if not is_member:
+            return Response(
+                {'detail': 'Marina is not a member of this group.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        marina = get_object_or_404(Marina, pk=marina_id)
+
+        # Issue a scoped JWT: carries marina context so the marina frontend
+        # permission classes see a normal marina-scoped session.
+        refresh = RefreshToken.for_user(request.user)
+        refresh['scoped_marina_id'] = marina_id
+        refresh['scoped_marina_slug'] = marina.slug
+        refresh['is_enterprise_sso'] = True
+        access = refresh.access_token
+        access.set_exp(lifetime=datetime.timedelta(seconds=60))
+
+        return Response({
+            'access': str(access),
+            'marina_slug': marina.slug,
         })
