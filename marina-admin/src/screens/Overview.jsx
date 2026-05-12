@@ -36,13 +36,19 @@ function MarinaCard({ card, onOpen, loading }) {
 export default function Overview({ group }) {
   const [data, setData]         = useState(null);
   const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(false);
   const [ssoLoading, setSsoLoading] = useState(null);
 
   useEffect(() => {
+    let ignore = false;
+    setLoading(true);
+    setData(null);
+    setError(false);
     api.get(`enterprise/groups/${group.id}/overview/`)
-      .then(r => setData(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then(r => { if (!ignore) setData(r.data); })
+      .catch(() => { if (!ignore) setError(true); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, [group.id]);
 
   async function handleOpen(card) {
@@ -59,6 +65,7 @@ export default function Overview({ group }) {
   }
 
   if (loading) return <div className="empty"><div className="empty-title">Loading…</div></div>;
+  if (error)   return <div className="empty"><div className="empty-title">Failed to load overview.</div></div>;
   if (!data)   return null;
 
   const { kpis, marinas } = data;
