@@ -1501,3 +1501,35 @@ class TestAssignBerth:
         with transaction.atomic():
             with pytest.raises(NoAvailableBerthError):
                 assign_berth(ab_marina, ci, co, boat_loa=12.0)
+
+
+class TestSendReservationConfirmedEmail:
+    @pytest.mark.django_db
+    def test_sends_to_guest_email_with_reference(self, ab_marina, ab_berth):
+        from django.core import mail
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.reservations.emails import send_reservation_confirmed_email
+
+        res = Reservation.objects.create(
+            marina=ab_marina,
+            guest_name='Test Sailor',
+            guest_email='sailor@test.com',
+            status='confirmed',
+            paid=True,
+            total_price=Decimal('300.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res,
+            berth=ab_berth,
+            check_in=datetime.date(2027, 7, 1),
+            check_out=datetime.date(2027, 7, 4),
+            nights=3,
+            status='confirmed',
+        )
+
+        send_reservation_confirmed_email(res)
+
+        assert len(mail.outbox) == 1
+        msg = mail.outbox[0]
+        assert msg.to == ['sailor@test.com']
+        assert f'RES-{res.pk}' in msg.body
