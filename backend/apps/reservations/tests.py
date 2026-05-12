@@ -1065,7 +1065,6 @@ class TestInvoiceReservationFK:
     def test_invoice_reservation_field_exists(self, marina_factory, berth_factory):
         from apps.billing.models import Invoice
         from apps.reservations.models import Reservation
-        import datetime
         from decimal import Decimal
 
         marina = marina_factory()

@@ -5,10 +5,7 @@ def forwards(apps, schema_editor):
     Invoice = apps.get_model('billing', 'Invoice')
     Reservation = apps.get_model('reservations', 'Reservation')
     for inv in Invoice.objects.filter(booking__isnull=False, reservation__isnull=True).iterator():
-        try:
-            reservation = Reservation.objects.filter(legacy_booking_id=inv.booking_id).first()
-        except Exception:
-            continue
+        reservation = Reservation.objects.filter(legacy_booking_id=inv.booking_id).first()
         if reservation:
             inv.reservation = reservation
             inv.save(update_fields=['reservation_id'])
