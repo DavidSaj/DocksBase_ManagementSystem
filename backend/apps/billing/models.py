@@ -172,6 +172,13 @@ class ChargeableItem(models.Model):
     category      = models.CharField(max_length=20, choices=Category.choices, default=Category.SERVICE)
     pricing_model = models.CharField(max_length=30, choices=PricingModel.choices, default=PricingModel.FLAT_FEE)
     unit_price    = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_category  = models.ForeignKey(
+        'billing.TaxRate',
+        on_delete=models.PROTECT,
+        related_name='chargeable_items',
+        null=True,
+        blank=True,
+    )
     tax_rate      = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     is_active                  = models.BooleanField(default=True)
     show_in_pos                = models.BooleanField(default=False)
