@@ -1030,6 +1030,36 @@ import datetime as _dt
 from decimal import Decimal as _Decimal
 
 
+@pytest.fixture
+def marina_factory():
+    def _make(**kwargs):
+        return Marina.objects.create(name=kwargs.get('name', 'Test Marina'))
+    return _make
+
+
+@pytest.fixture
+def berth_factory():
+    def _make(marina, code=None, price=100):
+        import random
+        from apps.billing.models import TaxRate
+        _code = code or f'B{random.randint(10, 9999)}'
+        pier, _ = Pier.objects.get_or_create(
+            marina=marina, code='P', defaults={'label': 'Pytest Pier'}
+        )
+        tax_rate, _ = TaxRate.objects.get_or_create(
+            marina=marina, name='VAT', defaults={'rate': '0.00'}
+        )
+        tier = ChargeableItem.objects.create(
+            marina=marina, name='Berth Night', category='berth',
+            pricing_model='per_night', unit_price=price,
+            tax_category=tax_rate,
+        )
+        return Berth.objects.create(
+            marina=marina, pier=pier, code=_code, pricing_tier=tier, status='available'
+        )
+    return _make
+
+
 @pytest.mark.django_db
 class TestReservationModel:
     def test_reservation_str(self, marina_factory):

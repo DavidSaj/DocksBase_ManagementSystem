@@ -143,7 +143,6 @@ class BookingRequest(models.Model):
         return self.member is None
 
     def convert_to_booking(self):
-
         """Convert a free-text request into Member + Vessel + Booking. Idempotent."""
         if self.booking_id:
             return self.booking
