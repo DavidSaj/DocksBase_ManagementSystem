@@ -30,7 +30,7 @@ def on_shift_modified(sender, instance, **kwargs):
     Uses proper datetime overlap (start_datetime__lt=shift_end, end_datetime__gt=shift_start)
     — NOT date-only comparison, which would miss cross-midnight bookings.
     """
-    from datetime import datetime
+    from datetime import date, datetime
 
     import pytz
 
@@ -40,7 +40,10 @@ def on_shift_modified(sender, instance, **kwargs):
     if day_offset < 0:
         return
 
-    shift_date = instance.week_start + timedelta(days=day_offset)
+    week_start = instance.week_start
+    if not isinstance(week_start, date):
+        week_start = date.fromisoformat(str(week_start))
+    shift_date = week_start + timedelta(days=day_offset)
 
     # Can't build datetimes without start/end times (off-day shifts have null times)
     if instance.start_time is None or instance.end_time is None:
