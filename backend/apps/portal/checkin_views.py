@@ -10,11 +10,12 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Marina
+from apps.berths.models import Amenity
 from apps.reservations.models import Booking
 from apps.documents.models import DocTemplate
 from apps.documents.services import create_embedded_sign_url, get_existing_embedded_sign_url
@@ -287,3 +288,20 @@ class InsuranceUploadView(PortalBookingMixin, APIView):
         booking.insurance_doc = file
         booking.save(update_fields=['insurance_doc'])
         return Response(PortalBookingSerializer(booking).data)
+
+
+class PortalGuestMapView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'error': 'X-Marina-Slug header is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina = request.tenant
+        amenities = Amenity.objects.filter(marina=marina).values(
+            'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation'
+        )
+        return Response({
+            'app_config': marina.app_config or {},
+            'amenities': list(amenities),
+        })
