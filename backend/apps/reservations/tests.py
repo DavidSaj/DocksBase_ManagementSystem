@@ -1431,3 +1431,73 @@ class TestReservationCheckoutFields:
         # Default is 'confirmed' — existing backfilled items remain valid
         field = ReservationItem._meta.get_field('status')
         assert field.default == 'confirmed'
+
+
+# ── Fixtures for assign_berth tests ─────────────────────────────────────────
+
+@pytest.fixture
+def ab_marina():
+    from apps.accounts.models import Marina
+    return Marina.objects.create(name='AB Marina', slug='ab-marina', booking_mode='auto_tetris')
+
+@pytest.fixture
+def ab_tax_rate(ab_marina):
+    from apps.billing.models import TaxRate
+    return TaxRate.objects.create(marina=ab_marina, name='Zero', rate=Decimal('0.00'))
+
+@pytest.fixture
+def ab_tier(ab_marina, ab_tax_rate):
+    from apps.billing.models import ChargeableItem
+    return ChargeableItem.objects.create(
+        marina=ab_marina, name='Berth', category='berth',
+        pricing_model='per_night', unit_price=Decimal('100.00'),
+        tax_category=ab_tax_rate, is_active=True,
+    )
+
+@pytest.fixture
+def ab_berth(ab_marina, ab_tier):
+    from apps.berths.models import Berth
+    return Berth.objects.create(
+        marina=ab_marina, code='AB1',
+        length_m=Decimal('15.00'), max_beam_m=Decimal('5.00'),
+        pricing_tier=ab_tier,
+    )
+
+
+class TestAssignBerth:
+    @pytest.mark.django_db(transaction=True)
+    def test_returns_berth_and_price(self, ab_marina, ab_berth):
+        from django.db import transaction
+        from apps.reservations.booking_engine import assign_berth
+        ci = datetime.date(2027, 7, 1)
+        co = datetime.date(2027, 7, 4)  # 3 nights
+        with transaction.atomic():
+            berth, price = assign_berth(ab_marina, ci, co, boat_loa=12.0)
+        assert berth.pk == ab_berth.pk
+        assert price == Decimal('300.00')  # 100/night × 3 nights
+
+    @pytest.mark.django_db(transaction=True)
+    def test_raises_when_berth_too_small(self, ab_marina, ab_berth):
+        from django.db import transaction
+        from apps.reservations.booking_engine import assign_berth, NoAvailableBerthError
+        ci = datetime.date(2027, 8, 1)
+        co = datetime.date(2027, 8, 4)
+        with transaction.atomic():
+            with pytest.raises(NoAvailableBerthError):
+                assign_berth(ab_marina, ci, co, boat_loa=99.0)  # boat too big
+
+    @pytest.mark.django_db(transaction=True)
+    def test_skips_berth_already_locked_by_reservation_item(self, ab_marina, ab_berth):
+        from django.db import transaction
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.reservations.booking_engine import assign_berth, NoAvailableBerthError
+        ci = datetime.date(2027, 9, 1)
+        co = datetime.date(2027, 9, 4)
+        res = Reservation.objects.create(marina=ab_marina, status='pending_checkout')
+        ReservationItem.objects.create(
+            reservation=res, berth=ab_berth,
+            check_in=ci, check_out=co, nights=3, status='locked',
+        )
+        with transaction.atomic():
+            with pytest.raises(NoAvailableBerthError):
+                assign_berth(ab_marina, ci, co, boat_loa=12.0)
