@@ -41,11 +41,12 @@ class GroupSettingsViewTest(TestCase):
 
     def test_patch_ignores_max_marinas(self):
         original = self.g.max_marinas
-        self.client.patch(
+        resp = self.client.patch(
             f'/api/v1/enterprise/groups/{self.g.pk}/settings/',
             {'max_marinas': 999},
             format='json',
         )
+        self.assertEqual(resp.status_code, 200)
         self.g.refresh_from_db()
         self.assertEqual(self.g.max_marinas, original)
 

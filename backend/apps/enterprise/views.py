@@ -213,7 +213,9 @@ class GroupSettingsView(APIView):
     def patch(self, request, pk):
         group = get_object_or_404(MarinaGroup, pk=pk)
         allowed = {'name', 'billing_contact_email', 'vat_number', 'base_currency'}
-        for field in allowed & set(request.data.keys()):
+        updated_fields = list(allowed & set(request.data.keys()))
+        for field in updated_fields:
             setattr(group, field, request.data[field])
-        group.save()
+        if updated_fields:
+            group.save(update_fields=updated_fields)
         return Response(self._data(group))
