@@ -254,7 +254,7 @@ class UnifiedRequestLinkView(APIView):
         for m in members:
             token = make_member_magic_token(member_id=m.id, email=m.email)
             url   = f"{base}/{m.marina.slug}?token=m_{token}"
-            label = m.name or m.email
+            label = getattr(m, 'name', None) or m.email
             member_lines.append(f"Member Dashboard ({label}): {url}")
 
         for bk in bookings:
