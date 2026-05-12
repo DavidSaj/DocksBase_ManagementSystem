@@ -66,7 +66,7 @@ function blankForm(category) {
     name:                       '',
     pricing_model:              DEFAULT_PRICING_MODEL[category] ?? 'flat_fee',
     unit_price:                 '',
-    tax_rate:                   '20',
+    tax_category_id:            '',
     is_mandatory_transient_fee: false,
     is_fuel_product:            false,
     show_in_pos:                false,
@@ -80,6 +80,7 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
   const [saving, setSaving]         = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [error, setError]           = useState('');
+  const [taxRates, setTaxRates]     = useState([]);
 
   useEffect(() => {
     if (open) {
@@ -89,7 +90,7 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
           name:                       item.name ?? '',
           pricing_model:              item.pricing_model ?? DEFAULT_PRICING_MODEL[category] ?? 'flat_fee',
           unit_price:                 item.unit_price != null ? String(item.unit_price) : '',
-          tax_rate:                   item.tax_rate != null ? String(item.tax_rate) : '20',
+          tax_category_id:            item.tax_category?.id != null ? String(item.tax_category.id) : '',
           is_mandatory_transient_fee: item.is_mandatory_transient_fee ?? false,
           is_fuel_product:            Boolean(item.fuel_dock_type),
           show_in_pos:                item.show_in_pos ?? false,
@@ -100,6 +101,22 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
       }
     }
   }, [open, item, category]);
+
+  useEffect(() => {
+    if (open) {
+      // Assume api is available globally or passed as prop; adjust as needed
+      const api = window.api || (typeof window !== 'undefined' && window.fetch ? window.fetch : null);
+      if (api && typeof api.get === 'function') {
+        api.get('/billing/tax-rates/').then(data => {
+          setTaxRates(data);
+          if (!item) {
+            const def = data.find(r => r.is_default);
+            if (def) setForm(f => ({ ...f, tax_category_id: String(def.id) }));
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [open, item]);
 
   function set(k) {
     return (e) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -113,6 +130,7 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
     if (!form.name.trim()) return 'Name is required.';
     const price = parseFloat(form.unit_price);
     if (isNaN(price) || price < 0) return 'Unit price must be 0 or greater.';
+    if (!form.tax_category_id) return 'Tax Treatment is required.';
     return null;
   }
 
@@ -125,11 +143,11 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
     setError('');
     try {
       const payload = {
-        name:          form.name.trim(),
+        name:             form.name.trim(),
         category,
-        pricing_model: form.pricing_model,
-        unit_price:    parseFloat(form.unit_price),
-        tax_rate:      parseFloat(form.tax_rate) || 0,
+        pricing_model:    form.pricing_model,
+        unit_price:       parseFloat(form.unit_price),
+        tax_category_id:  parseInt(form.tax_category_id, 10),
         ...(category === 'service' ? { is_mandatory_transient_fee: form.is_mandatory_transient_fee } : {}),
         ...(category === 'retail'  ? {
           show_in_pos:    form.show_in_pos,
@@ -233,7 +251,7 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
             </select>
           </div>
 
-          {/* Unit Price + Tax */}
+          {/* Unit Price + Tax Treatment */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
               <label style={lbl}>Unit Price (€)</label>
@@ -249,17 +267,20 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
               />
             </div>
             <div>
-              <label style={lbl}>Tax %</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.5"
-                value={form.tax_rate}
-                onChange={set('tax_rate')}
-                placeholder="20"
+              <label style={lbl}>Tax Treatment</label>
+              <select
+                value={form.tax_category_id}
+                onChange={e => setForm(f => ({ ...f, tax_category_id: e.target.value }))}
                 style={inputSt}
-              />
+                required
+              >
+                <option value="">Select tax treatment…</option>
+                {taxRates.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} ({parseFloat(r.rate).toFixed(2)}%)
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
