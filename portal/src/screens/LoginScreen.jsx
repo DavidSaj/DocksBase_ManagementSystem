@@ -13,7 +13,6 @@ export default function LoginScreen({ marina, tokenError }) {
   // Member tab state
   const [mEmail, setMEmail] = useState('');
   const [mState, setMState] = useState('idle'); // 'idle' | 'submitting' | 'sent'
-  const [mError, setMError] = useState('');
 
   async function handleGuestSubmit(e) {
     e.preventDefault();
@@ -31,7 +30,7 @@ export default function LoginScreen({ marina, tokenError }) {
       localStorage.setItem('portal_marina_slug',   data.marina_slug);
       window.location.reload();
     } catch {
-      setGError('No booking found for that email and reference. Check your confirmation email for your Booking ID (e.g. BK-1042).');
+      setGError('No booking found for that email and reference.');
       setGState('error');
     }
   }
@@ -39,13 +38,11 @@ export default function LoginScreen({ marina, tokenError }) {
   async function handleMemberSubmit(e) {
     e.preventDefault();
     setMState('submitting');
-    setMError('');
     try {
       await api.post('/portal/auth/request-link/', { email: mEmail });
       setMState('sent');
     } catch {
-      setMError('Something went wrong. Please try again.');
-      setMState('idle');
+      setMState('sent');
     }
   }
 
@@ -159,9 +156,6 @@ export default function LoginScreen({ marina, tokenError }) {
                   required
                   autoComplete="email"
                 />
-                {mError && (
-                  <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{mError}</div>
-                )}
                 <button
                   type="submit"
                   className="p-btn p-btn--primary"
