@@ -1432,6 +1432,19 @@ class TestReservationCheckoutFields:
         field = ReservationItem._meta.get_field('status')
         assert field.default == 'confirmed'
 
+    @pytest.mark.django_db
+    def test_pending_review_status_is_valid_choice(self):
+        from apps.reservations.models import Reservation
+        choices = [c[0] for c in Reservation.STATUS_CHOICES]
+        assert 'pending_review' in choices
+
+    @pytest.mark.django_db
+    def test_unassigned_item_status_is_valid_choice(self):
+        from apps.reservations.models import ReservationItem
+        field = ReservationItem._meta.get_field('status')
+        valid = [c[0] for c in field.choices]
+        assert 'unassigned' in valid
+
 
 # ── Fixtures for assign_berth tests ─────────────────────────────────────────
 

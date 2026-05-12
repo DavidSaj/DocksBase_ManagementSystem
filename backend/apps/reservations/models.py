@@ -203,6 +203,7 @@ class Reservation(models.Model):
         ('no_show',           'No Show'),
         ('cancelled',         'Cancelled'),
         ('abandoned',         'Abandoned'),           # lock expired, inventory released
+        ('pending_review',    'Pending Manager Review'),
     ]
 
     marina          = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='reservations')
@@ -281,6 +282,7 @@ class ReservationItem(models.Model):
             ('locked',    'Locked'),
             ('confirmed', 'Confirmed'),
             ('released',  'Released'),
+            ('unassigned', 'Unassigned'),
         ],
         default='confirmed',
     )
