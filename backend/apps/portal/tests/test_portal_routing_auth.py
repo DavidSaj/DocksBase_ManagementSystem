@@ -203,3 +203,29 @@ def test_request_link_excludes_past_bookings(guest_booking_factory, marina_facto
     )
     assert resp.status_code == 200
     assert len(django_mail.outbox) == 0
+
+
+def test_make_reservation_magic_url_contains_marina_slug_and_token():
+    from apps.portal.checkin_utils import make_reservation_magic_url
+
+    class FakeRes:
+        id = 99
+        guest_email = 'skipper@test.com'
+        class marina:
+            slug = 'test-marina'
+
+    url = make_reservation_magic_url(FakeRes())
+    assert 'test-marina' in url
+    assert '?token=g_' in url
+
+
+def test_make_reservation_portal_token_decodes_with_reservation_id():
+    from apps.portal.checkin_utils import make_reservation_portal_token, decode_portal_token
+    token = make_reservation_portal_token(
+        reservation_id=42,
+        marina_slug='test-marina',
+        boater_email='skipper@test.com',
+    )
+    payload = decode_portal_token(token)
+    assert payload['reservation_id'] == 42
+    assert 'booking_id' not in payload

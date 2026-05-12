@@ -48,6 +48,26 @@ def make_magic_url(booking):
     return f"{base}/{booking.marina.slug}?token=g_{token}"
 
 
+def make_reservation_magic_token(reservation_id, boater_email):
+    return signing.dumps(
+        {'reservation_id': reservation_id, 'boater_email': boater_email},
+        salt=MAGIC_SALT,
+    )
+
+
+def make_reservation_magic_url(reservation):
+    token = make_reservation_magic_token(reservation.id, reservation.guest_email)
+    base = getattr(settings, 'PORTAL_BASE_URL', 'https://book.docksbase.com')
+    return f"{base}/{reservation.marina.slug}?token=g_{token}"
+
+
+def make_reservation_portal_token(reservation_id, marina_slug, boater_email):
+    return signing.dumps(
+        {'reservation_id': reservation_id, 'marina_slug': marina_slug, 'boater_email': boater_email},
+        salt=SESSION_SALT,
+    )
+
+
 def is_arrival_day(booking):
     try:
         tz = ZoneInfo(booking.marina.timezone or 'UTC')
