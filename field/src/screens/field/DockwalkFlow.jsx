@@ -11,12 +11,15 @@ export default function DockwalkFlow({ onBack }) {
   const [done, setDone]         = useState(false);
   const [stats, setStats]       = useState({ entered: 0, skipped: 0 });
   const [loadError, setLoadError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
+    let active = true;
     api.get('/api/v1/utilities/dockwalk/')
-      .then(r => setMeters(r.data.meters))
-      .catch(() => setLoadError('Could not load meters. Check connection.'));
+      .then(r => { if (active) setMeters(r.data.meters); })
+      .catch(() => { if (active) setLoadError('Could not load meters. Check connection.'); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function DockwalkFlow({ onBack }) {
         ? { reading_kwh: parseFloat(value) }
         : { reading_m3:  parseFloat(value) }),
     };
+    setSubmitting(true);
     api.post(`/api/v1/utilities/dockwalk/${meter.id}/reading/`, payload)
       .then(() => {
         setStats(s => ({ ...s, entered: s.entered + 1 }));
@@ -56,8 +60,8 @@ export default function DockwalkFlow({ onBack }) {
       .catch(e => {
         const msg = e.response?.data?.detail || 'Submission failed.';
         setError(msg);
-        if (msg.includes('lower than last')) setRollover(false);
-      });
+      })
+      .finally(() => { setSubmitting(false); });
   }
 
   if (loadError) {
@@ -134,7 +138,7 @@ export default function DockwalkFlow({ onBack }) {
 
       <div className="f-dw-actions">
         <button className="f-dw-skip" onClick={skip} type="button">Skip</button>
-        <button className="f-dw-next" onClick={submit} disabled={!value || (error?.includes('lower than last') && !rollover)} type="button">Next →</button>
+        <button className="f-dw-next" onClick={submit} disabled={!value || submitting || (error?.includes('lower than last') && !rollover)} type="button">Next →</button>
       </div>
     </div>
   );
