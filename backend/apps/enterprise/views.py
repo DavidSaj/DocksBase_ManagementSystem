@@ -51,3 +51,87 @@ class GroupOverviewView(APIView):
             },
             'marinas': cards,
         })
+
+
+import datetime
+
+
+class GroupFinancialsView(APIView):
+    permission_classes = [IsAuthenticated, IsGroupAdmin]
+
+    def get(self, request, pk):
+        from apps.accounting.models import ExchangeRate
+
+        group = get_object_or_404(MarinaGroup, pk=pk)
+        marinas = [m.marina for m in group.memberships.select_related('marina').all()]
+        base_currency = group.base_currency
+        today = datetime.date.today()
+        missing_fx = []
+
+        def to_base(amount, from_currency):
+            if from_currency == base_currency:
+                return amount
+            rate = ExchangeRate.objects.filter(
+                from_currency=from_currency,
+                to_currency=base_currency,
+            ).order_by('-id').first()
+            if not rate:
+                if from_currency not in missing_fx:
+                    missing_fx.append(from_currency)
+                return None
+            return amount * rate.rate
+
+        # Paid this month
+        from django.utils import timezone as _tz
+        now = _tz.now()
+        period = f'{now.year}-{now.month:02d}'
+        paid_total = Decimal('0')
+        for marina in marinas:
+            raw = Invoice.objects.filter(
+                marina=marina, status='paid', billing_period=period
+            ).aggregate(t=Sum('total'))['t'] or Decimal('0')
+            converted = to_base(raw, marina.currency)
+            if converted is not None:
+                paid_total += converted
+
+        # Outstanding
+        outstanding_total = Decimal('0')
+        for marina in marinas:
+            raw = Invoice.objects.filter(
+                marina=marina, status__in=['unpaid', 'open']
+            ).aggregate(t=Sum('total'))['t'] or Decimal('0')
+            converted = to_base(raw, marina.currency)
+            if converted is not None:
+                outstanding_total += converted
+
+        # MRR (plan-based)
+        from config.plans import PLAN_MONTHLY_PRICES
+        mrr = sum(PLAN_MONTHLY_PRICES.get(m.plan, 0) for m in marinas)
+
+        # Monthly revenue — 12 months rolling
+        monthly_revenue = []
+        for i in range(11, -1, -1):
+            d = today
+            for _ in range(i):
+                d = (d.replace(day=1) - datetime.timedelta(days=1))
+            bp = f'{d.year}-{d.month:02d}'
+            month_total = Decimal('0')
+            by_marina = []
+            for marina in marinas:
+                raw = Invoice.objects.filter(
+                    marina=marina, status='paid', billing_period=bp
+                ).aggregate(t=Sum('total'))['t'] or Decimal('0')
+                converted = to_base(raw, marina.currency)
+                val = converted if converted is not None else Decimal('0')
+                month_total += val
+                by_marina.append({'marina_id': marina.id, 'marina_name': marina.name, 'amount': str(val)})
+            monthly_revenue.append({'period': bp, 'total': str(month_total), 'by_marina': by_marina})
+
+        return Response({
+            'base_currency':   base_currency,
+            'paid_this_month': str(paid_total),
+            'outstanding':     str(outstanding_total),
+            'mrr':             str(mrr),
+            'monthly_revenue': monthly_revenue,
+            'missing_fx':      missing_fx,
+        })
