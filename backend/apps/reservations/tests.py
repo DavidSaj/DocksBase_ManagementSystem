@@ -1123,3 +1123,67 @@ class TestReservationModel:
         total = sum(i.item_price for i in res.items.all())
         assert total == _Decimal('240.00')
 
+
+@pytest.mark.django_db
+class TestBackfillMigration:
+    def test_every_booking_gets_reservation(self, marina_factory, berth_factory):
+        from apps.reservations.models import Booking, Reservation, ReservationItem
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        b = Booking.objects.create(
+            marina=marina,
+            berth=berth,
+            check_in=today,
+            check_out=today + datetime.timedelta(days=3),
+            nights=3,
+            guest_name='Test Guest',
+            guest_email='test@test.com',
+            amount=Decimal('300.00'),
+            status='confirmed',
+            booking_source='portal',
+            boat_loa=Decimal('12.00'),
+        )
+
+        # Run the backfill function directly (same logic as the migration)
+        from apps.reservations.migrations._backfill_helpers import backfill_booking
+        backfill_booking(b)
+
+        res = Reservation.objects.get(legacy_booking=b)
+        assert res.marina_id == marina.pk
+        assert res.guest_email == 'test@test.com'
+        assert res.total_price == Decimal('300.00')
+        assert res.status == 'confirmed'
+        assert res.booking_source == 'portal'
+
+        item = res.items.get()
+        assert item.berth_id == berth.pk
+        assert item.check_in == today
+        assert item.nights == 3
+        assert item.item_price == Decimal('300.00')
+        assert item.boat_loa == Decimal('12.00')
+
+    def test_backfill_is_idempotent(self, marina_factory, berth_factory):
+        from apps.reservations.models import Booking, Reservation
+        from apps.reservations.migrations._backfill_helpers import backfill_booking
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        b = Booking.objects.create(
+            marina=marina, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=1),
+            nights=1, guest_name='Repeat', guest_email='r@test.com',
+            amount=Decimal('100.00'), status='confirmed',
+        )
+        backfill_booking(b)
+        backfill_booking(b)  # second call must not create duplicates
+        assert Reservation.objects.filter(legacy_booking=b).count() == 1
+
