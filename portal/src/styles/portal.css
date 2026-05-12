@@ -1240,3 +1240,17 @@ select.p-input { -webkit-appearance: auto; appearance: auto; }
 .p-home-wifi-value       { font-weight: 600; color: #1a2d4a; }
 .p-home-loading          { font-size: 14px; color: rgba(0,0,0,0.4); text-align: center; padding: 16px; }
 .p-home-empty            { font-size: 14px; color: rgba(0,0,0,0.4); }
+
+/* ── Utilities Tab ──────────────────────────────────────────────── */
+.p-util-root        { min-height: 100vh; background: #f4f6f8; padding: 0 0 80px; }
+.p-util-header      { padding: 20px 16px 8px; font-size: 22px; font-weight: 800; color: #1a2d4a; }
+.p-util-card        { background: #fff; border-radius: 12px; padding: 16px; margin: 0 16px 12px; box-shadow: var(--shadow-card, 0 1px 4px rgba(0,0,0,0.08)); }
+.p-util-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.p-util-type        { font-size: 14px; font-weight: 700; color: #1a2d4a; }
+.p-util-berth       { font-size: 12px; color: rgba(0,0,0,0.4); margin-top: 2px; }
+.p-util-icon svg    { width: 24px; height: 24px; stroke: var(--color-primary); }
+.p-util-reading     { font-size: 28px; font-weight: 800; color: var(--color-primary); margin-bottom: 4px; }
+.p-util-updated     { font-size: 12px; color: rgba(0,0,0,0.4); }
+.p-util-note        { font-size: 12px; color: rgba(0,0,0,0.35); padding: 0 16px; line-height: 1.5; }
+.p-tab-loading      { padding: 32px 16px; text-align: center; color: rgba(0,0,0,0.4); font-size: 14px; }
+.p-tab-stub         { padding: 32px 16px; text-align: center; color: rgba(0,0,0,0.4); font-size: 14px; }

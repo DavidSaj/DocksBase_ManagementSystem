@@ -72,3 +72,7 @@ export default api;
 export function fetchMemberGate() {
   return api.get('/portal/member/gate/');
 }
+
+export function fetchMemberUtilities() {
+  return api.get('/portal/member/utilities/');
+}
