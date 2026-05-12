@@ -1,0 +1,82 @@
+import { useState, useEffect } from 'react';
+import { useTenant } from '../../context/TenantContext';
+import api from '../../api';
+import AppShell from './AppShell';
+import LoginScreen from '../../screens/LoginScreen';
+
+export default function PortalGate() {
+  const { marina, isLoading, tenantSlug } = useTenant();
+  const [state, setState] = useState('idle'); // 'idle' | 'verifying' | 'error'
+  const [tokenError, setTokenError] = useState(null);
+
+  const params   = new URLSearchParams(window.location.search);
+  const rawToken = params.get('token');
+
+  useEffect(() => {
+    if (!rawToken) return;
+    setState('verifying');
+
+    const isMember = rawToken.startsWith('m_');
+    const token    = rawToken.slice(2);
+    const endpoint = isMember
+      ? '/portal/auth/member-magic/verify/'
+      : '/portal/checkin/auth/magic/';
+
+    api.post(endpoint, { token })
+      .then(res => {
+        const data = res.data;
+        if (isMember) {
+          localStorage.setItem('portal_session_token', data.session_token);
+          localStorage.setItem('portal_refresh_token', data.refresh_token);
+          localStorage.setItem('portal_token_type',    'member');
+          localStorage.setItem('portal_marina_slug',   data.marina_slug);
+        } else {
+          localStorage.setItem('portal_session_token', data.token);
+          localStorage.setItem('portal_token_type',    'guest');
+          localStorage.setItem('portal_booking_id',    String(data.booking_id));
+          localStorage.setItem('portal_marina_slug',   data.marina_slug);
+        }
+        const slug = tenantSlug || data.marina_slug;
+        window.location.replace(`/${slug}/`);
+      })
+      .catch(() => {
+        setTokenError('This link has expired or is invalid.');
+        setState('error');
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (state === 'verifying') {
+    return (
+      <div className="p-login" style={{ justifyContent: 'center' }}>
+        <div style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'IBM Plex Sans, sans-serif' }}>
+          Signing you in…
+        </div>
+      </div>
+    );
+  }
+
+  const sessionToken = localStorage.getItem('portal_session_token');
+  if (sessionToken && state !== 'error') return <AppShell initialTab="home" />;
+
+  if (isLoading) {
+    return (
+      <div className="p-login" style={{ justifyContent: 'center' }}>
+        <div style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'IBM Plex Sans, sans-serif' }}>
+          Loading…
+        </div>
+      </div>
+    );
+  }
+
+  if (!marina) {
+    return (
+      <div className="p-login">
+        <div className="p-login__marina-name" style={{ color: 'var(--cream)' }}>
+          Marina not found.
+        </div>
+      </div>
+    );
+  }
+
+  return <LoginScreen marina={marina} tokenError={tokenError} />;
+}
