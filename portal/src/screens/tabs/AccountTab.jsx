@@ -70,20 +70,17 @@ export default function AccountTab() {
   const [docLoading, setDL]     = useState(true);
 
   useEffect(() => {
-    fetchInvoices()
-      .then(r => setInvoices(r.data.results || r.data || []))
-      .catch(() => setInvoices([]))
-      .finally(() => setIL(false));
-
+    let ignore = false;
+    setIL(true);
+    fetchInvoices().then(r => { if (!ignore) setInvoices(r.data.results || r.data); }).finally(() => { if (!ignore) setIL(false); });
     if (appConfig?.enable_documents !== false) {
-      fetchDocuments()
-        .then(r => setDocs(r.data.documents || []))
-        .catch(() => setDocs([]))
-        .finally(() => setDL(false));
+      setDL(true);
+      fetchDocuments().then(r => { if (!ignore) setDocs(r.data.documents || []); }).finally(() => { if (!ignore) setDL(false); });
     } else {
       setDL(false);
     }
-  }, []);
+    return () => { ignore = true; };
+  }, [appConfig?.enable_documents]);
 
   function handleUpload(docType, file) {
     if (!file) return;
@@ -122,7 +119,13 @@ export default function AccountTab() {
         <button
           className="p-acct-logout"
           type="button"
-          onClick={() => { localStorage.clear(); window.location.reload(); }}
+          onClick={() => {
+            localStorage.removeItem('portal_session_token');
+            localStorage.removeItem('portal_token_type');
+            localStorage.removeItem('portal_refresh_token');
+            localStorage.removeItem('portal_marina_slug');
+            window.location.reload();
+          }}
         >
           Log out
         </button>
