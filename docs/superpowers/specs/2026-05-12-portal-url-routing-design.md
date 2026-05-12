@@ -59,7 +59,7 @@ The login screen has two distinct tabs:
 
 **Tab 1 — "I have a Booking" (Transient Guests)**
 
-Fields: Email + Booking Reference (e.g. `BKG-1042`)
+Fields: Email + Booking Reference (e.g. `BK-1042` — printed in the confirmation email as "Booking ID")
 
 Action button: "View Boarding Pass"
 
@@ -81,15 +81,22 @@ Behaviour: POSTs to `POST /portal/auth/request-link/`. Always shows "If an accou
 
 **Request:** `{ email, booking_reference }` + `X-Marina-Slug` header
 
+**Booking reference format:** `BK-{pk}` — this format already appears in the confirmation email as "Booking ID: BK-1042". No new model field or migration is needed. The endpoint strips the `BK-` prefix and looks up by integer `pk`.
+
 **Logic:**
 
-1. Look up `Booking` where `email__iexact=email`, `reference__iexact=booking_reference`, `marina__slug=marina_slug`
-2. If not found: return 401 `{ "detail": "No booking found." }` — safe to be explicit here, not an enumerable list
-3. If found: issue a guest session token directly (same as `checkin/auth/magic/` does on success) scoped to that single booking
+1. Strip `BK-` prefix from `booking_reference`, parse as integer PK
+2. Look up `Booking` where `pk=pk`, `guest_email__iexact=email`, `marina__slug=marina_slug`
+3. If not found (or parse fails): return 401 `{ "detail": "No booking found." }` — safe to be explicit here, the reference is not an enumerable secret
+4. If found: issue a guest session token directly (same payload as `checkin/auth/magic/` returns) scoped to that single booking
 
 **Auth scoping rule:** This endpoint always issues a `g_` guest token scoped to the specific booking, regardless of whether the email also belongs to a Member. A member who books a transient slip for a visiting friend must not have the friend land in their private dashboard.
 
 **Token utilities:** `make_portal_token(booking_id, marina_slug, boater_email)` from `checkin_utils.py` — same token format the existing checkin verify already produces.
+
+**Also update `send_booking_confirmed_email()` in `reservations/emails.py`:** The email already shows "Booking ID: BK-{booking.pk}" but does not tell the guest they can use it as a login credential. Add a line after the boarding pass button:
+
+> "No link? Visit {PORTAL_BASE_URL}/{slug} and enter your Booking ID (BK-{pk}) and email address to access your boarding pass instantly."
 
 ---
 
