@@ -6,19 +6,21 @@ export default function Staff({ group }) {
   const [staff, setStaff]               = useState([]);
   const [marinas, setMarinas]           = useState([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState(false);
   const [acting, setActing]             = useState(false);
   const [inviteEmail, setInviteEmail]   = useState('');
   const [inviteMarinaId, setInviteMarinaId] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([
+    setLoadError(false);
+    return Promise.all([
       api.get(`enterprise/groups/${group.id}/staff/`),
       api.get(`enterprise/groups/${group.id}/overview/`),
     ]).then(([s, o]) => {
       setStaff(s.data);
       setMarinas(o.data.marinas);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
   }, [group.id]);
 
   useEffect(() => { load(); }, [load]);
@@ -34,7 +36,7 @@ export default function Staff({ group }) {
       });
       setInviteEmail('');
       setInviteMarinaId('');
-      load();
+      await load();
     } catch (err) {
       window.alert(err.response?.data?.detail || 'Failed to invite staff.');
     } finally {
@@ -47,7 +49,7 @@ export default function Staff({ group }) {
     setActing(true);
     try {
       await api.post(`enterprise/groups/${group.id}/staff/${userId}/remove/`);
-      load();
+      await load();
     } catch (err) {
       window.alert(err.response?.data?.detail || 'Failed to remove staff.');
     } finally {
@@ -104,7 +106,9 @@ export default function Staff({ group }) {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loadError ? (
+              <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--red)', padding: '20px 0', fontSize: 12 }}>Failed to load staff.</td></tr>
+            ) : loading ? (
               <tr><td colSpan={4} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
             ) : staff.length === 0 ? (
               <tr><td colSpan={4} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No staff yet.</td></tr>
