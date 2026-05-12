@@ -171,6 +171,77 @@ def calculate_booking_invoice(booking):
     return invoice
 
 
+def calculate_reservation_invoice(reservation):
+    """
+    Create a draft invoice for a Reservation, one line item per ReservationItem.
+    Uses Option A (simple sum) — no discount logic. Returns None if no
+    suitable ChargeableItem is found for any item in the reservation.
+    Never raises — caller wraps in try/except.
+    """
+    from .models import ChargeableItem
+    from decimal import Decimal as D
+
+    items = list(reservation.items.select_related('berth', 'vessel').all())
+    if not items:
+        return None
+
+    catalog_item = ChargeableItem.objects.filter(
+        marina=reservation.marina,
+        category='berth',
+        is_active=True,
+    ).order_by('created_at').first()
+
+    if not catalog_item:
+        return None
+
+    invoice = create_invoice(
+        marina=reservation.marina,
+        member=reservation.member,
+        source_type='reservation',
+        source_id=str(reservation.pk),
+    )
+    invoice.reservation = reservation
+    invoice.save(update_fields=['reservation_id'])
+
+    rate = D(str(catalog_item.tax_category.rate))
+
+    for slot in items:
+        nights = slot.nights or (slot.check_out - slot.check_in).days
+        if nights <= 0:
+            continue
+
+        loa = slot.boat_loa
+        if loa is None and slot.vessel_id:
+            loa = slot.vessel.loa if hasattr(slot.vessel, 'loa') else None
+
+        if catalog_item.pricing_model == 'per_meter_per_night':
+            if not loa:
+                continue
+            quantity = D(str(loa)) * D(str(nights))
+            description = f'Berth — {loa}m × {nights} nights'
+        elif catalog_item.pricing_model == 'per_night':
+            quantity = D(str(nights))
+            description = f'Berth — {nights} nights'
+        else:
+            quantity = D('1')
+            description = 'Berth fee'
+
+        add_line_item(
+            invoice=invoice,
+            description=description,
+            quantity=quantity,
+            unit_price=catalog_item.unit_price,
+            tax_rate=rate,
+            chargeable_item=catalog_item,
+        )
+
+    if not invoice.items.exists():
+        invoice.delete()
+        return None
+
+    return invoice
+
+
 def finalize_invoice(invoice):
     if invoice.status != 'draft':
         raise ValueError(f'Cannot finalize a {invoice.status} invoice.')

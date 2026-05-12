@@ -1315,3 +1315,97 @@ class TestReservationSerializer:
         assert data['status'] == 'confirmed'
         assert len(data['items']) == 1
         assert data['items'][0]['berth_code'] is not None
+
+
+@pytest.fixture
+def chargeable_item_factory():
+    def factory(marina, category='berth', pricing_model='per_night', unit_price=None):
+        from apps.billing.models import ChargeableItem, TaxRate
+        from decimal import Decimal
+        tax_rate, _ = TaxRate.objects.get_or_create(
+            marina=marina, name='Standard — 20.00%',
+            defaults={'rate': Decimal('20.00'), 'is_default': True},
+        )
+        return ChargeableItem.objects.create(
+            marina=marina,
+            name='Berth Fee',
+            category=category,
+            pricing_model=pricing_model,
+            unit_price=unit_price or Decimal('50.00'),
+            is_active=True,
+            tax_category=tax_rate,
+        )
+    return factory
+
+
+@pytest.mark.django_db
+class TestCalculateReservationInvoice:
+    def test_two_slips_produce_two_line_items(self, marina_factory, berth_factory, chargeable_item_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.billing.service import calculate_reservation_invoice
+        from apps.billing.models import Invoice, ChargeableItem
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth1 = berth_factory(marina=marina)
+        berth2 = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        # Deactivate berth_factory catalog items so only our 50.00 item is active
+        ChargeableItem.objects.filter(marina=marina).update(is_active=False)
+
+        # A ChargeableItem must exist for the marina to price berths
+        item = chargeable_item_factory(marina=marina, category='berth', pricing_model='per_night', unit_price=Decimal('50.00'))
+
+        res = Reservation.objects.create(
+            marina=marina, guest_name='Two Slips',
+            guest_email='two@test.com', status='confirmed',
+            total_price=Decimal('0.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth1,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            nights=2, item_price=Decimal('100.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth2,
+            check_in=today, check_out=today + datetime.timedelta(days=3),
+            nights=3, item_price=Decimal('150.00'),
+        )
+
+        invoice = calculate_reservation_invoice(res)
+        assert invoice is not None
+        assert invoice.reservation_id == res.pk
+        assert invoice.items.count() == 2
+
+        totals = sorted(str(i.total_price) for i in invoice.items.all())
+        assert totals == ['100.00', '150.00']
+
+    def test_returns_none_when_no_chargeable_item(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.billing.service import calculate_reservation_invoice
+        from apps.billing.models import ChargeableItem
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        # Deactivate all catalog items so the function has nothing to price with
+        ChargeableItem.objects.filter(marina=marina).update(is_active=False)
+
+        res = Reservation.objects.create(
+            marina=marina, guest_name='No Catalog',
+            guest_email='nc@test.com', status='confirmed',
+            total_price=Decimal('100.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=1),
+            nights=1, item_price=Decimal('100.00'),
+        )
+
+        invoice = calculate_reservation_invoice(res)
+        assert invoice is None
