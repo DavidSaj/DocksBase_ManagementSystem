@@ -68,7 +68,7 @@ export default function Marinas({ group }) {
                 <td><span className={`badge badge-${card.status === 'active' ? 'green' : 'gray'}`}>{card.status}</span></td>
                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   <span style={{ fontWeight: 600, color: card.occupancy_pct >= 80 ? 'var(--red)' : card.occupancy_pct >= 50 ? 'var(--orange)' : 'var(--green)' }}>
-                    {card.occupancy_pct}%
+                    {Math.round(card.occupancy_pct)}%
                   </span>
                 </td>
                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{card.active_bookings} / {card.total_berths}</td>
