@@ -3,6 +3,7 @@ import { useUserContext } from '../../context/UserContext';
 import { useTenant } from '../../context/TenantContext';
 import BottomNav    from './BottomNav';
 import BoardingPass from './BoardingPass';
+import MemberShell  from './MemberShell';
 import HomeTab     from '../../screens/tabs/HomeTab';
 import ServicesTab from '../../screens/tabs/ServicesTab';
 import BookTab     from '../../screens/tabs/BookTab';
@@ -63,6 +64,10 @@ export default function AppShell({ initialTab = 'home' }) {
     }
     // Fall through to existing guest pre-checkin rendering
     return <HomeTab />;
+  }
+
+  if (capabilities?.isMember) {
+    return <MemberShell />;
   }
 
   return (
