@@ -17,13 +17,14 @@ from rest_framework.response import Response
 from rest_framework import status as http_status
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.accounts.models import Marina, User
+from apps.accounts.models import Marina, User, MarinaGroup, MarinaGroupMembership, MarinaGroupUserRole
 from apps.billing.models import Invoice
 from .models import PlatformPayment, AuditLog, GlobalFeatureFlag
 from .permissions import IsPlatformAdmin
 from .serializers import (
     MarinaListSerializer, MarinaDetailSerializer, MarinaUpdateSerializer,
     PlatformPaymentSerializer, AuditLogSerializer, GlobalFeatureFlagSerializer,
+    MarinaGroupSerializer,
 )
 
 PLAN_PRICES = getattr(settings, 'PLAN_PRICES', {'starter': 149, 'professional': 349, 'enterprise': 899})
@@ -426,3 +427,82 @@ class AdminAuditLogView(APIView):
         if marina_id:
             qs = qs.filter(target_marina_id=marina_id)
         return Response(AuditLogSerializer(qs[:200], many=True).data)
+
+
+# ── Marina Groups ─────────────────────────────────────────────────────────────
+
+class AdminGroupListView(APIView):
+    permission_classes = [IsPlatformAdmin]
+
+    def get(self, request):
+        qs = MarinaGroup.objects.all().order_by('-created_at')
+        return Response(MarinaGroupSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = MarinaGroupSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data, status=http_status.HTTP_201_CREATED)
+
+
+class AdminGroupDetailView(APIView):
+    permission_classes = [IsPlatformAdmin]
+
+    def get(self, request, pk):
+        g = get_object_or_404(MarinaGroup, pk=pk)
+        return Response(MarinaGroupSerializer(g).data)
+
+    def patch(self, request, pk):
+        g = get_object_or_404(MarinaGroup, pk=pk)
+        ser = MarinaGroupSerializer(g, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+
+    def delete(self, request, pk):
+        g = get_object_or_404(MarinaGroup, pk=pk)
+        g.delete()
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
+
+
+class AdminGroupAddMarinaView(APIView):
+    permission_classes = [IsPlatformAdmin]
+
+    def post(self, request, pk):
+        g = get_object_or_404(MarinaGroup, pk=pk)
+        marina_id = request.data.get('marina_id')
+        marina = get_object_or_404(Marina, pk=marina_id)
+        if g.memberships.count() >= g.max_marinas:
+            return Response(
+                {'detail': f'Marina limit ({g.max_marinas}) reached for this group.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        MarinaGroupMembership.objects.get_or_create(group=g, marina=marina)
+        return Response(MarinaGroupSerializer(g).data)
+
+
+class AdminGroupRemoveMarinaView(APIView):
+    permission_classes = [IsPlatformAdmin]
+
+    def post(self, request, pk):
+        g = get_object_or_404(MarinaGroup, pk=pk)
+        marina_id = request.data.get('marina_id')
+        marina = get_object_or_404(Marina, pk=marina_id)
+        MarinaGroupMembership.objects.filter(group=g, marina=marina).delete()
+        return Response(MarinaGroupSerializer(g).data)
+
+
+class AdminGroupSetAdminView(APIView):
+    permission_classes = [IsPlatformAdmin]
+
+    def post(self, request, pk):
+        g = get_object_or_404(MarinaGroup, pk=pk)
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response({'detail': 'email is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        user = get_object_or_404(User, email=email)
+        MarinaGroupUserRole.objects.update_or_create(
+            group=g, user=user,
+            defaults={'role': MarinaGroupUserRole.Role.ADMIN},
+        )
+        return Response({'detail': f'{email} set as admin for {g.name}.'})

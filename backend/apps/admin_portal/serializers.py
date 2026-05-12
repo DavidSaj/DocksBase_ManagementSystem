@@ -88,3 +88,37 @@ class GlobalFeatureFlagSerializer(serializers.ModelSerializer):
         model = GlobalFeatureFlag
         fields = ['name', 'enabled', 'updated_at']
         read_only_fields = ['updated_at']
+
+
+from apps.accounts.models import MarinaGroup, MarinaGroupMembership
+
+
+class MarinaGroupMemberSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source='group.name', read_only=True)
+
+    class Meta:
+        model = MarinaGroupMembership
+        fields = ['id', 'marina_id', 'group_name']
+
+
+class MarinaGroupSerializer(serializers.ModelSerializer):
+    marina_count = serializers.SerializerMethodField()
+    marinas = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MarinaGroup
+        fields = [
+            'id', 'name', 'slug', 'max_marinas', 'base_currency',
+            'billing_contact_email', 'stripe_customer_id',
+            'marina_count', 'marinas', 'created_at',
+        ]
+        read_only_fields = ['id', 'marina_count', 'marinas', 'created_at']
+
+    def get_marina_count(self, obj):
+        return obj.memberships.count()
+
+    def get_marinas(self, obj):
+        return [
+            {'id': m.marina.id, 'name': m.marina.name, 'slug': m.marina.slug}
+            for m in obj.memberships.select_related('marina').all()
+        ]
