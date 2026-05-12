@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
-from apps.billing.models import ChargeableItem
+from apps.billing.models import ChargeableItem, TaxRate
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -14,10 +14,18 @@ def make_user_with_marina(email='canvas@test.com'):
     return user, marina
 
 
+def _default_tax(marina):
+    tax, _ = TaxRate.objects.get_or_create(
+        marina=marina, name='Standard', defaults={'rate': '0.00', 'is_default': True}
+    )
+    return tax
+
+
 def make_pricing_tier(marina):
     return ChargeableItem.objects.create(
         marina=marina, name='Berth Night', category='berth',
         pricing_model='per_night', unit_price=Decimal('50.00'),
+        tax_category=_default_tax(marina),
     )
 
 

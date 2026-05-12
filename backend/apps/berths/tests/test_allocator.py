@@ -4,18 +4,26 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.berths.models import Berth, Pier, OTAConnection
-from apps.billing.models import ChargeableItem
+from apps.billing.models import ChargeableItem, TaxRate
 
 
 def make_marina(**kwargs):
     return Marina.objects.create(name='Test Marina', **kwargs)
 
 
+def _default_tax(marina):
+    tax, _ = TaxRate.objects.get_or_create(
+        marina=marina, name='Standard', defaults={'rate': '0.00', 'is_default': True}
+    )
+    return tax
+
+
 def make_berth(marina, code, ota_connection=None, locked=False):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='A', defaults={'label': 'A'})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Night',
-        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50}
+        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50,
+                  'tax_category': _default_tax(marina)}
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code, pricing_tier=tier,
