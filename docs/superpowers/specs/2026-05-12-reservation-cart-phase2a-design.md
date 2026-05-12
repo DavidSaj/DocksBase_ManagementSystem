@@ -69,9 +69,18 @@ def assign_berth(marina, check_in, check_out, boat_loa, boat_beam=None,
     """
 ```
 
-**Collision check covers both old and new systems:**
+**Collision check — with row-level lock to prevent phantom reads:**
+
+PostgreSQL's default Read Committed isolation does NOT prevent two concurrent transactions from both reading `.exists() == False` on the same berth before either commits. Without a row-level lock, two simultaneous checkouts for the last available slip both see "no conflict" and both write a `ReservationItem` — a double-booking.
+
+The fix is identical to the pattern already used by `run_tetris`: acquire `select_for_update()` on the berth row *before* running any conflict queries. The second transaction blocks at the lock until the first commits, then re-evaluates and correctly sees the conflict.
+
 ```python
-# Legacy Booking collision
+# Acquire row-level lock FIRST — blocks any concurrent transaction
+# evaluating the same berth until this transaction commits or rolls back.
+Berth.objects.select_for_update().get(pk=berth.pk)
+
+# NOW check for conflicts — the lock makes these reads serialisable.
 booking_conflict = Booking.objects.filter(
     berth=berth,
     status__in=ACTIVE_STATUSES,
@@ -79,7 +88,6 @@ booking_conflict = Booking.objects.filter(
     check_out__gt=check_in,
 ).exists()
 
-# New ReservationItem collision (locked or confirmed slots)
 item_conflict = ReservationItem.objects.filter(
     berth=berth,
     status__in=['locked', 'confirmed'],
@@ -173,14 +181,24 @@ Both endpoints live in `backend/apps/reservations/public_reservation_views.py` a
 
 **Execution sequence:**
 1. Look up `Reservation` by `id=reservation_id` AND `stripe_payment_intent_id=payment_intent_id`. Return 404 if not found (prevents ID-guessing attacks — a caller must possess both values).
-2. If `reservation.status == 'confirmed'` → return 200 immediately (idempotent).
-3. If `reservation.status == 'abandoned'` → return 409 `"This reservation has expired. Please start a new booking."`.
-4. Query Stripe: verify `PaymentIntent.status == 'succeeded'` on the marina's connected account. If not yet succeeded → return 402 `"Payment not yet confirmed."`.
-5. In a `transaction.atomic()`:
-   - `Reservation.objects.filter(pk=..., status='pending_checkout').update(status='confirmed', paid=True)`
-   - `ReservationItem.objects.filter(reservation=reservation, status='locked').update(status='confirmed')`
-6. Call `send_reservation_confirmed_email(reservation)`.
-7. Return 200.
+2. If `reservation.status == 'abandoned'` → return 409 `"This reservation has expired. Please start a new booking."`.
+3. Query Stripe: verify `PaymentIntent.status == 'succeeded'` on the marina's connected account via `stripe.PaymentIntent.retrieve(pi_id, stripe_account=marina.stripe_account_id)`. If not yet succeeded → return 402 `"Payment not yet confirmed."`.
+4. Atomic status flip — **email is sent only by the process that wins the race:**
+   ```python
+   updated_count = Reservation.objects.filter(
+       pk=reservation.pk, status='pending_checkout'
+   ).update(status='confirmed', paid=True)
+
+   if updated_count > 0:
+       ReservationItem.objects.filter(
+           reservation=reservation, status='locked'
+       ).update(status='confirmed')
+       send_reservation_confirmed_email(reservation)
+   # If updated_count == 0, the webhook already confirmed — no-op, no duplicate email.
+   ```
+5. Return 200.
+
+**Why this eliminates the double-email race:** If the Stripe webhook fires and the client calls `/confirm/` simultaneously, both execute `.filter(status='pending_checkout').update(...)`. Only one UPDATE wins — PostgreSQL serialises concurrent updates to the same row. The loser gets `updated_count == 0` and skips the email call entirely. The in-memory `if reservation.status == 'confirmed': return 200` check (a stale read) is replaced by this atomic DB-level gate.
 
 **Response 200:**
 ```json
@@ -357,6 +375,8 @@ When the reference resolves to a `Reservation`:
 | 15-minute lock window | 15 min | Long enough for 3D Secure checkout; short enough to prevent permanent inventory loss on abandoned carts |
 | Expiry sweep frequency | 5 min | Worst-case 5-minute inventory hold after expiry. Celery beat preferred; management command supports cron fallback |
 | Confirm via client + webhook safety net | Both | Client call gives instant UX; webhook catches browser-crash edge case (paid but never confirmed) |
+| Email triggered by atomic update winner only | `updated_count > 0` gate | In-memory status checks are stale reads — two concurrent processes (client + webhook) can both see `status='pending_checkout'` before either commits. Only the process whose UPDATE succeeds sends the email. |
+| select_for_update() before conflict checks in assign_berth() | Row-level lock before EXISTS | PostgreSQL Read Committed does not prevent phantom reads. Without the lock, two simultaneous checkouts both see no conflict and double-book the same berth. The lock serialises evaluation. |
 | Webhook branch on reservation_id key in metadata | metadata key presence | Cleanest extension of existing webhook without disrupting invoice flow |
 | Guest auth extended via RES-{pk} prefix | Prefix parse | Minimal change to existing auth; BK- and RES- are unambiguous and share the same endpoint |
 | Magic link in confirmation email includes ref | Deep link | Boater clicks email → straight to Boarding Pass, no reference lookup required |
