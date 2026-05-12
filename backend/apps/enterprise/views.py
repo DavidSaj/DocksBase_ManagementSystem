@@ -182,7 +182,7 @@ class GroupExchangeTokenView(APIView):
         # Issue a scoped JWT: carries marina context so the marina frontend
         # permission classes see a normal marina-scoped session.
         refresh = RefreshToken.for_user(request.user)
-        refresh['scoped_marina_id'] = marina_id
+        refresh['scoped_marina_id'] = marina.id
         refresh['scoped_marina_slug'] = marina.slug
         refresh['is_enterprise_sso'] = True
         access = refresh.access_token

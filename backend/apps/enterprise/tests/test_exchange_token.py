@@ -48,6 +48,13 @@ class ExchangeTokenTest(TestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
+    def test_exchange_token_missing_marina_id_returns_400(self):
+        resp = self.client.post(
+            f'/api/v1/enterprise/groups/{self.g.pk}/exchange_token/',
+            {}, format='json'
+        )
+        self.assertEqual(resp.status_code, 400)
+
 
 class StaffViewTest(TestCase):
     def setUp(self):
