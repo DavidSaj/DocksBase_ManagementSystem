@@ -122,9 +122,9 @@ class GroupFinancialsView(APIView):
                     marina=marina, status='paid', billing_period=bp
                 ).aggregate(t=Sum('total'))['t'] or Decimal('0')
                 converted = to_base(raw, marina.currency)
-                val = converted if converted is not None else Decimal('0')
-                month_total += val
-                by_marina.append({'marina_id': marina.id, 'marina_name': marina.name, 'amount': str(val)})
+                if converted is not None:
+                    month_total += converted
+                    by_marina.append({'marina_id': marina.id, 'marina_name': marina.name, 'amount': str(converted)})
             monthly_revenue.append({'period': bp, 'total': str(month_total), 'by_marina': by_marina})
 
         return Response({

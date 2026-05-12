@@ -59,3 +59,21 @@ class FinancialsViewTest(TestCase):
         c.force_authenticate(other)
         resp = c.get(f'/api/v1/enterprise/groups/{self.g.pk}/financials/')
         self.assertEqual(resp.status_code, 403)
+
+    def test_missing_fx_tracked(self):
+        from apps.accounting.models import ExchangeRate
+        # Create a marina with GBP currency (no ExchangeRate exists)
+        m3 = Marina.objects.create(name='Port GBP', slug='pgbp', currency='GBP', status='active')
+        from apps.accounts.models import MarinaGroupMembership
+        MarinaGroupMembership.objects.create(group=self.g, marina=m3)
+        # Update group max_marinas to allow 3
+        self.g.max_marinas = 3
+        self.g.save()
+
+        from django.utils import timezone
+        period = f'{timezone.now().year}-{timezone.now().month:02d}'
+        Invoice.objects.create(marina=m3, invoice_number='INV-GBP', status='paid',
+                               billing_period=period, total='100.00', subtotal='100.00')
+        resp = self.client.get(f'/api/v1/enterprise/groups/{self.g.pk}/financials/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('GBP', resp.data['missing_fx'])
