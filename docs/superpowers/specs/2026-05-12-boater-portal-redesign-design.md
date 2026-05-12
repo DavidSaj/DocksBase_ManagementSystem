@@ -78,14 +78,16 @@ Returns the marina SVG canvas dimensions + amenity pin list (type, label, canvas
 
 ### Member endpoints — all `IsBoater` permission, prefix `/api/v1/portal/`
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/portal/gate/` | GET | Member's active gate codes from marina wallet |
-| `/portal/utilities/` | GET | Active meters with last reading + billing-cycle cost estimate |
-| `/portal/work-orders/` | GET, POST | List submitted work orders; submit new |
-| `/portal/invoices/` | GET | Paginated invoice list with status |
-| `/portal/documents/` | GET, POST | MemberDocument list; upload new file to Supabase Storage |
-| `/portal/documents/{id}/` | DELETE | Remove a document |
+| Endpoint | Method | Purpose | Toggle guard |
+|---|---|---|---|
+| `/portal/gate/` | GET | Member's active gate codes from marina wallet | — |
+| `/portal/utilities/` | GET | Active meters with last reading + billing-cycle cost estimate | `enable_utilities` |
+| `/portal/work-orders/` | GET, POST | List submitted work orders; submit new | `enable_boatyard` |
+| `/portal/invoices/` | GET | Paginated invoice list with status | — |
+| `/portal/documents/` | GET, POST | MemberDocument list; upload new file to Supabase Storage | `enable_documents` |
+| `/portal/documents/{id}/` | DELETE | Remove a document | `enable_documents` |
+
+**Feature-toggle enforcement is mandatory at the API layer.** Hiding tabs in the frontend is not sufficient — a cached PWA, a malicious actor, or a direct API call can bypass UI controls. Each guarded endpoint must inspect `request.tenant.app_config` at the top of the view and return `HTTP 403 Forbidden` with body `{"detail": "This feature is not enabled for this marina."}` if the corresponding toggle is `false`. The frontend toggle check is a UX convenience only.
 
 ### Admin endpoint — manager/owner permission
 
@@ -98,10 +100,12 @@ Accepts partial JSON updates to `app_config`. Logo and marina map are file uploa
 Returns ordered list of active `SmartMeter` records for the current user's marina, each with: `id`, `label`, `meter_type`, `berth_code`, `last_reading` (value + timestamp).
 
 **`POST /api/v1/utilities/dockwalk/{meter_id}/reading/`**
-Body: `{ "reading_kwh": 1854.2 }` or `{ "reading_m3": 42.1 }`.
-- Validates new reading ≥ last reading (catches typos).
+Body: `{ "reading_kwh": 1854.2, "rollover": false }` or `{ "reading_m3": 42.1, "rollover": false }`.
+- If `new_reading < last_reading` AND `rollover: false` → return 400 with message "Reading is lower than last entry — check the meter or mark as rollover."
+- If `new_reading < last_reading` AND `rollover: true` → accept the reading; delta = `new_reading` (treating the meter as reset to 0). Updates `SmartMeter.last_polled` as the new baseline.
 - Creates `MeterReading(source='manual')`.
-- Calculates delta, looks up rate via `ChargeableItem`, appends line item to member's current open invoice.
+- Calculates kWh/m³ delta, looks up applicable rate via `ChargeableItem`.
+- Creates an **unbilled charge**: a `ChargeableItem` line attached to the member with `invoice=null`. Never touches an existing invoice. The monthly billing sweep collects all `invoice=null` utility charges and attaches them to the new invoice when it is generated.
 - Returns updated meter state.
 
 ---
@@ -208,7 +212,7 @@ Rapid one-meter-per-screen entry flow:
 3. Each screen shows: berth code, meter type, pedestal label, last reading + timestamp.
 4. Numeric input auto-focused (numeric keyboard on mobile). Placeholder shows last reading value as a hint.
 5. "Next →" submits the reading and advances. "Skip" records nothing and advances.
-6. Backend validation: new reading must be ≥ last reading. If not, inline error "Reading is lower than last entry — check the meter."
+6. If the submitted value is lower than the last reading, the backend returns 400. The UI shows: "Reading is lower than last entry — check the meter." Below the error, a checkbox appears: "This meter rolled over or was replaced." Checking it re-enables "Next →" and sends `rollover: true` with the next submission. The API then accepts the lower value and calculates the delta from 0.
 7. Final screen: summary "11 entered, 1 skipped" with a "Done" button back to the action grid.
 
 ### `MeterAssignFlow.jsx` (separate quick action: "Assign Meter")
