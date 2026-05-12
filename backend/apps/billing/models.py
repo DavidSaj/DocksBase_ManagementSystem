@@ -3,6 +3,22 @@ from django.db import models
 from apps.fuel_dock.models import FuelDockEntry
 
 
+class TaxRate(models.Model):
+    marina      = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='tax_rates')
+    name        = models.CharField(max_length=100)
+    rate        = models.DecimalField(max_digits=5, decimal_places=2)
+    is_default  = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('marina', 'name')]
+        ordering = ['-rate']
+
+    def __str__(self):
+        return f'{self.name} ({self.rate}%)'
+
+
 class Invoice(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
