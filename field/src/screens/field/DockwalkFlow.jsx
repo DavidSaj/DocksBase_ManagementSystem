@@ -134,7 +134,7 @@ export default function DockwalkFlow({ onBack }) {
 
       <div className="f-dw-actions">
         <button className="f-dw-skip" onClick={skip} type="button">Skip</button>
-        <button className="f-dw-next" onClick={submit} disabled={!value} type="button">Next →</button>
+        <button className="f-dw-next" onClick={submit} disabled={!value || (error?.includes('lower than last') && !rollover)} type="button">Next →</button>
       </div>
     </div>
   );
