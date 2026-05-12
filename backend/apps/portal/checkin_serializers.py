@@ -1,6 +1,13 @@
 from rest_framework import serializers
 from apps.reservations.models import Booking
+from apps.utilities.models import WashToken
 from .checkin_utils import is_arrival_day
+
+
+class WashTokenSerializer(serializers.Serializer):
+    facility   = serializers.CharField()
+    token_code = serializers.CharField()
+    expires_at = serializers.DateTimeField()
 
 
 class PortalBookingSerializer(serializers.ModelSerializer):
@@ -11,6 +18,7 @@ class PortalBookingSerializer(serializers.ModelSerializer):
 
     marina_name = serializers.CharField(source='marina.name', read_only=True)
     marina_info = serializers.SerializerMethodField()
+    wash_tokens = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -22,7 +30,7 @@ class PortalBookingSerializer(serializers.ModelSerializer):
             'waiver_envelope_id', 'waiver_signed',
             'insurance_doc',
             'pre_cleared', 'self_checked_in', 'self_checked_in_at',
-            'is_arrival_day', 'marina_name', 'marina_info', 'marina_wallet',
+            'is_arrival_day', 'marina_name', 'marina_info', 'marina_wallet', 'wash_tokens',
         ]
         read_only_fields = fields
 
@@ -42,6 +50,7 @@ class PortalBookingSerializer(serializers.ModelSerializer):
             'lat':                   float(m.lat) if m.lat else None,
             'lng':                   float(m.lng) if m.lng else None,
             'has_map':               bool((m.onboarding or {}).get('draw_map', False)),
+            'app_config':            m.app_config or {},
         }
 
     def get_marina_wallet(self, booking):
@@ -57,3 +66,15 @@ class PortalBookingSerializer(serializers.ModelSerializer):
             'office_hours':          m.wallet_office_hours,
             'marina_name':           m.name,
         }
+
+    def get_wash_tokens(self, booking):
+        from django.utils import timezone
+        email = booking.guest_email
+        if not email:
+            return []
+        tokens = WashToken.objects.filter(
+            marina=booking.marina,
+            member__email=email,
+            status='issued',
+        ).exclude(expires_at__lt=timezone.now())
+        return WashTokenSerializer(tokens, many=True).data
