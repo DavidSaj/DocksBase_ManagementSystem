@@ -1,5 +1,5 @@
 // frontend/src/screens/settings/MobileConfigTab.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api.js';
 
 function Toggle({ label, desc, checked, onChange }) {
@@ -25,14 +25,19 @@ export default function MobileConfigTab({ marina }) {
   const [config, setConfig] = useState(marina?.app_config || {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
+  const [patchError, setPatchError] = useState(null);
+  const patchTimer = useRef(null);
+  const savedTimer = useRef(null);
 
   useEffect(() => { setConfig(marina?.app_config || {}); }, [marina]);
 
   function patch(updates) {
-    const next = { ...config, ...updates };
-    setConfig(next);
-    api.patch('/api/v1/marina/app-config/', updates)
-      .catch(() => alert('Save failed. Please try again.'));
+    setConfig(c => ({ ...c, ...updates }));
+    clearTimeout(patchTimer.current);
+    patchTimer.current = setTimeout(() => {
+      api.patch('/api/v1/marina/app-config/', updates)
+        .catch(() => setPatchError('Auto-save failed. Please refresh and try again.'));
+    }, 300);
   }
 
   function saveContent(e) {
@@ -44,13 +49,18 @@ export default function MobileConfigTab({ marina }) {
       local_guide:   config.local_guide   || '',
       brand_color:   config.brand_color   || '#0c1f3d',
     })
-      .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2000); })
-      .catch(() => alert('Save failed.'))
+      .then(() => {
+        setSaved(true);
+        clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => setSaved(false), 2000);
+      })
+      .catch(() => setPatchError('Save failed. Please try again.'))
       .finally(() => setSaving(false));
   }
 
   return (
     <div className="mc-root">
+      {patchError && <div className="mc-error">{patchError}</div>}
       {/* Brand & Identity */}
       <div className="mc-section-title">Brand &amp; Identity</div>
       <div className="mc-card">
