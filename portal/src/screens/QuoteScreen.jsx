@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { createReservationIntent, confirmReservation } from '../api';
+import api, { createReservationIntent, confirmReservation } from '../api';
 import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
@@ -59,16 +59,15 @@ function GuestDetailsForm({ state, marina, onIntentCreated, onNavigateConfirmed,
       });
     } catch (err) {
       if (err.response?.status === 409) {
-        import('../api').then(({ default: api }) => {
-          const params = new URLSearchParams({
-            check_in:  state.checkIn,
-            check_out: state.checkOut,
-            boat_loa:  state.boats[0].loa,
-          });
-          api.get(`/public/bookings/availability-alternatives/?${params}`)
-            .then(r => onNavigateAlternatives(r.data))
-            .catch(() => onNavigateAlternatives([]));
+        setBusy(false);
+        const params = new URLSearchParams({
+          check_in:  state.checkIn,
+          check_out: state.checkOut,
+          boat_loa:  state.boats[0].loa,
         });
+        api.get(`/public/bookings/availability-alternatives/?${params}`)
+          .then(r => onNavigateAlternatives(r.data))
+          .catch(() => onNavigateAlternatives([]));
         return;
       }
       setError(err.response?.data?.detail || 'Something went wrong. Please try again.');
@@ -133,6 +132,11 @@ function PaymentForm({ intentData, navigate }) {
 
     if (stripeErr) {
       setError(stripeErr.message || 'Payment failed. Please try again.');
+      setBusy(false);
+      return;
+    }
+
+    if (!paymentIntent) {
       setBusy(false);
       return;
     }
