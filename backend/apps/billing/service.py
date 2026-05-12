@@ -69,7 +69,6 @@ def create_invoice(marina, member=None, source_type='', source_id='', due_date=N
             status='draft',
             source_type=source_type,
             source_id=str(source_id) if source_id else '',
-            vat_rate=None,
             due_date=due_date,
             billing_period=billing_period,
         )
@@ -95,12 +94,13 @@ def add_line_item(invoice, description, quantity, unit_price, tax_rate=None, cha
 
 def add_line_item_from_catalog(invoice, chargeable_item, quantity):
     """Snapshot price and tax from ChargeableItem at the moment of invoicing."""
+    rate = Decimal(str(chargeable_item.tax_category.rate))
     return add_line_item(
         invoice=invoice,
         description=chargeable_item.name,
         quantity=quantity,
         unit_price=chargeable_item.unit_price,
-        tax_rate=chargeable_item.tax_rate,
+        tax_rate=rate,
         chargeable_item=chargeable_item,
     )
 
@@ -165,7 +165,7 @@ def calculate_booking_invoice(booking):
         description=description,
         quantity=quantity,
         unit_price=item.unit_price,
-        tax_rate=item.tax_rate,
+        tax_rate=Decimal(str(item.tax_category.rate)),
         chargeable_item=item,
     )
     return invoice
