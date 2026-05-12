@@ -1223,3 +1223,20 @@ select.p-input { -webkit-appearance: auto; appearance: auto; }
 .p-bp-local-guide { font-size: 14px; line-height: 1.6; color: rgba(0,0,0,0.7); }
 .p-bp-extend      { text-align: center; }
 .p-bp-extend-btn  { width: 100%; padding: 14px; background: var(--color-primary); color: #fff; border: none; border-radius: 3px; font-size: 16px; font-weight: 700; cursor: pointer; }
+
+/* ── Member Home ────────────────────────────────────────────────── */
+.p-member-header         { padding: 20px 16px 0; }
+.p-member-header__marina { font-size: 22px; font-weight: 800; color: #1a2d4a; }
+.p-home-root             { min-height: 100vh; background: #f4f6f8; padding-bottom: 80px; }
+.p-home-card             { background: #fff; border-radius: 12px; padding: 16px; margin: 12px 16px 0; box-shadow: var(--shadow-card, 0 1px 4px rgba(0,0,0,0.08)); border: 1px solid rgba(0,0,0,0.06); }
+.p-home-card-title       { font-size: 13px; font-weight: 700; color: rgba(0,0,0,0.4); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.p-home-gate-row         { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.06); cursor: pointer; }
+.p-home-gate-row:last-child { border-bottom: none; }
+.p-home-gate-label       { font-size: 12px; color: rgba(0,0,0,0.4); margin-bottom: 2px; }
+.p-home-gate-pin         { font-size: 28px; font-weight: 800; color: var(--color-primary); font-family: 'IBM Plex Mono', monospace; letter-spacing: 4px; }
+.p-home-gate-copy        { font-size: 12px; color: rgba(0,0,0,0.3); }
+.p-home-wifi-row         { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+.p-home-wifi-label       { color: rgba(0,0,0,0.4); }
+.p-home-wifi-value       { font-weight: 600; color: #1a2d4a; }
+.p-home-loading          { font-size: 14px; color: rgba(0,0,0,0.4); text-align: center; padding: 16px; }
+.p-home-empty            { font-size: 14px; color: rgba(0,0,0,0.4); }

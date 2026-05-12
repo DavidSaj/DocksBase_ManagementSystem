@@ -68,3 +68,7 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+export function fetchMemberGate() {
+  return api.get('/portal/member/gate/');
+}
