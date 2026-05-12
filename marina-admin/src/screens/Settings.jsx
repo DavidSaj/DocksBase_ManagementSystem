@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
 
@@ -9,12 +9,15 @@ export default function Settings({ group }) {
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [error, setError]       = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const savedTimerRef = useRef(null);
 
   useEffect(() => {
     let ignore = false;
     setLoading(true);
     setSettings(null);
     setError(false);
+    setEditing({});
     api.get(`enterprise/groups/${group.id}/settings/`)
       .then(r => { if (!ignore) setSettings(r.data); })
       .catch(() => { if (!ignore) setError(true); })
@@ -22,18 +25,22 @@ export default function Settings({ group }) {
     return () => { ignore = true; };
   }, [group.id]);
 
+  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current); }, []);
+
   async function handleSave(e) {
     e.preventDefault();
     if (!Object.keys(editing).length) return;
     setSaving(true);
+    setSaveError('');
     try {
       const { data } = await api.patch(`enterprise/groups/${group.id}/settings/`, editing);
       setSettings(data);
       setEditing({});
       setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2500);
     } catch (err) {
-      window.alert(err.response?.data?.detail || 'Failed to save settings.');
+      setSaveError(err.response?.data?.detail || 'Failed to save settings.');
     } finally {
       setSaving(false);
     }
@@ -62,10 +69,11 @@ export default function Settings({ group }) {
             ['Base currency',   'base_currency',          'text'],
           ].map(([label, field, type]) => (
             <div key={field} style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 5, color: 'rgba(0,0,0,0.6)' }}>
+              <label htmlFor={field} style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 5, color: 'rgba(0,0,0,0.6)' }}>
                 {label}
               </label>
               <input
+                id={field}
                 type={type}
                 value={val(field)}
                 onChange={set(field)}
@@ -86,6 +94,9 @@ export default function Settings({ group }) {
               <span style={{ fontSize: 12, color: 'var(--green)' }}>Saved.</span>
             )}
           </div>
+          {saveError && (
+            <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>{saveError}</p>
+          )}
         </form>
       </div>
     </div>
