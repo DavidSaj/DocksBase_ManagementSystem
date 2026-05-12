@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem
+from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem, TaxRate
 
 
 @admin.register(Invoice)
@@ -18,6 +18,14 @@ class ChargeableItemAdmin(admin.ModelAdmin):
     list_display  = ['name', 'marina', 'category', 'pricing_model', 'unit_price', 'show_in_pos', 'fuel_dock_type', 'is_active']
     list_filter   = ['marina', 'category', 'show_in_pos', 'is_active']
     search_fields = ['name']
+
+
+@admin.register(TaxRate)
+class TaxRateAdmin(admin.ModelAdmin):
+    list_display  = ['name', 'marina', 'rate', 'is_default', 'is_archived', 'created_at']
+    list_filter   = ['marina', 'is_default', 'is_archived']
+    search_fields = ['name']
+    readonly_fields = ['rate', 'created_at']
 
 
 admin.site.register(Payment)
