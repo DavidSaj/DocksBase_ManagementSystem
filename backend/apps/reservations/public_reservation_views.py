@@ -53,9 +53,49 @@ class ReservationIntentView(APIView):
     transaction, creates Reservation + ReservationItems with status='locked',
     then creates a Stripe PaymentIntent. No records are created if any item
     cannot be placed — the entire transaction rolls back.
+
+    For non-auto_tetris marinas, delegates to _handle_manual() which creates
+    a pending_review Reservation with unassigned items and no Stripe payment.
     """
     authentication_classes = []
     permission_classes = [AllowAny]
+
+    def _handle_manual(self, request, marina):
+        ser = ReservationIntentSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        d = ser.validated_data
+        check_in  = d['check_in']
+        check_out = d['check_out']
+        nights    = (check_out - check_in).days
+
+        reservation = Reservation.objects.create(
+            marina=marina,
+            guest_name=d['guest_name'],
+            guest_email=d['guest_email'],
+            guest_phone=d.get('guest_phone', ''),
+            status='pending_review',
+            booking_source='portal',
+        )
+        for item in d['items']:
+            ReservationItem.objects.create(
+                reservation=reservation,
+                berth=None,
+                check_in=check_in,
+                check_out=check_out,
+                nights=nights,
+                vessel_name=item.get('vessel_name', ''),
+                boat_loa=item.get('boat_loa'),
+                boat_beam=item.get('boat_beam'),
+                boat_draft=item.get('boat_draft'),
+                status='unassigned',
+            )
+        return Response({
+            'reservation_id': reservation.pk,
+            'reference': f'RES-{reservation.pk}',
+            'requires_payment': False,
+            'status': 'pending_review',
+        }, status=status.HTTP_201_CREATED)
 
     def post(self, request):
         if request.tenant is None:
@@ -63,10 +103,7 @@ class ReservationIntentView(APIView):
 
         marina = request.tenant
         if marina.booking_mode != 'auto_tetris':
-            return Response(
-                {'detail': 'This marina does not accept online bookings.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self._handle_manual(request, marina)
 
         ser = ReservationIntentSerializer(data=request.data)
         if not ser.is_valid():
@@ -185,6 +222,8 @@ class ReservationIntentView(APIView):
         return Response(
             {
                 'reservation_id': reservation.pk,
+                'reference': f'RES-{reservation.pk}',
+                'requires_payment': True,
                 'client_secret': client_secret,
                 'total': str(reservation.total_price),
                 'locked_until': reservation.locked_until.isoformat(),
