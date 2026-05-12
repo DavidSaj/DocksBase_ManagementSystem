@@ -1,3 +1,4 @@
+import datetime as _dt
 import logging
 
 from django.conf import settings
@@ -11,7 +12,7 @@ from rest_framework.views import APIView
 from apps.members.models import Member
 from apps.reservations.models import Booking
 
-from .checkin_utils import make_portal_token
+from .checkin_utils import make_portal_token, make_magic_token
 from .member_auth_utils import (
     decode_member_magic_token,
     decode_refresh_token,
@@ -214,3 +215,67 @@ class GuestInstantLoginView(APIView):
             'booking_id': booking.id,
             'marina_slug': booking.marina.slug,
         })
+
+
+class UnifiedRequestLinkView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email       = (request.data.get('email') or '').strip().lower()
+        marina_slug = request.META.get('HTTP_X_MARINA_SLUG', '')
+        SILENT      = Response({'detail': 'If an account exists, a secure link has been sent.'})
+
+        if not email or not marina_slug:
+            return Response({'detail': 'email and X-Marina-Slug required.'}, status=400)
+
+        base  = getattr(settings, 'PORTAL_BASE_URL', 'https://book.docksbase.com')
+        today = _dt.date.today()
+
+        members = list(
+            Member.objects.filter(email__iexact=email, marina__slug=marina_slug)
+            .select_related('marina')
+        )
+        bookings = list(
+            Booking.objects.filter(
+                guest_email__iexact=email,
+                marina__slug=marina_slug,
+                check_out__gte=today,
+            ).select_related('marina').order_by('check_in')
+        )
+
+        if not members and not bookings:
+            return SILENT
+
+        marina_name  = (members[0].marina if members else bookings[0].marina).name
+        member_lines = []
+        guest_lines  = []
+
+        for m in members:
+            token = make_member_magic_token(member_id=m.id, email=m.email)
+            url   = f"{base}/{m.marina.slug}?token=m_{token}"
+            label = m.name or m.email
+            member_lines.append(f"Member Dashboard ({label}): {url}")
+
+        for bk in bookings:
+            token = make_magic_token(bk.id, bk.guest_email)
+            url   = f"{base}/{bk.marina.slug}?token=g_{token}"
+            guest_lines.append(
+                f"BK-{bk.pk} ({bk.check_in} → {bk.check_out}): {url}"
+            )
+
+        all_lines = member_lines + guest_lines
+        body = (
+            f"Secure sign-in links for {email} at {marina_name}:\n\n"
+            + '\n'.join(all_lines)
+            + "\n\nEach link expires in 72 hours."
+        )
+
+        send_mail(
+            subject=f'Your sign-in link — {marina_name}',
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=True,
+        )
+        return SILENT

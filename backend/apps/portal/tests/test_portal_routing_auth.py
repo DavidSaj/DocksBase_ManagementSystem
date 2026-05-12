@@ -89,3 +89,117 @@ def test_guest_instant_member_email_gets_scoped_guest_token(
     data = resp.json()
     payload = decode_portal_token(data['token'])
     assert payload['booking_id'] == booking.pk
+
+
+from django.core import mail as django_mail
+
+
+@pytest.mark.django_db
+def test_request_link_member_only_sends_member_link(member_factory):
+    member = member_factory()
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/request-link/',
+        data={'email': member.email},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=member.marina.slug,
+    )
+    assert resp.status_code == 200
+    assert len(django_mail.outbox) == 1
+    body = django_mail.outbox[0].body
+    assert '?token=m_' in body
+    assert '?token=g_' not in body
+
+
+@pytest.mark.django_db
+def test_request_link_guest_only_sends_guest_link(guest_booking_factory, marina_factory):
+    marina = marina_factory()
+    booking = guest_booking_factory(marina, guest_email='visitor@test.com')
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/request-link/',
+        data={'email': 'visitor@test.com'},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=marina.slug,
+    )
+    assert resp.status_code == 200
+    assert len(django_mail.outbox) == 1
+    body = django_mail.outbox[0].body
+    assert '?token=g_' in body
+    assert '?token=m_' not in body
+
+
+@pytest.mark.django_db
+def test_request_link_multiple_bookings_lists_all(guest_booking_factory, marina_factory):
+    import datetime
+    marina = marina_factory()
+    today = datetime.date.today()
+    b1 = guest_booking_factory(marina, guest_email='visitor@test.com',
+                                check_in=today, check_out=today + datetime.timedelta(days=2))
+    b2 = guest_booking_factory(marina, guest_email='visitor@test.com',
+                                check_in=today + datetime.timedelta(days=30),
+                                check_out=today + datetime.timedelta(days=33))
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/request-link/',
+        data={'email': 'visitor@test.com'},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=marina.slug,
+    )
+    assert resp.status_code == 200
+    body = django_mail.outbox[0].body
+    assert f'BK-{b1.pk}' in body
+    assert f'BK-{b2.pk}' in body
+
+
+@pytest.mark.django_db
+def test_request_link_member_and_booking_sends_both(member_factory, guest_booking_factory):
+    member = member_factory()
+    booking = guest_booking_factory(member.marina, guest_email=member.email)
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/request-link/',
+        data={'email': member.email},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=member.marina.slug,
+    )
+    assert resp.status_code == 200
+    body = django_mail.outbox[0].body
+    assert '?token=m_' in body
+    assert '?token=g_' in body
+
+
+@pytest.mark.django_db
+def test_request_link_unknown_email_returns_200_no_email(marina_factory):
+    marina = marina_factory()
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/request-link/',
+        data={'email': 'nobody@test.com'},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=marina.slug,
+    )
+    assert resp.status_code == 200
+    assert len(django_mail.outbox) == 0
+
+
+@pytest.mark.django_db
+def test_request_link_excludes_past_bookings(guest_booking_factory, marina_factory):
+    """Bookings where check_out < today must not generate a link."""
+    import datetime
+    marina = marina_factory()
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    guest_booking_factory(
+        marina, guest_email='oldguest@test.com',
+        check_in=yesterday - datetime.timedelta(days=3),
+        check_out=yesterday,
+    )
+    client = Client()
+    resp = client.post(
+        '/api/v1/portal/auth/request-link/',
+        data={'email': 'oldguest@test.com'},
+        content_type='application/json',
+        HTTP_X_MARINA_SLUG=marina.slug,
+    )
+    assert resp.status_code == 200
+    assert len(django_mail.outbox) == 0
