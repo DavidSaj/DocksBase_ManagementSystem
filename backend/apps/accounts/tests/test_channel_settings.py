@@ -11,11 +11,16 @@ from apps.billing.models import ChargeableItem
 
 
 def make_setup(target_pct=50):
+    from apps.billing.service import seed_default_tax_rates
+    from apps.billing.models import TaxRate
     marina = Marina.objects.create(name='Test Marina')
+    seed_default_tax_rates(marina)
     user = User.objects.create_user(email='mgr@test.com', password='pass', marina=marina, role='manager')
     pier = Pier.objects.create(marina=marina, code='A', label='A')
+    tax_cat = TaxRate.objects.get(marina=marina, name='Standard — 20.00%')
     tier = ChargeableItem.objects.create(
-        marina=marina, name='Night', category='berth', pricing_model='per_night', unit_price=50
+        marina=marina, name='Night', category='berth', pricing_model='per_night', unit_price=50,
+        tax_category=tax_cat,
     )
     conn = OTAConnection.objects.create(marina=marina, name='mySea', slug='mysea', target_pct=target_pct)
     ota_berths = [
