@@ -43,12 +43,17 @@ class InvoiceBookingFKTest(TestCase):
         self.assertIsNone(inv.booking)
 
     def test_booking_fee_category_choice_exists(self):
+        from apps.billing.service import seed_default_tax_rates
+        from apps.billing.models import TaxRate
         marina = _marina()
+        seed_default_tax_rates(marina)
+        tax_cat = TaxRate.objects.get(marina=marina, name='Standard — 20.00%')
         item = ChargeableItem.objects.create(
             marina=marina,
             name='Harbour Dues',
             category='booking_fee',
             pricing_model='flat_fee',
             unit_price='25.00',
+            tax_category=tax_cat,
         )
         self.assertEqual(item.category, 'booking_fee')

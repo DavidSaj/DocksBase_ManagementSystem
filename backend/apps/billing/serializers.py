@@ -15,7 +15,7 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'category', 'category_display',
             'pricing_model', 'pricing_model_display',
-            'unit_price', 'tax_rate', 'is_active',
+            'unit_price', 'tax_category', 'is_active',
             'show_in_pos', 'fuel_dock_type', 'is_mandatory_transient_fee',
             'created_at',
             'assigned_berths', 'berth_ids',
@@ -79,7 +79,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = [
             'id', 'invoice_number', 'status', 'source_type', 'source_id',
-            'member', 'member_name', 'subtotal', 'vat_rate', 'tax_total', 'total',
+            'member', 'member_name', 'subtotal', 'tax_total', 'total',
             'billing_period', 'due_date', 'paid_at', 'created_at',
             'items', 'payments',
         ]
