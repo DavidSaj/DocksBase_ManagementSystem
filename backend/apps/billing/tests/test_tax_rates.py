@@ -81,3 +81,52 @@ class TaxRateServiceTest(TestCase):
         )
         with self.assertRaises(ValueError, msg='should raise when items assigned'):
             delete_tax_rate(standard)
+
+
+from apps.billing.service import add_line_item_from_catalog, create_invoice, finalize_invoice
+from apps.billing.models import ChargeableItem, InvoiceLineItem
+
+
+class SnapshotTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Snapshot Marina')
+        seed_default_tax_rates(self.marina)
+        self.standard = TaxRate.objects.get(marina=self.marina, name='Standard — 20.00%')
+        self.zero = TaxRate.objects.get(marina=self.marina, name='Zero Rated — 0.00%')
+
+    def _make_item(self, name, rate_obj, unit_price='100.00'):
+        return ChargeableItem.objects.create(
+            marina=self.marina, name=name, category='berth',
+            pricing_model='per_night', unit_price=Decimal(unit_price),
+            tax_category=rate_obj,
+        )
+
+    def test_snapshot_captures_rate_from_tax_category(self):
+        item = self._make_item('Test Slip', self.standard)
+        invoice = create_invoice(marina=self.marina)
+        add_line_item_from_catalog(invoice, item, quantity=1)
+        line = invoice.items.first()
+        self.assertEqual(line.tax_rate, Decimal('20.00'))
+
+    def test_snapshot_zero_rate(self):
+        item = self._make_item('Zero Slip', self.zero)
+        invoice = create_invoice(marina=self.marina)
+        add_line_item_from_catalog(invoice, item, quantity=1)
+        line = invoice.items.first()
+        self.assertEqual(line.tax_rate, Decimal('0.00'))
+
+    def test_finalize_sums_per_line_tax(self):
+        standard_item = self._make_item('Slip', self.standard, '100.00')
+        zero_item = self._make_item('Book', self.zero, '20.00')
+        invoice = create_invoice(marina=self.marina)
+        add_line_item_from_catalog(invoice, standard_item, quantity=1)
+        add_line_item_from_catalog(invoice, zero_item, quantity=1)
+        finalize_invoice(invoice)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.subtotal, Decimal('120.00'))
+        self.assertEqual(invoice.tax_total, Decimal('20.00'))   # 20% of 100, 0% of 20
+        self.assertEqual(invoice.total, Decimal('140.00'))
+
+    def test_create_invoice_has_no_vat_rate_field(self):
+        invoice = create_invoice(marina=self.marina)
+        self.assertFalse(hasattr(invoice, 'vat_rate'))
