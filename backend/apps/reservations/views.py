@@ -3,6 +3,7 @@ import datetime
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status as http_status
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
@@ -10,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 
+from apps.accounts.models import Marina
 from apps.berths.models import Berth
 from apps.billing import service as billing_service
 from apps.billing.models import ChargeableItem, Invoice as InvoiceModel
@@ -21,12 +23,13 @@ from .booking_engine import (
     run_tetris,
 )
 from .emails import send_approve_email, send_reject_email
-from .models import Booking, BookingRequest
+from .models import Booking, BookingRequest, Reservation
 from .serializers import (
     AssignBerthSerializer,
     BookingEngineRequestSerializer,
     BookingRequestSerializer,
     BookingSerializer,
+    ReservationSerializer,
 )
 
 
@@ -538,3 +541,35 @@ class ClearDocumentGateView(APIView):
 
         booking.save(update_fields=update_fields)
         return Response(BookingSerializer(booking).data, status=http_status.HTTP_200_OK)
+
+
+# ── Reservation views ──────────────────────────────────────────────────────────
+
+class ReservationListView(generics.ListAPIView):
+    serializer_class = ReservationSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        marina_slug = self.request.headers.get('X-Marina-Slug') or self.request.META.get('HTTP_X_MARINA_SLUG')
+        marina = get_object_or_404(Marina, slug=marina_slug)
+        return (
+            Reservation.objects.filter(marina=marina)
+            .prefetch_related('items__berth', 'items__vessel')
+            .select_related('member')
+            .order_by('-created_at')
+        )
+
+
+class ReservationDetailView(generics.RetrieveAPIView):
+    serializer_class = ReservationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        marina_slug = self.request.headers.get('X-Marina-Slug') or self.request.META.get('HTTP_X_MARINA_SLUG')
+        marina = get_object_or_404(Marina, slug=marina_slug)
+        return (
+            Reservation.objects.filter(marina=marina)
+            .prefetch_related('items__berth', 'items__vessel')
+            .select_related('member')
+        )

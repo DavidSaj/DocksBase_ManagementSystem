@@ -1214,6 +1214,77 @@ class TestBackfillMigration:
         assert Reservation.objects.filter(legacy_booking=b).count() == 1
 
 
+@pytest.fixture
+def api_client_factory():
+    from rest_framework.test import APIClient
+    from apps.accounts.models import User
+
+    def factory(marina):
+        client = APIClient()
+        user = User.objects.create_user(
+            email=f'staff_{marina.slug}@test.com',
+            password='testpass',
+            marina=marina,
+            role='manager',
+        )
+        client.force_authenticate(user=user)
+        return client
+
+    return factory
+
+
+@pytest.mark.django_db
+class TestReservationAPI:
+    def test_list_reservations(self, api_client_factory, marina_factory, berth_factory):
+        """Staff can list reservations for their marina."""
+        from apps.reservations.models import Reservation
+        from decimal import Decimal
+
+        marina = marina_factory()
+        client = api_client_factory(marina=marina)
+
+        Reservation.objects.create(
+            marina=marina, guest_name='API Guest',
+            guest_email='api@test.com', status='confirmed',
+            total_price=Decimal('100.00'),
+        )
+        resp = client.get(
+            '/api/v1/reservations/',
+            HTTP_X_MARINA_SLUG=marina.slug,
+        )
+        assert resp.status_code == 200
+        assert len(resp.data) == 1
+        assert resp.data[0]['guest_email'] == 'api@test.com'
+
+    def test_reservation_detail_includes_items(self, api_client_factory, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from decimal import Decimal
+        import datetime
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+        client = api_client_factory(marina=marina)
+
+        res = Reservation.objects.create(
+            marina=marina, guest_name='Detail Test',
+            guest_email='detail@test.com', status='confirmed',
+            total_price=Decimal('150.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=3),
+            nights=3, item_price=Decimal('150.00'),
+        )
+        resp = client.get(
+            f'/api/v1/reservations/{res.pk}/',
+            HTTP_X_MARINA_SLUG=marina.slug,
+        )
+        assert resp.status_code == 200
+        assert len(resp.data['items']) == 1
+        assert resp.data['items'][0]['nights'] == 3
+
+
 @pytest.mark.django_db
 class TestReservationSerializer:
     def test_serializer_output(self, marina_factory, berth_factory):
