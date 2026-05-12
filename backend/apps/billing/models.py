@@ -41,7 +41,6 @@ class Invoice(models.Model):
     source_type = models.CharField(max_length=50, blank=True)
     source_id = models.CharField(max_length=255, blank=True, db_index=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, default=Decimal('0.00'))
     tax_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     stripe_checkout_session_id = models.CharField(max_length=200, blank=True)
@@ -176,10 +175,7 @@ class ChargeableItem(models.Model):
         'billing.TaxRate',
         on_delete=models.PROTECT,
         related_name='chargeable_items',
-        null=True,
-        blank=True,
     )
-    tax_rate      = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     is_active                  = models.BooleanField(default=True)
     show_in_pos                = models.BooleanField(default=False)
     is_mandatory_transient_fee = models.BooleanField(default=False)
