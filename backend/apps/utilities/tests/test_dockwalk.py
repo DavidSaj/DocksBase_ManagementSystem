@@ -46,14 +46,14 @@ class DockwalkListViewTest(TestCase):
         self.client.force_authenticate(user=self.staff)
 
     def test_dockwalk_list_returns_meters(self):
-        response = self.client.get('/api/v1/dockwalk/')
+        response = self.client.get('/api/v1/utilities/dockwalk/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data['meters']), 1)
 
     def test_dockwalk_list_excludes_inactive(self):
         self.meter.is_active = False
         self.meter.save()
-        response = self.client.get('/api/v1/dockwalk/')
+        response = self.client.get('/api/v1/utilities/dockwalk/')
         self.assertEqual(len(response.data['meters']), 0)
 
 
@@ -89,7 +89,7 @@ class DockwalkReadingViewTest(TestCase):
 
     def test_reading_accepted_when_higher(self):
         response = self.client.post(
-            f'/api/v1/dockwalk/{self.meter.id}/reading/',
+            f'/api/v1/utilities/dockwalk/{self.meter.id}/reading/',
             {'reading_kwh': '1050.000', 'rollover': False},
             format='json',
         )
@@ -98,7 +98,7 @@ class DockwalkReadingViewTest(TestCase):
 
     def test_reading_rejected_when_lower_without_rollover(self):
         response = self.client.post(
-            f'/api/v1/dockwalk/{self.meter.id}/reading/',
+            f'/api/v1/utilities/dockwalk/{self.meter.id}/reading/',
             {'reading_kwh': '500.000', 'rollover': False},
             format='json',
         )
@@ -107,7 +107,7 @@ class DockwalkReadingViewTest(TestCase):
 
     def test_reading_accepted_with_rollover_flag(self):
         response = self.client.post(
-            f'/api/v1/dockwalk/{self.meter.id}/reading/',
+            f'/api/v1/utilities/dockwalk/{self.meter.id}/reading/',
             {'reading_kwh': '50.000', 'rollover': True},
             format='json',
         )
