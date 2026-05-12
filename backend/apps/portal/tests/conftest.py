@@ -126,3 +126,28 @@ def booking_factory(vessel_factory, berth_factory):
         return Booking.objects.create(**defaults)
 
     return _make
+
+
+@pytest.fixture
+def guest_booking_factory():
+    from apps.reservations.models import Booking
+    import datetime as _dt
+
+    _counter = [0]
+
+    def _make(marina, **kwargs):
+        _counter[0] += 1
+        n = _counter[0]
+        today = _dt.date.today()
+        defaults = {
+            'marina':      marina,
+            'check_in':    today,
+            'check_out':   today + _dt.timedelta(days=3),
+            'status':      'confirmed',
+            'guest_name':  f'Guest {n}',
+            'guest_email': f'guest{n}@test.com',
+        }
+        defaults.update(kwargs)
+        return Booking.objects.create(**defaults)
+
+    return _make
