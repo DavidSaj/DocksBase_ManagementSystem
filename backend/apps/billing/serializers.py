@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem
+from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem, TaxRate
+
+
+class TaxRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaxRate
+        fields = ['id', 'name', 'rate', 'is_default', 'is_archived', 'created_at']
+        read_only_fields = ['id', 'is_archived', 'created_at']
 
 
 class ChargeableItemSerializer(serializers.ModelSerializer):
@@ -9,13 +16,17 @@ class ChargeableItemSerializer(serializers.ModelSerializer):
     berth_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False,
     )
+    tax_category = TaxRateSerializer(read_only=True)
+    tax_category_id = serializers.PrimaryKeyRelatedField(
+        queryset=TaxRate.objects.all(), source='tax_category', write_only=True, required=False, allow_null=True,
+    )
 
     class Meta:
         model  = ChargeableItem
         fields = [
             'id', 'name', 'category', 'category_display',
             'pricing_model', 'pricing_model_display',
-            'unit_price', 'tax_category', 'is_active',
+            'unit_price', 'tax_category', 'tax_category_id', 'is_active',
             'show_in_pos', 'fuel_dock_type', 'is_mandatory_transient_fee',
             'created_at',
             'assigned_berths', 'berth_ids',

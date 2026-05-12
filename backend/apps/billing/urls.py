@@ -7,6 +7,7 @@ from .views import (
     BatchInvoiceView, ZReportView, InvoiceExportView,
     SubscriptionBillingView, CancelSubscriptionView, ChangePlanView,
     InvoiceCheckoutView,
+    TaxRateListCreateView, TaxRateArchiveView, TaxRateDeleteView, TaxRateSetDefaultView,
 )
 from .account_views import (
     AccountListView, AccountDetailView, RecordPaymentView, GenerateInviteView,
@@ -34,6 +35,10 @@ urlpatterns = [
     path('subscription/',         SubscriptionBillingView.as_view(), name='subscription_billing'),
     path('subscription/cancel/',  CancelSubscriptionView.as_view(),  name='subscription_cancel'),
     path('subscription/change-plan/', ChangePlanView.as_view(),      name='subscription_change_plan'),
+    path('tax-rates/',                             TaxRateListCreateView.as_view(), name='tax_rate_list'),
+    path('tax-rates/<int:pk>/',                    TaxRateDeleteView.as_view(),     name='tax_rate_delete'),
+    path('tax-rates/<int:pk>/archive/',            TaxRateArchiveView.as_view(),    name='tax_rate_archive'),
+    path('tax-rates/<int:pk>/set-default/',        TaxRateSetDefaultView.as_view(), name='tax_rate_set_default'),
     path('accounts/',                                 AccountListView.as_view(),    name='account_list'),
     path('accounts/<int:member_id>/',                 AccountDetailView.as_view(),  name='account_detail'),
     path('accounts/<int:member_id>/payments/',        RecordPaymentView.as_view(),  name='account_payments'),

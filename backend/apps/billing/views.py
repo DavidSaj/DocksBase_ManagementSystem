@@ -15,9 +15,9 @@ from rest_framework.views import APIView
 
 from . import service as billing_service
 from . import stripe_service as _stripe_svc
-from .models import Invoice, InvoiceLineItem, ChargeableItem
+from .models import Invoice, InvoiceLineItem, ChargeableItem, TaxRate
 from .pdf_service import _generate_store_and_email_pdf
-from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer
+from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer, TaxRateSerializer
 from .signals import invoice_paid
 from apps.reservations.emails import send_booking_confirmed_email
 from apps.reservations.models import Booking as BookingModel
@@ -331,6 +331,70 @@ class HTMLReceiptView(APIView):
         except Invoice.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
         return render(request, 'billing/invoice_pdf.html', {'invoice': invoice})
+
+
+class TaxRateListCreateView(generics.ListCreateAPIView):
+    serializer_class = TaxRateSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        return TaxRate.objects.filter(marina=self.request.user.marina, is_archived=False)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        tr = billing_service.create_tax_rate(
+            marina=request.user.marina,
+            name=serializer.validated_data['name'],
+            rate=serializer.validated_data['rate'],
+            is_default=serializer.validated_data.get('is_default', False),
+        )
+        return Response(TaxRateSerializer(tr).data, status=http_status.HTTP_201_CREATED)
+
+
+class TaxRateArchiveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            tr = TaxRate.objects.get(pk=pk, marina=request.user.marina)
+        except TaxRate.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+        tr.is_archived = True
+        tr.is_default = False
+        tr.save(update_fields=['is_archived', 'is_default'])
+        return Response(TaxRateSerializer(tr).data)
+
+
+class TaxRateDeleteView(generics.DestroyAPIView):
+    serializer_class = TaxRateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return TaxRate.objects.filter(marina=self.request.user.marina)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            billing_service.delete_tax_rate(instance)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http_status.HTTP_409_CONFLICT)
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
+
+
+class TaxRateSetDefaultView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            tr = TaxRate.objects.get(pk=pk, marina=request.user.marina)
+        except TaxRate.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+        if tr.is_archived:
+            return Response({'detail': 'Archived rates cannot be set as default.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        billing_service.set_default_tax_rate(tr)
+        return Response(TaxRateSerializer(tr).data)
 
 
 class ChargeableItemListCreateView(generics.ListCreateAPIView):
