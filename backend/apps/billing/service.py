@@ -4,8 +4,52 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Invoice, InvoiceLineItem, Payment
+from .models import Invoice, InvoiceLineItem, Payment, TaxRate
 from .signals import invoice_paid
+
+
+def seed_default_tax_rates(marina):
+    from decimal import Decimal as D
+    seeds = [
+        ('Standard — 20.00%', D('20.00'), True),
+        ('Zero Rated — 0.00%', D('0.00'), False),
+        ('Exempt — 0.00%',    D('0.00'), False),
+    ]
+    result = []
+    for name, rate, is_default in seeds:
+        obj, _ = TaxRate.objects.get_or_create(
+            marina=marina, name=name,
+            defaults={'rate': rate, 'is_default': is_default},
+        )
+        result.append(obj)
+    return result
+
+
+def create_tax_rate(marina, name, rate, is_default=False):
+    from decimal import Decimal as D
+    with transaction.atomic():
+        if is_default:
+            TaxRate.objects.filter(marina=marina, is_default=True).update(is_default=False)
+        return TaxRate.objects.create(
+            marina=marina, name=name, rate=D(str(rate)), is_default=is_default,
+        )
+
+
+def set_default_tax_rate(tax_rate):
+    with transaction.atomic():
+        TaxRate.objects.filter(marina=tax_rate.marina, is_default=True).update(is_default=False)
+        tax_rate.is_default = True
+        tax_rate.save(update_fields=['is_default'])
+    return tax_rate
+
+
+def delete_tax_rate(tax_rate):
+    if tax_rate.chargeable_items.exists():
+        raise ValueError(
+            f"Cannot delete '{tax_rate.name}' — ChargeableItems are still assigned to it. "
+            "Reassign or archive those items first."
+        )
+    tax_rate.delete()
 
 
 def create_invoice(marina, member=None, source_type='', source_id='', due_date=None, billing_period=''):
