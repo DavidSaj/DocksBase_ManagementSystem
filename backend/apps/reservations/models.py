@@ -191,16 +191,18 @@ class BookingRequest(models.Model):
 
 class Reservation(models.Model):
     STATUS_CHOICES = [
-        ('pending_approval', 'Pending Approval'),
-        ('awaiting_payment', 'Awaiting Payment'),
-        ('pending_payment',  'Pending Payment'),
-        ('confirmed',        'Confirmed'),
-        ('pending',          'Pending'),
-        ('checked_in',       'Checked In'),
-        ('checked_out',      'Checked Out'),
-        ('overstay',         'Overstay'),
-        ('no_show',          'No Show'),
-        ('cancelled',        'Cancelled'),
+        ('pending_approval',  'Pending Approval'),
+        ('awaiting_payment',  'Awaiting Payment'),
+        ('pending_payment',   'Pending Payment'),
+        ('pending_checkout',  'Pending Checkout'),   # tetris ran, inventory locked
+        ('confirmed',         'Confirmed'),
+        ('pending',           'Pending'),
+        ('checked_in',        'Checked In'),
+        ('checked_out',       'Checked Out'),
+        ('overstay',          'Overstay'),
+        ('no_show',           'No Show'),
+        ('cancelled',         'Cancelled'),
+        ('abandoned',         'Abandoned'),           # lock expired, inventory released
     ]
 
     marina          = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='reservations')
@@ -212,6 +214,7 @@ class Reservation(models.Model):
     paid            = models.BooleanField(default=False)
     total_price     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
+    locked_until    = models.DateTimeField(null=True, blank=True)
     waiver_envelope_id = models.CharField(max_length=255, null=True, blank=True)
     waiver_signed   = models.BooleanField(default=False)
     self_checked_in    = models.BooleanField(default=False)
@@ -272,6 +275,15 @@ class ReservationItem(models.Model):
     )
     document_gate_cleared_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('locked',    'Locked'),
+            ('confirmed', 'Confirmed'),
+            ('released',  'Released'),
+        ],
+        default='confirmed',
+    )
 
     class Meta:
         ordering = ['check_in']

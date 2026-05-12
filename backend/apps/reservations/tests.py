@@ -1409,3 +1409,25 @@ class TestCalculateReservationInvoice:
 
         invoice = calculate_reservation_invoice(res)
         assert invoice is None
+
+
+class TestReservationCheckoutFields:
+    @pytest.mark.django_db
+    def test_pending_checkout_status_is_valid_choice(self):
+        from apps.reservations.models import Reservation
+        choices = [c[0] for c in Reservation.STATUS_CHOICES]
+        assert 'pending_checkout' in choices
+        assert 'abandoned' in choices
+
+    @pytest.mark.django_db
+    def test_locked_until_field_exists(self):
+        from apps.reservations.models import Reservation
+        assert hasattr(Reservation, 'locked_until')
+
+    @pytest.mark.django_db
+    def test_reservation_item_status_field_exists_and_defaults_confirmed(self):
+        from apps.reservations.models import ReservationItem
+        assert hasattr(ReservationItem, 'status')
+        # Default is 'confirmed' — existing backfilled items remain valid
+        field = ReservationItem._meta.get_field('status')
+        assert field.default == 'confirmed'
