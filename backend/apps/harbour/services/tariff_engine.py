@@ -181,7 +181,7 @@ def calculate_and_invoice(movement: CommercialMovement):
                 quantity=Decimal('1.00'),
                 unit_price=amount,
                 total_price=amount,
-                tax_rate=tariff.chargeable_item.tax_rate,
+                tax_rate=Decimal(str(tariff.chargeable_item.tax_category.rate)),
             )
 
         subtotal = sum(item.total_price for item in invoice.items.all())

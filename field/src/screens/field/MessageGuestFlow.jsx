@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../../api.js';
+import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#1a2d4a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44 };
-const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#1a2d4a', color: '#fff', border: 'none', fontSize: 17, fontWeight: 700, cursor: 'pointer' };
+const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
+const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#0c1f3d', color: '#fff', border: 'none', fontSize: 17, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' };
 
 const ACTIVE_STATUSES = ['checked_in', 'confirmed', 'pending'];
 
@@ -28,12 +29,10 @@ export default function MessageGuestFlow({ onBack }) {
   const [sentTo, setSentTo]           = useState(null);
 
   useEffect(() => {
-    // Fetch all active statuses in parallel
     Promise.all(
       ACTIVE_STATUSES.map(s => api.get('/bookings/', { params: { status: s } }).then(r => r.data.results ?? r.data))
     ).then(results => {
       const merged = results.flat();
-      // Deduplicate by id (shouldn't happen but be safe)
       const seen = new Set();
       setAllBookings(merged.filter(b => { if (seen.has(b.id)) return false; seen.add(b.id); return true; }));
     }).finally(() => setLoading(false));
@@ -67,16 +66,17 @@ export default function MessageGuestFlow({ onBack }) {
     }
   }
 
-  // ── Success screen ────────────────────────────────────────────────────────
   if (sentTo) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+      <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
         <div style={HDR}>
-          <button style={BACK_BTN} onClick={onBack}>←</button>
+          <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
           <span style={{ fontSize: 16, fontWeight: 700 }}>Message Guest</span>
         </div>
         <div style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>✉️</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <Icon name="send" size={48} color="#0c1f3d" strokeWidth={1.5} />
+          </div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Message sent</div>
           <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.5)', marginBottom: 28 }}>
             Message sent to {sentTo}
@@ -87,17 +87,15 @@ export default function MessageGuestFlow({ onBack }) {
     );
   }
 
-  // ── Compose screen ────────────────────────────────────────────────────────
   if (selected) {
     const berth = berthCode(selected);
     return (
-      <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+      <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
         <div style={HDR}>
-          <button style={BACK_BTN} onClick={() => { setSelected(null); setMessage(''); setError(null); }}>←</button>
+          <button style={BACK_BTN} onClick={() => { setSelected(null); setMessage(''); setError(null); }}><Icon name="arrow-left" size={22} color="#fff" /></button>
           <span style={{ fontSize: 16, fontWeight: 700 }}>Message Guest</span>
         </div>
         <div style={{ padding: 20 }}>
-          {/* Booking summary */}
           <div style={{ background: '#fff', borderRadius: 14, padding: 18, marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{vesselLabel(selected)}</div>
             {berth && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 2 }}>Berth {berth}</div>}
@@ -106,8 +104,7 @@ export default function MessageGuestFlow({ onBack }) {
             )}
           </div>
 
-          {/* Message textarea */}
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>
             Message
           </div>
           <textarea
@@ -125,26 +122,21 @@ export default function MessageGuestFlow({ onBack }) {
           {error && <div style={{ color: '#c0392b', fontSize: 13, marginBottom: 10, textAlign: 'center' }}>{error}</div>}
 
           <button
-            style={{
-              ...ACTION_BTN,
-              opacity: message.trim() ? 1 : 0.4,
-              cursor: message.trim() ? 'pointer' : 'default',
-            }}
+            style={{ ...ACTION_BTN, opacity: message.trim() ? 1 : 0.4, cursor: message.trim() ? 'pointer' : 'default' }}
             disabled={!message.trim() || sending}
             onClick={handleSend}
           >
-            {sending ? 'Sending…' : '💬 Send Message'}
+            {sending ? 'Sending…' : 'Send Message'}
           </button>
         </div>
       </div>
     );
   }
 
-  // ── Booking list ──────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
       <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}>←</button>
+        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
         <span style={{ fontSize: 16, fontWeight: 700 }}>Message Guest</span>
       </div>
       <div style={{ position: 'sticky', top: 0, background: '#fff', padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.08)', zIndex: 10 }}>
@@ -160,7 +152,9 @@ export default function MessageGuestFlow({ onBack }) {
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
       ) : filtered.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="message-square" size={36} color="rgba(0,0,0,0.25)" />
+          </div>
           <div style={{ fontSize: 15 }}>{search ? 'No matches.' : 'No active bookings.'}</div>
         </div>
       ) : (

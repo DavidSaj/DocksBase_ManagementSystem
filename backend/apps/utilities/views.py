@@ -27,6 +27,7 @@ from apps.utilities.models import (
     BollardFaultLog,
     MeterOutageAlert,
     MeterReading,
+    PendingUtilityCharge,
     ServiceBollard,
     SmartMeter,
     UtilityWallet,
@@ -36,6 +37,7 @@ from apps.utilities.models import (
 from apps.utilities.serializers import (
     BollardFaultLogSerializer,
     BollardSwitchSerializer,
+    DockwalkMeterSerializer,
     MeterOutageAlertSerializer,
     MeterReadingCreateSerializer,
     MeterReadingSerializer,
@@ -483,3 +485,153 @@ class WashTokenRedeemView(APIView):
             'facility':   token.facility,
             'token_code': token.token_code,
         })
+
+
+# ---------------------------------------------------------------------------
+# Dockwalk — staff pier-walk meter list and manual reading entry
+# ---------------------------------------------------------------------------
+
+class DockwalkListView(APIView):
+    """
+    GET /api/v1/dockwalk/
+
+    Returns all active meters for the authenticated user's marina,
+    ordered by pier then berth then meter_type, with last reading summary.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        meters = (
+            SmartMeter.objects
+            .filter(marina=_marina(request), is_active=True)
+            .select_related('berth__pier')
+            .prefetch_related('readings')
+            .order_by('berth__pier__code', 'berth__code', 'meter_type')
+        )
+        return Response({'meters': DockwalkMeterSerializer(meters, many=True).data})
+
+
+class DockwalkReadingView(APIView):
+    """
+    POST /api/v1/dockwalk/<meter_id>/reading/
+
+    Accepts a manual meter reading from dock staff.
+    Body: { reading_kwh?, reading_m3?, rollover? }
+
+    - If new_value < last_value and rollover=False → 400 "Reading is lower than last entry"
+    - If new_value < last_value and rollover=True  → accepted; delta = new_value (meter reset)
+    - Creates MeterReading(source='manual')
+    - If a checked-in booking exists on the berth and the vessel has a member owner,
+      creates a PendingUtilityCharge staging record.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, meter_id):
+        from decimal import Decimal as D
+
+        try:
+            meter = SmartMeter.objects.select_related('berth').get(
+                id=meter_id, marina=_marina(request), is_active=True,
+            )
+        except SmartMeter.DoesNotExist:
+            return Response({'detail': 'Meter not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        rollover = bool(request.data.get('rollover', False))
+
+        raw_kwh = request.data.get('reading_kwh')
+        raw_m3  = request.data.get('reading_m3')
+        if raw_kwh is None and raw_m3 is None:
+            return Response(
+                {'detail': 'reading_kwh or reading_m3 is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            new_kwh = D(str(raw_kwh)) if raw_kwh is not None else None
+            new_m3  = D(str(raw_m3))  if raw_m3  is not None else None
+        except Exception:
+            return Response({'detail': 'Invalid reading value.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_electricity = new_kwh is not None
+        new_value = new_kwh if is_electricity else new_m3
+
+        last = meter.readings.order_by('-recorded_at').first()
+        if last:
+            last_value = last.reading_kwh if is_electricity else last.reading_m3
+            if last_value is not None and new_value < last_value and not rollover:
+                return Response(
+                    {'detail': f'Reading is lower than last entry ({last_value}). Check the meter or mark as rollover.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if rollover or last is None:
+            delta = new_value
+        else:
+            last_value = (last.reading_kwh if is_electricity else last.reading_m3) or D('0')
+            delta = new_value - last_value
+
+        reading = MeterReading.objects.create(
+            meter=meter,
+            reading_kwh=new_kwh,
+            reading_m3=new_m3,
+            recorded_at=timezone.now(),
+            source='manual',
+        )
+
+        self._stage_charge(meter, reading, delta, is_electricity, rollover)
+
+        meter.last_polled = timezone.now()
+        meter.save(update_fields=['last_polled'])
+
+        return Response(
+            {'reading_id': reading.id, 'delta': str(delta), 'rollover': rollover},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _stage_charge(self, meter, reading, delta, is_electricity, rollover):
+        from decimal import Decimal as D
+        from apps.billing.models import ChargeableItem
+        from apps.reservations.models import Booking
+
+        if delta <= 0:
+            return
+        if meter.berth is None:
+            return
+
+        active_booking = (
+            Booking.objects
+            .filter(berth=meter.berth, status='checked_in')
+            .select_related('vessel__owner')
+            .first()
+        )
+        if active_booking is None:
+            return
+        vessel = getattr(active_booking, 'vessel', None)
+        if vessel is None:
+            return
+        member = getattr(vessel, 'owner', None)
+        if member is None:
+            return
+
+        pricing_model = 'per_kwh' if is_electricity else 'per_m3'
+        rate_item = ChargeableItem.objects.filter(
+            marina=meter.marina,
+            category='utility',
+            pricing_model=pricing_model,
+            is_active=True,
+        ).first()
+        if rate_item is None:
+            return
+
+        amount = (delta * rate_item.unit_price).quantize(D('0.01'))
+        PendingUtilityCharge.objects.create(
+            marina=meter.marina,
+            member=member,
+            meter=meter,
+            meter_reading=reading,
+            kwh_delta=delta if is_electricity else None,
+            m3_delta=delta if not is_electricity else None,
+            unit_price=rate_item.unit_price,
+            amount=amount,
+            rollover=rollover,
+        )

@@ -135,6 +135,11 @@ def send_booking_confirmed_email(booking):
             (f'<p style="font-size:14px;color:{_MUTED};margin:0 0 24px;">Need help? Contact the marina: <a href="mailto:{marina.contact_email}" style="color:{_NAVY};">{contact_line}</a></p>' if contact_line else '') +
             _p("Use the button below to access your digital boarding pass, complete pre-arrival checks, and find your berth on arrival.") +
             _btn(magic_url, "Open Boarding Pass →") +
+            _p(
+                f'No link? Visit <a href="{magic_url.split("?")[0]}" style="color:{_NAVY};">'
+                f'{magic_url.split("?")[0]}</a> and enter your Booking ID '
+                f'<strong>BK-{booking.pk}</strong> with your email address to sign in instantly.'
+            ) +
             _divider() +
             _small("This link is personal — please don't share it. It expires after 72 hours but you can request a new one at any time.")
         ),
@@ -160,11 +165,105 @@ def send_booking_confirmed_email(booking):
             f"Amount paid: {amount}\n\n"
             f"{contact_txt}"
             f"Open your boarding pass: {magic_url}\n\n"
+            f"No link? Visit {magic_url.split('?')[0]} and enter Booking ID BK-{booking.pk} with your email.\n\n"
             "This link expires in 72 hours.\n\n"
             f"— {marina.name}"
         ),
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[booking.guest_email],
+        html_message=html,
+        fail_silently=True,
+    )
+
+
+def send_reservation_confirmed_email(reservation):
+    """
+    Sends booking confirmation to reservation.guest_email.
+    Includes RES-{pk} reference prominently (airline-style PNR) and a magic
+    deep-link that authenticates the boater directly into their Boarding Pass.
+    """
+    from apps.portal.checkin_utils import make_reservation_magic_url
+    from apps.accounts.emails import _base, _h1, _p, _btn, _divider, _small, _NAVY, _MUTED, _TEXT
+
+    marina = reservation.marina
+    magic_url = make_reservation_magic_url(reservation)
+    guest = reservation.guest_name or 'there'
+    reference = f'RES-{reservation.pk}'
+
+    items = list(reservation.items.select_related('berth').filter(status='confirmed'))
+
+    check_in  = items[0].check_in.strftime('%d %B %Y') if items else '—'
+    check_out = items[0].check_out.strftime('%d %B %Y') if items else '—'
+    nights    = items[0].nights if items else 0
+
+    berth_rows_html = ''.join(
+        f'<strong>Berth {i+1}:</strong> {item.berth.code if item.berth_id else "TBD"}'
+        f'{(" — " + item.vessel_name) if item.vessel_name else ""}<br/>'
+        for i, item in enumerate(items)
+    )
+    berth_rows_txt = '\n'.join(
+        f'Berth {i+1}: {item.berth.code if item.berth_id else "TBD"}'
+        f'{(" — " + item.vessel_name) if item.vessel_name else ""}'
+        for i, item in enumerate(items)
+    )
+
+    contact_parts = []
+    if getattr(marina, 'contact_email', None):
+        contact_parts.append(marina.contact_email)
+    if getattr(marina, 'phone', None):
+        contact_parts.append(marina.phone)
+    contact_line = ' · '.join(contact_parts)
+
+    total_str = f'€{reservation.total_price:.2f}' if reservation.total_price is not None else '—'
+
+    html = _base(
+        preheader=f"Your reservation at {marina.name} is confirmed — reference {reference}.",
+        body_html=(
+            _h1("Your reservation is confirmed") +
+            _p(f"Hi {guest},") +
+            _p(f"Great news — your reservation at <strong>{marina.name}</strong> is confirmed and payment has been received.") +
+            f"""<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 24px;border:1px solid rgba(0,0,0,0.08);border-radius:8px;overflow:hidden;">
+              <tr style="background:#f8f8f8;"><td style="padding:10px 16px;font-size:12px;font-weight:600;color:{_MUTED};text-transform:uppercase;letter-spacing:0.5px;">Reservation details</td></tr>
+              <tr><td style="padding:12px 16px;font-size:14px;color:{_TEXT};border-top:1px solid rgba(0,0,0,0.06);">
+                <strong>Reference:</strong> {reference}<br/>
+                <strong>Marina:</strong> {marina.name}<br/>
+                {berth_rows_html}
+                <strong>Arrival:</strong> {check_in}<br/>
+                <strong>Departure:</strong> {check_out}<br/>
+                <strong>Nights:</strong> {nights}<br/>
+                <strong>Total paid:</strong> {total_str}
+              </td></tr>
+            </table>""" +
+            (f'<p style="font-size:14px;color:{_MUTED};margin:0 0 24px;">Need help? <a href="mailto:{marina.contact_email}" style="color:{_NAVY};">{contact_line}</a></p>' if contact_line else '') +
+            _p("Use the button below to access your digital boarding pass, complete pre-arrival checks, and find your berth on arrival.") +
+            _btn(magic_url, "Open Boarding Pass →") +
+            _p(
+                f'No link? Visit the marina portal and enter your reference '
+                f'<strong>{reference}</strong> with your email address.'
+            ) +
+            _divider() +
+            _small("This link is personal — please don't share it. It expires after 72 hours but you can request a new one at any time.")
+        ),
+    )
+
+    send_mail(
+        subject=f"Reservation confirmed — {marina.name}, {check_in} ({reference})",
+        message=(
+            f"Hi {guest},\n\n"
+            f"Your reservation at {marina.name} is confirmed.\n\n"
+            f"Reference: {reference}\n"
+            f"{berth_rows_txt}\n"
+            f"Arrival: {check_in}\n"
+            f"Departure: {check_out}\n"
+            f"Nights: {nights}\n"
+            f"Total paid: {total_str}\n\n"
+            f"Open your boarding pass: {magic_url}\n\n"
+            f"No link? Enter {reference} with your email at the marina portal.\n\n"
+            "This link expires in 72 hours.\n\n"
+            f"— {marina.name}"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[reservation.guest_email],
         html_message=html,
         fail_silently=True,
     )

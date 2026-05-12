@@ -8,6 +8,7 @@ urlpatterns = [
     path('api/v1/', include([
         path('auth/', include('apps.accounts.urls')),
         path('admin/', include('apps.admin_portal.urls')),
+        path('enterprise/', include('apps.enterprise.urls')),
         path('', include('apps.berths.urls')),
         path('', include('apps.reservations.urls')),
         path('', include('apps.vessels.urls')),
@@ -34,7 +35,7 @@ urlpatterns = [
         path('', include('apps.loyalty.urls')),
         path('', include('apps.accounting.urls')),
         path('', include('apps.movements.urls')),
-        path('', include('apps.utilities.urls')),
+        path('utilities/', include('apps.utilities.urls')),
         path('', include('apps.activities.urls')),
         path('', include('apps.housekeeping.urls')),
         path('', include('apps.charter.urls')),

@@ -1,15 +1,21 @@
+import hashlib
+import hmac as _hmac
+import json as _json
 import logging
 
 _log = logging.getLogger(__name__)
 
 from django.core import signing
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Marina
+from apps.berths.models import Amenity
 from apps.reservations.models import Booking
 from apps.documents.models import DocTemplate
 from apps.documents.services import create_embedded_sign_url, get_existing_embedded_sign_url
@@ -17,8 +23,17 @@ from .checkin_auth import PortalTokenAuthentication
 from .checkin_serializers import PortalBookingSerializer
 from .checkin_utils import (
     decode_magic_token, make_portal_token,
-    evaluate_pre_cleared,
+    evaluate_pre_cleared, make_reservation_portal_token,
 )
+
+_DS_ACK = 'Hello API Event Received'
+_DS_ALL_SIGNED = 'signature_request_all_signed'
+
+
+def _verify_ds_hmac(api_key: str, event_time: str, event_type: str, event_hash: str) -> bool:
+    msg = (str(event_time) + event_type).encode()
+    computed = _hmac.new(api_key.encode(), msg, hashlib.sha256).hexdigest()
+    return _hmac.compare_digest(computed, event_hash)
 
 
 class MagicAuthView(APIView):
@@ -35,6 +50,29 @@ class MagicAuthView(APIView):
             _log.warning('MagicAuth BAD_SIGNATURE: %s | token_prefix=%s', e, (token or '')[:30])
             return Response({'detail': 'Invalid or expired link.'}, status=status.HTTP_401_UNAUTHORIZED)
 
+        _log.info('MagicAuth decoded OK: payload keys=%s', list(payload.keys()))
+
+        if 'reservation_id' in payload:
+            from apps.reservations.models import Reservation
+            try:
+                reservation = Reservation.objects.select_related('marina').get(
+                    pk=payload['reservation_id'],
+                    guest_email=payload['boater_email'],
+                )
+            except Reservation.DoesNotExist:
+                return Response({'detail': 'Reservation not found.'}, status=status.HTTP_401_UNAUTHORIZED)
+            session_token = make_reservation_portal_token(
+                reservation_id=reservation.pk,
+                marina_slug=reservation.marina.slug,
+                boater_email=reservation.guest_email,
+            )
+            return Response({
+                'token': session_token,
+                'reservation_id': reservation.pk,
+                'marina_slug': reservation.marina.slug,
+            })
+
+        # Legacy: booking_id in payload
         _log.info('MagicAuth decoded OK: booking_id=%s email=%s', payload.get('booking_id'), payload.get('boater_email'))
         try:
             booking = Booking.objects.select_related('marina').get(
@@ -197,6 +235,67 @@ class WaiverView(PortalBookingMixin, APIView):
 
 
 
+class DropboxSignWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, marina_slug):
+        # 1. Resolve marina from URL — never from the payload.
+        try:
+            marina = Marina.objects.get(slug=marina_slug)
+        except Marina.DoesNotExist:
+            return Response({'detail': 'not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Require a configured API key — fail hard, never open.
+        api_key = marina.dropboxsign_api_key
+        if not api_key:
+            _log.warning('DropboxSign webhook: no API key for marina %s', marina_slug)
+            return Response({'detail': 'webhook not configured.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # 3. Parse body. DS posts form-encoded with a 'json' field.
+        raw = request.data.get('json', '')
+        try:
+            payload = _json.loads(raw) if isinstance(raw, str) else (raw or {})
+        except (ValueError, TypeError):
+            return Response({'detail': 'invalid payload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event = payload.get('event', {})
+        event_type = event.get('event_type', '')
+        event_time = str(event.get('event_time', ''))
+        event_hash = event.get('event_hash', '')
+
+        # 4. Validate HMAC — fail hard on mismatch.
+        if not _verify_ds_hmac(api_key, event_time, event_type, event_hash):
+            _log.warning('DropboxSign webhook: HMAC mismatch for marina %s', marina_slug)
+            return Response({'detail': 'invalid signature.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # 5. Acknowledge non-target events — DS sends several types.
+        if event_type != _DS_ALL_SIGNED:
+            return HttpResponse(_DS_ACK)
+
+        # 6. Process the booking.
+        sig_request = payload.get('signature_request', {})
+        metadata = sig_request.get('metadata', {})
+        booking_id = metadata.get('booking_id')
+
+        if not booking_id:
+            _log.warning('DropboxSign webhook: missing booking_id in metadata, marina %s', marina_slug)
+            return HttpResponse(_DS_ACK)
+
+        try:
+            booking = Booking.objects.get(pk=booking_id, marina=marina)
+        except Booking.DoesNotExist:
+            _log.warning('DropboxSign webhook: booking %s not found for marina %s', booking_id, marina_slug)
+            return HttpResponse(_DS_ACK)
+
+        if not booking.waiver_signed:
+            booking.waiver_signed = True
+            booking.save(update_fields=['waiver_signed'])
+            evaluate_pre_cleared(booking)
+
+        return HttpResponse(_DS_ACK)
+
+
 class InsuranceUploadView(PortalBookingMixin, APIView):
     parser_classes = [MultiPartParser]
 
@@ -212,3 +311,20 @@ class InsuranceUploadView(PortalBookingMixin, APIView):
         booking.insurance_doc = file
         booking.save(update_fields=['insurance_doc'])
         return Response(PortalBookingSerializer(booking).data)
+
+
+class PortalGuestMapView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'error': 'X-Marina-Slug header is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        marina = request.tenant
+        amenities = Amenity.objects.filter(marina=marina).values(
+            'type', 'label', 'canvas_x', 'canvas_y', 'scale', 'rotation'
+        )
+        return Response({
+            'app_config': marina.app_config or {},
+            'amenities': list(amenities),
+        })

@@ -1024,3 +1024,912 @@ class FindDateAlternativesTest(TestCase):
         for r in results:
             self.assertGreaterEqual(r['check_in'], timezone.localdate())
 
+
+import pytest
+import datetime as _dt
+from decimal import Decimal as _Decimal
+
+
+@pytest.fixture
+def marina_factory():
+    def _make(**kwargs):
+        return Marina.objects.create(name=kwargs.get('name', 'Test Marina'))
+    return _make
+
+
+@pytest.fixture
+def berth_factory():
+    def _make(marina, code=None, price=100):
+        import random
+        from apps.billing.models import TaxRate
+        _code = code or f'B{random.randint(10, 9999)}'
+        pier, _ = Pier.objects.get_or_create(
+            marina=marina, code='P', defaults={'label': 'Pytest Pier'}
+        )
+        tax_rate, _ = TaxRate.objects.get_or_create(
+            marina=marina, name='VAT', defaults={'rate': '0.00'}
+        )
+        tier = ChargeableItem.objects.create(
+            marina=marina, name='Berth Night', category='berth',
+            pricing_model='per_night', unit_price=price,
+            tax_category=tax_rate,
+        )
+        return Berth.objects.create(
+            marina=marina, pier=pier, code=_code, pricing_tier=tier, status='available'
+        )
+    return _make
+
+
+@pytest.mark.django_db
+class TestInvoiceReservationFK:
+    def test_invoice_reservation_field_exists(self, marina_factory, berth_factory):
+        from apps.billing.models import Invoice
+        from apps.reservations.models import Reservation
+        from decimal import Decimal
+
+        marina = marina_factory()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Invoice Test',
+            guest_email='inv@test.com',
+            status='confirmed',
+            total_price=Decimal('150.00'),
+        )
+        inv = Invoice.objects.create(
+            marina=marina,
+            invoice_number='INV-2026-9999',
+            status='draft',
+            reservation=res,
+        )
+        assert Invoice.objects.get(pk=inv.pk).reservation_id == res.pk
+
+
+@pytest.mark.django_db
+class TestReservationModel:
+    def test_reservation_str(self, marina_factory):
+        from apps.reservations.models import Reservation
+        marina = marina_factory()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Alice',
+            guest_email='alice@test.com',
+            status='confirmed',
+            total_price=_Decimal('200.00'),
+        )
+        assert 'RES-' in str(res)
+        assert 'Alice' in str(res)
+
+    def test_reservation_item_str(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = _dt.date.today()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Bob',
+            guest_email='bob@test.com',
+            status='confirmed',
+            total_price=_Decimal('100.00'),
+        )
+        item = ReservationItem.objects.create(
+            reservation=res,
+            berth=berth,
+            check_in=today,
+            check_out=today + _dt.timedelta(days=2),
+            nights=2,
+            item_price=_Decimal('100.00'),
+        )
+        assert berth.code in str(item)
+
+    def test_reservation_total_price_sum_of_items(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        marina = marina_factory()
+        berth1 = berth_factory(marina=marina)
+        berth2 = berth_factory(marina=marina)
+        today = _dt.date.today()
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Fleet Owner',
+            guest_email='fleet@test.com',
+            status='confirmed',
+            total_price=_Decimal('0.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth1,
+            check_in=today, check_out=today + _dt.timedelta(days=2),
+            nights=2, item_price=_Decimal('150.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth2,
+            check_in=today, check_out=today + _dt.timedelta(days=2),
+            nights=2, item_price=_Decimal('90.00'),
+        )
+        total = sum(i.item_price for i in res.items.all())
+        assert total == _Decimal('240.00')
+
+
+@pytest.mark.django_db
+class TestBackfillMigration:
+    def test_every_booking_gets_reservation(self, marina_factory, berth_factory):
+        from apps.reservations.models import Booking, Reservation, ReservationItem
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        b = Booking.objects.create(
+            marina=marina,
+            berth=berth,
+            check_in=today,
+            check_out=today + datetime.timedelta(days=3),
+            nights=3,
+            guest_name='Test Guest',
+            guest_email='test@test.com',
+            amount=Decimal('300.00'),
+            status='confirmed',
+            booking_source='portal',
+            boat_loa=Decimal('12.00'),
+        )
+
+        # Run the backfill function directly (same logic as the migration)
+        from apps.reservations.migrations._backfill_helpers import backfill_booking
+        backfill_booking(b)
+
+        res = Reservation.objects.get(legacy_booking=b)
+        res.refresh_from_db()
+        assert res.marina_id == marina.pk
+        assert res.guest_email == 'test@test.com'
+        assert res.total_price == Decimal('300.00')
+        assert res.status == 'confirmed'
+        assert res.booking_source == 'portal'
+        assert res.created_at.date() == b.created_at.date()
+
+        item = res.items.get()
+        assert item.berth_id == berth.pk
+        assert item.check_in == today
+        assert item.nights == 3
+        assert item.item_price == Decimal('300.00')
+        assert item.boat_loa == Decimal('12.00')
+
+    def test_backfill_is_idempotent(self, marina_factory, berth_factory):
+        from apps.reservations.models import Booking, Reservation
+        from apps.reservations.migrations._backfill_helpers import backfill_booking
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        b = Booking.objects.create(
+            marina=marina, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=1),
+            nights=1, guest_name='Repeat', guest_email='r@test.com',
+            amount=Decimal('100.00'), status='confirmed',
+        )
+        backfill_booking(b)
+        backfill_booking(b)  # second call must not create duplicates
+        assert Reservation.objects.filter(legacy_booking=b).count() == 1
+
+
+@pytest.fixture
+def api_client_factory():
+    from rest_framework.test import APIClient
+    from apps.accounts.models import User
+
+    def factory(marina):
+        client = APIClient()
+        user = User.objects.create_user(
+            email=f'staff_{marina.slug}@test.com',
+            password='testpass',
+            marina=marina,
+            role='manager',
+        )
+        client.force_authenticate(user=user)
+        return client
+
+    return factory
+
+
+@pytest.mark.django_db
+class TestReservationAPI:
+    def test_list_reservations(self, api_client_factory, marina_factory, berth_factory):
+        """Staff can list reservations for their marina."""
+        from apps.reservations.models import Reservation
+        from decimal import Decimal
+
+        marina = marina_factory()
+        client = api_client_factory(marina=marina)
+
+        Reservation.objects.create(
+            marina=marina, guest_name='API Guest',
+            guest_email='api@test.com', status='confirmed',
+            total_price=Decimal('100.00'),
+        )
+        resp = client.get(
+            '/api/v1/reservations/',
+            HTTP_X_MARINA_SLUG=marina.slug,
+        )
+        assert resp.status_code == 200
+        assert len(resp.data) == 1
+        assert resp.data[0]['guest_email'] == 'api@test.com'
+
+    def test_reservation_detail_includes_items(self, api_client_factory, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from decimal import Decimal
+        import datetime
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+        client = api_client_factory(marina=marina)
+
+        res = Reservation.objects.create(
+            marina=marina, guest_name='Detail Test',
+            guest_email='detail@test.com', status='confirmed',
+            total_price=Decimal('150.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=3),
+            nights=3, item_price=Decimal('150.00'),
+        )
+        resp = client.get(
+            f'/api/v1/reservations/{res.pk}/',
+            HTTP_X_MARINA_SLUG=marina.slug,
+        )
+        assert resp.status_code == 200
+        assert len(resp.data['items']) == 1
+        assert resp.data['items'][0]['nights'] == 3
+
+
+@pytest.mark.django_db
+class TestReservationSerializer:
+    def test_serializer_output(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.reservations.serializers import ReservationSerializer
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Serializer Test',
+            guest_email='ser@test.com',
+            status='confirmed',
+            total_price=Decimal('200.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            nights=2, item_price=Decimal('200.00'),
+        )
+        data = ReservationSerializer(res).data
+        assert data['id'] == res.pk
+        assert data['guest_email'] == 'ser@test.com'
+        assert data['status'] == 'confirmed'
+        assert len(data['items']) == 1
+        assert data['items'][0]['berth_code'] is not None
+
+
+@pytest.fixture
+def chargeable_item_factory():
+    def factory(marina, category='berth', pricing_model='per_night', unit_price=None):
+        from apps.billing.models import ChargeableItem, TaxRate
+        from decimal import Decimal
+        tax_rate, _ = TaxRate.objects.get_or_create(
+            marina=marina, name='Standard — 20.00%',
+            defaults={'rate': Decimal('20.00'), 'is_default': True},
+        )
+        return ChargeableItem.objects.create(
+            marina=marina,
+            name='Berth Fee',
+            category=category,
+            pricing_model=pricing_model,
+            unit_price=unit_price or Decimal('50.00'),
+            is_active=True,
+            tax_category=tax_rate,
+        )
+    return factory
+
+
+@pytest.mark.django_db
+class TestCalculateReservationInvoice:
+    def test_two_slips_produce_two_line_items(self, marina_factory, berth_factory, chargeable_item_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.billing.service import calculate_reservation_invoice
+        from apps.billing.models import Invoice, ChargeableItem
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth1 = berth_factory(marina=marina)
+        berth2 = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        # Deactivate berth_factory catalog items so only our 50.00 item is active
+        ChargeableItem.objects.filter(marina=marina).update(is_active=False)
+
+        # A ChargeableItem must exist for the marina to price berths
+        item = chargeable_item_factory(marina=marina, category='berth', pricing_model='per_night', unit_price=Decimal('50.00'))
+
+        res = Reservation.objects.create(
+            marina=marina, guest_name='Two Slips',
+            guest_email='two@test.com', status='confirmed',
+            total_price=Decimal('0.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth1,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            nights=2, item_price=Decimal('100.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth2,
+            check_in=today, check_out=today + datetime.timedelta(days=3),
+            nights=3, item_price=Decimal('150.00'),
+        )
+
+        invoice = calculate_reservation_invoice(res)
+        assert invoice is not None
+        assert invoice.reservation_id == res.pk
+        assert invoice.items.count() == 2
+
+        totals = sorted(str(i.total_price) for i in invoice.items.all())
+        assert totals == ['100.00', '150.00']
+
+    def test_returns_none_when_no_chargeable_item(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.billing.service import calculate_reservation_invoice
+        from apps.billing.models import ChargeableItem
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        # Deactivate all catalog items so the function has nothing to price with
+        ChargeableItem.objects.filter(marina=marina).update(is_active=False)
+
+        res = Reservation.objects.create(
+            marina=marina, guest_name='No Catalog',
+            guest_email='nc@test.com', status='confirmed',
+            total_price=Decimal('100.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=1),
+            nights=1, item_price=Decimal('100.00'),
+        )
+
+        invoice = calculate_reservation_invoice(res)
+        assert invoice is None
+
+
+class TestReservationCheckoutFields:
+    @pytest.mark.django_db
+    def test_pending_checkout_status_is_valid_choice(self):
+        from apps.reservations.models import Reservation
+        choices = [c[0] for c in Reservation.STATUS_CHOICES]
+        assert 'pending_checkout' in choices
+        assert 'abandoned' in choices
+
+    @pytest.mark.django_db
+    def test_locked_until_field_exists(self):
+        from apps.reservations.models import Reservation
+        assert hasattr(Reservation, 'locked_until')
+
+    @pytest.mark.django_db
+    def test_reservation_item_status_field_exists_and_defaults_confirmed(self):
+        from apps.reservations.models import ReservationItem
+        assert hasattr(ReservationItem, 'status')
+        # Default is 'confirmed' — existing backfilled items remain valid
+        field = ReservationItem._meta.get_field('status')
+        assert field.default == 'confirmed'
+
+
+# ── Fixtures for assign_berth tests ─────────────────────────────────────────
+
+@pytest.fixture
+def ab_marina():
+    from apps.accounts.models import Marina
+    return Marina.objects.create(name='AB Marina', slug='ab-marina', booking_mode='auto_tetris')
+
+@pytest.fixture
+def ab_tax_rate(ab_marina):
+    from apps.billing.models import TaxRate
+    return TaxRate.objects.create(marina=ab_marina, name='Zero', rate=Decimal('0.00'))
+
+@pytest.fixture
+def ab_tier(ab_marina, ab_tax_rate):
+    from apps.billing.models import ChargeableItem
+    return ChargeableItem.objects.create(
+        marina=ab_marina, name='Berth', category='berth',
+        pricing_model='per_night', unit_price=Decimal('100.00'),
+        tax_category=ab_tax_rate, is_active=True,
+    )
+
+@pytest.fixture
+def ab_berth(ab_marina, ab_tier):
+    from apps.berths.models import Berth
+    return Berth.objects.create(
+        marina=ab_marina, code='AB1',
+        length_m=Decimal('15.00'), max_beam_m=Decimal('5.00'),
+        pricing_tier=ab_tier,
+    )
+
+
+class TestAssignBerth:
+    @pytest.mark.django_db(transaction=True)
+    def test_returns_berth_and_price(self, ab_marina, ab_berth):
+        from django.db import transaction
+        from apps.reservations.booking_engine import assign_berth
+        ci = datetime.date(2027, 7, 1)
+        co = datetime.date(2027, 7, 4)  # 3 nights
+        with transaction.atomic():
+            berth, price = assign_berth(ab_marina, ci, co, boat_loa=12.0)
+        assert berth.pk == ab_berth.pk
+        assert price == Decimal('300.00')  # 100/night × 3 nights
+
+    @pytest.mark.django_db(transaction=True)
+    def test_raises_when_berth_too_small(self, ab_marina, ab_berth):
+        from django.db import transaction
+        from apps.reservations.booking_engine import assign_berth, NoAvailableBerthError
+        ci = datetime.date(2027, 8, 1)
+        co = datetime.date(2027, 8, 4)
+        with transaction.atomic():
+            with pytest.raises(NoAvailableBerthError):
+                assign_berth(ab_marina, ci, co, boat_loa=99.0)  # boat too big
+
+    @pytest.mark.django_db(transaction=True)
+    def test_skips_berth_already_locked_by_reservation_item(self, ab_marina, ab_berth):
+        from django.db import transaction
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.reservations.booking_engine import assign_berth, NoAvailableBerthError
+        ci = datetime.date(2027, 9, 1)
+        co = datetime.date(2027, 9, 4)
+        res = Reservation.objects.create(marina=ab_marina, status='pending_checkout')
+        ReservationItem.objects.create(
+            reservation=res, berth=ab_berth,
+            check_in=ci, check_out=co, nights=3, status='locked',
+        )
+        with transaction.atomic():
+            with pytest.raises(NoAvailableBerthError):
+                assign_berth(ab_marina, ci, co, boat_loa=12.0)
+
+
+class TestSendReservationConfirmedEmail:
+    @pytest.mark.django_db
+    def test_sends_to_guest_email_with_reference(self, ab_marina, ab_berth):
+        from django.core import mail
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.reservations.emails import send_reservation_confirmed_email
+
+        res = Reservation.objects.create(
+            marina=ab_marina,
+            guest_name='Test Sailor',
+            guest_email='sailor@test.com',
+            status='confirmed',
+            paid=True,
+            total_price=Decimal('300.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res,
+            berth=ab_berth,
+            check_in=datetime.date(2027, 7, 1),
+            check_out=datetime.date(2027, 7, 4),
+            nights=3,
+            status='confirmed',
+        )
+
+        send_reservation_confirmed_email(res)
+
+        assert len(mail.outbox) == 1
+        msg = mail.outbox[0]
+        assert msg.to == ['sailor@test.com']
+        assert f'RES-{res.pk}' in msg.body
+
+
+def _make_intent_marina(slug='intent-marina'):
+    from apps.accounts.models import Marina
+    from apps.billing.models import TaxRate, ChargeableItem
+    from apps.berths.models import Berth
+    marina = Marina.objects.create(
+        name='Intent Marina', slug=slug,
+        booking_mode='auto_tetris',
+    )
+    tax = TaxRate.objects.create(marina=marina, name='Zero', rate=Decimal('0.00'))
+    tier = ChargeableItem.objects.create(
+        marina=marina, name='Berth', category='berth',
+        pricing_model='per_night', unit_price=Decimal('100.00'),
+        tax_category=tax, is_active=True,
+    )
+    berth = Berth.objects.create(
+        marina=marina, code='I01',
+        length_m=Decimal('15.00'), max_beam_m=Decimal('5.00'),
+        pricing_tier=tier,
+    )
+    return marina, berth
+
+
+class TestReservationIntentView:
+    BASE_URL = '/api/v1/public/reservations/intent/'
+
+    @pytest.mark.django_db(transaction=True)
+    def test_intent_creates_reservation_and_items(self):
+        from unittest.mock import patch
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.test import Client
+
+        marina, berth = _make_intent_marina('intent-a')
+        client = Client()
+
+        with patch('apps.billing.service.create_payment_intent', return_value='pi_test_secret_xyz'):
+            resp = client.post(
+                self.BASE_URL,
+                data={
+                    'check_in': '2027-07-01',
+                    'check_out': '2027-07-04',
+                    'guest_name': 'John Smith',
+                    'guest_email': 'john@test.com',
+                    'items': [
+                        {'boat_loa': '12.5', 'vessel_name': 'Sea Breeze'},
+                    ],
+                },
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='intent-a',
+            )
+
+        assert resp.status_code == 201, resp.json()
+        data = resp.json()
+        assert 'reservation_id' in data
+        assert data['client_secret'] == 'pi_test_secret_xyz'
+        assert data['total'] == '300.00'
+        assert len(data['items']) == 1
+
+        res = Reservation.objects.get(pk=data['reservation_id'])
+        assert res.status == 'pending_checkout'
+        assert res.locked_until is not None
+        assert res.total_price == Decimal('300.00')
+
+        items = list(ReservationItem.objects.filter(reservation=res))
+        assert len(items) == 1
+        assert items[0].status == 'locked'
+        assert items[0].berth_id == berth.pk
+
+    @pytest.mark.django_db(transaction=True)
+    def test_intent_returns_409_when_no_berth_available(self):
+        from unittest.mock import patch
+        from django.test import Client
+
+        marina, _ = _make_intent_marina('intent-b')
+        client = Client()
+
+        with patch('apps.billing.service.create_payment_intent', return_value='pi_x'):
+            resp = client.post(
+                self.BASE_URL,
+                data={
+                    'check_in': '2027-08-01',
+                    'check_out': '2027-08-04',
+                    'guest_name': 'Jane Doe',
+                    'guest_email': 'jane@test.com',
+                    'items': [
+                        {'boat_loa': '99.0'},  # too big for any berth
+                    ],
+                },
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='intent-b',
+            )
+
+        assert resp.status_code == 409
+
+    @pytest.mark.django_db(transaction=True)
+    def test_intent_rolls_back_all_items_if_one_fails(self):
+        from unittest.mock import patch
+        from apps.reservations.models import Reservation
+        from django.test import Client
+
+        marina, _ = _make_intent_marina('intent-c')
+        client = Client()
+
+        before = Reservation.objects.count()
+        with patch('apps.billing.service.create_payment_intent', return_value='pi_x'):
+            resp = client.post(
+                self.BASE_URL,
+                data={
+                    'check_in': '2027-09-01',
+                    'check_out': '2027-09-04',
+                    'guest_name': 'Bob',
+                    'guest_email': 'bob@test.com',
+                    'items': [
+                        {'boat_loa': '12.5'},
+                        {'boat_loa': '99.0'},  # second item fails → whole cart rolls back
+                    ],
+                },
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='intent-c',
+            )
+
+        assert resp.status_code == 409
+        assert Reservation.objects.count() == before  # no partial records left
+
+    @pytest.mark.django_db
+    def test_intent_rejects_non_auto_tetris_marina(self):
+        from apps.accounts.models import Marina
+        from django.test import Client
+        Marina.objects.create(
+            name='Manual Marina', slug='intent-manual',
+            booking_mode='manual',
+        )
+        client = Client()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2027-10-01', 'check_out': '2027-10-04',
+                'guest_name': 'X', 'guest_email': 'x@test.com',
+                'items': [{'boat_loa': '10.0'}],
+            },
+            content_type='application/json',
+            HTTP_X_MARINA_SLUG='intent-manual',
+        )
+        assert resp.status_code == 400
+
+
+def _make_pending_reservation(marina):
+    from apps.billing.models import TaxRate, ChargeableItem
+    from apps.berths.models import Berth
+    from apps.reservations.models import Reservation, ReservationItem
+    tax = TaxRate.objects.create(marina=marina, name='ZeroC', rate=Decimal('0.00'))
+    tier = ChargeableItem.objects.create(
+        marina=marina, name='Berth', category='berth',
+        pricing_model='per_night', unit_price=Decimal('100.00'),
+        tax_category=tax, is_active=True,
+    )
+    berth = Berth.objects.create(
+        marina=marina, code='C01',
+        length_m=Decimal('15.00'),
+        pricing_tier=tier,
+    )
+    res = Reservation.objects.create(
+        marina=marina,
+        guest_name='Confirm Sailor',
+        guest_email='confirm@test.com',
+        status='pending_checkout',
+        stripe_payment_intent_id='pi_test123',
+        total_price=Decimal('300.00'),
+    )
+    ReservationItem.objects.create(
+        reservation=res, berth=berth,
+        check_in=datetime.date(2027, 7, 1),
+        check_out=datetime.date(2027, 7, 4),
+        nights=3, status='locked',
+    )
+    return res
+
+
+class TestReservationConfirmView:
+    BASE_URL = '/api/v1/public/reservations/confirm/'
+
+    @pytest.mark.django_db
+    def test_confirm_success_flips_status_and_sends_email(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import Client
+        from apps.accounts.models import Marina
+        from apps.reservations.models import ReservationItem
+
+        marina = Marina.objects.create(
+            name='Conf Marina', slug='conf-a',
+            booking_mode='auto_tetris', stripe_account_id='acct_test',
+        )
+        res = _make_pending_reservation(marina)
+        client = Client()
+
+        mock_pi = MagicMock()
+        mock_pi.status = 'succeeded'
+
+        with patch('apps.reservations.public_reservation_views.stripe') as mock_stripe, \
+             patch('apps.reservations.public_reservation_views.send_reservation_confirmed_email') as mock_email:
+            mock_stripe.PaymentIntent.retrieve.return_value = mock_pi
+            resp = client.post(
+                self.BASE_URL,
+                data={'reservation_id': res.pk, 'payment_intent_id': 'pi_test123'},
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='conf-a',
+            )
+
+        assert resp.status_code == 200, resp.json()
+        data = resp.json()
+        assert data['status'] == 'confirmed'
+        assert data['reference'] == f'RES-{res.pk}'
+
+        res.refresh_from_db()
+        assert res.status == 'confirmed'
+        assert res.paid is True
+        assert ReservationItem.objects.filter(reservation=res, status='confirmed').count() == 1
+        mock_email.assert_called_once_with(res)
+
+    @pytest.mark.django_db
+    def test_confirm_idempotent_if_already_confirmed(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import Client
+        from apps.accounts.models import Marina
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(
+            name='Conf Marina 2', slug='conf-b', stripe_account_id='acct_test',
+        )
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Already Done',
+            guest_email='done@test.com',
+            status='confirmed',
+            stripe_payment_intent_id='pi_already',
+            total_price=Decimal('100.00'),
+            paid=True,
+        )
+        client = Client()
+        mock_pi = MagicMock()
+        mock_pi.status = 'succeeded'
+
+        with patch('apps.reservations.public_reservation_views.stripe') as mock_stripe, \
+             patch('apps.reservations.public_reservation_views.send_reservation_confirmed_email') as mock_email:
+            mock_stripe.PaymentIntent.retrieve.return_value = mock_pi
+            resp = client.post(
+                self.BASE_URL,
+                data={'reservation_id': res.pk, 'payment_intent_id': 'pi_already'},
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='conf-b',
+            )
+
+        assert resp.status_code == 200
+        mock_email.assert_not_called()  # no duplicate email
+
+    @pytest.mark.django_db
+    def test_confirm_returns_409_for_abandoned_reservation(self):
+        from django.test import Client
+        from apps.accounts.models import Marina
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(name='Conf Marina 3', slug='conf-c')
+        res = Reservation.objects.create(
+            marina=marina, guest_email='gone@test.com',
+            status='abandoned', stripe_payment_intent_id='pi_gone',
+            total_price=Decimal('100.00'),
+        )
+        client = Client()
+        resp = client.post(
+            self.BASE_URL,
+            data={'reservation_id': res.pk, 'payment_intent_id': 'pi_gone'},
+            content_type='application/json',
+            HTTP_X_MARINA_SLUG='conf-c',
+        )
+        assert resp.status_code == 409
+
+    @pytest.mark.django_db
+    def test_confirm_returns_402_when_payment_not_yet_succeeded(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import Client
+        from apps.accounts.models import Marina
+
+        marina = Marina.objects.create(
+            name='Conf Marina 4', slug='conf-d', stripe_account_id='acct_test',
+        )
+        res = _make_pending_reservation(marina)
+        client = Client()
+        mock_pi = MagicMock()
+        mock_pi.status = 'requires_payment_method'
+
+        with patch('apps.reservations.public_reservation_views.stripe') as mock_stripe:
+            mock_stripe.PaymentIntent.retrieve.return_value = mock_pi
+            resp = client.post(
+                self.BASE_URL,
+                data={'reservation_id': res.pk, 'payment_intent_id': 'pi_test123'},
+                content_type='application/json',
+                HTTP_X_MARINA_SLUG='conf-d',
+            )
+        assert resp.status_code == 402
+
+
+class TestExpireReservationsCommand(TestCase):
+    def _setup(self):
+        from apps.billing.service import seed_default_tax_rates
+        from apps.billing.models import TaxRate, ChargeableItem
+        from apps.berths.models import Berth
+        from apps.reservations.models import Reservation, ReservationItem
+
+        marina = Marina.objects.create(name='Expire Marina', slug='expire-m')
+        seed_default_tax_rates(marina)
+        tax = TaxRate.objects.get(marina=marina, name='Zero Rated — 0.00%')
+        tier = ChargeableItem.objects.create(
+            marina=marina, name='Berth', category='berth',
+            pricing_model='per_night', unit_price=50,
+            tax_category=tax,
+        )
+        berth = Berth.objects.create(marina=marina, code='E1', pricing_tier=tier)
+        return marina, berth
+
+    def test_expired_reservation_becomes_abandoned(self):
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.core.management import call_command
+
+        marina, berth = self._setup()
+        past = timezone.now() - datetime.timedelta(minutes=30)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='ex@test.com',
+            status='pending_checkout',
+            locked_until=past,
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2028, 1, 1),
+            check_out=datetime.date(2028, 1, 4),
+            nights=3, status='locked',
+        )
+
+        call_command('expire_reservations')
+
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'abandoned')
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='released').count(), 1
+        )
+
+    def test_not_yet_expired_reservation_is_untouched(self):
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.core.management import call_command
+
+        marina, berth = self._setup()
+        future = timezone.now() + datetime.timedelta(minutes=30)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='future@test.com',
+            status='pending_checkout',
+            locked_until=future,
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2028, 2, 1),
+            check_out=datetime.date(2028, 2, 4),
+            nights=3, status='locked',
+        )
+
+        call_command('expire_reservations')
+
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'pending_checkout')
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='locked').count(), 1
+        )
+
+    def test_dry_run_does_not_mutate(self):
+        from apps.reservations.models import Reservation, ReservationItem
+        from django.core.management import call_command
+
+        marina, berth = self._setup()
+        past = timezone.now() - datetime.timedelta(minutes=30)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='dry@test.com',
+            status='pending_checkout',
+            locked_until=past,
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2028, 3, 1),
+            check_out=datetime.date(2028, 3, 4),
+            nights=3, status='locked',
+        )
+
+        call_command('expire_reservations', dry_run=True)
+
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'pending_checkout')
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='locked').count(), 1
+        )

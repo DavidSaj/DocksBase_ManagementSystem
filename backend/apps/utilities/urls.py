@@ -13,6 +13,8 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    DockwalkListView,
+    DockwalkReadingView,
     MeterOutageAlertViewSet,
     OfgemReportView,
     ServiceBollardViewSet,
@@ -33,4 +35,7 @@ router.register(r'wash-tokens',    WashTokenViewSet,         basename='wash-toke
 urlpatterns = [
     path('ofgem-report/',         OfgemReportView.as_view(),      name='ofgem-report'),
     path('wash-tokens/redeem/',   WashTokenRedeemView.as_view(),  name='wash-token-redeem'),
+    # Dockwalk staff endpoints
+    path('dockwalk/',                        DockwalkListView.as_view(),    name='dockwalk-list'),
+    path('dockwalk/<int:meter_id>/reading/', DockwalkReadingView.as_view(), name='dockwalk-reading'),
 ] + router.urls

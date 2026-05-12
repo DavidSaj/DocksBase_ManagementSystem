@@ -11,10 +11,15 @@ from apps.reservations.models import Booking
 
 
 def _setup():
+    from apps.billing.service import seed_default_tax_rates
+    from apps.billing.models import TaxRate
     marina = Marina.objects.create(name='Test Marina')
+    seed_default_tax_rates(marina)
+    tax_cat = TaxRate.objects.get(marina=marina, name='Standard — 20.00%')
     tier = ChargeableItem.objects.create(
         marina=marina, name='Berth Night', category='berth',
         pricing_model='per_night', unit_price=100,
+        tax_category=tax_cat,
     )
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
     berth = Berth.objects.create(marina=marina, pier=pier, code='A1', pricing_tier=tier)
@@ -283,3 +288,87 @@ class StripeConnectCheckoutSessionWebhookTest(TestCase):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.status, 'paid')
         mock_signal.send.assert_not_called()
+
+
+class TestReservationWebhookConfirm(TestCase):
+    def _setup_reservation(self):
+        from apps.billing.service import seed_default_tax_rates
+        from apps.billing.models import TaxRate, ChargeableItem
+        from apps.berths.models import Berth
+        from apps.reservations.models import Reservation, ReservationItem
+
+        marina = Marina.objects.create(
+            name='WH Marina', slug='wh-marina',
+            stripe_account_id='acct_wh',
+        )
+        seed_default_tax_rates(marina)
+        tax = TaxRate.objects.get(marina=marina, name='Zero Rated — 0.00%')
+        tier = ChargeableItem.objects.create(
+            marina=marina, name='Berth', category='berth',
+            pricing_model='per_night', unit_price=100,
+            tax_category=tax,
+        )
+        berth = Berth.objects.create(marina=marina, code='W1', pricing_tier=tier)
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_email='webhook@test.com',
+            status='pending_checkout',
+            stripe_payment_intent_id='pi_wh_test',
+            total_price='300.00',
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=datetime.date(2027, 7, 1),
+            check_out=datetime.date(2027, 7, 4),
+            nights=3, status='locked',
+        )
+        return marina, res
+
+    def _make_pi_event(self, reservation_id, pi_id='pi_wh_test'):
+        return {
+            'type': 'payment_intent.succeeded',
+            'data': {
+                'object': {
+                    'id': pi_id,
+                    'metadata': {'reservation_id': str(reservation_id)},
+                }
+            }
+        }
+
+    @patch('apps.billing.views._stripe_svc.stripe.Webhook.construct_event')
+    @patch('apps.reservations.emails.send_reservation_confirmed_email')
+    def test_webhook_confirms_reservation(self, mock_email, mock_construct):
+        from apps.reservations.models import Reservation, ReservationItem
+        _, res = self._setup_reservation()
+        mock_construct.return_value = self._make_pi_event(res.pk)
+
+        client = APIClient()
+        resp = client.post(
+            '/api/v1/billing/stripe/connect-webhook/',
+            data='{}', content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='sig',
+        )
+        self.assertEqual(resp.status_code, 200)
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'confirmed')
+        self.assertTrue(res.paid)
+        self.assertEqual(
+            ReservationItem.objects.filter(reservation=res, status='confirmed').count(), 1
+        )
+        mock_email.assert_called_once()
+
+    @patch('apps.billing.views._stripe_svc.stripe.Webhook.construct_event')
+    @patch('apps.reservations.emails.send_reservation_confirmed_email')
+    def test_webhook_no_op_if_already_confirmed(self, mock_email, mock_construct):
+        from apps.reservations.models import Reservation
+        _, res = self._setup_reservation()
+        Reservation.objects.filter(pk=res.pk).update(status='confirmed', paid=True)
+        mock_construct.return_value = self._make_pi_event(res.pk)
+
+        client = APIClient()
+        client.post(
+            '/api/v1/billing/stripe/connect-webhook/',
+            data='{}', content_type='application/json',
+            HTTP_STRIPE_SIGNATURE='sig',
+        )
+        mock_email.assert_not_called()

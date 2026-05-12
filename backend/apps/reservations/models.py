@@ -17,6 +17,7 @@ class Booking(models.Model):
         ('checked_in',   'Checked In'),
         ('checked_out',  'Checked Out'),
         ('overstay',     'Overstay'),
+        ('no_show',      'No Show'),
         ('cancelled',    'Cancelled'),
     ]
 
@@ -186,3 +187,107 @@ class BookingRequest(models.Model):
         self.status  = 'approved'
         self.save()
         return booking
+
+
+class Reservation(models.Model):
+    STATUS_CHOICES = [
+        ('pending_approval',  'Pending Approval'),
+        ('awaiting_payment',  'Awaiting Payment'),
+        ('pending_payment',   'Pending Payment'),
+        ('pending_checkout',  'Pending Checkout'),   # tetris ran, inventory locked
+        ('confirmed',         'Confirmed'),
+        ('pending',           'Pending'),
+        ('checked_in',        'Checked In'),
+        ('checked_out',       'Checked Out'),
+        ('overstay',          'Overstay'),
+        ('no_show',           'No Show'),
+        ('cancelled',         'Cancelled'),
+        ('abandoned',         'Abandoned'),           # lock expired, inventory released
+    ]
+
+    marina          = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='reservations')
+    member          = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations')
+    guest_name      = models.CharField(max_length=200, blank=True)
+    guest_email     = models.EmailField(blank=True)
+    guest_phone     = models.CharField(max_length=50, blank=True)
+    status          = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    paid            = models.BooleanField(default=False)
+    total_price     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
+    locked_until    = models.DateTimeField(null=True, blank=True)
+    waiver_envelope_id = models.CharField(max_length=255, null=True, blank=True)
+    waiver_signed   = models.BooleanField(default=False)
+    self_checked_in    = models.BooleanField(default=False)
+    self_checked_in_at = models.DateTimeField(null=True, blank=True)
+    booking_source  = models.CharField(max_length=100, default='direct', blank=True)
+    notes           = models.TextField(blank=True)
+    legacy_booking  = models.OneToOneField(
+        'reservations.Booking',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='reservation',
+    )
+    created_at      = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        name = self.member.name if self.member_id else self.guest_name
+        return f'RES-{self.pk} — {name}'
+
+
+class ReservationItem(models.Model):
+    TYPE_CHOICES = [
+        ('transient', 'Transient'),
+        ('seasonal',  'Seasonal'),
+    ]
+
+    reservation     = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='items')
+    berth           = models.ForeignKey('berths.Berth', on_delete=models.PROTECT, null=True, blank=True, related_name='reservation_items')
+    vessel          = models.ForeignKey('vessels.Vessel', on_delete=models.PROTECT, null=True, blank=True, related_name='reservation_items')
+    vessel_name     = models.CharField(max_length=200, blank=True)
+    booking_type    = models.CharField(max_length=20, choices=TYPE_CHOICES, default='transient')
+    check_in        = models.DateField()
+    check_out       = models.DateField()
+    nights          = models.IntegerField(default=1)
+    item_price      = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    boat_loa        = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    boat_beam       = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    boat_draft      = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    eta             = models.TimeField(null=True, blank=True)
+    is_sublet       = models.BooleanField(default=False)
+    is_hourly       = models.BooleanField(default=False)
+    start_time      = models.TimeField(null=True, blank=True)
+    end_time        = models.TimeField(null=True, blank=True)
+    dynamic_price_applied  = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    ota_commission_amount  = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    mysea_event_uid = models.CharField(max_length=255, blank=True, default='')
+    insurance_doc   = models.FileField(upload_to='insurance/', null=True, blank=True)
+    pre_cleared     = models.BooleanField(default=False)
+    insurance_verified   = models.BooleanField(default=False)
+    registration_verified = models.BooleanField(default=False)
+    waiver_verified = models.BooleanField(default=False)
+    document_gate_cleared    = models.BooleanField(default=False)
+    document_gate_cleared_by = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='reservation_item_gate_clearances',
+    )
+    document_gate_cleared_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('locked',    'Locked'),
+            ('confirmed', 'Confirmed'),
+            ('released',  'Released'),
+        ],
+        default='confirmed',
+    )
+
+    class Meta:
+        ordering = ['check_in']
+
+    def __str__(self):
+        berth_code = self.berth.code if self.berth_id else 'unassigned'
+        return f'ITEM-{self.pk} @ {berth_code} ({self.check_in} → {self.check_out})'

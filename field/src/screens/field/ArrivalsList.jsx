@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../../api.js';
+import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#1a2d4a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44 };
+const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
+const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
 function dateStr(offsetDays = 0) {
   const d = new Date();
@@ -53,28 +54,33 @@ export default function ArrivalsList({ onBack }) {
   const tomorrow = dateStr(1);
 
   useEffect(() => {
-    api.get('/bookings/', { params: { status: 'pending' } })
-      .then(r => {
-        const all = r.data.results ?? r.data;
-        setBookings(all.filter(b => b.check_in === today || b.check_in === tomorrow));
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get('/bookings/', { params: { status: 'pending',   check_in: today } }),
+      api.get('/bookings/', { params: { status: 'confirmed', check_in: today } }),
+      api.get('/bookings/', { params: { status: 'pending',   check_in: tomorrow } }),
+      api.get('/bookings/', { params: { status: 'confirmed', check_in: tomorrow } }),
+    ]).then(results => {
+      const all = results.flatMap(r => r.data.results ?? r.data);
+      setBookings(all);
+    }).finally(() => setLoading(false));
   }, []);
 
   const todayList    = bookings.filter(b => b.check_in === today);
   const tomorrowList = bookings.filter(b => b.check_in === tomorrow);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
       <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}>←</button>
+        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
         <span style={{ fontSize: 16, fontWeight: 700 }}>Arrivals</span>
       </div>
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
       ) : bookings.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🚢</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="ship" size={36} color="rgba(0,0,0,0.25)" />
+          </div>
           <div style={{ fontSize: 15 }}>No arrivals today or tomorrow.</div>
         </div>
       ) : (

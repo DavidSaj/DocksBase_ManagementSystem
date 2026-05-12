@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../api.js';
+import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#1a2d4a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44 };
+const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
+const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const CARD = { background: '#fff', borderRadius: 14, padding: 18, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
-const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#1a2d4a', color: '#fff', border: 'none', fontSize: 17, fontWeight: 700, cursor: 'pointer' };
+const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#0c1f3d', color: '#fff', border: 'none', fontSize: 17, fontWeight: 700, cursor: 'pointer' };
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function vesselLabel(b) {
@@ -25,13 +26,14 @@ export default function CheckInFlow({ onBack }) {
   const [error, setError]       = useState(null);
 
   useEffect(() => {
-    api.get('/bookings/', { params: { status: 'pending' } })
-      .then(r => {
-        const today = todayStr();
-        const data = r.data.results ?? r.data;
-        setBookings(data.filter(b => b.check_in === today));
-      })
-      .finally(() => setLoading(false));
+    const today = todayStr();
+    Promise.all([
+      api.get('/bookings/', { params: { status: 'pending',    check_in: today } }),
+      api.get('/bookings/', { params: { status: 'confirmed',  check_in: today } }),
+    ]).then(([r1, r2]) => {
+      const all = [...(r1.data.results ?? r1.data), ...(r2.data.results ?? r2.data)];
+      setBookings(all);
+    }).finally(() => setLoading(false));
   }, []);
 
   async function handleCheckIn() {
@@ -45,10 +47,12 @@ export default function CheckInFlow({ onBack }) {
   }
 
   if (done) return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
-      <div style={HDR}><button style={BACK_BTN} onClick={onBack}>←</button><span style={{ fontSize: 16, fontWeight: 700 }}>Check In</span></div>
+    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
+      <div style={HDR}><button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button><span style={{ fontSize: 16, fontWeight: 700 }}>Check In</span></div>
       <div style={{ padding: 40, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <Icon name="check-circle" size={56} color="#27ae60" strokeWidth={1.5} />
+        </div>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Checked In</div>
         <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.5)', marginBottom: 28 }}>{vesselLabel(selected)}</div>
         <button style={ACTION_BTN} onClick={onBack}>Back to Actions</button>
@@ -59,8 +63,8 @@ export default function CheckInFlow({ onBack }) {
   if (selected) {
     const berth = berthLabel(selected);
     return (
-      <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
-        <div style={HDR}><button style={BACK_BTN} onClick={() => setSelected(null)}>←</button><span style={{ fontSize: 16, fontWeight: 700 }}>Check In</span></div>
+      <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
+        <div style={HDR}><button style={BACK_BTN} onClick={() => setSelected(null)}><Icon name="arrow-left" size={22} color="#fff" /></button><span style={{ fontSize: 16, fontWeight: 700 }}>Check In</span></div>
         <div style={{ padding: 20 }}>
           <div style={{ ...CARD, cursor: 'default', marginBottom: 16 }}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{vesselLabel(selected)}</div>
@@ -69,20 +73,22 @@ export default function CheckInFlow({ onBack }) {
             <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Departing: {selected.check_out}</div>
           </div>
           {error && <div style={{ color: '#c0392b', fontSize: 13, marginBottom: 10, textAlign: 'center' }}>{error}</div>}
-          <button style={ACTION_BTN} disabled={saving} onClick={handleCheckIn}>{saving ? 'Saving…' : '✅ Check In'}</button>
+          <button style={ACTION_BTN} disabled={saving} onClick={handleCheckIn}>{saving ? 'Saving…' : 'Check In'}</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
-      <div style={HDR}><button style={BACK_BTN} onClick={onBack}>←</button><span style={{ fontSize: 16, fontWeight: 700 }}>Today's Arrivals</span></div>
+    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
+      <div style={HDR}><button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button><span style={{ fontSize: 16, fontWeight: 700 }}>Today's Arrivals</span></div>
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
       ) : bookings.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>⚓</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="anchor" size={36} color="rgba(0,0,0,0.25)" />
+          </div>
           <div style={{ fontSize: 15 }}>No pending arrivals today.</div>
         </div>
       ) : (

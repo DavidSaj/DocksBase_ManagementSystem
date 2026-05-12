@@ -23,6 +23,7 @@ class Marina(models.Model):
     plan = models.CharField(max_length=50, default='professional')
     contact_email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    website = models.URLField(max_length=255, blank=True)
     vat_number = models.CharField(max_length=50, blank=True)
     currency = models.CharField(max_length=3, default='EUR')
     payment_terms = models.IntegerField(default=7)
@@ -54,6 +55,7 @@ class Marina(models.Model):
     suspend_reason = models.TextField(blank=True)
     features = models.JSONField(default=dict)
     onboarding = models.JSONField(default=_default_onboarding)
+    app_config = models.JSONField(default=dict, blank=True)
     fuel_berths = models.JSONField(default=list)
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
@@ -229,9 +231,14 @@ class EmailVerification(models.Model):
 # ── Track 7 — Marina groups ───────────────────────────────────────────────────
 
 class MarinaGroup(models.Model):
-    name       = models.CharField(max_length=200)
-    slug       = models.SlugField(unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name                  = models.CharField(max_length=200)
+    slug                  = models.SlugField(unique=True)
+    max_marinas           = models.IntegerField(default=1)
+    billing_contact_email = models.EmailField(blank=True)
+    vat_number            = models.CharField(max_length=50, blank=True)
+    stripe_customer_id    = models.CharField(max_length=64, blank=True)
+    base_currency         = models.CharField(max_length=3, default='EUR')
+    created_at            = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name

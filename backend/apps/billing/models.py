@@ -3,6 +3,22 @@ from django.db import models
 from apps.fuel_dock.models import FuelDockEntry
 
 
+class TaxRate(models.Model):
+    marina      = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='tax_rates')
+    name        = models.CharField(max_length=100)
+    rate        = models.DecimalField(max_digits=5, decimal_places=2)
+    is_default  = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('marina', 'name')]
+        ordering = ['-rate']
+
+    def __str__(self):
+        return f'{self.name} ({self.rate}%)'
+
+
 class Invoice(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -25,7 +41,6 @@ class Invoice(models.Model):
     source_type = models.CharField(max_length=50, blank=True)
     source_id = models.CharField(max_length=255, blank=True, db_index=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, default=Decimal('0.00'))
     tax_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     stripe_checkout_session_id = models.CharField(max_length=200, blank=True)
@@ -36,6 +51,13 @@ class Invoice(models.Model):
     pdf_document = models.FileField(upload_to='invoices/', null=True, blank=True)
     booking = models.ForeignKey(
         'reservations.Booking',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices',
+    )
+    reservation = models.ForeignKey(
+        'reservations.Reservation',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -156,7 +178,11 @@ class ChargeableItem(models.Model):
     category      = models.CharField(max_length=20, choices=Category.choices, default=Category.SERVICE)
     pricing_model = models.CharField(max_length=30, choices=PricingModel.choices, default=PricingModel.FLAT_FEE)
     unit_price    = models.DecimalField(max_digits=10, decimal_places=2)
-    tax_rate      = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    tax_category  = models.ForeignKey(
+        'billing.TaxRate',
+        on_delete=models.PROTECT,
+        related_name='chargeable_items',
+    )
     is_active                  = models.BooleanField(default=True)
     show_in_pos                = models.BooleanField(default=False)
     is_mandatory_transient_fee = models.BooleanField(default=False)

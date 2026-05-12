@@ -21,6 +21,7 @@ from .models import Marina, User, MagicToken, EmailVerification
 from .serializers import MarinaSerializer, UserSerializer, UserInviteSerializer, DocksBaseTokenSerializer, SendMagicLinkSerializer, ExchangeMagicTokenSerializer, SignupSerializer, DraftAccountSerializer
 from .emails import send_verification_email, send_welcome_email
 from apps.members.models import Member
+from apps.billing.service import seed_default_tax_rates
 from config.plans import PRICE_ID_TO_PLAN, ENTERPRISE_ADDON_MARINA_PRICE_ID
 
 stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
@@ -41,6 +42,7 @@ class SignupView(APIView):
                 plan='professional',
                 trial_ends=datetime.date.today() + datetime.timedelta(days=30),
             )
+            seed_default_tax_rates(marina)
             try:
                 user = User.objects.create_user(
                     email=d['email'],
@@ -514,6 +516,7 @@ class DraftAccountView(APIView):
                 currency=d['currency'],
                 status='pending_payment',
             )
+            seed_default_tax_rates(marina)
 
             User.objects.create_user(
                 email=email,

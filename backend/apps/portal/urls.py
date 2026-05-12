@@ -2,6 +2,13 @@ from django.urls import path
 
 from .feed_views import FeedView
 from .member_auth_urls import urlpatterns as member_auth_urls
+from .member_views import (
+    PortalGateView,
+    PortalUtilitiesView,
+    PortalWorkOrderView,
+    PortalDocumentListView,
+    PortalDocumentDetailView,
+)
 from .services_views import (
     PortalMemberCraneRequestView,
     PortalMemberBookingView,
@@ -13,6 +20,7 @@ from .views import (
     CraneRequestStaffListView, CraneRequestStaffDetailView,
     PortalBerthView, PortalVesselView, PortalInvoicePayView,
 )
+from .admin_views import AppConfigUpdateView
 
 urlpatterns = member_auth_urls + [
     path('portal/feed/',                                   FeedView.as_view(),                   name='portal_feed'),
@@ -28,4 +36,10 @@ urlpatterns = member_auth_urls + [
     path('portal/member/booking/',                        PortalMemberBookingView.as_view(),       name='portal_member_booking'),
     path('portal/member/extend-stay/',                    PortalMemberExtendStayView.as_view(),    name='portal_member_extend_stay'),
     path('portal/member/issues/',                         PortalMemberIssueView.as_view(),         name='portal_member_issues'),
+    path('portal/member/gate/',                           PortalGateView.as_view(),               name='portal_member_gate'),
+    path('portal/member/utilities/',                      PortalUtilitiesView.as_view(),          name='portal_member_utilities'),
+    path('portal/member/work-orders/',                    PortalWorkOrderView.as_view(),          name='portal_member_work_orders'),
+    path('portal/member/documents/',                      PortalDocumentListView.as_view(),       name='portal_member_documents'),
+    path('portal/member/documents/<int:pk>/',             PortalDocumentDetailView.as_view(),     name='portal_member_document_detail'),
+    path('marina/app-config/',                            AppConfigUpdateView.as_view(),          name='marina_app_config'),
 ]

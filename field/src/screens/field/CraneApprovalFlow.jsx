@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../../api.js';
+import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#1a2d4a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44 };
+const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
+const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
 const SERVICE_LABEL = { launch: 'Launch', haul_out: 'Haul-out', both: 'Launch & Haul-out' };
 
@@ -28,12 +29,12 @@ export default function CraneApprovalFlow({ onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f8' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
       <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}>←</button>
+        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
         <span style={{ fontSize: 16, fontWeight: 700 }}>Crane Requests</span>
         {requests.length > 0 && (
-          <span style={{ marginLeft: 'auto', background: '#d4b07a', color: '#1a2d4a', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
+          <span style={{ marginLeft: 'auto', background: '#b8965a', color: '#0c1f3d', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
             {requests.length}
           </span>
         )}
@@ -42,7 +43,9 @@ export default function CraneApprovalFlow({ onBack }) {
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
       ) : requests.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏗️</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="crane" size={36} color="rgba(0,0,0,0.25)" />
+          </div>
           <div style={{ fontSize: 15 }}>No pending crane requests.</div>
         </div>
       ) : (
@@ -55,12 +58,12 @@ export default function CraneApprovalFlow({ onBack }) {
               {r.notes && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 12 }}>{r.notes}</div>}
               <div style={{ display: 'flex', gap: 10 }}>
                 <button disabled={acting === r.id} onClick={() => handleAction(r.id, 'approved')}
-                  style={{ flex: 1, height: 44, borderRadius: 10, background: '#1a2d4a', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                  ✅ Approve
+                  style={{ flex: 1, height: 44, borderRadius: 10, background: '#0c1f3d', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' }}>
+                  Approve
                 </button>
                 <button disabled={acting === r.id} onClick={() => handleAction(r.id, 'rejected')}
-                  style={{ flex: 1, height: 44, borderRadius: 10, background: '#f4f6f8', color: '#c0392b', border: '1.5px solid rgba(192,57,43,0.3)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                  ✕ Reject
+                  style={{ flex: 1, height: 44, borderRadius: 10, background: '#f4f3f0', color: '#c0392b', border: '1.5px solid rgba(192,57,43,0.3)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' }}>
+                  Reject
                 </button>
               </div>
             </div>

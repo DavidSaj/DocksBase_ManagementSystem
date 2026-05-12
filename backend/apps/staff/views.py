@@ -1,8 +1,10 @@
+import os
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
-from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -44,7 +46,8 @@ class StaffInviteView(APIView):
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
-        setup_link = f"https://app.docksbase.com/setup/{uid}/{token}/"
+        field_url = os.environ.get('FIELD_URL', 'https://app.docksbase.com')
+        setup_link = f"{field_url}/setup/{uid}/{token}/"
 
         send_mail(
             subject="You've been invited to DocksBase",
@@ -59,6 +62,56 @@ class StaffInviteView(APIView):
 
         serializer = StaffMemberSerializer(staff, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class StaffSetupView(APIView):
+    permission_classes = []
+
+    def get(self, request, uidb64, token):
+        """Return the email for a valid setup link so the frontend can pre-fill it."""
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, User.DoesNotExist):
+            return Response({'detail': 'Invalid link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({'detail': 'Link has expired or is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'email': user.email})
+
+    def post(self, request, uidb64, token):
+        """Activate the account and set the password."""
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, User.DoesNotExist):
+            return Response({'detail': 'Invalid link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({'detail': 'Link has expired or is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        password = request.data.get('password', '').strip()
+        if len(password) < 8:
+            return Response({'detail': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(password)
+        user.is_active = True
+        user.save(update_fields=['password', 'is_active'])
+
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.pk,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'role': user.role,
+            },
+        })
 
 
 class StaffList(generics.ListAPIView):

@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.notifications',
     'apps.portal',
     'apps.admin_portal',
+    'apps.enterprise',
     'apps.mobile',
     # ERP tracks
     'apps.revenue',
@@ -229,41 +230,86 @@ CELERY_TASK_ROUTES = {
     'sustainability.generate_esg_report_async': {'queue': 'pdf_generation'},
 }
 CELERY_BEAT_SCHEDULE = {
+    # ── Sustainability (Track 12) ─────────────────────────────────────────────
     'roll-sustainability-ledger': {
         'task': 'sustainability.roll_sustainability_ledger',
-        'schedule': 3600,  # hourly
+        'schedule': crontab(hour=4, minute=0),           # nightly 04:00 UTC
     },
     'fetch-grid-intensity': {
         'task': 'sustainability.fetch_grid_intensity',
-        'schedule': 86400,  # daily
+        'schedule': crontab(hour=2, minute=0),           # daily 02:00 UTC
     },
     'sync-play-it-green': {
         'task': 'sustainability.sync_play_it_green',
-        'schedule': 21600,  # 6-hourly
+        'schedule': crontab(day_of_week=0, hour=5, minute=0),  # weekly Sun 05:00 UTC
     },
+    # ── Revenue Intelligence (Track 1) ────────────────────────────────────────
     'expire-waitlist-offers': {
         'task': 'revenue_intelligence.expire_waitlist_offers',
-        'schedule': 3600,
+        'schedule': 3600,                                # hourly
     },
-    'expire-upgrade-campaigns': {
-        'task': 'revenue_intelligence.expire_upgrade_campaigns',
-        'schedule': 3600,
+    'run-upgrade-campaigns': {
+        'task': 'revenue_intelligence.run_upgrade_campaigns',
+        'schedule': crontab(hour=3, minute=0),           # daily 03:00 UTC
     },
+    # ── Communications (Track 7) ─────────────────────────────────────────────
     'run-communication-journeys': {
         'task': 'communications.run_journey_enrollments',
-        'schedule': 300,  # every 5 minutes
+        'schedule': 300,                                 # every 5 minutes
     },
+    # ── Billing ───────────────────────────────────────────────────────────────
     'send-overdue-invoice-alerts': {
         'task': 'billing.send_overdue_invoice_alerts',
-        'schedule': crontab(hour=9, minute=0),
+        'schedule': crontab(hour=9, minute=0),           # daily 09:00 UTC
     },
+    # ── Reservations ─────────────────────────────────────────────────────────
     'send-overstay-alerts': {
         'task': 'reservations.send_overstay_alerts',
-        'schedule': crontab(hour=8, minute=0),
+        'schedule': crontab(hour=8, minute=0),           # daily 08:00 UTC
     },
     'send-prearival-reminders': {
         'task': 'reservations.send_prearival_reminders',
-        'schedule': crontab(hour=10, minute=0),
+        'schedule': crontab(hour=10, minute=0),          # daily 10:00 UTC
+    },
+    'auto-no-show': {
+        'task': 'reservations.auto_no_show',
+        'schedule': crontab(hour=22, minute=0),          # daily 22:00 UTC
+    },
+    # ── Accounting (Track 4) ─────────────────────────────────────────────────
+    'instalment-processor': {
+        'task': 'apps.accounting.tasks.instalment_processor',
+        'schedule': crontab(hour=0, minute=30),          # nightly 00:30 UTC
+    },
+    'deferred-revenue-recogniser': {
+        'task': 'apps.accounting.tasks.deferred_revenue_recogniser',
+        'schedule': crontab(hour=1, minute=0),           # nightly 01:00 UTC
+    },
+    'hmrc-duty-aggregator': {
+        'task': 'apps.accounting.tasks.hmrc_duty_period_aggregator',
+        'schedule': crontab(hour=3, minute=0, day_of_month=1,
+                            month_of_year='1,4,7,10'),   # quarterly
+    },
+    'fx-rate-updater': {
+        'task': 'apps.accounting.tasks.fx_rate_updater',
+        'schedule': crontab(hour=6, minute=0),           # daily 06:00 UTC
+    },
+    'accounting-sync-push': {
+        'task': 'apps.accounting.tasks.accounting_sync_push',
+        'schedule': 900,                                 # every 15 minutes
+    },
+    # ── OTA Channels (Track 7) ───────────────────────────────────────────────
+    'push-ota-availability': {
+        'task': 'channels.push_ota_availability',
+        'schedule': crontab(hour=3, minute=0),           # nightly full push 03:00 UTC
+    },
+    'pull-ota-bookings': {
+        'task': 'channels.pull_ota_bookings',
+        'schedule': crontab(minute=0),                   # hourly
+    },
+    # ── Berths ───────────────────────────────────────────────────────────────
+    'check-non-returns': {
+        'task': 'berths.check_non_returns',
+        'schedule': 1800,                                # every 30 minutes
     },
 }
 

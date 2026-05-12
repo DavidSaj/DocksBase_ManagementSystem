@@ -45,7 +45,27 @@ def decode_portal_token(token):
 def make_magic_url(booking):
     token = make_magic_token(booking.id, booking.guest_email)
     base = getattr(settings, 'PORTAL_BASE_URL', 'https://book.docksbase.com')
-    return f"{base}/{booking.marina.slug}/portal?token={token}"
+    return f"{base}/{booking.marina.slug}?token=g_{token}"
+
+
+def make_reservation_magic_token(reservation_id, boater_email):
+    return signing.dumps(
+        {'reservation_id': reservation_id, 'boater_email': boater_email},
+        salt=MAGIC_SALT,
+    )
+
+
+def make_reservation_magic_url(reservation):
+    token = make_reservation_magic_token(reservation.id, reservation.guest_email)
+    base = getattr(settings, 'PORTAL_BASE_URL', 'https://book.docksbase.com')
+    return f"{base}/{reservation.marina.slug}?token=g_{token}"
+
+
+def make_reservation_portal_token(reservation_id, marina_slug, boater_email):
+    return signing.dumps(
+        {'reservation_id': reservation_id, 'marina_slug': marina_slug, 'boater_email': boater_email},
+        salt=SESSION_SALT,
+    )
 
 
 def is_arrival_day(booking):
