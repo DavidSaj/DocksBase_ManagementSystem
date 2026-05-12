@@ -786,6 +786,11 @@ export default function Reservations() {
     setSel(prev => prev?.id === b.id ? { ...prev, paid: true, status: 'checked_in' } : prev);
   }
 
+  async function manualCheckIn(b) {
+    await updateBooking(b.id, { status: 'checked_in' });
+    setSel(prev => prev?.id === b.id ? { ...prev, status: 'checked_in' } : prev);
+  }
+
   async function handleConvert(id) {
     await convertRequest(id);
     setSelReq(null);
@@ -882,6 +887,9 @@ export default function Reservations() {
               </div>
               <div className="detail-actions">
                 {!sel.paid && <button className="btn btn-primary" style={{ justifyContent: 'center' }} onClick={() => markPaid(sel)}>Mark as Paid</button>}
+                {sel.paid && sel.status === 'confirmed' && (
+                  <button className="btn btn-primary" style={{ justifyContent: 'center' }} onClick={() => manualCheckIn(sel)}>Check In</button>
+                )}
                 <button className="btn btn-ghost" style={{ justifyContent: 'center' }}>Edit Booking</button>
                 <button className="btn btn-danger" style={{ justifyContent: 'center' }}>Cancel</button>
               </div>

@@ -26,13 +26,14 @@ export default function CheckInFlow({ onBack }) {
   const [error, setError]       = useState(null);
 
   useEffect(() => {
-    api.get('/bookings/', { params: { status: 'pending' } })
-      .then(r => {
-        const today = todayStr();
-        const data = r.data.results ?? r.data;
-        setBookings(data.filter(b => b.check_in === today));
-      })
-      .finally(() => setLoading(false));
+    const today = todayStr();
+    Promise.all([
+      api.get('/bookings/', { params: { status: 'pending',    check_in: today } }),
+      api.get('/bookings/', { params: { status: 'confirmed',  check_in: today } }),
+    ]).then(([r1, r2]) => {
+      const all = [...(r1.data.results ?? r1.data), ...(r2.data.results ?? r2.data)];
+      setBookings(all);
+    }).finally(() => setLoading(false));
   }, []);
 
   async function handleCheckIn() {
