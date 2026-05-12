@@ -5,7 +5,7 @@ import AppShell from './AppShell';
 import LoginScreen from '../../screens/LoginScreen';
 
 export default function PortalGate() {
-  const { marina, isLoading, tenantSlug } = useTenant();
+  const { marina, isLoading } = useTenant();
   const [state, setState] = useState('idle'); // 'idle' | 'verifying' | 'error'
   const [tokenError, setTokenError] = useState(null);
 
@@ -14,16 +14,29 @@ export default function PortalGate() {
 
   useEffect(() => {
     if (!rawToken) return;
+    let cancelled = false;
     setState('verifying');
 
     const isMember = rawToken.startsWith('m_');
-    const token    = rawToken.slice(2);
+    const isGuest  = rawToken.startsWith('g_');
+    if (!isMember && !isGuest) {
+      setTokenError('This link has expired or is invalid.');
+      setState('error');
+      return;
+    }
+    const token = rawToken.slice(2);
+    if (!token) {
+      setTokenError('This link has expired or is invalid.');
+      setState('error');
+      return;
+    }
     const endpoint = isMember
       ? '/portal/auth/member-magic/verify/'
       : '/portal/checkin/auth/magic/';
 
     api.post(endpoint, { token })
       .then(res => {
+        if (cancelled) return;
         const data = res.data;
         if (isMember) {
           localStorage.setItem('portal_session_token', data.session_token);
@@ -36,13 +49,14 @@ export default function PortalGate() {
           localStorage.setItem('portal_booking_id',    String(data.booking_id));
           localStorage.setItem('portal_marina_slug',   data.marina_slug);
         }
-        const slug = tenantSlug || data.marina_slug;
-        window.location.replace(`/${slug}/`);
+        window.location.replace(`/${data.marina_slug}/`);
       })
       .catch(() => {
+        if (cancelled) return;
         setTokenError('This link has expired or is invalid.');
         setState('error');
       });
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state === 'verifying') {
