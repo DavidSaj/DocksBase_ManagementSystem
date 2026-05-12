@@ -8,13 +8,14 @@ import Finance       from './screens/Finance.jsx';
 import Settings      from './screens/Settings.jsx';
 import FeatureFlags  from './screens/FeatureFlags.jsx';
 import AuditLog      from './screens/AuditLog.jsx';
+import Groups        from './screens/Groups.jsx';
 import Login         from './screens/Login.jsx';
 import { isAdminAuthenticated, adminLogout, getAdminUser } from './api.js';
 
 const SCREENS = {
   overview: Overview, marinas: Marinas, subscriptions: Subscriptions,
   finance: Finance, settings: Settings,
-  'feature-flags': FeatureFlags, 'audit-log': AuditLog,
+  'feature-flags': FeatureFlags, 'audit-log': AuditLog, groups: Groups,
 };
 
 export default function App() {
