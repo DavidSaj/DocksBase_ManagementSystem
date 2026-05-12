@@ -2,7 +2,7 @@ import datetime
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.core import signing
-from apps.accounts.models import Marina
+from apps.accounts.models import Marina, User
 from apps.members.models import Member
 
 
@@ -102,3 +102,39 @@ class PortalDocumentViewTest(TestCase):
         self.marina.save()
         response = self.client.get('/api/v1/portal/member/documents/')
         self.assertEqual(response.status_code, 403)
+
+
+class AppConfigUpdateViewTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Config Marina', slug='config-marina')
+        self.user = User.objects.create_user(
+            email='mgr@config-marina.com',
+            password='testpass',
+            marina=self.marina,
+            role='manager',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_patch_app_config(self):
+        response = self.client.patch(
+            '/api/v1/marina/app-config/',
+            {'enable_boatyard': True, 'brand_color': '#cc0000'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.marina.refresh_from_db()
+        self.assertTrue(self.marina.app_config['enable_boatyard'])
+        self.assertEqual(self.marina.app_config['brand_color'], '#cc0000')
+
+    def test_patch_merges_not_replaces(self):
+        self.marina.app_config = {'enable_utilities': True}
+        self.marina.save()
+        self.client.patch(
+            '/api/v1/marina/app-config/',
+            {'enable_boatyard': False},
+            format='json',
+        )
+        self.marina.refresh_from_db()
+        self.assertTrue(self.marina.app_config.get('enable_utilities'))
+        self.assertFalse(self.marina.app_config.get('enable_boatyard'))

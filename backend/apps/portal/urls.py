@@ -20,6 +20,7 @@ from .views import (
     CraneRequestStaffListView, CraneRequestStaffDetailView,
     PortalBerthView, PortalVesselView, PortalInvoicePayView,
 )
+from .admin_views import AppConfigUpdateView
 
 urlpatterns = member_auth_urls + [
     path('portal/feed/',                                   FeedView.as_view(),                   name='portal_feed'),
@@ -40,4 +41,5 @@ urlpatterns = member_auth_urls + [
     path('portal/member/work-orders/',                    PortalWorkOrderView.as_view(),          name='portal_member_work_orders'),
     path('portal/member/documents/',                      PortalDocumentListView.as_view(),       name='portal_member_documents'),
     path('portal/member/documents/<int:pk>/',             PortalDocumentDetailView.as_view(),     name='portal_member_document_detail'),
+    path('marina/app-config/',                            AppConfigUpdateView.as_view(),          name='marina_app_config'),
 ]
