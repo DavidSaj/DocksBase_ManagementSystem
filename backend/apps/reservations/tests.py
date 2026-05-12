@@ -1213,3 +1213,34 @@ class TestBackfillMigration:
         backfill_booking(b)  # second call must not create duplicates
         assert Reservation.objects.filter(legacy_booking=b).count() == 1
 
+
+@pytest.mark.django_db
+class TestReservationSerializer:
+    def test_serializer_output(self, marina_factory, berth_factory):
+        from apps.reservations.models import Reservation, ReservationItem
+        from apps.reservations.serializers import ReservationSerializer
+        import datetime
+        from decimal import Decimal
+
+        marina = marina_factory()
+        berth = berth_factory(marina=marina)
+        today = datetime.date.today()
+
+        res = Reservation.objects.create(
+            marina=marina,
+            guest_name='Serializer Test',
+            guest_email='ser@test.com',
+            status='confirmed',
+            total_price=Decimal('200.00'),
+        )
+        ReservationItem.objects.create(
+            reservation=res, berth=berth,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            nights=2, item_price=Decimal('200.00'),
+        )
+        data = ReservationSerializer(res).data
+        assert data['id'] == res.pk
+        assert data['guest_email'] == 'ser@test.com'
+        assert data['status'] == 'confirmed'
+        assert len(data['items']) == 1
+        assert data['items'][0]['berth_code'] is not None
