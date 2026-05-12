@@ -27,7 +27,17 @@ Enterprise customers manage multiple marinas (a "group") through a dedicated gro
 
 Enterprise admins log in at `marina-admin/` with email + password (same JWT backend as all other apps). On login the API returns their groups via `MarinaGroupUserRole`. If they belong to one group → straight to dashboard. If multiple groups → group picker screen first.
 
-Enterprise admins can also log into any individual marina's `frontend/` app directly. When a user is assigned `MarinaGroupUserRole: admin` for a group, the backend automatically creates (or updates) a `User` record with `role='manager'` linked to each member marina. This means their JWT is valid at all member marina frontends without any extra steps — standard marina auth works unchanged.
+### SSO handoff — "Open marina" deep link
+
+When an enterprise admin clicks "Open marina" for a specific sub-marina, the marina-admin app calls a new `group/{id}/exchange_token/` endpoint, passing the target `marina_id`. The backend verifies the user has `MarinaGroupUserRole: admin` for the group, then issues a **short-lived (60s), single-use scoped JWT** with `marina_id=<target_marina>`. The marina-admin app appends this as a URL param and opens the marina frontend:
+
+```
+portal.docksbase.com/cannes?sso_token=<exchange_token>
+```
+
+The marina frontend intercepts `sso_token` on load (same pattern as the existing `impersonate_token` flow in `admin/src/screens/Marinas.jsx:79`), exchanges it for a standard session JWT, and logs them in. The marina frontend's permission classes require no changes — they see a normal marina-scoped token.
+
+**No physical User row syncing.** The enterprise admin maintains exactly one `User` account. Group membership is resolved at the exchange token endpoint only, not propagated into per-marina User records.
 
 ---
 
@@ -39,6 +49,7 @@ Enterprise admins can also log into any individual marina's `frontend/` app dire
 max_marinas = models.IntegerField(default=1)
 billing_contact_email = models.EmailField(blank=True)
 stripe_customer_id = models.CharField(max_length=64, blank=True)
+base_currency = models.CharField(max_length=3, default='EUR')
 ```
 
 ### Marina limit enforcement
@@ -52,6 +63,15 @@ if group.memberships.count() >= group.max_marinas:
 ### No changes to `Marina` model
 
 Individual marinas are unchanged. Group membership is purely through `MarinaGroupMembership`.
+
+### Multi-currency handling
+
+Enterprise groups can contain marinas billing in different currencies (e.g. GBP + EUR). The `group/{id}/financials/` endpoint must not `SUM()` raw amounts across currencies. Instead:
+
+1. Each marina's revenue is fetched in its own `Marina.currency`
+2. The endpoint looks up today's `ExchangeRate` (from `accounting.ExchangeRate`, populated daily by `fx_rate_updater` in `accounting/tasks.py`) to convert each marina's figures into `MarinaGroup.base_currency`
+3. Converted totals are summed and the response includes `base_currency` so the UI can display the correct currency symbol
+4. If no exchange rate is available for a pair, that marina's revenue is excluded from the aggregate and flagged in the response (`missing_fx: ["GBP"]`).
 
 ---
 
@@ -81,6 +101,7 @@ All under `/api/` prefix, DRF viewsets.
 | `group/{id}/staff/` | GET | Harbour masters across all member marinas |
 | `group/{id}/staff/invite/` | POST | Invite a manager to a specific marina |
 | `group/{id}/staff/{user_id}/remove/` | POST | Remove a manager from a marina |
+| `group/{id}/exchange_token/` | POST | Issue a short-lived scoped JWT for a member marina (SSO handoff) |
 
 ### Permissions
 
@@ -103,6 +124,7 @@ Table columns: Group name | Marina count / limit | Billing contact | Created dat
 
 - Group name (editable)
 - Billing contact email (editable)
+- Base currency (editable — used for financial aggregation)
 - Marina limit (editable integer input)
 - Member marinas list — each row shows marina name + a Remove button
 - "Add marina" — searchable dropdown of marinas not currently in any group
@@ -168,7 +190,7 @@ Shows the primary manager (harbour master) for each marina:
 - Name, email, marina, role
 
 Actions available to enterprise admin:
-- **Invite manager** — enter email + select marina → sends invite, creates `User` with `role='manager'` linked to that marina (same invite flow as the marina's own Staff screen)
+- **Invite manager** — enter email + select marina → sends invite. The invited person creates their own `User` account linked to that marina (standard marina staff invite flow). Enterprise admin does not need their own User record at each marina — access is via SSO handoff only.
 - **Remove manager** — removes their marina access
 - **Cannot** manage day-to-day staff (done inside each marina's own frontend)
 
@@ -177,6 +199,7 @@ Actions available to enterprise admin:
 - Group name (editable)
 - Billing contact email (editable)
 - VAT number (editable)
+- Base currency (editable — used for financial aggregation across marinas)
 - Marina count vs. limit (read-only display)
 - No plan changes (handled manually by David)
 
