@@ -9,7 +9,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.members.models import Member
+from apps.reservations.models import Booking
 
+from .checkin_utils import make_portal_token
 from .member_auth_utils import (
     decode_member_magic_token,
     decode_refresh_token,
@@ -168,4 +170,47 @@ class MemberMagicRefreshView(APIView):
         return Response({
             'session_token': session_token,
             'refresh_token': new_refresh,
+        })
+
+
+class GuestInstantLoginView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email       = (request.data.get('email') or '').strip().lower()
+        ref         = (request.data.get('booking_reference') or '').strip().upper()
+        marina_slug = request.META.get('HTTP_X_MARINA_SLUG', '')
+
+        if not email or not ref or not marina_slug:
+            return Response(
+                {'detail': 'email, booking_reference, and X-Marina-Slug required.'},
+                status=400,
+            )
+
+        if ref.startswith('BK-'):
+            ref = ref[3:]
+        try:
+            booking_pk = int(ref)
+        except ValueError:
+            return Response({'detail': 'No booking found.'}, status=401)
+
+        try:
+            booking = Booking.objects.select_related('marina').get(
+                pk=booking_pk,
+                guest_email__iexact=email,
+                marina__slug=marina_slug,
+            )
+        except Booking.DoesNotExist:
+            return Response({'detail': 'No booking found.'}, status=401)
+
+        session_token = make_portal_token(
+            booking_id=booking.id,
+            marina_slug=booking.marina.slug,
+            boater_email=booking.guest_email,
+        )
+        return Response({
+            'token': session_token,
+            'booking_id': booking.id,
+            'marina_slug': booking.marina.slug,
         })
