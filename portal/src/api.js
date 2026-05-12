@@ -105,3 +105,18 @@ export function uploadDocument(docType, file) {
 export function deleteDocument(id) {
   return api.delete(`/portal/member/documents/${id}/`);
 }
+
+export function createReservationIntent(marinaSlug, payload) {
+  return api.post('/public/reservations/intent/', payload, {
+    headers: { 'X-Marina-Slug': marinaSlug },
+  });
+}
+
+export function confirmReservation(marinaSlug, reservationId, paymentIntentId) {
+  return api.post('/public/reservations/confirm/', {
+    reservation_id: reservationId,
+    payment_intent_id: paymentIntentId,
+  }, {
+    headers: { 'X-Marina-Slug': marinaSlug },
+  });
+}
