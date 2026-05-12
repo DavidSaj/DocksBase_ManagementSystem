@@ -135,6 +135,11 @@ def send_booking_confirmed_email(booking):
             (f'<p style="font-size:14px;color:{_MUTED};margin:0 0 24px;">Need help? Contact the marina: <a href="mailto:{marina.contact_email}" style="color:{_NAVY};">{contact_line}</a></p>' if contact_line else '') +
             _p("Use the button below to access your digital boarding pass, complete pre-arrival checks, and find your berth on arrival.") +
             _btn(magic_url, "Open Boarding Pass →") +
+            _p(
+                f'No link? Visit <a href="{magic_url.split("?")[0]}" style="color:{_NAVY};">'
+                f'{magic_url.split("?")[0]}</a> and enter your Booking ID '
+                f'<strong>BK-{booking.pk}</strong> with your email address to sign in instantly.'
+            ) +
             _divider() +
             _small("This link is personal — please don't share it. It expires after 72 hours but you can request a new one at any time.")
         ),
@@ -160,6 +165,7 @@ def send_booking_confirmed_email(booking):
             f"Amount paid: {amount}\n\n"
             f"{contact_txt}"
             f"Open your boarding pass: {magic_url}\n\n"
+            f"No link? Visit {magic_url.split('?')[0]} and enter Booking ID BK-{booking.pk} with your email.\n\n"
             "This link expires in 72 hours.\n\n"
             f"— {marina.name}"
         ),

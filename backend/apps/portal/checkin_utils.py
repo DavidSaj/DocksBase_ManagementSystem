@@ -45,7 +45,7 @@ def decode_portal_token(token):
 def make_magic_url(booking):
     token = make_magic_token(booking.id, booking.guest_email)
     base = getattr(settings, 'PORTAL_BASE_URL', 'https://book.docksbase.com')
-    return f"{base}/{booking.marina.slug}/portal?token={token}"
+    return f"{base}/{booking.marina.slug}?token=g_{token}"
 
 
 def is_arrival_day(booking):
