@@ -69,27 +69,28 @@ class ReservationIntentView(APIView):
         check_out = d['check_out']
         nights    = (check_out - check_in).days
 
-        reservation = Reservation.objects.create(
-            marina=marina,
-            guest_name=d['guest_name'],
-            guest_email=d['guest_email'],
-            guest_phone=d.get('guest_phone', ''),
-            status='pending_review',
-            booking_source='portal',
-        )
-        for item in d['items']:
-            ReservationItem.objects.create(
-                reservation=reservation,
-                berth=None,
-                check_in=check_in,
-                check_out=check_out,
-                nights=nights,
-                vessel_name=item.get('vessel_name', ''),
-                boat_loa=item.get('boat_loa'),
-                boat_beam=item.get('boat_beam'),
-                boat_draft=item.get('boat_draft'),
-                status='unassigned',
+        with transaction.atomic():
+            reservation = Reservation.objects.create(
+                marina=marina,
+                guest_name=d['guest_name'],
+                guest_email=d['guest_email'],
+                guest_phone=d.get('guest_phone', ''),
+                status='pending_review',
+                booking_source='portal',
             )
+            for item in d['items']:
+                ReservationItem.objects.create(
+                    reservation=reservation,
+                    berth=None,
+                    check_in=check_in,
+                    check_out=check_out,
+                    nights=nights,
+                    vessel_name=item.get('vessel_name', ''),
+                    boat_loa=item.get('boat_loa'),
+                    boat_beam=item.get('boat_beam'),
+                    boat_draft=item.get('boat_draft'),
+                    status='unassigned',
+                )
         return Response({
             'reservation_id': reservation.pk,
             'reference': f'RES-{reservation.pk}',
