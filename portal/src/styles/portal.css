@@ -1194,3 +1194,32 @@ input, select, textarea { font-family: inherit; }
 
 /* ── Native select fix: restore arrow removed by .p-input's -webkit-appearance:none ── */
 select.p-input { -webkit-appearance: auto; appearance: auto; }
+
+/* ── Boarding Pass ──────────────────────────────────────────────── */
+.p-bp-root        { min-height: 100vh; background: #f4f6f8; display: flex; flex-direction: column; }
+.p-bp-header      { background: var(--color-primary); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+.p-bp-logo        { height: 32px; object-fit: contain; }
+.p-bp-marina-name { color: #fff; font-size: 18px; font-weight: 700; font-family: var(--font-app, 'IBM Plex Sans', sans-serif); }
+.p-bp-gear        { background: none; border: none; cursor: pointer; padding: 4px; }
+.p-bp-gear svg    { width: 22px; height: 22px; stroke: rgba(255,255,255,0.7); fill: none; stroke-width: 2; }
+.p-bp-scroll      { flex: 1; overflow-y: auto; padding: 16px 16px 40px; }
+.p-bp-section     { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow-card, 0 1px 4px rgba(0,0,0,0.08)); }
+.p-bp-section-label { font-size: 11px; font-weight: 700; color: rgba(0,0,0,0.4); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.p-bp-berth-code  { font-size: 32px; font-weight: 800; color: var(--color-primary); line-height: 1; margin-bottom: 8px; }
+.p-bp-dates       { font-size: 14px; color: rgba(0,0,0,0.55); display: flex; gap: 8px; align-items: center; }
+.p-bp-dates-arrow { color: rgba(0,0,0,0.3); }
+.p-bp-access-row  { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.p-bp-access-row:last-child { border-bottom: none; }
+.p-bp-access-label { font-size: 11px; font-weight: 700; color: rgba(0,0,0,0.4); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.p-bp-access-value { font-size: 18px; font-weight: 700; color: #1a2d4a; font-family: 'IBM Plex Mono', monospace; }
+.p-bp-access-expiry { font-size: 12px; color: rgba(0,0,0,0.4); margin-top: 2px; }
+.p-bp-copy-btn    { background: #f4f6f8; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: #1a2d4a; transition: background 0.15s; }
+.p-bp-copy-btn:active { background: #e2e8f0; }
+.p-bp-map-container { overflow: hidden; border-radius: 8px; background: #f8fafc; }
+.p-bp-map-svg     { width: 100%; height: auto; max-height: 240px; }
+.p-bp-map-legend  { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 0; }
+.p-bp-map-legend-item { display: flex; align-items: center; gap: 4px; font-size: 12px; color: rgba(0,0,0,0.5); }
+.p-bp-map-dot     { width: 8px; height: 8px; border-radius: 50%; background: var(--color-primary); flex-shrink: 0; }
+.p-bp-local-guide { font-size: 14px; line-height: 1.6; color: rgba(0,0,0,0.7); }
+.p-bp-extend      { text-align: center; }
+.p-bp-extend-btn  { width: 100%; padding: 14px; background: var(--color-primary); color: #fff; border: none; border-radius: 3px; font-size: 16px; font-weight: 700; cursor: pointer; }
