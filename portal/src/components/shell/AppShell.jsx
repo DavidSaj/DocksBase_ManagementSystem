@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUserContext } from '../../context/UserContext';
+import { useTenant } from '../../context/TenantContext';
 import BottomNav   from './BottomNav';
 import HomeTab     from '../../screens/tabs/HomeTab';
 import ServicesTab from '../../screens/tabs/ServicesTab';
@@ -15,10 +16,25 @@ const TAB_COMPONENTS = {
   account:  AccountTab,
 };
 
+const DEFAULT_TABS = [
+  { id: 'home',    label: 'Home' },
+  { id: 'services', label: 'Services' },
+  { id: 'book',    label: 'Book' },
+  { id: 'wallet',  label: 'Wallet' },
+  { id: 'account', label: 'Account' },
+];
+
 export default function AppShell({ initialTab = 'home' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const { capabilities } = useUserContext();
+  const { appConfig } = useTenant();
   const TabComponent = TAB_COMPONENTS[activeTab] || HomeTab;
+
+  useEffect(() => {
+    if (appConfig?.brand_color) {
+      document.documentElement.style.setProperty('--color-primary', appConfig.brand_color);
+    }
+  }, [appConfig?.brand_color]);
 
   useEffect(() => {
     function handleNav(e) { setActiveTab(e.detail.tab); }
@@ -34,7 +50,7 @@ export default function AppShell({ initialTab = 'home' }) {
   return (
     <div className="p-shell">
       <TabComponent />
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav tabs={DEFAULT_TABS} activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }

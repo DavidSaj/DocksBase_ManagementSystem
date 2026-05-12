@@ -1,3 +1,16 @@
+/* ── Brand color (overridden at runtime via JS if appConfig.brand_color is set) ── */
+:root {
+  --color-primary: #0c1f3d;
+}
+
+.p-nav-tab.active {
+  color: var(--color-primary);
+}
+
+.p-nav-tab.active svg {
+  stroke: var(--color-primary);
+}
+
 /* ── Tokens ─────────────────────────────────────────────────────────── */
 :root {
   --navy:       #0c1f3d;
