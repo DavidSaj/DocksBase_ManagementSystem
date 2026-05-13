@@ -468,6 +468,13 @@ export default function Settings() {
       dry_storage_slots: marina.dry_storage_slots ?? '',
       max_loa:           marina.max_loa          ?? '',
       max_draft:         marina.max_draft        ?? '',
+      // SMTP / email config
+      notification_from_email: marina.notification_from_email ?? '',
+      smtp_host:               marina.smtp_host               ?? '',
+      smtp_port:               marina.smtp_port               != null ? String(marina.smtp_port) : '',
+      smtp_user:               marina.smtp_user               ?? '',
+      smtp_password:           marina.smtp_password           ?? '',
+      smtp_use_tls:            marina.smtp_use_tls            ?? true,
     });
     setFlags({
       restaurant:  marina.features?.restaurant  ?? false,
@@ -485,7 +492,28 @@ export default function Settings() {
     if (!mf) return;
     setMarinaSaving(true);
     try {
-      await updateMarina({ ...mf, payment_terms: Number(mf.payment_terms) });
+      await updateMarina({
+        ...mf,
+        payment_terms: Number(mf.payment_terms),
+        smtp_port: mf.smtp_port !== '' ? Number(mf.smtp_port) : null,
+      });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  async function saveSmtpConfig() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({
+        notification_from_email: mf.notification_from_email,
+        smtp_host:               mf.smtp_host,
+        smtp_port:               mf.smtp_port !== '' ? Number(mf.smtp_port) : null,
+        smtp_user:               mf.smtp_user,
+        smtp_password:           mf.smtp_password,
+        smtp_use_tls:            mf.smtp_use_tls,
+      });
     } finally {
       setMarinaSaving(false);
     }
@@ -856,7 +884,7 @@ export default function Settings() {
             <div className="card-body" style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.6 }}>
               Owners and Managers always have full access to every module. For Staff accounts, click <strong>Permissions</strong> on any staff user above to control which modules they can see. Modules not explicitly blocked default to accessible.
               <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {['overview','map','reservations','vessels','documents','boatyard','maintenance','staff','billing','reports','members','restaurant','events','sales'].map(m => (
+                {['overview','map','reservations','vessels','documents','boatyard','maintenance','staff','billing','reports','members','sales'].map(m => (
                   <span key={m} className="badge badge-navy" style={{ textTransform: 'none' }}>{m}</span>
                 ))}
               </div>
@@ -889,8 +917,6 @@ export default function Settings() {
                 ['billing',      'Billing'],
                 ['reports',      'Reports'],
                 ['members',      'Members'],
-                ['restaurant',   'Restaurant'],
-                ['events',       'Events'],
                 ['sales',        'Sales'],
               ].map(([id, label]) => {
                 const allowed = permForm.perms[id] !== false;
@@ -1066,18 +1092,82 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── NOTIFICATIONS (Coming Soon) ──────────────────────────────── */}
+      {/* ── NOTIFICATIONS / EMAIL CONFIG ─────────────────────────────── */}
       {tab === 'notifications' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <ComingSoonBanner />
 
-          <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-            <div className="card">
-              <div className="card-header">
-                <div className="card-header-title">Automated Notification Rules</div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Configure which events trigger email and SMS alerts</div>
+          {/* SMTP / outgoing email */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">Outgoing Email (SMTP)</div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                Leave blank to use the platform default email sender. Fill in your own SMTP details to send from your marina's address.
               </div>
-              <div className="card-body" style={{ padding: 0 }}>
+            </div>
+            <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <FieldRow label="From Address" hint="e.g. noreply@yourmarina.com">
+                <input
+                  type="email" style={MI}
+                  value={fm('notification_from_email')}
+                  onChange={e => setM('notification_from_email', e.target.value)}
+                  placeholder="noreply@yourmarina.com"
+                />
+              </FieldRow>
+              <FieldRow label="SMTP Host" hint="e.g. smtp.sendgrid.net">
+                <input
+                  type="text" style={MI}
+                  value={fm('smtp_host')}
+                  onChange={e => setM('smtp_host', e.target.value)}
+                  placeholder="smtp.yourmailprovider.com"
+                />
+              </FieldRow>
+              <FieldRow label="SMTP Port" hint="Usually 587 (TLS) or 465 (SSL)">
+                <input
+                  type="number" style={MI}
+                  value={fm('smtp_port')}
+                  onChange={e => setM('smtp_port', e.target.value)}
+                  placeholder="587"
+                />
+              </FieldRow>
+              <FieldRow label="SMTP Username">
+                <input
+                  type="text" style={MI}
+                  value={fm('smtp_user')}
+                  onChange={e => setM('smtp_user', e.target.value)}
+                  placeholder="apikey or your SMTP login"
+                />
+              </FieldRow>
+              <FieldRow label="SMTP Password">
+                <input
+                  type="password" style={MI}
+                  value={fm('smtp_password')}
+                  onChange={e => setM('smtp_password', e.target.value)}
+                  placeholder="••••••••••••••••"
+                />
+              </FieldRow>
+              <FieldRow label="Use TLS">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 34 }}>
+                  <Toggle on={mf?.smtp_use_tls ?? true} onChange={v => setM('smtp_use_tls', v)} />
+                  <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{mf?.smtp_use_tls ? 'Enabled' : 'Disabled'}</span>
+                </div>
+              </FieldRow>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <button className="btn btn-primary" disabled={marinaSaving} onClick={saveSmtpConfig}>
+                  {marinaSaving ? 'Saving…' : 'Save Email Settings'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Notification rules — coming soon */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">Automated Notification Rules</div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Configure which events trigger email alerts</div>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              <ComingSoonBanner />
+              <div style={{ opacity: 0.4, pointerEvents: 'none' }}>
                 {NOTIF_GROUPS.map(group => (
                   <div key={group.group}>
                     <div style={{ padding: '12px 18px 6px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.4)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
@@ -1090,38 +1180,14 @@ export default function Settings() {
                           <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', width: 32 }}>Email</span>
                           <Toggle on={false} onChange={() => {}} />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', width: 24 }}>SMS</span>
-                          <Toggle on={false} onChange={() => {}} />
-                        </div>
                       </div>
                     ))}
                   </div>
                 ))}
               </div>
             </div>
-
-            <div className="card" style={{ marginTop: 16 }}>
-              <div className="card-header"><div className="card-header-title">Email Provider</div></div>
-              <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <FieldRow label="Provider">
-                  <select disabled><option>SendGrid</option></select>
-                </FieldRow>
-                <FieldRow label="From Address">
-                  <input type="email" disabled placeholder="noreply@yourmarina.com" />
-                </FieldRow>
-                <FieldRow label="API Key">
-                  <input type="password" disabled placeholder="••••••••••••••••••••" />
-                </FieldRow>
-                <FieldRow label="SMS Provider">
-                  <select disabled><option>Twilio</option></select>
-                </FieldRow>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <button className="btn btn-primary" disabled>Save Provider Settings</button>
-                </div>
-              </div>
-            </div>
           </div>
+
         </div>
       )}
 

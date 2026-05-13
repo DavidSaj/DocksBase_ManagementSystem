@@ -37,6 +37,21 @@ export default function Reports() {
   const departuresList = (occReport?.departures_today ?? []).map(e => ({ ...e, event: 'Departure' }));
   const utilBerths     = utilReport?.berths ?? [];
 
+  function exportBerthCsv() {
+    const rows = [
+      ['Berth', 'Pier', 'Current Vessel', 'Days Occupied', 'Utilisation (%)'],
+      ...utilBerths.map(b => [b.berth, b.pier, b.vessel ?? '', b.days_occupied, b.util_pct]),
+    ];
+    const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `berth-utilisation-${new Date().toISOString().slice(0,7)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       {repError && (
@@ -237,7 +252,7 @@ export default function Reports() {
         <div>
           <div className="sec-hdr">
             <div className="sec-hdr-title">Berth Utilisation — {currentMonthLabel()}</div>
-            <button className="btn btn-ghost btn-sm"><Ic n="file" s={11}/>Export CSV</button>
+            <button className="btn btn-ghost btn-sm" onClick={exportBerthCsv} disabled={rLoading || utilBerths.length === 0}><Ic n="file" s={11}/>Export CSV</button>
           </div>
           <div className="card" style={{ overflow: 'hidden' }}>
             <table className="tbl">
