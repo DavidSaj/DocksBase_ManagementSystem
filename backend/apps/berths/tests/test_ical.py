@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.utils import timezone
 from apps.accounts.models import Marina
 from apps.berths.models import Berth, Pier, OTAConnection
-from apps.billing.models import ChargeableItem
+from apps.billing.models import ChargeableItem, TaxRate
 from apps.reservations.models import Booking
 
 
@@ -15,11 +15,19 @@ def make_conn(marina):
     return OTAConnection.objects.create(marina=marina, name='mySea', slug='mysea')
 
 
+def _default_tax(marina):
+    tax, _ = TaxRate.objects.get_or_create(
+        marina=marina, name='Standard', defaults={'rate': '0.00', 'is_default': True}
+    )
+    return tax
+
+
 def make_berth(marina, code, connection=None):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='A', defaults={'label': 'A'})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Night',
-        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50}
+        defaults={'category': 'berth', 'pricing_model': 'per_night', 'unit_price': 50,
+                  'tax_category': _default_tax(marina)}
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code, pricing_tier=tier,

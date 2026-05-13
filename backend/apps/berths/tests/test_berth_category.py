@@ -2,17 +2,25 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.berths.models import BerthCategory
-from apps.billing.models import ChargeableItem
+from apps.billing.models import ChargeableItem, TaxRate
 
 
 def make_marina():
     return Marina.objects.create(name='Test Marina')
 
 
+def _default_tax(marina):
+    tax, _ = TaxRate.objects.get_or_create(
+        marina=marina, name='Standard', defaults={'rate': '0.00', 'is_default': True}
+    )
+    return tax
+
+
 def make_tier(marina):
     return ChargeableItem.objects.create(
         marina=marina, name='Standard Night', category='berth',
         pricing_model='per_night', unit_price=40,
+        tax_category=_default_tax(marina),
     )
 
 

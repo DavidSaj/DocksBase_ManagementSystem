@@ -1,19 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 
-export default function useMaintenanceTasks() {
+export default function useMaintenanceTasks({ assignedTo } = {}) {
   const [tasks, setTasks]   = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get('/maintenance/maintenance-tasks/');
+      const params = {};
+      if (assignedTo) params.assigned_to = assignedTo;
+      const r = await api.get('/maintenance/maintenance-tasks/', { params });
       setTasks(r.data.results ?? r.data);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [assignedTo]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 

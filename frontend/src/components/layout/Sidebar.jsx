@@ -22,8 +22,6 @@ export const NAV = [
   { group: 'Yard & Services', items: [
     { id: 'boatyard',           icon: 'crane',        label: 'Boatyard' },
     { id: 'maintenance',        icon: 'wrench',       label: 'Maintenance' },
-    { id: 'restaurant',         icon: 'utensils',     label: 'Restaurant',              flag: 'restaurant' },
-    { id: 'events',             icon: 'star',         label: 'Events',                  flag: 'events' },
     { id: 'activities',         icon: 'clipboard',    label: 'Activities & Housekeeping' },
     { id: 'utilities',          icon: 'activity',     label: 'Utilities & Drystack',    flag: 'utilities' },
     { id: 'charter',            icon: 'anchor',       label: 'Charter & Harbour',       flag: 'charter' },

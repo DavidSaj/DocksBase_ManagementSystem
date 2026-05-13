@@ -117,6 +117,14 @@ class Marina(models.Model):
     referral_referee_benefit_value = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     harbour_master_email = models.EmailField(blank=True)
 
+    # Email configuration (per-marina from-address + optional SMTP override)
+    notification_from_email = models.EmailField(blank=True, help_text='From address used in all outgoing marina emails.')
+    smtp_host     = models.CharField(max_length=255, blank=True, help_text='SMTP host (leave blank to use platform default).')
+    smtp_port     = models.PositiveIntegerField(null=True, blank=True, help_text='SMTP port, e.g. 587.')
+    smtp_user     = models.CharField(max_length=255, blank=True)
+    smtp_password = models.CharField(max_length=255, blank=True, help_text='Stored in plaintext — use environment secrets for production deployments.')
+    smtp_use_tls  = models.BooleanField(default=True)
+
     # Track 5 — Warranty GL accounts
     # billing.Account does not yet exist; using billing.ChargeableItem as a
     # placeholder until a full Chart of Accounts model is added (Track 4 GL).

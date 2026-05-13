@@ -48,6 +48,7 @@ urlpatterns = [
         path('channels/', include('apps.channels.urls')),
         path('', include('apps.tenants.urls')),
         path('', include('apps.marketplace.urls')),
+        path('', include('apps.tickets.urls')),
     ])),
 ]
 

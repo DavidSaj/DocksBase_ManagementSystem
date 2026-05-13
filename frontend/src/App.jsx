@@ -68,6 +68,7 @@ import Charter from './screens/Charter.jsx';
 import Tenants from './screens/Tenants.jsx';
 import AccessControl from './screens/AccessControl.jsx';
 import Sustainability from './screens/Sustainability.jsx';
+import StaffSetup from './screens/StaffSetup.jsx';
 
 
 const SCREEN_MAP = {
@@ -173,6 +174,7 @@ export default function App() {
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/magic"  element={<MagicLink />} />
+        <Route path="/setup/:uidb64/:token" element={<StaffSetup />} />
         <Route path="/*"      element={<ProtectedRoute element={<MarinaProvider><DesktopApp /></MarinaProvider>} allowedRoles={['owner', 'manager']} />} />
       </Routes>
     </AuthProvider>
