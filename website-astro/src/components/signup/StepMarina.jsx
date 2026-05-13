@@ -4,7 +4,7 @@ import styles from './StepMarina.module.css'
 
 const Autocomplete = AutocompleteLib.default ?? AutocompleteLib
 const CURRENCIES = ['EUR', 'GBP', 'USD', 'DKK', 'SEK', 'NOK']
-const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+const GOOGLE_API_KEY = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY
 
 function validate(form) {
   const errors = {}
