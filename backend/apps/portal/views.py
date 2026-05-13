@@ -32,6 +32,7 @@ class MarinaPublicView(APIView):
             'booking_mode': marina.booking_mode,
             'vat_rate': str(marina.vat_rate),
             'logo_url': cfg.logo_url if cfg else '',
+            'app_config': marina.app_config or {},
         })
 
 

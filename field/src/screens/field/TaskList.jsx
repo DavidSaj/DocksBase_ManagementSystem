@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import useMaintenanceTasks from '../../hooks/useMaintenanceTasks.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 import Icon from '../../components/Icon.jsx';
 
 const PRIORITY_LABEL = { urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low' };
@@ -10,7 +11,13 @@ const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#
 const PINNED = { position: 'fixed', bottom: 0, left: 0, right: 0, padding: '12px 20px 28px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.1)' };
 
 export default function TaskList() {
-  const { tasks, loading, updateTask, completeTask } = useMaintenanceTasks();
+  const { user } = useAuth();
+  const [mineOnly, setMineOnly] = useState(true);
+
+  const myName = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
+  const assignedTo = mineOnly && myName ? myName : undefined;
+
+  const { tasks, loading, updateTask, completeTask } = useMaintenanceTasks({ assignedTo });
   const [selectedId, setSelectedId]           = useState(null);
   const [showCompletion, setShowCompletion]   = useState(false);
   const [completionNotes, setCompletionNotes] = useState('');
@@ -83,8 +90,20 @@ export default function TaskList() {
   return (
     <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
       <div style={{ background: '#0c1f3d', padding: '20px 20px 16px', color: '#fff' }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>My Tasks</div>
-        <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>{activeTasks.length} active</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{mineOnly ? 'My Tasks' : 'All Tasks'}</div>
+            <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>{activeTasks.length} active</div>
+          </div>
+          {myName && (
+            <button
+              onClick={() => setMineOnly(v => !v)}
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 20, color: '#fff', fontSize: 12, fontWeight: 600, padding: '5px 14px', cursor: 'pointer' }}
+            >
+              {mineOnly ? 'Show all' : 'Mine only'}
+            </button>
+          )}
+        </div>
       </div>
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
@@ -108,8 +127,8 @@ export default function TaskList() {
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
                 <Icon name="check-circle" size={36} color="rgba(0,0,0,0.2)" />
               </div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>All done!</div>
-              <div style={{ fontSize: 13, marginTop: 4 }}>No active tasks.</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{mineOnly ? 'All done!' : 'No tasks.'}</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>{mineOnly ? 'No tasks assigned to you.' : 'No active tasks for this marina.'}</div>
             </div>
           )}
         </div>

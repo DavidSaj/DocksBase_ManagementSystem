@@ -4,14 +4,16 @@ import OptionsScreen from './OptionsScreen';
 import AlternativesScreen from './AlternativesScreen';
 import QuoteScreen from './QuoteScreen';
 import BookingRequestSent from './BookingRequestSent';
+import ReservationConfirmedScreen from './ReservationConfirmedScreen';
 
 const INITIAL_STATE = {
-  checkIn: '', checkOut: '', boatLoa: '', boatBeam: '', boatDraft: '',
-  quotedPrice: null, quotedTotal: null,
-  selectedCategory: null,
-  categories: [],
+  checkIn: '', checkOut: '',
+  boats: [{ loa: '', beam: '', draft: '', category: null, categories: [] }],
+  quotedTotal: null,
   alternatives: [],
   errorBanner: '',
+  reservationReference: null,
+  reservationStatus: null,
 };
 
 export default function BookingWizard({ marina }) {
@@ -27,5 +29,6 @@ export default function BookingWizard({ marina }) {
   if (screen === 'alternatives')  return <AlternativesScreen state={state} navigate={navigate} />;
   if (screen === 'quote')         return <QuoteScreen state={state} navigate={navigate} marina={marina} />;
   if (screen === 'sent')          return <BookingRequestSent marina={marina} />;
+  if (screen === 'confirmed')     return <ReservationConfirmedScreen state={state} marina={marina} />;
   return <SearchScreen state={state} navigate={navigate} marina={marina} />;
 }

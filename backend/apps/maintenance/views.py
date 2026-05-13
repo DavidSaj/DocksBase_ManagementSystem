@@ -1,8 +1,10 @@
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import generics, status
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Task, Incident, Asset, Defect, MaintenanceTask
 from .serializers import (
     TaskSerializer, IncidentSerializer, AssetSerializer,
@@ -115,6 +117,9 @@ class DefectCreateTaskView(APIView):
 
 class MaintenanceTaskList(generics.ListCreateAPIView):
     serializer_class = MaintenanceTaskSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ['status', 'priority', 'assigned_to']
+    search_fields = ['title', 'description', 'assigned_to']
 
     def get_queryset(self):
         return MaintenanceTask.objects.filter(marina=self.request.user.marina).select_related('asset')

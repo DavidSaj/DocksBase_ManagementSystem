@@ -5,7 +5,14 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Marina
 from apps.reservations.models import Booking
 from apps.berths.models import Pier, Berth, BerthCategory
-from apps.billing.models import ChargeableItem, Invoice
+from apps.billing.models import ChargeableItem, Invoice, TaxRate
+from apps.billing.service import seed_default_tax_rates
+
+
+def _default_tax(marina):
+    """Return (or create) the Standard 20% tax rate for a marina."""
+    seed_default_tax_rates(marina)
+    return TaxRate.objects.get(marina=marina, name='Standard — 20.00%')
 
 
 class PublicBookingCreateTest(TestCase):
@@ -80,16 +87,19 @@ class PublicBookingCreateTest(TestCase):
 
 
 def make_auto_marina():
-    return Marina.objects.create(
+    marina = Marina.objects.create(
         name='Auto Marina', slug='auto-marina', booking_mode='auto_tetris',
     )
+    seed_default_tax_rates(marina)
+    return marina
 
 
 def make_test_berth(marina, code='B1', loa=20.0, beam=6.0, price=90):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='P', defaults={'label': 'Pier'})
+    tax_cat = _default_tax(marina)
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Berth Night', category='berth',
-        defaults={'pricing_model': 'per_night', 'unit_price': price},
+        defaults={'pricing_model': 'per_night', 'unit_price': price, 'tax_category': tax_cat},
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code,
@@ -323,9 +333,11 @@ class PublicEngineRequestTest(TestCase):
 class PublicBerthCategoriesViewTest(TestCase):
     def setUp(self):
         self.marina = Marina.objects.create(name='Cat Marina', slug='cat-marina', booking_mode='auto_tetris')
+        seed_default_tax_rates(self.marina)
         self.tier = ChargeableItem.objects.create(
             marina=self.marina, name='Night', category='berth',
             pricing_model='per_night', unit_price=50,
+            tax_category=_default_tax(self.marina),
         )
         self.cat = BerthCategory.objects.create(
             marina=self.marina, name='Standard', amenities=['water'],
@@ -380,9 +392,11 @@ class PublicBerthIntentViewTest(TestCase):
             name='Intent Marina', slug='intent-marina',
             booking_mode='auto_tetris', stripe_account_id='acct_test123',
         )
+        seed_default_tax_rates(self.marina)
         self.tier = ChargeableItem.objects.create(
             marina=self.marina, name='Night', category='berth',
             pricing_model='per_night', unit_price=55,
+            tax_category=_default_tax(self.marina),
         )
         self.cat = BerthCategory.objects.create(
             marina=self.marina, name='Premium', amenities=['power_30a'],

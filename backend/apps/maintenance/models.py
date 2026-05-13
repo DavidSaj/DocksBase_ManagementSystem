@@ -83,7 +83,7 @@ class MaintenanceTask(models.Model):
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='maintenance_tasks')
     asset = models.ForeignKey(Asset, on_delete=models.SET_NULL, null=True, blank=True)
-    defect = models.ForeignKey(Defect, on_delete=models.SET_NULL, null=True, blank=True)
+    defect = models.OneToOneField(Defect, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     assigned_to = models.CharField(max_length=200, blank=True)

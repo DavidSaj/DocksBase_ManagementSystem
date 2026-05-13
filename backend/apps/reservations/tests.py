@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
-from apps.billing.models import Invoice, InvoiceLineItem, ChargeableItem
+from apps.billing.models import Invoice, InvoiceLineItem, ChargeableItem, TaxRate
 from apps.billing import service as billing_service
 from apps.members.models import Member
 from apps.vessels.models import Vessel
@@ -24,6 +24,13 @@ def make_marina():
     return Marina.objects.create(name='Test Marina')
 
 
+def _default_tax(marina):
+    tax, _ = TaxRate.objects.get_or_create(
+        marina=marina, name='Standard', defaults={'rate': '0.00', 'is_default': True}
+    )
+    return tax
+
+
 def make_user(marina):
     return User.objects.create_user(email='staff@test.com', password='pass', marina=marina, role='manager')
 
@@ -32,7 +39,9 @@ def make_berth(marina, price=50):
     pier = Pier.objects.create(marina=marina, code='A', label='Pier A')
     tier = ChargeableItem.objects.create(
         marina=marina, name='Berth Night', category='berth',
-        pricing_model='per_night', unit_price=price,     )
+        pricing_model='per_night', unit_price=price,
+        tax_category=_default_tax(marina),
+    )
     return Berth.objects.create(
         marina=marina, pier=pier, code='A1', pricing_tier=tier, status='available'
     )
@@ -141,7 +150,8 @@ def make_berth_with_dims(marina, code, loa=20.0, beam=6.0, price=50):
     pier, _ = Pier.objects.get_or_create(marina=marina, code='T', defaults={'label': 'Test Pier'})
     tier, _ = ChargeableItem.objects.get_or_create(
         marina=marina, name='Berth Night', category='berth',
-        defaults={'pricing_model': 'per_night', 'unit_price': price},
+        defaults={'pricing_model': 'per_night', 'unit_price': price,
+                  'tax_category': _default_tax(marina)},
     )
     return Berth.objects.create(
         marina=marina, pier=pier, code=code,
@@ -790,6 +800,7 @@ class ApproveBookingViewTest(TestCase):
         ChargeableItem.objects.create(
             marina=self.marina, name='Harbour Dues', category='booking_fee',
             pricing_model='flat_fee', unit_price='30.00',
+            tax_category=_default_tax(self.marina),
         )
         resp = self.client.post(self.url, {'berth_id': self.berth.pk}, format='json')
         self.assertEqual(resp.status_code, 200)
@@ -877,6 +888,7 @@ class BerthCapableForTest(TestCase):
         tier = ChargeableItem.objects.create(
             marina=self.marina, name='Berth Night', category='berth',
             pricing_model='per_night', unit_price=80,
+            tax_category=_default_tax(self.marina),
         )
         self.big_berth = Berth.objects.create(
             marina=self.marina, pier=pier, code='B1', pricing_tier=tier,
@@ -1432,6 +1444,19 @@ class TestReservationCheckoutFields:
         field = ReservationItem._meta.get_field('status')
         assert field.default == 'confirmed'
 
+    @pytest.mark.django_db
+    def test_pending_review_status_is_valid_choice(self):
+        from apps.reservations.models import Reservation
+        choices = [c[0] for c in Reservation.STATUS_CHOICES]
+        assert 'pending_review' in choices
+
+    @pytest.mark.django_db
+    def test_unassigned_item_status_is_valid_choice(self):
+        from apps.reservations.models import ReservationItem
+        field = ReservationItem._meta.get_field('status')
+        valid = [c[0] for c in field.choices]
+        assert 'unassigned' in valid
+
 
 # ── Fixtures for assign_berth tests ─────────────────────────────────────────
 
@@ -1659,13 +1684,15 @@ class TestReservationIntentView:
         assert Reservation.objects.count() == before  # no partial records left
 
     @pytest.mark.django_db
-    def test_intent_rejects_non_auto_tetris_marina(self):
+    def test_intent_manual_marina_returns_pending_review(self):
         from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
         from django.test import Client
-        Marina.objects.create(
+        marina = Marina.objects.create(
             name='Manual Marina', slug='intent-manual',
             booking_mode='manual',
         )
+        seed_default_tax_rates(marina)
         client = Client()
         resp = client.post(
             self.BASE_URL,
@@ -1677,7 +1704,10 @@ class TestReservationIntentView:
             content_type='application/json',
             HTTP_X_MARINA_SLUG='intent-manual',
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data['requires_payment'] is False
+        assert data['status'] == 'pending_review'
 
 
 def _make_pending_reservation(marina):
@@ -1833,6 +1863,138 @@ class TestReservationConfirmView:
                 HTTP_X_MARINA_SLUG='conf-d',
             )
         assert resp.status_code == 402
+
+
+class TestReservationIntentManualMarina:
+    BASE_URL = '/api/v1/public/reservations/intent/'
+
+    @pytest.mark.django_db
+    def test_manual_marina_returns_requires_payment_false(self):
+        from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(
+            name='Manual Marina', slug='manual-m', booking_mode='manual',
+        )
+        seed_default_tax_rates(marina)
+
+        client = APIClient()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2028-06-01',
+                'check_out': '2028-06-04',
+                'guest_name': 'Manual Guest',
+                'guest_email': 'manual@test.com',
+                'items': [{'boat_loa': '12.0'}],
+            },
+            format='json',
+            headers={'X-Marina-Slug': 'manual-m'},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data['requires_payment'] is False
+        assert 'reservation_id' in data
+        assert data['reference'].startswith('RES-')
+        assert 'client_secret' not in data
+
+    @pytest.mark.django_db
+    def test_manual_marina_creates_pending_review_reservation(self):
+        from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
+        from apps.reservations.models import Reservation, ReservationItem
+
+        marina = Marina.objects.create(
+            name='Manual Marina 2', slug='manual-m2', booking_mode='manual',
+        )
+        seed_default_tax_rates(marina)
+
+        client = APIClient()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2028-07-01',
+                'check_out': '2028-07-03',
+                'guest_name': 'Request Guest',
+                'guest_email': 'req@test.com',
+                'items': [
+                    {'boat_loa': '10.0', 'vessel_name': 'My Yacht'},
+                    {'boat_loa': '5.0',  'vessel_name': 'Tender'},
+                ],
+            },
+            format='json',
+            headers={'X-Marina-Slug': 'manual-m2'},
+        )
+        assert resp.status_code == 201
+        res_id = resp.json()['reservation_id']
+        res = Reservation.objects.get(pk=res_id)
+        assert res.status == 'pending_review'
+        assert res.paid is False
+        items = ReservationItem.objects.filter(reservation=res)
+        assert items.count() == 2
+        assert all(i.status == 'unassigned' for i in items)
+        assert all(i.berth_id is None for i in items)
+
+    @pytest.mark.django_db
+    def test_manual_marina_empty_items_rejected(self):
+        """Serializer should reject empty items list (min_length=1)"""
+        from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
+
+        marina = Marina.objects.create(
+            name='Manual Marina', slug='manual-empty',
+            booking_mode='manual',
+        )
+        seed_default_tax_rates(marina)
+
+        client = APIClient()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2028-06-01',
+                'check_out': '2028-06-04',
+                'guest_name': 'Test Guest',
+                'guest_email': 'test@test.com',
+                'items': [],  # Empty - should be rejected
+            },
+            format='json',
+            headers={'X-Marina-Slug': 'manual-empty'},
+        )
+        assert resp.status_code == 400
+        assert 'items' in resp.json()
+
+    @pytest.mark.django_db
+    def test_manual_marina_missing_guest_phone(self):
+        """Missing guest_phone should default to empty string"""
+        from apps.accounts.models import Marina
+        from apps.billing.service import seed_default_tax_rates
+        from apps.reservations.models import Reservation
+
+        marina = Marina.objects.create(
+            name='Manual Marina', slug='manual-nophone',
+            booking_mode='manual',
+        )
+        seed_default_tax_rates(marina)
+
+        client = APIClient()
+        resp = client.post(
+            self.BASE_URL,
+            data={
+                'check_in': '2028-06-01',
+                'check_out': '2028-06-04',
+                'guest_name': 'Test Guest',
+                'guest_email': 'test@test.com',
+                # No guest_phone field
+                'items': [{'boat_loa': '10.0'}],
+            },
+            format='json',
+            headers={'X-Marina-Slug': 'manual-nophone'},
+        )
+        assert resp.status_code == 201
+        res_id = resp.json()['reservation_id']
+        res = Reservation.objects.get(pk=res_id)
+        assert res.guest_phone == ''  # Should default to empty string
 
 
 class TestExpireReservationsCommand(TestCase):

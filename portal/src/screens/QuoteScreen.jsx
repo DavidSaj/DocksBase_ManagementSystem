@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import api from '../api';
+import api, { createReservationIntent, confirmReservation } from '../api';
 import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
@@ -10,262 +10,198 @@ function formatDate(iso) {
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const AMENITY_LABELS = {
-  power_30a:   '30A Power',
-  power_50a:   '50A Power',
-  water:       'Water',
-  wifi:        'WiFi',
-  fuel_nearby: 'Fuel Nearby',
-  pump_out:    'Pump-out',
-};
+function GuestDetailsForm({ state, marina, onIntentCreated, onNavigateConfirmed, onNavigateAlternatives }) {
+  const nights = Math.round((new Date(state.checkOut) - new Date(state.checkIn)) / 86400000);
+  const marinaSlug = marina?.slug || localStorage.getItem('portal_marina_slug') || '';
 
-const AMENITY_ICONS = {
-  power_30a: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-    </svg>
-  ),
-  power_50a: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-    </svg>
-  ),
-  water: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-    </svg>
-  ),
-  wifi: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-      <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
-      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-      <line x1="12" y1="20" x2="12.01" y2="20"/>
-    </svg>
-  ),
-  fuel_nearby: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="3" y1="22" x2="15" y2="22"/>
-      <line x1="4" y1="9" x2="14" y2="9"/>
-      <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/>
-      <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>
-    </svg>
-  ),
-  pump_out: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="1 4 1 10 7 10"/>
-      <polyline points="23 20 23 14 17 14"/>
-      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-    </svg>
-  ),
-};
-
-const MOORING_LABELS = {
-  finger:       'Finger Pontoon',
-  alongside:    'Alongside',
-  stern_to:     'Stern-to',
-  mooring_ball: 'Mooring Ball',
-};
-
-function ReceiptCard({ category, nights, total, checkIn, checkOut, marina }) {
-  const pricePerNight  = parseFloat(category.price_per_night);
-  const subtotal       = pricePerNight * nights;
-  const vatRate        = marina?.vat_rate ? parseFloat(marina.vat_rate) : 0;
-  const vatAmount      = vatRate > 0 ? subtotal * vatRate / 100 : 0;
-  const displayTotal   = vatRate > 0 ? subtotal + vatAmount : total;
-  const fmt            = n => `€${n.toFixed(2)}`;
-
-  return (
-    <div className="q-receipt-card">
-      <div className="q-receipt-eyebrow">Booking Summary</div>
-      <div className="q-receipt-cat-name">{category.name}</div>
-      {category.mooring_type && (
-        <div className="q-receipt-mooring">
-          {MOORING_LABELS[category.mooring_type] || category.mooring_type}
-        </div>
-      )}
-      {category.amenities?.length > 0 && (
-        <div className="q-receipt-amenities">
-          {category.amenities.map(a => (
-            <span key={a} className="q-receipt-amenity" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              {AMENITY_ICONS[a]}
-              {AMENITY_LABELS[a] || a}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <hr className="q-receipt-divider" />
-
-      <div className="q-receipt-line">
-        <span className="q-receipt-line-label">Price per night</span>
-        <span className="q-receipt-line-value">{fmt(pricePerNight)}</span>
-      </div>
-      <div className="q-receipt-line">
-        <span className="q-receipt-line-label">× {nights} night{nights !== 1 ? 's' : ''}</span>
-        <span className="q-receipt-line-value">{fmt(subtotal)}</span>
-      </div>
-      {vatRate > 0 && (
-        <div className="q-receipt-line">
-          <span className="q-receipt-line-label">VAT ({vatRate}%)</span>
-          <span className="q-receipt-line-value">{fmt(vatAmount)}</span>
-        </div>
-      )}
-
-      <hr className="q-receipt-divider" />
-
-      <div className="q-receipt-total-row">
-        <span className="q-receipt-total-label">Total</span>
-        <span className="q-receipt-total-amount">{fmt(displayTotal)}</span>
-      </div>
-
-      <div className="q-receipt-dates">
-        {formatDate(checkIn)} → {formatDate(checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
-      </div>
-    </div>
-  );
-}
-
-function PayForm({ state, navigate, onSuccess }) {
-  const stripe   = useStripe();
-  const elements = useElements();
-  const [form, setForm] = useState({
-    guestName: '', guestEmail: '', guestPhone: '', vesselName: '', eta: '',
-  });
-  const [busy, setBusy] = useState(false);
+  const [name,  setName]  = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [vesselNames, setVesselNames] = useState(state.boats.map(() => ''));
+  const [busy,  setBusy]  = useState(false);
   const [error, setError] = useState('');
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const updateVesselName = (idx, val) =>
+    setVesselNames(vs => vs.map((v, i) => i === idx ? val : v));
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (!stripe || !elements) return;
     setBusy(true); setError('');
 
-    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      redirect: 'if_required',
-      confirmParams: { return_url: `${window.location.origin}${window.location.pathname}` },
-    });
-
-    if (stripeError) {
-      setError(stripeError.message || 'Payment failed. Please try again.');
-      setBusy(false);
-      return;
-    }
+    const payload = {
+      check_in:    state.checkIn,
+      check_out:   state.checkOut,
+      guest_name:  name,
+      guest_email: email,
+      guest_phone: phone,
+      items: state.boats.map((boat, i) => ({
+        boat_loa:          parseFloat(boat.loa),
+        boat_beam:         boat.beam  ? parseFloat(boat.beam)  : null,
+        boat_draft:        boat.draft ? parseFloat(boat.draft) : null,
+        berth_category_id: boat.category?.id ?? null,
+        vessel_name:       vesselNames[i] || '',
+      })),
+    };
 
     try {
-      const { data } = await api.post('/public/bookings/engine-request/', {
-        check_in:  state.checkIn,
-        check_out: state.checkOut,
-        ...(state.boatLoa   && { boat_loa:   parseFloat(state.boatLoa) }),
-        ...(state.boatBeam  && { boat_beam:  parseFloat(state.boatBeam) }),
-        ...(state.boatDraft && { boat_draft: parseFloat(state.boatDraft) }),
-        guest_name:  form.guestName,
-        guest_email: form.guestEmail,
-        guest_phone: form.guestPhone,
-        vessel_name: form.vesselName,
-        eta:         form.eta || null,
-        berth_category_id:  state.selectedCategory?.id ?? null,
-        payment_intent_id:  paymentIntent?.id ?? '',
-      });
-      onSuccess(data.booking?.id);
-    } catch (err) {
-      if (err.response?.status === 409) {
-        navigate('search', { errorBanner: 'Availability changed. Please search again.' });
+      const { data } = await createReservationIntent(marinaSlug, payload);
+
+      if (!data.requires_payment) {
+        onNavigateConfirmed(data.reference, 'pending_review');
         return;
       }
-      setError('Booking creation failed. Your card was not charged — please contact the marina.');
+      onIntentCreated({
+        clientSecret:  data.client_secret,
+        reservationId: data.reservation_id,
+        total:         data.total,
+        reference:     data.reference,
+        marinaSlug,
+      });
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setBusy(false);
+        const params = new URLSearchParams({
+          check_in:  state.checkIn,
+          check_out: state.checkOut,
+          boat_loa:  state.boats[0].loa,
+        });
+        api.get(`/public/bookings/availability-alternatives/?${params}`)
+          .then(r => onNavigateAlternatives(r.data))
+          .catch(() => onNavigateAlternatives([]));
+        return;
+      }
+      setError(err.response?.data?.detail || 'Something went wrong. Please try again.');
       setBusy(false);
     }
   };
-
-  const field = (label, key, type = 'text', required = true) => (
-    <div className="p-field">
-      <label className="p-label">{label}{required ? ' *' : ''}</label>
-      <input className="p-input" type={type} required={required}
-        value={form[key]} onChange={e => set(key, e.target.value)} />
-    </div>
-  );
 
   return (
     <form onSubmit={handleSubmit}>
       <div className="p-section-title">Your details</div>
       <div className="p-grid-2">
-        {field('Full name', 'guestName')}
-        {field('Email', 'guestEmail', 'email')}
+        <div className="p-field">
+          <label className="p-label">Full name *</label>
+          <input className="p-input" required value={name} onChange={e => setName(e.target.value)} />
+        </div>
+        <div className="p-field">
+          <label className="p-label">Email *</label>
+          <input className="p-input" type="email" required value={email} onChange={e => setEmail(e.target.value)} />
+        </div>
       </div>
-      <div className="p-grid-2">
-        {field('Phone', 'guestPhone', 'tel', false)}
-        {field('Vessel name', 'vesselName', 'text', false)}
-      </div>
-      <div className="p-field" style={{ maxWidth: 200 }}>
-        <label className="p-label">Estimated arrival time</label>
-        <input className="p-input" type="time" step="300" value={form.eta} onChange={e => set('eta', e.target.value)} />
+      <div className="p-field" style={{ maxWidth: 220 }}>
+        <label className="p-label">Phone</label>
+        <input className="p-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
       </div>
 
-      <hr className="q-checkout-divider" />
+      <div className="p-section-title" style={{ marginTop: 16 }}>Vessel{state.boats.length > 1 ? 's' : ''}</div>
+      {state.boats.map((boat, idx) => (
+        <div key={idx} className="p-field">
+          <label className="p-label">
+            {state.boats.length > 1 ? `Boat ${idx + 1} name (${boat.loa}m)` : 'Vessel name'}
+          </label>
+          <input className="p-input" value={vesselNames[idx]}
+            onChange={e => updateVesselName(idx, e.target.value)} placeholder="e.g. Bella Mare" />
+        </div>
+      ))}
+
+      {error && <p style={{ fontSize: 13, color: '#dc2626', margin: '12px 0' }}>{error}</p>}
+
+      <button type="submit" className="p-btn-gold" disabled={busy} style={{ width: '100%', marginTop: 8 }}>
+        {busy ? 'Checking availability…' : 'Continue to payment →'}
+      </button>
+    </form>
+  );
+}
+
+function PaymentForm({ intentData, navigate }) {
+  const stripe   = useStripe();
+  const elements = useElements();
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState('');
+
+  const handlePay = async e => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setBusy(true); setError('');
+
+    const { error: stripeErr, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: 'if_required',
+      confirmParams: { return_url: `${window.location.origin}${window.location.pathname}` },
+    });
+
+    if (stripeErr) {
+      setError(stripeErr.message || 'Payment failed. Please try again.');
+      setBusy(false);
+      return;
+    }
+
+    if (!paymentIntent) {
+      setBusy(false);
+      return;
+    }
+
+    try {
+      await confirmReservation(intentData.marinaSlug, intentData.reservationId, paymentIntent.id);
+      navigate('confirmed', {
+        reservationReference: intentData.reference,
+        reservationStatus: 'confirmed',
+      });
+    } catch (err) {
+      if (err.response?.status === 409) {
+        navigate('confirmed', {
+          reservationReference: intentData.reference,
+          reservationStatus: 'confirmed',
+        });
+        return;
+      }
+      setError('Payment received but confirmation failed. Please contact the marina with reference ' + intentData.reference);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handlePay}>
       <div className="p-section-title">Payment</div>
       <div style={{ marginBottom: 20 }}>
         <PaymentElement options={{ layout: 'tabs' }} />
       </div>
-
       {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{error}</p>}
-
       <button type="submit" className="p-btn-gold" disabled={busy || !stripe} style={{ width: '100%' }}>
-        {busy ? 'Processing…' : `Confirm & Pay €${state.quotedTotal?.toFixed(2)}`}
+        {busy ? 'Processing…' : `Confirm & Pay €${parseFloat(intentData.total).toFixed(2)}`}
       </button>
       <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', textAlign: 'center', marginTop: 10 }}>
-        Your card will be charged on confirmation. The harbor master assigns your exact slip on arrival.
+        Secure payment powered by Stripe.
       </p>
     </form>
   );
 }
 
 export default function QuoteScreen({ state, navigate, marina }) {
-  const [clientSecret, setClientSecret] = useState(null);
-  const [intentError, setIntentError] = useState('');
   const nights = Math.round((new Date(state.checkOut) - new Date(state.checkIn)) / 86400000);
+  const [intentData, setIntentData] = useState(null);
 
-  useEffect(() => {
-    if (!state.selectedCategory) return;
-    api.post('/public/bookings/intent/', {
-      berth_category_id: state.selectedCategory.id,
-      check_in:  state.checkIn,
-      check_out: state.checkOut,
-    })
-      .then(r => setClientSecret(r.data.client_secret))
-      .catch(() => setIntentError('Could not initialise payment. Please go back and try again.'));
-  }, [state.selectedCategory?.id]);
-
-  function handleSuccess(bookingId) {
-    const slug = window.location.pathname.split('/').filter(Boolean)[0] ?? '';
-    window.location.href = `/${slug}/booking/${bookingId}/confirmed`;
-  }
-
-  const stripeOptions = {
-    clientSecret,
+  const stripeOptions = intentData ? {
+    clientSecret: intentData.clientSecret,
     appearance: {
       theme: 'stripe',
       variables: {
-        colorPrimary:     '#b8965a',
-        colorBackground:  '#ede7d8',
-        colorText:        '#1a1a1a',
-        fontFamily:       'IBM Plex Sans, system-ui, sans-serif',
-        borderRadius:     '5px',
+        colorPrimary: '#b8965a', colorBackground: '#ede7d8',
+        colorText: '#1a1a1a', fontFamily: 'IBM Plex Sans, system-ui, sans-serif',
+        borderRadius: '5px',
       },
     },
-  };
+  } : null;
 
   return (
     <div>
-      {/* Dark hero */}
       <div className="p-hero" style={{ minHeight: 320 }}>
         <nav style={{
           maxWidth: 880, margin: '0 auto', padding: '0 32px', height: 56,
           display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1,
         }}>
-          <button className="p-btn-outline" onClick={() => navigate(state.selectedCategory ? 'options' : (state.fromScreen ?? 'search'))}
+          <button className="p-btn-outline"
+            onClick={() => navigate(state.boats.some(b => b.categories?.length > 0) ? 'options' : 'search')}
             style={{ fontSize: 11, padding: '6px 14px', marginRight: 16 }}>
             ← Back
           </button>
@@ -273,101 +209,41 @@ export default function QuoteScreen({ state, navigate, marina }) {
             {marina?.name || 'Your Marina'}
           </span>
         </nav>
-
         <div className="p-hero-inner" style={{ paddingBottom: 64 }}>
           <div className="p-eyebrow">Complete your booking</div>
-          <h1 className="p-title">Review & Pay.</h1>
+          <h1 className="p-title">{intentData ? 'Payment' : 'Your details'}</h1>
           <p className="p-sub">
             {formatDate(state.checkIn)} → {formatDate(state.checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
-            {state.selectedCategory ? ` · ${state.selectedCategory.name}` : ''}
+            {state.boats.length > 1 ? ` · ${state.boats.length} boats` : ''}
           </p>
         </div>
-
         <HarbourScene />
       </div>
 
-      {/* Sandy checkout section */}
       <div className="q-checkout-section">
         <WaveLines />
         <div className="q-checkout-inner">
-          <div className="q-checkout-grid">
-
-            {/* Left column — form + payment */}
-            <div className="q-checkout-inputs">
-              {intentError && <p className="p-error">{intentError}</p>}
-
-              {state.selectedCategory && clientSecret && (
-                <Elements stripe={stripePromise} options={stripeOptions}>
-                  <PayForm state={state} navigate={navigate} onSuccess={handleSuccess} />
-                </Elements>
-              )}
-
-              {state.selectedCategory && !clientSecret && !intentError && (
-                <p style={{ color: 'rgba(0,0,0,0.55)', fontSize: 13 }}>Preparing payment…</p>
-              )}
-
-              {!state.selectedCategory && (
-                <FallbackQuoteForm state={state} navigate={navigate} nights={nights} />
-              )}
-            </div>
-
-            {/* Right column — receipt card (only when a category is selected) */}
-            {state.selectedCategory && (
-              <ReceiptCard
-                category={state.selectedCategory}
-                nights={nights}
-                total={state.quotedTotal}
-                checkIn={state.checkIn}
-                checkOut={state.checkOut}
+          <div style={{ maxWidth: 520, margin: '0 auto' }}>
+            {!intentData ? (
+              <GuestDetailsForm
+                state={state}
                 marina={marina}
+                onIntentCreated={setIntentData}
+                onNavigateConfirmed={(ref, status) => navigate('confirmed', {
+                  reservationReference: ref,
+                  reservationStatus: status,
+                })}
+                onNavigateAlternatives={alts => navigate('alternatives', { alternatives: alts })}
               />
+            ) : (
+              <Elements stripe={stripePromise} options={stripeOptions}>
+                <PaymentForm intentData={intentData} navigate={navigate} />
+              </Elements>
             )}
           </div>
         </div>
-
         <p className="p-powered">Powered by DocksBase</p>
       </div>
     </div>
-  );
-}
-
-function FallbackQuoteForm({ state, navigate, nights }) {
-  const [form, setForm] = useState({ guestName: '', guestEmail: '', guestPhone: '' });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const handleSubmit = async e => {
-    e.preventDefault(); setBusy(true); setError('');
-    try {
-      const { data } = await api.post('/public/bookings/engine-request/', {
-        check_in:  state.checkIn, check_out: state.checkOut,
-        ...(state.boatLoa   && { boat_loa:   parseFloat(state.boatLoa) }),
-        ...(state.boatBeam  && { boat_beam:  parseFloat(state.boatBeam) }),
-        ...(state.boatDraft && { boat_draft: parseFloat(state.boatDraft) }),
-        guest_name: form.guestName, guest_email: form.guestEmail, guest_phone: form.guestPhone,
-      });
-      window.location.href = data.checkout_url;
-    } catch (err) {
-      if (err.response?.status === 409) {
-        navigate('search', { errorBanner: 'Availability changed while you were reviewing. Please check your dates again.' });
-        return;
-      }
-      setBusy(false);
-      setError('Something went wrong. Please try again.');
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div className="p-section-title" style={{ color: 'var(--navy)', opacity: 0.6 }}>Your details</div>
-      <div className="p-field"><label htmlFor="fb-name" className="p-label">Full name *</label><input id="fb-name" className="p-input" required value={form.guestName} onChange={e => set('guestName', e.target.value)} /></div>
-      <div className="p-field"><label htmlFor="fb-email" className="p-label">Email *</label><input id="fb-email" className="p-input" type="email" required value={form.guestEmail} onChange={e => set('guestEmail', e.target.value)} /></div>
-      <div className="p-field"><label htmlFor="fb-phone" className="p-label">Phone</label><input id="fb-phone" className="p-input" type="tel" value={form.guestPhone} onChange={e => set('guestPhone', e.target.value)} /></div>
-      {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{error}</p>}
-      <button type="submit" className="p-btn-gold" disabled={busy} style={{ width: '100%' }}>
-        {busy ? 'Processing…' : 'Book & Pay'}
-      </button>
-    </form>
   );
 }
