@@ -3,9 +3,9 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import styles from './StepPayment.module.css'
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+const stripePromise = loadStripe(import.meta.env.PUBLIC_STRIPE_PUBLISHABLE_KEY)
 
-const WEBSITE_URL = import.meta.env.VITE_WEBSITE_URL || (typeof window !== 'undefined' ? window.location.origin : '')
+const WEBSITE_URL = import.meta.env.PUBLIC_WEBSITE_URL || (typeof window !== 'undefined' ? window.location.origin : '')
 
 function PaymentForm({ marinaName, plan, marinaCount }) {
   const stripe = useStripe()

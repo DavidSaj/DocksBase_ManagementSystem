@@ -32,6 +32,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5174',  # website
     'http://localhost:5176',  # portal
     'http://localhost:5177',  # field app
+    'http://localhost:4321',  # website-astro
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
