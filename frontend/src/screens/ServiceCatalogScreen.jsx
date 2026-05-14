@@ -3,6 +3,8 @@ import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import useBerthCategories from '../hooks/useBerthCategories.js';
 import Ic from '../components/ui/Icon.jsx';
 import CatalogList from './CatalogList.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import CatalogFormDrawer from './CatalogFormDrawer.jsx';
 import BerthPricingAssigner from './BerthPricingAssigner.jsx';
 import BerthCategoryAssigner from './BerthCategoryAssigner.jsx';
@@ -302,7 +304,10 @@ export default function ServiceCatalogScreen() {
     <div>
       {/* Page header */}
       <div className="sec-hdr" style={{ marginBottom: 0 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>Service Catalog</div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>Service Catalog</div>
+          <ScreenInfo title="Service Catalog" body={SCREEN_INFO.serviceCatalog} />
+        </div>
       </div>
 
       {/* Tabs row with contextual Add button */}

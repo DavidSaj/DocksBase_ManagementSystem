@@ -3,6 +3,8 @@ import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
@@ -885,6 +887,10 @@ export default function Settings() {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Settings</span>
+        <ScreenInfo title="Settings" body={SCREEN_INFO.settings} />
+      </div>
       {/* Tab bar */}
       <div className="tabs">
         {[

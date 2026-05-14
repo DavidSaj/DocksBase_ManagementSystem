@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
 import useOTAConnections from '../hooks/useOTAConnections.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 function Toggle({ on, onChange }) {
   return (
@@ -408,6 +410,11 @@ export default function Channels() {
   }
 
   return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Channels</span>
+        <ScreenInfo title="Channels" body={SCREEN_INFO.channels} />
+      </div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <BookingPipelineCard marina={marina} updateMarina={updateMarina} />
@@ -436,6 +443,7 @@ export default function Channels() {
           categories={categories}
         />
       </div>
+    </div>
     </div>
   );
 }
