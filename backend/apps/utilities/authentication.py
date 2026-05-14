@@ -17,9 +17,10 @@ Why no user object?
   fields or staff assignment — not via a per-session user context.
 """
 
+from django.contrib.auth.hashers import check_password
+from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
-from django.utils import timezone
 
 
 class ForkliftDeviceTokenAuthentication(BaseAuthentication):
@@ -52,3 +53,79 @@ class ForkliftDeviceTokenAuthentication(BaseAuthentication):
 
     def authenticate_header(self, request):
         return 'ForkliftDeviceToken'
+
+
+
+def _touch_last_used(model, pk, current, field='last_used_at'):
+    """
+    Throttle last-used-at updates to once per hour to avoid write contention
+    on configuration tables under IoT load.
+    """
+    now = timezone.now()
+    if current is None or (now - current).total_seconds() > 3600:
+        model.objects.filter(pk=pk).update(**{field: now})
+
+
+class MeterWebhookAuthentication(BaseAuthentication):
+    """
+    Authenticates requests bearing an X-Webhook-Key header.
+    Lookup is O(1) via the indexed plaintext prefix; verification is
+    constant-time via Django's password hashers.
+    Returns (None, key_row); request.auth.marina gives the marina.
+    """
+
+    def authenticate(self, request):
+        plaintext = request.headers.get('X-Webhook-Key')
+        if not plaintext:
+            return None
+
+        from apps.utilities.models import MarinaMeterWebhookKey
+
+        prefix = plaintext[:MarinaMeterWebhookKey.PREFIX_LEN]
+        try:
+            row = MarinaMeterWebhookKey.objects.select_related('marina').get(
+                key_prefix=prefix, is_active=True,
+            )
+        except MarinaMeterWebhookKey.DoesNotExist:
+            raise AuthenticationFailed('Invalid webhook key.')
+
+        if not row.key_hash or not check_password(plaintext, row.key_hash):
+            raise AuthenticationFailed('Invalid webhook key.')
+
+        _touch_last_used(MarinaMeterWebhookKey, row.pk, row.last_used_at)
+        return (None, row)
+
+    def authenticate_header(self, request):
+        return 'X-Webhook-Key'
+
+
+class MeterDeviceAuthentication(BaseAuthentication):
+    """
+    Authenticates requests from a single meter via X-Hardware-ID + X-Device-Token.
+    Returns (None, smart_meter); request.auth.marina gives the marina.
+    """
+
+    def authenticate(self, request):
+        hardware_id = request.headers.get('X-Hardware-ID')
+        plaintext   = request.headers.get('X-Device-Token')
+        if not hardware_id or not plaintext:
+            return None
+
+        from apps.utilities.models import SmartMeter
+
+        try:
+            meter = SmartMeter.objects.select_related('marina').get(
+                hardware_id=hardware_id, is_active=True,
+            )
+        except SmartMeter.DoesNotExist:
+            raise AuthenticationFailed('Invalid device credentials.')
+
+        if not meter.device_token_hash or not check_password(plaintext, meter.device_token_hash):
+            raise AuthenticationFailed('Invalid device credentials.')
+
+        _touch_last_used(SmartMeter, meter.pk, meter.device_token_last_used_at,
+                         field='device_token_last_used_at')
+        return (None, meter)
+
+    def authenticate_header(self, request):
+        return 'X-Hardware-ID, X-Device-Token'

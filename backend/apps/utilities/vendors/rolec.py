@@ -79,6 +79,21 @@ class RolecAdapter(BaseMeterVendor):
         return readings
 
     # ------------------------------------------------------------------
+    # Connection test
+    # ------------------------------------------------------------------
+
+    def test_connection(self) -> None:
+        url = f'{self._base_url}/sites/'
+        try:
+            resp = self._session.get(url, params={'limit': 1}, timeout=_TIMEOUT)
+        except requests.RequestException as e:
+            raise VendorConnectionError(f'Rolec API unreachable: {e}')
+        if not resp.ok:
+            raise VendorConnectionError(
+                f'Rolec API returned {resp.status_code}: {resp.text[:200]}'
+            )
+
+    # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 

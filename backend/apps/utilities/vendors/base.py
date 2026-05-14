@@ -44,6 +44,11 @@ class BaseMeterVendor(ABC):
         """Fetch readings for multiple devices in one API call where supported."""
         ...
 
+    @abstractmethod
+    def test_connection(self) -> None:
+        """Raises VendorConnectionError if the configured credentials are invalid."""
+        ...
+
 
 def get_vendor_adapter(vendor_key: str, marina_id: int) -> BaseMeterVendor:
     """

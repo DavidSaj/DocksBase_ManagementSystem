@@ -30,3 +30,9 @@ class MarineSyncAdapter(BaseMeterVendor):
             'MarineSync adapter is not yet implemented. '
             'This integration is scheduled for v2.'
         )
+
+    def test_connection(self) -> None:
+        raise NotImplementedError(
+            'MarineSync adapter is not yet implemented. '
+            'This integration is scheduled for v2.'
+        )

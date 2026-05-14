@@ -11,8 +11,10 @@ Special views:
 """
 
 import logging
+import secrets
 from datetime import date
 
+from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.utils import timezone
@@ -25,11 +27,13 @@ from rest_framework.views import APIView
 
 from apps.utilities.models import (
     BollardFaultLog,
+    MarinaMeterWebhookKey,
     MeterOutageAlert,
     MeterReading,
     PendingUtilityCharge,
     ServiceBollard,
     SmartMeter,
+    UtilityIntegration,
     UtilityWallet,
     UtilityWalletTransaction,
     WashToken,
@@ -38,16 +42,23 @@ from apps.utilities.serializers import (
     BollardFaultLogSerializer,
     BollardSwitchSerializer,
     DockwalkMeterSerializer,
+    MarinaMeterWebhookKeySerializer,
     MeterOutageAlertSerializer,
     MeterReadingCreateSerializer,
     MeterReadingSerializer,
+    ReadingIngestSerializer,
     ServiceBollardSerializer,
     StripeTopUpSerializer,
+    UtilityIntegrationSerializer,
     UtilityWalletSerializer,
     WalletTopUpSerializer,
     WashTokenRedeemSerializer,
     WashTokenSerializer,
     SmartMeterSerializer,
+)
+from apps.utilities.vendors.base import VendorConnectionError, get_vendor_adapter
+from apps.utilities.authentication import (
+    MeterDeviceAuthentication, MeterWebhookAuthentication,
 )
 
 logger = logging.getLogger(__name__)
@@ -171,6 +182,222 @@ class SmartMeterViewSet(viewsets.ModelViewSet):
         )
 
         return Response(list(trend))
+
+
+# ---------------------------------------------------------------------------
+# UtilityIntegration ViewSet
+# ---------------------------------------------------------------------------
+
+class UtilityIntegrationViewSet(viewsets.ModelViewSet):
+    """
+    GET    /api/v1/utilities/integrations/         List integrations for the user's marina
+    POST   /api/v1/utilities/integrations/         Create — {vendor, credentials: {...}}
+    PATCH  /api/v1/utilities/integrations/{id}/    Update
+    DELETE /api/v1/utilities/integrations/{id}/    Delete
+
+    Custom action:
+      POST .../test/    Call vendor adapter's test_connection. Returns {ok, error?}.
+    """
+    serializer_class   = UtilityIntegrationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UtilityIntegration.objects.filter(marina=_marina(self.request))
+
+    def perform_create(self, serializer):
+        serializer.save(marina=_marina(self.request))
+
+    @action(detail=True, methods=['post'], url_path='test')
+    def test(self, request, pk=None):
+        integration = self.get_object()
+        try:
+            adapter = get_vendor_adapter(integration.vendor, integration.marina_id)
+            adapter.test_connection()
+        except VendorConnectionError as e:
+            return Response({'ok': False, 'error': str(e)})
+        except Exception as e:
+            return Response({'ok': False, 'error': f'Unexpected: {e}'})
+        return Response({'ok': True})
+
+
+# ---------------------------------------------------------------------------
+# Webhook key — generate / rotate / revoke
+# ---------------------------------------------------------------------------
+
+def _generate_key() -> tuple[str, str]:
+    """Return (plaintext, hashed). Plaintext is sk_<base64>."""
+    raw       = secrets.token_urlsafe(48)
+    plaintext = f'sk_{raw}'
+    return plaintext, make_password(plaintext)
+
+
+class MeterWebhookKeyView(APIView):
+    """
+    GET    /api/v1/utilities/webhook-key/   Return prefix/status (NO plaintext, ever).
+    DELETE /api/v1/utilities/webhook-key/   Revoke — clears prefix + hash, deactivates.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _row(self, marina):
+        row, _ = MarinaMeterWebhookKey.objects.get_or_create(marina=marina)
+        return row
+
+    def get(self, request):
+        row = self._row(_marina(request))
+        return Response(MarinaMeterWebhookKeySerializer(row, context={'request': request}).data)
+
+    def delete(self, request):
+        row = self._row(_marina(request))
+        row.key_prefix = ''
+        row.key_hash   = ''
+        row.is_active  = False
+        row.save(update_fields=['key_prefix', 'key_hash', 'is_active'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MeterWebhookKeyRotateView(APIView):
+    """
+    POST /api/v1/utilities/webhook-key/rotate/
+    Generate (or replace) the marina's webhook key. Plaintext returned ONCE.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        marina = _marina(request)
+        row, _ = MarinaMeterWebhookKey.objects.get_or_create(marina=marina)
+
+        plaintext, hashed = _generate_key()
+        row.key_prefix = plaintext[:MarinaMeterWebhookKey.PREFIX_LEN]
+        row.key_hash   = hashed
+        row.is_active  = True
+        row.rotated_at = timezone.now()
+        row.save(update_fields=['key_prefix', 'key_hash', 'is_active', 'rotated_at'])
+
+        data = MarinaMeterWebhookKeySerializer(row, context={'request': request}).data
+        data['key'] = plaintext  # the one and only time it appears
+        return Response(data)
+
+
+# ---------------------------------------------------------------------------
+# Per-meter device token — issue / rotate / revoke
+# ---------------------------------------------------------------------------
+
+class DeviceTokenView(APIView):
+    """
+    POST   /api/v1/utilities/smart-meters/{pk}/device-token/   Issue or rotate.
+    DELETE /api/v1/utilities/smart-meters/{pk}/device-token/   Revoke.
+
+    Plaintext token returned ONCE on POST. Hardware ID auto-generated on first
+    issue and reused on rotate (the device's identity is stable).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _meter(self, request, pk):
+        try:
+            return SmartMeter.objects.get(pk=pk, marina=_marina(request))
+        except SmartMeter.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+
+    def post(self, request, pk):
+        meter = self._meter(request, pk)
+        if not meter.hardware_id:
+            meter.hardware_id = f'hw_{secrets.token_urlsafe(16)}'
+        plaintext, hashed = _generate_key()
+        meter.device_token_prefix = plaintext[:MarinaMeterWebhookKey.PREFIX_LEN]
+        meter.device_token_hash   = hashed
+        meter.save(update_fields=['hardware_id', 'device_token_prefix', 'device_token_hash'])
+        return Response({'hardware_id': meter.hardware_id, 'device_token': plaintext})
+
+    def delete(self, request, pk):
+        meter = self._meter(request, pk)
+        meter.hardware_id               = ''
+        meter.device_token_prefix       = ''
+        meter.device_token_hash         = ''
+        meter.device_token_last_used_at = None
+        meter.save(update_fields=[
+            'hardware_id', 'device_token_prefix', 'device_token_hash',
+            'device_token_last_used_at',
+        ])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Push ingest — webhook (option 2)
+# ---------------------------------------------------------------------------
+
+class WebhookReadingsView(APIView):
+    """
+    POST /api/v1/utilities/webhook/readings/
+    Auth: X-Webhook-Key. Bulk-idempotent ingest via bulk_create(ignore_conflicts=True).
+    """
+    authentication_classes = [MeterWebhookAuthentication]
+    permission_classes     = []
+
+    def post(self, request):
+        marina = request.auth.marina
+
+        serializer = ReadingIngestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = serializer.validated_data['readings']
+
+        device_ids = {i.get('device_id') for i in items if i.get('device_id')}
+        meters = {
+            m.device_id: m for m in
+            SmartMeter.objects.filter(marina=marina, device_id__in=device_ids,
+                                      is_active=True)
+        }
+
+        rows, rejected = [], []
+        for item in items:
+            device_id = item.get('device_id') or ''
+            meter = meters.get(device_id)
+            if not meter:
+                rejected.append({'device_id': device_id, 'reason': 'unknown'})
+                continue
+            rows.append(MeterReading(
+                meter=meter,
+                recorded_at=item['recorded_at'],
+                reading_kwh=item.get('cumulative_kwh'),
+                reading_m3=item.get('cumulative_m3'),
+                source='auto',
+            ))
+
+        MeterReading.objects.bulk_create(rows, ignore_conflicts=True)
+        return Response({'accepted': len(rows), 'rejected': rejected})
+
+
+# ---------------------------------------------------------------------------
+# Push ingest — per-device (option 3)
+# ---------------------------------------------------------------------------
+
+class DeviceReadingsView(APIView):
+    """
+    POST /api/v1/utilities/devices/readings/
+    Auth: X-Hardware-ID + X-Device-Token. Meter fixed by auth; payload device_id ignored.
+    """
+    authentication_classes = [MeterDeviceAuthentication]
+    permission_classes     = []
+
+    def post(self, request):
+        meter = request.auth  # a SmartMeter instance
+
+        serializer = ReadingIngestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = serializer.validated_data['readings']
+
+        rows = [
+            MeterReading(
+                meter=meter,
+                recorded_at=item['recorded_at'],
+                reading_kwh=item.get('cumulative_kwh'),
+                reading_m3=item.get('cumulative_m3'),
+                source='auto',
+            )
+            for item in items
+        ]
+        MeterReading.objects.bulk_create(rows, ignore_conflicts=True)
+        return Response({'accepted': len(rows), 'rejected': []})
 
 
 # ---------------------------------------------------------------------------

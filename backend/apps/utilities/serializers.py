@@ -12,6 +12,7 @@ from rest_framework import serializers
 from apps.utilities.models import (
     BollardFaultLog,
     BollardSwitchEvent,
+    MarinaMeterWebhookKey,
     MeterOutageAlert,
     MeterReading,
     ServiceBollard,
@@ -28,14 +29,22 @@ from apps.utilities.models import (
 # ---------------------------------------------------------------------------
 
 class UtilityIntegrationSerializer(serializers.ModelSerializer):
+    credentials = serializers.JSONField(write_only=True, required=False)
+
     class Meta:
         model  = UtilityIntegration
         fields = [
-            'id', 'marina', 'vendor', 'is_active',
+            'id', 'marina', 'vendor', 'credentials', 'is_active',
             'last_sync_at', 'last_sync_ok', 'last_sync_error',
         ]
-        read_only_fields = ['last_sync_at', 'last_sync_ok', 'last_sync_error']
-        # credentials intentionally excluded from API responses
+        read_only_fields = ['marina', 'last_sync_at', 'last_sync_ok', 'last_sync_error']
+
+    def validate_credentials(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('credentials must be a JSON object.')
+        if 'api_key' not in value or not value['api_key']:
+            raise serializers.ValidationError('credentials.api_key is required.')
+        return value
 
 
 # ---------------------------------------------------------------------------
@@ -49,8 +58,10 @@ class SmartMeterSerializer(serializers.ModelSerializer):
             'id', 'marina', 'berth', 'vendor', 'meter_type',
             'device_id', 'label', 'poll_interval_minutes',
             'is_active', 'last_polled', 'is_online',
+            'hardware_id', 'device_token_prefix', 'device_token_last_used_at',
         ]
-        read_only_fields = ['last_polled', 'is_online']
+        read_only_fields = ['last_polled', 'is_online',
+                            'hardware_id', 'device_token_prefix', 'device_token_last_used_at']
 
 
 # ---------------------------------------------------------------------------
@@ -239,3 +250,62 @@ class DockwalkMeterSerializer(serializers.ModelSerializer):
     def get_last_recorded_at(self, meter):
         r = self._last(meter)
         return r.recorded_at if r else None
+
+
+# ---------------------------------------------------------------------------
+# MarinaMeterWebhookKey
+# ---------------------------------------------------------------------------
+
+class MarinaMeterWebhookKeySerializer(serializers.ModelSerializer):
+    """
+    Read-only public view of the key. The plaintext is NEVER serialized here —
+    it is only returned by the rotate view, as a sibling top-level field.
+    """
+    endpoint_url = serializers.SerializerMethodField()
+    status       = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = MarinaMeterWebhookKey
+        fields = ['key_prefix', 'is_active', 'created_at', 'rotated_at',
+                  'last_used_at', 'endpoint_url', 'status']
+        read_only_fields = fields
+
+    def get_endpoint_url(self, obj):
+        request = self.context.get('request')
+        if request is None:
+            return '/api/v1/utilities/webhook/readings/'
+        return request.build_absolute_uri('/api/v1/utilities/webhook/readings/')
+
+    def get_status(self, obj):
+        if not obj.key_hash:
+            return 'unissued'
+        return 'active' if obj.is_active else 'revoked'
+
+
+# ---------------------------------------------------------------------------
+# Ingest envelope (webhook payload)
+# ---------------------------------------------------------------------------
+
+class ReadingIngestItemSerializer(serializers.Serializer):
+    device_id      = serializers.CharField(required=False, allow_blank=True)
+    recorded_at    = serializers.DateTimeField()
+    cumulative_kwh = serializers.DecimalField(max_digits=12, decimal_places=3,
+                                              required=False, allow_null=True)
+    cumulative_m3  = serializers.DecimalField(max_digits=12, decimal_places=3,
+                                              required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if attrs.get('cumulative_kwh') is None and attrs.get('cumulative_m3') is None:
+            raise serializers.ValidationError('At least one of cumulative_kwh / cumulative_m3 is required.')
+        return attrs
+
+
+class ReadingIngestSerializer(serializers.Serializer):
+    readings = ReadingIngestItemSerializer(many=True)
+
+    def validate_readings(self, value):
+        if not value:
+            raise serializers.ValidationError('readings[] must contain at least one entry.')
+        if len(value) > 5000:
+            raise serializers.ValidationError('Maximum 5000 readings per request.')
+        return value
