@@ -190,6 +190,17 @@ D365_CLIENT_SECRET = os.environ.get('D365_CLIENT_SECRET', '')
 D365_REDIRECT_URI  = os.environ.get('D365_REDIRECT_URI', '')
 D365_TENANT        = os.environ.get('D365_TENANT', 'organizations')   # AAD tenant id or 'common'/'organizations'
 D365_ENVIRONMENT   = os.environ.get('D365_ENVIRONMENT', 'production') # BC environment name
+
+# Oracle NetSuite OAuth2.
+NETSUITE_CLIENT_ID     = os.environ.get('NETSUITE_CLIENT_ID', '')
+NETSUITE_CLIENT_SECRET = os.environ.get('NETSUITE_CLIENT_SECRET', '')
+NETSUITE_REDIRECT_URI  = os.environ.get('NETSUITE_REDIRECT_URI', '')
+NETSUITE_SCOPES        = os.environ.get('NETSUITE_SCOPES', 'rest_webservices')
+
+# Sage Intacct XML gateway credentials. Sender = marketplace partner identity;
+# user credentials are entered per-marina via the connection form.
+INTACCT_SENDER_ID       = os.environ.get('INTACCT_SENDER_ID', '')
+INTACCT_SENDER_PASSWORD = os.environ.get('INTACCT_SENDER_PASSWORD', '')
 INGRESS_WEBHOOK_SECRET = os.environ.get('INGRESS_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')

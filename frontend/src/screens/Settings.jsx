@@ -125,11 +125,20 @@ const NOTIF_GROUPS = [
 // ── Accounting integrations card ──────────────────────────────────────────
 
 const ACCOUNTING_PLATFORMS = [
-  { slug: 'xero',                label: 'Xero',                            desc: 'UK / AU / NZ / global',  authorizePath: '/xero/authorize/', disconnectPath: '/xero/disconnect/', tenantLabel: 'Organisation' },
-  { slug: 'qbo',                 label: 'QuickBooks Online',               desc: 'US / UK / CA / global',  authorizePath: '/qbo/authorize/',  disconnectPath: '/qbo/disconnect/',  tenantLabel: 'Company' },
-  { slug: 'sage_business_cloud', label: 'Sage Business Cloud Accounting',  desc: 'UK / IE / FR / DE / ES', authorizePath: '/sage/authorize/', disconnectPath: '/sage/disconnect/', tenantLabel: 'Business' },
-  { slug: 'dynamics365',         label: 'Dynamics 365 Business Central',   desc: 'Global · Microsoft 365', authorizePath: '/d365/authorize/', disconnectPath: '/d365/disconnect/', tenantLabel: 'Environment' },
-  { slug: 'myob',                label: 'MYOB AccountRight Live',          desc: 'AU / NZ',                authorizePath: '/myob/authorize/', disconnectPath: '/myob/disconnect/', tenantLabel: 'Company file' },
+  { slug: 'xero',                kind: 'oauth',             label: 'Xero',                            desc: 'UK / AU / NZ / global',  authorizePath: '/xero/authorize/',          disconnectPath: '/xero/disconnect/',          tenantLabel: 'Organisation' },
+  { slug: 'qbo',                 kind: 'oauth',             label: 'QuickBooks Online',               desc: 'US / UK / CA / global',  authorizePath: '/qbo/authorize/',           disconnectPath: '/qbo/disconnect/',           tenantLabel: 'Company' },
+  { slug: 'sage_business_cloud', kind: 'oauth',             label: 'Sage Business Cloud Accounting',  desc: 'UK / IE / FR / DE / ES', authorizePath: '/sage/authorize/',          disconnectPath: '/sage/disconnect/',          tenantLabel: 'Business' },
+  { slug: 'dynamics365',         kind: 'oauth',             label: 'Dynamics 365 Business Central',   desc: 'Global · Microsoft 365', authorizePath: '/d365/authorize/',          disconnectPath: '/d365/disconnect/',          tenantLabel: 'Environment' },
+  { slug: 'myob',                kind: 'oauth',             label: 'MYOB AccountRight Live',          desc: 'AU / NZ',                authorizePath: '/myob/authorize/',          disconnectPath: '/myob/disconnect/',          tenantLabel: 'Company file' },
+  { slug: 'netsuite',            kind: 'oauth-with-prompt', label: 'Oracle NetSuite',                 desc: 'US / global enterprise', authorizePath: '/netsuite/authorize/',      disconnectPath: '/netsuite/disconnect/',      tenantLabel: 'Account ID',
+    promptLabel: 'NetSuite Account ID', promptHelp: 'Found under Setup → Company → Company Information (e.g. TSTDRV1234567).', promptParam: 'account_id' },
+  { slug: 'sage_intacct',        kind: 'credentials',       label: 'Sage Intacct',                    desc: 'US / UK mid-market',     connectPath:   '/sage-intacct/connect/',    disconnectPath: '/sage-intacct/disconnect/',  tenantLabel: 'Company ID',
+    fields: [
+      { name: 'company_id',    label: 'Company ID',     placeholder: 'YOURCO',         type: 'text',     required: true },
+      { name: 'user_id',       label: 'User ID',        placeholder: 'docksbase_user', type: 'text',     required: true },
+      { name: 'user_password', label: 'User Password',  placeholder: '',               type: 'password', required: true },
+      { name: 'location_id',   label: 'Location ID',    placeholder: 'optional',       type: 'text',     required: false },
+    ] },
 ];
 
 function AccountingIntegrationsCard() {
@@ -165,7 +174,31 @@ function AccountingIntegrationsCard() {
     setBusy(b => ({ ...b, [slug]: value }));
   }
 
+  const [credForm, setCredForm] = useState(null); // { platform, values: {…} } | null
+  const [credSaving, setCredSaving] = useState(false);
+
   async function handleConnect(platform) {
+    if (platform.kind === 'credentials') {
+      const initial = {};
+      platform.fields.forEach(f => { initial[f.name] = ''; });
+      setCredForm({ platform, values: initial });
+      setMsg(null);
+      return;
+    }
+    if (platform.kind === 'oauth-with-prompt') {
+      const value = window.prompt(`${platform.promptLabel}\n\n${platform.promptHelp || ''}`);
+      if (!value) return;
+      setRowBusy(platform.slug, 'connect');
+      setMsg(null);
+      try {
+        const { data } = await api.get(platform.authorizePath, { params: { [platform.promptParam]: value } });
+        window.location.href = data.authorize_url;
+      } catch (err) {
+        setMsg({ type: 'error', text: err?.response?.data?.detail || `Could not start ${platform.label} authorization.` });
+        setRowBusy(platform.slug, '');
+      }
+      return;
+    }
     setRowBusy(platform.slug, 'connect');
     setMsg(null);
     try {
@@ -174,6 +207,22 @@ function AccountingIntegrationsCard() {
     } catch (err) {
       setMsg({ type: 'error', text: err?.response?.data?.detail || `Could not start ${platform.label} authorization.` });
       setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function submitCredentials() {
+    if (!credForm) return;
+    setCredSaving(true);
+    setMsg(null);
+    try {
+      await api.post(credForm.platform.connectPath, credForm.values);
+      setMsg({ type: 'ok', text: `${credForm.platform.label} connected.` });
+      setCredForm(null);
+      load();
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Connection failed.' });
+    } finally {
+      setCredSaving(false);
     }
   }
 
@@ -235,6 +284,36 @@ function AccountingIntegrationsCard() {
         )}
         {configs === undefined && (
           <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', padding: '14px 18px' }}>Loading…</div>
+        )}
+        {credForm && (
+          <div style={{ borderTop: 'var(--border)', padding: '14px 18px', background: '#fafafa' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+              Connect {credForm.platform.label}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {credForm.platform.fields.map(f => (
+                <div key={f.name}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }}>
+                    {f.label}{f.required && ' *'}
+                  </label>
+                  <input
+                    className="input"
+                    type={f.type}
+                    placeholder={f.placeholder}
+                    value={credForm.values[f.name] || ''}
+                    onChange={e => setCredForm(c => ({ ...c, values: { ...c.values, [f.name]: e.target.value } }))}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                <button className="btn btn-ghost btn-sm" disabled={credSaving} onClick={() => setCredForm(null)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" disabled={credSaving} onClick={submitCredentials}>
+                  {credSaving ? 'Testing & saving…' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {configs !== undefined && ACCOUNTING_PLATFORMS.map(platform => {
           const config = configs.find(c => c.platform === platform.slug);

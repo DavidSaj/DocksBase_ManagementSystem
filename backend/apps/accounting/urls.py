@@ -128,6 +128,16 @@ from apps.accounting.views_d365_oauth import (
     D365CallbackView,
     D365DisconnectView,
 )
+from apps.accounting.views_netsuite_oauth import (
+    NetSuiteAuthorizeView,
+    NetSuiteCallbackView,
+    NetSuiteDisconnectView,
+)
+from apps.accounting.views_intacct_connect import (
+    IntacctStatusView,
+    IntacctConnectView,
+    IntacctDisconnectView,
+)
 from apps.accounting.views_export import JournalCSVExportView
 from apps.accounting.views_datev_export import DatevCSVExportView
 
@@ -159,6 +169,16 @@ urlpatterns = [
     path('d365/authorize/',  D365AuthorizeView.as_view(),  name='d365-authorize'),
     path('d365/callback/',   D365CallbackView.as_view(),   name='d365-callback'),
     path('d365/disconnect/', D365DisconnectView.as_view(), name='d365-disconnect'),
+
+    # NetSuite OAuth (account-scoped)
+    path('netsuite/authorize/',  NetSuiteAuthorizeView.as_view(),  name='netsuite-authorize'),
+    path('netsuite/callback/',   NetSuiteCallbackView.as_view(),   name='netsuite-callback'),
+    path('netsuite/disconnect/', NetSuiteDisconnectView.as_view(), name='netsuite-disconnect'),
+
+    # Sage Intacct credential form (no OAuth)
+    path('sage-intacct/status/',     IntacctStatusView.as_view(),     name='sage-intacct-status'),
+    path('sage-intacct/connect/',    IntacctConnectView.as_view(),    name='sage-intacct-connect'),
+    path('sage-intacct/disconnect/', IntacctDisconnectView.as_view(), name='sage-intacct-disconnect'),
 
     # Generic journal CSV export (universal fallback)
     path('accounting/export/journal.csv/', JournalCSVExportView.as_view(), name='journal-csv-export'),
