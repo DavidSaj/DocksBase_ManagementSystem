@@ -183,7 +183,7 @@ function ActivityTypesTab() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/catalogue/')
+    api.get('/activity-catalogue/')
       .then(r => setActivities(r.data.results ?? r.data))
       .catch(() => setError('Failed to load activity types.'))
       .finally(() => setLoading(false));
@@ -201,7 +201,7 @@ function ActivityTypesTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/catalogue/', {
+      await api.post('/activity-catalogue/', {
         ...form,
         duration_minutes: Number(form.duration_minutes),
         capacity_min: Number(form.capacity_min),
@@ -359,7 +359,7 @@ function ActivityBookingsTab() {
     const params = {};
     if (dateFilter) params.date = dateFilter;
     if (statusFilter) params.status = statusFilter;
-    api.get('/bookings/', { params })
+    api.get('/activity-bookings/', { params })
       .then(r => setBookings(r.data.results ?? r.data))
       .catch(() => setError('Failed to load bookings.'))
       .finally(() => setLoading(false));
@@ -368,14 +368,14 @@ function ActivityBookingsTab() {
   useEffect(() => { loadBookings(); }, [loadBookings]);
 
   useEffect(() => {
-    api.get('/catalogue/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
+    api.get('/activity-catalogue/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
   }, []);
 
   async function handleCreate(e) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/bookings/', {
+      await api.post('/activity-bookings/', {
         ...form,
         participant_count: Number(form.participant_count),
       });
@@ -604,7 +604,7 @@ function BookingDetail({ booking, onClose }) {
   async function handleCancel() {
     setCancelling(true);
     try {
-      await api.post(`/bookings/${booking.id}/cancel/`, { reason });
+      await api.post(`/activity-bookings/${booking.id}/cancel/`, { reason });
       onClose();
     } catch {
       alert('Failed to cancel booking.');
@@ -714,7 +714,7 @@ function ActivityResourcesTab() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    api.get('/catalogue/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
+    api.get('/activity-catalogue/').then(r => setActivities(r.data.results ?? r.data)).catch(() => {});
   }, []);
 
   async function handleCreate(e) {
@@ -808,7 +808,7 @@ function ActivityScheduleTab() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.get('/bookings/', { params: { date: today(), status: 'confirmed' } })
+    api.get('/activity-bookings/', { params: { date: today(), status: 'confirmed' } })
       .then(r => setSchedule(r.data.results ?? r.data))
       .catch(() => setError('Failed to load schedule.'))
       .finally(() => setLoading(false));
