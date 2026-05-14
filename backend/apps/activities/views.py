@@ -3,11 +3,12 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Activity, ActivityBooking, ActivityResourceRequirement, CancellationPolicy
+from .models import Activity, ActivityBooking, ActivityResourceRequirement, ActivityTimeSlot, CancellationPolicy
 from .serializers import (
     ActivityBookingSerializer,
     ActivityResourceRequirementSerializer,
     ActivitySerializer,
+    ActivityTimeSlotSerializer,
     CancellationPolicySerializer,
 )
 from .services.booking import SeasonWarning, ResourceUnavailable, book_activity_session
@@ -231,6 +232,24 @@ class ActivityResourceRequirementViewSet(viewsets.ModelViewSet):
             activity__marina=self.request.user.marina
         ).select_related('activity', 'staff_member', 'asset')
 
+        activity_id = self.request.query_params.get('activity')
+        if activity_id:
+            qs = qs.filter(activity_id=activity_id)
+        return qs
+
+
+class ActivityTimeSlotViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for weekly activity time slots.
+    Filters: ?activity=<id>
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ActivityTimeSlotSerializer
+
+    def get_queryset(self):
+        qs = ActivityTimeSlot.objects.filter(
+            activity__marina=self.request.user.marina
+        ).select_related('activity')
         activity_id = self.request.query_params.get('activity')
         if activity_id:
             qs = qs.filter(activity_id=activity_id)

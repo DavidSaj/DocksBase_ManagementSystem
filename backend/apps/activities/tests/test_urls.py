@@ -15,3 +15,7 @@ def test_activity_cancellation_policies_route_registered():
 
 def test_activity_resource_requirements_route_registered():
     assert reverse('activity-resource-requirement-list') == '/api/v1/activity-resource-requirements/'
+
+
+def test_activity_time_slots_route_registered():
+    assert reverse('activity-time-slot-list') == '/api/v1/activity-time-slots/'

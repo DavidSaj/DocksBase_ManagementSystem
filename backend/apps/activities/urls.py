@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivityBookingViewSet,
     ActivityResourceRequirementViewSet,
+    ActivityTimeSlotViewSet,
     ActivityViewSet,
     CancellationPolicyViewSet,
 )
@@ -13,5 +14,6 @@ router.register('activity-catalogue',              ActivityViewSet,             
 router.register('activity-bookings',               ActivityBookingViewSet,             basename='activity-booking')
 router.register('activity-cancellation-policies',  CancellationPolicyViewSet,          basename='activity-cancellation-policy')
 router.register('activity-resource-requirements',  ActivityResourceRequirementViewSet, basename='activity-resource-requirement')
+router.register('activity-time-slots',             ActivityTimeSlotViewSet,            basename='activity-time-slot')
 
 urlpatterns = [path('', include(router.urls))]

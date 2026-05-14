@@ -8,6 +8,7 @@ from .models import (
     ActivityExtra,
     ActivityPricingRule,
     ActivityResourceRequirement,
+    ActivityTimeSlot,
     AssetReservation,
     CancellationPolicy,
 )
@@ -155,4 +156,11 @@ class AssetReservationSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssetReservation
         fields = ['id', 'marina', 'asset', 'activity_booking', 'time_range']
+        read_only_fields = ['id']
+
+
+class ActivityTimeSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityTimeSlot
+        fields = ['id', 'activity', 'weekday', 'start_time', 'is_active']
         read_only_fields = ['id']
