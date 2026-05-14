@@ -7,6 +7,7 @@ from .views import (
     MarinaOverviewView,
     MarinaProfileView,
     MarinaUsersView,
+    MarinaWeatherView,
     MarineTrafficSettingsView,
     OpenWeatherMapSettingsView,
     UserDetailView,
@@ -23,4 +24,5 @@ urlpatterns = [
     path('integrations/marinetraffic/',  MarineTrafficSettingsView.as_view(), name='marinetraffic_settings'),
     path('integrations/openweathermap/', OpenWeatherMapSettingsView.as_view(),name='openweathermap_settings'),
     path('integrations/docusign/',       DocuSignSettingsView.as_view(),      name='docusign_settings'),
+    path('weather/',                     MarinaWeatherView.as_view(),         name='marina_weather'),
 ]

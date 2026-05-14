@@ -700,3 +700,133 @@ class DocuSignSettingsView(_SingleKeyIntegrationView):
     """DocuSign — needs both an integration key and an account id."""
     key_field   = 'docusign_api_key'
     extra_field = 'docusign_account_id'
+
+
+# ---------------------------------------------------------------------------
+# Marina weather — proxies OpenWeatherMap if the marina has a key configured,
+# otherwise falls back to Open-Meteo (no-key public API). 10-minute cache.
+# ---------------------------------------------------------------------------
+
+_WEATHER_CACHE_TTL = 60 * 10  # 10 min
+
+_OWM_CONDITIONS = {
+    'Clear': 'Clear sky', 'Clouds': 'Cloudy', 'Rain': 'Rain',
+    'Drizzle': 'Drizzle', 'Thunderstorm': 'Thunderstorm', 'Snow': 'Snow',
+    'Mist': 'Mist', 'Fog': 'Fog', 'Haze': 'Haze', 'Smoke': 'Smoke',
+    'Dust': 'Dust', 'Sand': 'Sand', 'Ash': 'Ash', 'Squall': 'Squall',
+    'Tornado': 'Tornado',
+}
+
+_OPEN_METEO_WMO = {
+    0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Icy fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
+    61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+    71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+    80: 'Showers', 81: 'Heavy showers', 82: 'Violent showers',
+    95: 'Thunderstorm', 96: 'Thunderstorm + hail', 99: 'Thunderstorm + heavy hail',
+}
+
+
+def _deg_to_compass(deg):
+    if deg is None:
+        return ''
+    return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][round(deg / 45) % 8]
+
+
+def _fetch_openweathermap(lat, lng, api_key):
+    """Returns the canonical weather dict, or raises on failure."""
+    import requests
+    r = requests.get(
+        'https://api.openweathermap.org/data/2.5/weather',
+        params={'lat': lat, 'lon': lng, 'units': 'metric', 'appid': api_key},
+        timeout=8,
+    )
+    r.raise_for_status()
+    d = r.json()
+    main_group = (d.get('weather') or [{}])[0].get('main', '')
+    return {
+        'temp_c':       round(d['main']['temp']),
+        'wind_kn':      round(d['wind']['speed'] * 1.94384),  # m/s -> kn
+        'wind_dir':     _deg_to_compass(d['wind'].get('deg')),
+        'wave_height_m': None,  # OWM doesn't have wave height
+        'condition':    _OWM_CONDITIONS.get(main_group, main_group or 'Unknown'),
+        'source':       'openweathermap',
+    }
+
+
+def _fetch_open_meteo(lat, lng):
+    import requests
+    w = requests.get(
+        'https://api.open-meteo.com/v1/forecast',
+        params={
+            'latitude': lat, 'longitude': lng,
+            'current': 'temperature_2m,wind_speed_10m,wind_direction_10m,weathercode',
+            'wind_speed_unit': 'kn',
+        },
+        timeout=8,
+    )
+    w.raise_for_status()
+    cur = w.json()['current']
+    wave_height_m = None
+    try:
+        m = requests.get(
+            'https://marine-api.open-meteo.com/v1/marine',
+            params={'latitude': lat, 'longitude': lng, 'current': 'wave_height'},
+            timeout=8,
+        )
+        if m.ok:
+            wave_height_m = m.json().get('current', {}).get('wave_height')
+    except requests.RequestException:
+        pass
+    return {
+        'temp_c':        round(cur['temperature_2m']),
+        'wind_kn':       round(cur['wind_speed_10m']),
+        'wind_dir':      _deg_to_compass(cur.get('wind_direction_10m')),
+        'wave_height_m': wave_height_m,
+        'condition':     _OPEN_METEO_WMO.get(cur.get('weathercode'), 'Unknown'),
+        'source':        'open-meteo',
+    }
+
+
+class MarinaWeatherView(APIView):
+    """
+    GET /api/v1/marina/weather/
+    Returns current conditions at the marina's lat/lng. Uses OpenWeatherMap
+    when the marina has configured an API key; otherwise falls back to the
+    free Open-Meteo service. Response is cached for 10 minutes per marina.
+    """
+    permission_classes = [IsMarinaStaff]
+
+    def get(self, request):
+        marina = request.user.marina
+        if marina.lat is None or marina.lng is None:
+            return Response(
+                {'detail': 'Marina location not set. Add lat/lng in Marina Profile.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        owm_key = marina.openweathermap_api_key or ''
+        cache_key = f'weather:marina:{marina.pk}:{"owm" if owm_key else "om"}'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
+        try:
+            if owm_key:
+                data = _fetch_openweathermap(float(marina.lat), float(marina.lng), owm_key)
+            else:
+                data = _fetch_open_meteo(float(marina.lat), float(marina.lng))
+        except Exception:
+            # Last-resort fallback: if OWM failed (bad key, rate limit, etc.),
+            # try Open-Meteo so the widget still shows something.
+            try:
+                data = _fetch_open_meteo(float(marina.lat), float(marina.lng))
+            except Exception:
+                return Response(
+                    {'detail': 'Weather service unavailable.'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+        data['updated_at'] = timezone.now().isoformat()
+        cache.set(cache_key, data, _WEATHER_CACHE_TTL)
+        return Response(data)
