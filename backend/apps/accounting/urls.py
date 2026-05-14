@@ -113,7 +113,13 @@ from apps.accounting.views_qbo_oauth import (
     QBOCallbackView,
     QBODisconnectView,
 )
+from apps.accounting.views_sage_oauth import (
+    SageAuthorizeView,
+    SageCallbackView,
+    SageDisconnectView,
+)
 from apps.accounting.views_export import JournalCSVExportView
+from apps.accounting.views_datev_export import DatevCSVExportView
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -129,8 +135,16 @@ urlpatterns = [
     path('qbo/callback/',   QBOCallbackView.as_view(),   name='qbo-callback'),
     path('qbo/disconnect/', QBODisconnectView.as_view(), name='qbo-disconnect'),
 
+    # Sage Business Cloud Accounting OAuth
+    path('sage/authorize/',  SageAuthorizeView.as_view(),  name='sage-authorize'),
+    path('sage/callback/',   SageCallbackView.as_view(),   name='sage-callback'),
+    path('sage/disconnect/', SageDisconnectView.as_view(), name='sage-disconnect'),
+
     # Generic journal CSV export (universal fallback)
     path('accounting/export/journal.csv/', JournalCSVExportView.as_view(), name='journal-csv-export'),
+
+    # DATEV Buchungsstapel export (Germany)
+    path('accounting/export/datev.csv/',   DatevCSVExportView.as_view(),   name='datev-csv-export'),
 
     # Red diesel declaration — fuel dock sub-endpoint
     path(

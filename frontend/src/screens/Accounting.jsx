@@ -806,6 +806,80 @@ function JournalCSVExportCard() {
   );
 }
 
+function DatevExportCard() {
+  const [from, setFrom] = useState('');
+  const [to, setTo]     = useState('');
+  const [consultant, setConsultant] = useState('');
+  const [client, setClient]         = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState('');
+
+  async function handleDownload() {
+    setBusy(true);
+    setErr('');
+    try {
+      const params = {};
+      if (from) params.from = from;
+      if (to)   params.to   = to;
+      if (consultant) params.consultant = consultant;
+      if (client)     params.client     = client;
+      const res = await api.get('/accounting/export/datev.csv/', {
+        params,
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'text/csv;charset=windows-1252' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const parts = ['EXTF_Buchungsstapel'];
+      if (from) parts.push(from.replace(/-/g, ''));
+      if (to)   parts.push(to.replace(/-/g, ''));
+      a.download = parts.join('_') + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e?.response?.data?.detail || 'DATEV export failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">DATEV Export (Germany)</div>
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+          EXTF Buchungsstapel v7 · hand to your Steuerberater
+        </span>
+      </div>
+      <div className="card-body" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 140px' }}>
+          <label style={LABEL}>From</label>
+          <input type="date" className="input" value={from} onChange={e => setFrom(e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <label style={LABEL}>To</label>
+          <input type="date" className="input" value={to} onChange={e => setTo(e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <div style={{ flex: '0 1 120px' }}>
+          <label style={LABEL}>Berater-Nr</label>
+          <input className="input" placeholder="1" value={consultant} onChange={e => setConsultant(e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <div style={{ flex: '0 1 120px' }}>
+          <label style={LABEL}>Mandant-Nr</label>
+          <input className="input" placeholder="1" value={client} onChange={e => setClient(e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={handleDownload}>
+          {busy ? 'Preparing…' : 'Download DATEV'}
+        </button>
+        {err && <div style={{ flexBasis: '100%', fontSize: 12, color: '#b91c1c' }}>{err}</div>}
+      </div>
+    </div>
+  );
+}
+
 function SyncTab() {
   const [syncRecords, setSyncRecords] = useState([]);
   const [rates, setRates] = useState([]);
@@ -833,6 +907,7 @@ function SyncTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <JournalCSVExportCard />
+      <DatevExportCard />
       {/* Exchange Rates summary */}
       <div className="card">
         <div className="card-header">

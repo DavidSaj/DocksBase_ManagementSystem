@@ -170,6 +170,13 @@ QBO_CLIENT_SECRET = os.environ.get('QBO_CLIENT_SECRET', '')
 QBO_REDIRECT_URI = os.environ.get('QBO_REDIRECT_URI', '')
 QBO_SCOPES = os.environ.get('QBO_SCOPES', 'com.intuit.quickbooks.accounting openid email profile')
 QBO_SANDBOX = os.environ.get('QBO_SANDBOX', '').lower() in ('1', 'true', 'yes')
+
+# Sage Business Cloud Accounting OAuth2.
+SAGE_CLIENT_ID     = os.environ.get('SAGE_CLIENT_ID', '')
+SAGE_CLIENT_SECRET = os.environ.get('SAGE_CLIENT_SECRET', '')
+SAGE_REDIRECT_URI  = os.environ.get('SAGE_REDIRECT_URI', '')
+SAGE_SCOPES        = os.environ.get('SAGE_SCOPES', 'full_access')
+SAGE_COUNTRY       = os.environ.get('SAGE_COUNTRY', 'gb')   # gb, ie, fr, de, es, us, ca
 INGRESS_WEBHOOK_SECRET = os.environ.get('INGRESS_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')
