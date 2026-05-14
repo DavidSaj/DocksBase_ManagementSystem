@@ -4,6 +4,7 @@ import CatalogueTab    from './activities/CatalogueTab.jsx';
 import BookingsTab     from './activities/BookingsTab.jsx';
 import ResourcesTab    from './activities/ResourcesTab.jsx';
 import ScheduleTab     from './activities/ScheduleTab.jsx';
+import WeeklySlotsTab  from './activities/WeeklySlotsTab.jsx';
 import RequestsInbox   from './activities/RequestsInbox.jsx';
 import ShareEmbedTab   from './activities/ShareEmbedTab.jsx';
 
@@ -37,7 +38,8 @@ const ACT_TABS = [
   { key: 'types',    label: 'Activity Types' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'resources', label: 'Resources' },
-  { key: 'schedule', label: 'Schedule' },
+  { key: 'schedule', label: 'Today' },
+  { key: 'slots',    label: 'Weekly Slots' },
   { key: 'requests', label: 'Requests' },
   { key: 'share',    label: 'Share & Embed' },
 ];
@@ -52,6 +54,7 @@ function ActivitiesSection() {
         {tab === 'bookings'  && <BookingsTab />}
         {tab === 'resources' && <ResourcesTab />}
         {tab === 'schedule'  && <ScheduleTab />}
+        {tab === 'slots'     && <WeeklySlotsTab />}
         {tab === 'requests'  && <RequestsInbox />}
         {tab === 'share'     && <ShareEmbedTab />}
       </div>
