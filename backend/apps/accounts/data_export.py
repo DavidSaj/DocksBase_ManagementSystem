@@ -72,8 +72,9 @@ def _vessels(marina):
 def _berths(marina):
     from apps.berths.models import Berth
     fields = [
-        'id', 'code', 'pier_code', 'side', 'length_m', 'beam_m',
-        'category_id', 'status', 'berth_class',
+        'id', 'code', 'pier_label', 'side', 'berth_type',
+        'length_m', 'max_beam_m', 'max_draft_m',
+        'status', 'berth_class', 'operational_type',
     ]
     qs = Berth.objects.filter(marina=marina).values(*fields)
     return 'berths.csv', fields, list(qs)
