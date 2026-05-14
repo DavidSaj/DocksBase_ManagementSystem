@@ -108,6 +108,12 @@ from apps.accounting.views_xero_oauth import (
     XeroCallbackView,
     XeroDisconnectView,
 )
+from apps.accounting.views_qbo_oauth import (
+    QBOAuthorizeView,
+    QBOCallbackView,
+    QBODisconnectView,
+)
+from apps.accounting.views_export import JournalCSVExportView
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -117,6 +123,14 @@ urlpatterns = [
     path('xero/authorize/',  XeroAuthorizeView.as_view(),  name='xero-authorize'),
     path('xero/callback/',   XeroCallbackView.as_view(),   name='xero-callback'),
     path('xero/disconnect/', XeroDisconnectView.as_view(), name='xero-disconnect'),
+
+    # QuickBooks Online OAuth
+    path('qbo/authorize/',  QBOAuthorizeView.as_view(),  name='qbo-authorize'),
+    path('qbo/callback/',   QBOCallbackView.as_view(),   name='qbo-callback'),
+    path('qbo/disconnect/', QBODisconnectView.as_view(), name='qbo-disconnect'),
+
+    # Generic journal CSV export (universal fallback)
+    path('accounting/export/journal.csv/', JournalCSVExportView.as_view(), name='journal-csv-export'),
 
     # Red diesel declaration — fuel dock sub-endpoint
     path(

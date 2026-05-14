@@ -738,6 +738,74 @@ function SuppliersTab() {
 
 // ── 6. Sync tab ───────────────────────────────────────────────────────────
 
+function JournalCSVExportCard() {
+  const [from, setFrom] = useState('');
+  const [to, setTo]     = useState('');
+  const [postedOnly, setPostedOnly] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState('');
+
+  async function handleDownload() {
+    setBusy(true);
+    setErr('');
+    try {
+      const params = {};
+      if (from) params.from = from;
+      if (to)   params.to   = to;
+      if (postedOnly) params.posted_only = 'true';
+      const res = await api.get('/accounting/export/journal.csv/', {
+        params,
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const parts = ['journal'];
+      if (from) parts.push(from);
+      if (to)   parts.push(to);
+      a.download = parts.join('-') + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e?.response?.data?.detail || 'Export failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">Journal CSV Export</div>
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+          Universal fallback — download every GL line in CSV for your accountant
+        </span>
+      </div>
+      <div className="card-body" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 140px' }}>
+          <label style={LABEL}>From</label>
+          <input type="date" className="input" value={from} onChange={e => setFrom(e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <label style={LABEL}>To</label>
+          <input type="date" className="input" value={to} onChange={e => setTo(e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, paddingBottom: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={postedOnly} onChange={e => setPostedOnly(e.target.checked)} />
+          Posted only
+        </label>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={handleDownload}>
+          {busy ? 'Preparing…' : 'Download CSV'}
+        </button>
+        {err && <div style={{ flexBasis: '100%', fontSize: 12, color: '#b91c1c' }}>{err}</div>}
+      </div>
+    </div>
+  );
+}
+
 function SyncTab() {
   const [syncRecords, setSyncRecords] = useState([]);
   const [rates, setRates] = useState([]);
@@ -764,6 +832,7 @@ function SyncTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <JournalCSVExportCard />
       {/* Exchange Rates summary */}
       <div className="card">
         <div className="card-header">

@@ -122,57 +122,60 @@ const NOTIF_GROUPS = [
   ]},
 ];
 
-// ── Xero accounting card ──────────────────────────────────────────────────
+// ── Accounting integrations card ──────────────────────────────────────────
 
-function XeroIntegrationCard() {
-  const [config, setConfig] = useState(undefined); // undefined = loading, null = none, object = connected
-  const [busy, setBusy] = useState('');            // 'connect' | 'test' | 'sync' | 'disconnect'
-  const [msg, setMsg] = useState(null);            // { type: 'ok' | 'error', text }
+const ACCOUNTING_PLATFORMS = [
+  { slug: 'xero', label: 'Xero',                    desc: 'UK / AU / NZ / global',  authorizePath: '/xero/authorize/', disconnectPath: '/xero/disconnect/', tenantLabel: 'Organisation' },
+  { slug: 'qbo',  label: 'QuickBooks Online',       desc: 'US / UK / CA / global',  authorizePath: '/qbo/authorize/',  disconnectPath: '/qbo/disconnect/',  tenantLabel: 'Company' },
+];
+
+function AccountingIntegrationsCard() {
+  const [configs, setConfigs] = useState(undefined); // undefined=loading, array=loaded
+  const [busy, setBusy] = useState({}); // { [slug]: 'connect'|'test'|'sync'|'disconnect' }
+  const [msg, setMsg]  = useState(null); // { type, text }
 
   const load = () =>
     api.get('/billing/accounting-configs/')
-      .then(r => {
-        const list = r.data.results ?? r.data;
-        setConfig(list.find(c => c.platform === 'xero') || null);
-      })
-      .catch(() => setConfig(null));
+      .then(r => setConfigs(r.data.results ?? r.data))
+      .catch(() => setConfigs([]));
 
   useEffect(() => { load(); }, []);
 
-  // If we just came back from the OAuth callback, surface the result.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('integration') !== 'xero') return;
+    const slug = params.get('integration');
+    if (!slug) return;
+    const platform = ACCOUNTING_PLATFORMS.find(p => p.slug === slug);
     const status = params.get('status');
-    if (status === 'connected') {
-      setMsg({ type: 'ok', text: 'Xero connected.' });
+    if (status === 'connected' && platform) {
+      setMsg({ type: 'ok', text: `${platform.label} connected.` });
       load();
     } else if (status === 'error') {
       setMsg({ type: 'error', text: params.get('error') || 'Connection failed.' });
     }
-    // Clean the URL so a refresh doesn't keep showing the banner.
     const url = new URL(window.location.href);
     ['integration', 'status', 'error'].forEach(k => url.searchParams.delete(k));
     window.history.replaceState({}, '', url.toString());
   }, []);
 
-  const connected = config && config.is_active;
+  function setRowBusy(slug, value) {
+    setBusy(b => ({ ...b, [slug]: value }));
+  }
 
-  async function handleConnect() {
-    setBusy('connect');
+  async function handleConnect(platform) {
+    setRowBusy(platform.slug, 'connect');
     setMsg(null);
     try {
-      const { data } = await api.get('/xero/authorize/');
+      const { data } = await api.get(platform.authorizePath);
       window.location.href = data.authorize_url;
     } catch (err) {
-      const detail = err?.response?.data?.detail || 'Could not start Xero authorization.';
-      setMsg({ type: 'error', text: detail });
-      setBusy('');
+      setMsg({ type: 'error', text: err?.response?.data?.detail || `Could not start ${platform.label} authorization.` });
+      setRowBusy(platform.slug, '');
     }
   }
 
-  async function handleTest() {
-    setBusy('test');
+  async function handleTest(platform, config) {
+    setRowBusy(platform.slug, 'test');
     setMsg(null);
     try {
       const { data } = await api.post(`/billing/accounting-configs/${config.id}/test/`);
@@ -180,12 +183,12 @@ function XeroIntegrationCard() {
     } catch (err) {
       setMsg({ type: 'error', text: err?.response?.data?.detail || 'Connection test failed.' });
     } finally {
-      setBusy('');
+      setRowBusy(platform.slug, '');
     }
   }
 
-  async function handleSyncNow() {
-    setBusy('sync');
+  async function handleSyncNow(platform, config) {
+    setRowBusy(platform.slug, 'sync');
     setMsg(null);
     try {
       await api.post(`/billing/accounting-configs/${config.id}/sync-now/`);
@@ -193,87 +196,87 @@ function XeroIntegrationCard() {
     } catch (err) {
       setMsg({ type: 'error', text: err?.response?.data?.detail || 'Could not dispatch sync.' });
     } finally {
-      setBusy('');
+      setRowBusy(platform.slug, '');
     }
   }
 
-  async function handleDisconnect() {
-    if (!window.confirm('Disconnect Xero? Stored tokens will be cleared.')) return;
-    setBusy('disconnect');
+  async function handleDisconnect(platform) {
+    if (!window.confirm(`Disconnect ${platform.label}? Stored tokens will be cleared.`)) return;
+    setRowBusy(platform.slug, 'disconnect');
     setMsg(null);
     try {
-      await api.post('/xero/disconnect/');
-      setConfig(null);
-      setMsg({ type: 'ok', text: 'Disconnected.' });
+      await api.post(platform.disconnectPath);
+      setMsg({ type: 'ok', text: `${platform.label} disconnected.` });
+      load();
     } catch (err) {
       setMsg({ type: 'error', text: err?.response?.data?.detail || 'Disconnect failed.' });
     } finally {
-      setBusy('');
+      setRowBusy(platform.slug, '');
     }
   }
 
   return (
     <div className="card">
       <div className="card-header">
-        <div className="card-header-title">Xero Accounting</div>
+        <div className="card-header-title">Accounting Integrations</div>
         <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Invoice, payment, and journal sync</div>
       </div>
-      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 0 }}>
         {msg && (
           <div style={{
-            fontSize: 12, padding: '8px 12px', borderRadius: 6,
+            fontSize: 12, padding: '8px 12px', margin: '12px 16px 0', borderRadius: 6,
             color:      msg.type === 'ok' ? '#0a7d3a' : '#b91c1c',
             background: msg.type === 'ok' ? '#ecfdf3' : '#fff5f5',
             border:     `1px solid ${msg.type === 'ok' ? '#a7f3d0' : '#fecaca'}`,
           }}>{msg.text}</div>
         )}
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{ minWidth: 0 }}>
-            {config === undefined && (
-              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)' }}>Loading…</div>
-            )}
-            {config === null && (
-              <div style={{ fontSize: 13, fontWeight: 500 }}>
-                Connect your Xero organisation to sync invoices, payments, and manual journals.
+        {configs === undefined && (
+          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', padding: '14px 18px' }}>Loading…</div>
+        )}
+        {configs !== undefined && ACCOUNTING_PLATFORMS.map(platform => {
+          const config = configs.find(c => c.platform === platform.slug);
+          const connected = config && config.is_active;
+          const rowBusy = busy[platform.slug] || '';
+          return (
+            <div key={platform.slug} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderTop: 'var(--border)' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{platform.label}</div>
+                {!connected && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{platform.desc}</div>
+                )}
+                {connected && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                    {platform.tenantLabel}: <span style={{ fontWeight: 600 }}>{config.base_url || '—'}</span>
+                    {config.last_synced_at && (
+                      <> · Last sync {new Date(config.last_synced_at).toLocaleString()}</>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-            {connected && (
-              <>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  {config.base_url || 'Connected'}
-                </div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
-                  Tenant ID: <span style={{ fontFamily: 'monospace' }}>{config.company_id || '—'}</span>
-                  {config.last_synced_at && (
-                    <> · Last sync {new Date(config.last_synced_at).toLocaleString()}</>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-          <div style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
-            {config === null && (
-              <button className="btn btn-primary btn-sm" disabled={busy === 'connect'} onClick={handleConnect}>
-                {busy === 'connect' ? 'Connecting…' : 'Connect Xero'}
-              </button>
-            )}
-            {connected && (
-              <>
-                <span className="badge badge-teal">Connected</span>
-                <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={handleTest}>
-                  {busy === 'test' ? 'Testing…' : 'Test'}
-                </button>
-                <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={handleSyncNow}>
-                  {busy === 'sync' ? 'Dispatching…' : 'Sync now'}
-                </button>
-                <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={handleDisconnect} style={{ color: '#b91c1c' }}>
-                  {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+              <div style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+                {!connected && (
+                  <button className="btn btn-primary btn-sm" disabled={!!rowBusy} onClick={() => handleConnect(platform)}>
+                    {rowBusy === 'connect' ? 'Connecting…' : 'Connect'}
+                  </button>
+                )}
+                {connected && (
+                  <>
+                    <span className="badge badge-teal">Connected</span>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleTest(platform, config)}>
+                      {rowBusy === 'test' ? 'Testing…' : 'Test'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleSyncNow(platform, config)}>
+                      {rowBusy === 'sync' ? 'Dispatching…' : 'Sync now'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleDisconnect(platform)} style={{ color: '#b91c1c' }}>
+                      {rowBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1356,8 +1359,8 @@ export default function Settings() {
             {/* Stripe Connect — live */}
             <StripeConnectCard marina={marina} />
 
-            {/* Xero Accounting — live */}
-            <XeroIntegrationCard />
+            {/* Accounting Integrations — live */}
+            <AccountingIntegrationsCard />
 
             {/* Integrations — Coming Soon */}
             <div className="card">

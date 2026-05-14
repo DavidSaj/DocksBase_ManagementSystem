@@ -163,6 +163,13 @@ XERO_SCOPES = os.environ.get(
     'XERO_SCOPES',
     'offline_access accounting.transactions accounting.contacts accounting.settings'
 )
+
+# QuickBooks Online OAuth2.
+QBO_CLIENT_ID = os.environ.get('QBO_CLIENT_ID', '')
+QBO_CLIENT_SECRET = os.environ.get('QBO_CLIENT_SECRET', '')
+QBO_REDIRECT_URI = os.environ.get('QBO_REDIRECT_URI', '')
+QBO_SCOPES = os.environ.get('QBO_SCOPES', 'com.intuit.quickbooks.accounting openid email profile')
+QBO_SANDBOX = os.environ.get('QBO_SANDBOX', '').lower() in ('1', 'true', 'yes')
 INGRESS_WEBHOOK_SECRET = os.environ.get('INGRESS_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')

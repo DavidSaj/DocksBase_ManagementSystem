@@ -700,6 +700,7 @@ class APInvoiceLineItem(models.Model):
 class AccountingIntegrationConfig(models.Model):
     class Platform(models.TextChoices):
         XERO         = 'xero',         'Xero'
+        QBO          = 'qbo',          'QuickBooks Online'
         NETSUITE     = 'netsuite',     'Oracle NetSuite'
         DYNAMICS_365 = 'dynamics365',  'Microsoft Dynamics 365 Business Central'
         SAGE_INTACCT = 'sage_intacct', 'Sage Intacct'
