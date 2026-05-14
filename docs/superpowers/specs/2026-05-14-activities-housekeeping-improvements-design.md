@@ -140,7 +140,10 @@ NO_SHOW   = 'no_show',   'No Show'
 Rules:
 
 - Public submissions create bookings in status `REQUESTED`.
-- `REQUESTED` bookings do **not** generate an invoice and do **not** reserve assets (no `AssetReservation` rows). They occupy the slot logically (visible in the manager's booking list) but do not block other bookings until confirmed.
+- `REQUESTED` bookings do **not** generate an invoice and do **not** create `AssetReservation` rows (so a request that is later rejected does not pin equipment).
+- **However**, `REQUESTED` bookings DO count against the published capacity of a slot. The public slot endpoint computes `available = capacity_max − Σ participant_count(status ∈ {REQUESTED, CONFIRMED})` so that the public form cannot indefinitely accept requests against a slot that is already mathematically full. This prevents the "infinite queue" trap where the manager is left to reject N − capacity requests by hand.
+- A slot with `available ≤ 0` is returned to the public endpoint with `state: 'full'` and is rendered greyed out / labelled "Fully requested — contact marina" on the public form. Submissions against a full slot are rejected with `409 {"detail": "Slot no longer available"}`.
+- Race safeguard: the `POST /public/activity-requests/` handler runs the capacity check inside a `SELECT … FOR UPDATE` on the `Activity` row (or equivalent advisory lock keyed on `activity_id + slot_start`) so two concurrent submissions cannot both pass the check.
 - Manager confirms via a new endpoint `POST /api/v1/activity-bookings/{id}/confirm/` which:
   - Validates capacity and asset availability (existing service in `services/availability.py`).
   - Creates `AssetReservation` rows.
@@ -155,8 +158,8 @@ New URL include: extend `apps.portal.public_urls` (already mounted at `/api/v1/p
 | Method | Path | Returns |
 |---|---|---|
 | `GET`  | `/public/activities/?marina={slug}` | Active activities with photo, description, category, duration, capacity, price-from. |
-| `GET`  | `/public/activities/{id}/slots/?from=YYYY-MM-DD&to=YYYY-MM-DD` | Materialised available slots (after capacity + asset check) in window. |
-| `POST` | `/public/activity-requests/` | Creates `ActivityBooking` in `REQUESTED` status. |
+| `GET`  | `/public/activities/{id}/slots/?from=YYYY-MM-DD&to=YYYY-MM-DD` | Materialised slots in window. Each slot includes `available`, `capacity_max`, and `state` ∈ {`open`, `low`, `full`}. `low` when `available ≤ ⌈capacity_max × 0.2⌉`; `full` when `available ≤ 0`. |
+| `POST` | `/public/activity-requests/` | Creates `ActivityBooking` in `REQUESTED` status. Requires CAPTCHA token (see 2.5). |
 
 Request payload for `/public/activity-requests/`:
 
@@ -169,13 +172,24 @@ Request payload for `/public/activity-requests/`:
   "lead_name":        "...",
   "lead_email":       "...",
   "lead_phone":       "...",
-  "notes":            "..."
+  "notes":            "...",
+  "captcha_token":    "..."
 }
 ```
 
-Auth: anonymous allowed. If the request carries a valid boater-portal session cookie, link the new `ActivityBooking` to `member` and skip lead-name prefill on the frontend.
+Auth: anonymous allowed. If the request carries a valid boater-portal session cookie, link the new `ActivityBooking` to `member` and skip lead-name prefill on the frontend. Logged-in submissions still must include a CAPTCHA token — anonymous-session forgery is trivial.
 
-Rate limit: 10 requests / IP / hour (use existing DRF throttle scope `public_activity_request`).
+Rate limit: 10 requests / IP / hour (use existing DRF throttle scope `public_activity_request`). This is a secondary defence; CAPTCHA is the primary.
+
+### 2.5 CAPTCHA (bot protection)
+
+An unauthenticated endpoint that creates database rows AND fires manager notifications is an obvious spam target. Without protection, a botnet rotating IPs trivially defeats the rate limit and floods the manager's inbox until real alerts are unfindable. Mitigation:
+
+- **Provider:** Cloudflare Turnstile (free, privacy-respecting, no visible challenge for most users). Fallback / alternate: reCAPTCHA v3. Selection driven by deployment environment — choice deferred to the implementation plan, but the **interface** is fixed: a single `captcha_token` field on the request, validated server-side.
+- **Frontend:** the public `ActivityDetail` form mounts the Turnstile widget; submit is disabled until a token is produced. Token is included in the `POST /public/activity-requests/` payload.
+- **Backend:** a small `apps.common.captcha.verify(token, remote_ip)` helper calls the provider's siteverify endpoint. Failure → `400 {"detail": "captcha_failed"}` before any DB write or notification.
+- **Configuration:** `CAPTCHA_PROVIDER`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` in settings; `VITE_CAPTCHA_SITE_KEY` for the portal. In development / tests, a setting `CAPTCHA_BYPASS=True` skips verification and the frontend renders a dummy token. Never default to bypass in production.
+- **Scope of reuse:** the helper is generic so the same protection can later wrap berth public booking and any other unauthenticated POST that creates rows.
 
 ### 2.4 In-app notification on new request
 
@@ -233,14 +247,23 @@ Per activity, a 7×N grid of weekday columns. "Add slot" creates an `ActivityTim
 
 Reads/writes a new `/activity-time-slots/` viewset (CRUD on `ActivityTimeSlot`, marina-scoped).
 
-### 3.4 New `RequestsInbox`
+### 3.4 New `RequestsInbox` — capacity-aware
 
-A filtered view of bookings where `status='requested'`, with two actions per row:
+A filtered view of bookings where `status='requested'`. Rows are **grouped by `(activity, start_datetime)` slot** so the manager sees overbooking at a glance instead of confirming N rows one at a time and discovering the (N+1)th is over capacity.
 
-- **Confirm** → calls `POST /activity-bookings/{id}/confirm/`. On success, row moves to the Bookings tab.
-- **Reject** → opens a small dialog for an optional reason → calls `POST /activity-bookings/{id}/reject/`.
+Each slot-group renders:
 
-Inbox badge count comes from the notifications system (unread `activity_request` count).
+- `Activity name — Wed 20 May 10:00 · 4 / 4 capacity · 6 requests`
+- A capacity bar that turns amber when `Σ requested_participants > available` (i.e. overbooked).
+- Each request as a row with: lead name, participants, submitted time, **Confirm** and **Reject** actions.
+
+Behavioural rules:
+
+- The Confirm button is **disabled** when confirming this row would exceed `capacity_max − already_confirmed_in_slot`. Hover shows: "Confirming this would exceed capacity. Reject or wait."
+- The frontend computes the disabled state from data it already has in the group; the backend still validates on `POST /activity-bookings/{id}/confirm/` and returns `409 {"detail": "capacity_exceeded", "remaining": N}` if a concurrent confirmation by another manager beat this one. On 409, the inbox refetches the group.
+- "Reject all overflow" bulk action on an overbooked group: rejects everything after the first `available` rows by submission order, with a default reason "Slot full — please contact us to rebook."
+
+Inbox badge count comes from the notifications system (unread `activity_request` count) **deduplicated by slot** — N requests against the same slot count as one notification so a spam burst against a single slot cannot inflate the badge.
 
 ### 3.5 Booking tab cleanup (post route-fix)
 
@@ -287,9 +310,13 @@ These sit alongside the existing berth-portal routes (no nesting changes).
 
 **`ActivityDetail`**
 - Calls `GET /public/activities/{id}/slots/` with a date-range picker (default: today + 30 days).
-- Renders a date strip with slot pills under each date. Greys out fully-booked slots.
+- Renders a date strip with slot pills under each date. Pill state derived from the endpoint's `state` field:
+  - `open` — selectable.
+  - `low` — selectable, "Only N spots left" hint.
+  - `full` — disabled, label "Fully requested — contact marina". Cannot be selected.
 - Form: participants, lead name/email/phone, notes. Prefilled if logged in (existing `UserContext`).
-- Submit → `POST /public/activity-requests/`.
+- **Cloudflare Turnstile widget** mounted above the submit button. Submit is disabled until the widget produces a token.
+- Submit → `POST /public/activity-requests/` with the captcha token. On `409 {"detail": "Slot no longer available"}` the form re-fetches slots and surfaces a toast.
 
 **`RequestConfirmed`**
 - Plain-text confirmation: "We've received your request. The marina will contact you to confirm within 24 hours." Includes booking reference.
@@ -355,7 +382,9 @@ Pull `VITE_PORTAL_URL` from env, same as Channels does.
 
 ## Testing
 
-- **Backend unit**: ActivityTimeSlot uniqueness, slot materialisation against `season_start`/`season_end`, capacity arithmetic; status transitions REQUESTED → CONFIRMED with full asset/invoice side-effects; REQUESTED → CANCELLED leaves no orphan reservations.
+- **Backend unit**: ActivityTimeSlot uniqueness, slot materialisation against `season_start`/`season_end`, capacity arithmetic **including REQUESTED rows counted against capacity**; status transitions REQUESTED → CONFIRMED with full asset/invoice side-effects; REQUESTED → CANCELLED leaves no orphan reservations.
+- **Capacity races**: two concurrent `POST /public/activity-requests/` for the last seat — exactly one succeeds, the other gets 409. Same for two concurrent `confirm` calls from different managers.
+- **Captcha**: request with missing/invalid token → 400 before any DB write, before any notification. Test bypass setting honoured only when explicit.
 - **Backend integration**: public POST with valid + invalid slugs; rate-limit kicks in at request 11; logged-in vs anonymous request both succeed and link member when present.
 - **Frontend (manager)**: BookingsTab renders after the route rename (regression test against the bug). RequestsInbox shows badge count from notifications. ScheduleTab CRUD round-trips.
 - **Frontend (portal)**: ActivityDetail re-fetches slots after a failed submission. Embed iframe loads the portal page in a manual smoke test.
