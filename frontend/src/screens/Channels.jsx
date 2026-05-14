@@ -240,15 +240,24 @@ function AllocationCard({ conn, berths, onUpdate }) {
 
 // ── Section 4: Berth Assignment Grid ──────────────────────────────────────
 
+// Group by the size-style "berth type" the calendar uses (e.g. "Small", "Large").
+// Falls back to the alphabetic prefix of the code so legacy berths still group
+// sensibly (matches BerthCalendar.berthDisplayType).
+function berthDisplayType(berth) {
+  if (berth.berth_type) return berth.berth_type;
+  const m = (berth.code || '').match(/^([A-Za-z]+)/);
+  return m ? m[1] : 'Other';
+}
+
 function BerthGrid({ berths, setBerths, connections, categories }) {
   const [savingBerthId, setSavingBerthId] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
 
-  function toggle(catId) {
+  function toggle(typeKey) {
     setExpanded(prev => {
       const next = new Set(prev);
-      if (next.has(catId)) next.delete(catId);
-      else next.add(catId);
+      if (next.has(typeKey)) next.delete(typeKey);
+      else next.add(typeKey);
       return next;
     });
   }
@@ -263,12 +272,12 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
     }
   }
 
-  function summary(catBerths) {
-    const directCount = catBerths.filter(b => b.ota_connection == null).length;
+  function summary(typeBerths) {
+    const directCount = typeBerths.filter(b => b.ota_connection == null).length;
     const parts = [];
     if (directCount > 0) parts.push(`${directCount} Direct`);
     const byConn = new Map();
-    catBerths.forEach(b => {
+    typeBerths.forEach(b => {
       if (b.ota_connection != null) byConn.set(b.ota_connection, (byConn.get(b.ota_connection) || 0) + 1);
     });
     byConn.forEach((count, connId) => {
@@ -278,20 +287,36 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
     return parts.join(' · ') || 'No berths';
   }
 
+  // Group berths by their display type ("Small", "Large", …) and sort the
+  // groups alphabetically so the layout is stable across reloads.
+  const grouped = new Map();
+  berths.forEach(b => {
+    const key = berthDisplayType(b);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(b);
+  });
+  const types = [...grouped.keys()].sort((a, b) => a.localeCompare(b));
+
+  // Category-name lookup so we can append "(Premium Slip)" etc. per berth.
+  const categoryNameById = new Map(categories.map(c => [c.id, c.name]));
+
   return (
     <div className="card">
       <div className="card-header">
         <div className="card-header-title">Berth Assignment</div>
       </div>
       <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {categories.map(cat => {
-          const catBerths = berths.filter(b => b.category === cat.id);
-          const isOpen = expanded.has(cat.id);
+        {types.length === 0 && (
+          <div style={{ padding: '12px', fontSize: 12, opacity: 0.6 }}>No berths to assign.</div>
+        )}
+        {types.map(type => {
+          const typeBerths = grouped.get(type);
+          const isOpen = expanded.has(type);
           return (
-            <div key={cat.id} style={{ border: 'var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div key={type} style={{ border: 'var(--border)', borderRadius: 6, overflow: 'hidden' }}>
               <button
                 type="button"
-                onClick={() => toggle(cat.id)}
+                onClick={() => toggle(type)}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
@@ -300,19 +325,17 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 11, opacity: 0.6, width: 10 }}>{isOpen ? '▾' : '▸'}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{cat.name}</span>
-                  <span style={{ fontSize: 11, opacity: 0.6 }}>({catBerths.length})</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>{type}</span>
+                  <span style={{ fontSize: 11, opacity: 0.6 }}>({typeBerths.length})</span>
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.7 }}>{summary(catBerths)}</div>
+                <div style={{ fontSize: 11, opacity: 0.7 }}>{summary(typeBerths)}</div>
               </button>
               {isOpen && (
                 <div style={{ display: 'flex', flexDirection: 'column', borderTop: 'var(--border)' }}>
-                  {catBerths.length === 0 && (
-                    <div style={{ padding: '10px 12px', fontSize: 12, opacity: 0.6 }}>No berths in this category</div>
-                  )}
-                  {catBerths.map(b => {
+                  {typeBerths.map(b => {
                     const val = b.ota_connection == null ? '' : String(b.ota_connection);
                     const isSaving = savingBerthId === b.id;
+                    const catName = b.category != null ? categoryNameById.get(b.category) : null;
                     return (
                       <div
                         key={b.id}
@@ -321,7 +344,14 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
                           padding: '6px 12px 6px 32px', fontSize: 12,
                         }}
                       >
-                        <div>{b.code || b.name || `Berth #${b.id}`}</div>
+                        <div>
+                          <span>{b.code || b.name || `Berth #${b.id}`}</span>
+                          {catName && (
+                            <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.55 }}>
+                              ({catName})
+                            </span>
+                          )}
+                        </div>
                         <select
                           value={val}
                           disabled={isSaving}
