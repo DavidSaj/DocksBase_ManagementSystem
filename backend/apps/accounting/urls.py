@@ -103,9 +103,48 @@ alias_router.register(r'exchange-rates',     ExchangeRateViewSet,               
 alias_router.register(r'surcharge-rules',    SurchargeRuleViewSet,              basename='surcharge-rule-alias')
 alias_router.register(r'accounting-sync',    AccountingSyncRecordViewSet,         basename='accounting-sync-alias')
 
+from apps.accounting.views_xero_oauth import (
+    XeroAuthorizeView,
+    XeroCallbackView,
+    XeroDisconnectView,
+)
+from apps.accounting.views_qbo_oauth import (
+    QBOAuthorizeView,
+    QBOCallbackView,
+    QBODisconnectView,
+)
+from apps.accounting.views_sage_oauth import (
+    SageAuthorizeView,
+    SageCallbackView,
+    SageDisconnectView,
+)
+from apps.accounting.views_export import JournalCSVExportView
+from apps.accounting.views_datev_export import DatevCSVExportView
+
 urlpatterns = [
     path('', include(router.urls)),
     path('', include(alias_router.urls)),
+
+    # Xero OAuth
+    path('xero/authorize/',  XeroAuthorizeView.as_view(),  name='xero-authorize'),
+    path('xero/callback/',   XeroCallbackView.as_view(),   name='xero-callback'),
+    path('xero/disconnect/', XeroDisconnectView.as_view(), name='xero-disconnect'),
+
+    # QuickBooks Online OAuth
+    path('qbo/authorize/',  QBOAuthorizeView.as_view(),  name='qbo-authorize'),
+    path('qbo/callback/',   QBOCallbackView.as_view(),   name='qbo-callback'),
+    path('qbo/disconnect/', QBODisconnectView.as_view(), name='qbo-disconnect'),
+
+    # Sage Business Cloud Accounting OAuth
+    path('sage/authorize/',  SageAuthorizeView.as_view(),  name='sage-authorize'),
+    path('sage/callback/',   SageCallbackView.as_view(),   name='sage-callback'),
+    path('sage/disconnect/', SageDisconnectView.as_view(), name='sage-disconnect'),
+
+    # Generic journal CSV export (universal fallback)
+    path('accounting/export/journal.csv/', JournalCSVExportView.as_view(), name='journal-csv-export'),
+
+    # DATEV Buchungsstapel export (Germany)
+    path('accounting/export/datev.csv/',   DatevCSVExportView.as_view(),   name='datev-csv-export'),
 
     # Red diesel declaration — fuel dock sub-endpoint
     path(

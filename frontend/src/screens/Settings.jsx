@@ -122,6 +122,167 @@ const NOTIF_GROUPS = [
   ]},
 ];
 
+// ── Accounting integrations card ──────────────────────────────────────────
+
+const ACCOUNTING_PLATFORMS = [
+  { slug: 'xero',                label: 'Xero',                            desc: 'UK / AU / NZ / global',  authorizePath: '/xero/authorize/', disconnectPath: '/xero/disconnect/', tenantLabel: 'Organisation' },
+  { slug: 'qbo',                 label: 'QuickBooks Online',               desc: 'US / UK / CA / global',  authorizePath: '/qbo/authorize/',  disconnectPath: '/qbo/disconnect/',  tenantLabel: 'Company' },
+  { slug: 'sage_business_cloud', label: 'Sage Business Cloud Accounting',  desc: 'UK / IE / FR / DE / ES', authorizePath: '/sage/authorize/', disconnectPath: '/sage/disconnect/', tenantLabel: 'Business' },
+];
+
+function AccountingIntegrationsCard() {
+  const [configs, setConfigs] = useState(undefined); // undefined=loading, array=loaded
+  const [busy, setBusy] = useState({}); // { [slug]: 'connect'|'test'|'sync'|'disconnect' }
+  const [msg, setMsg]  = useState(null); // { type, text }
+
+  const load = () =>
+    api.get('/billing/accounting-configs/')
+      .then(r => setConfigs(r.data.results ?? r.data))
+      .catch(() => setConfigs([]));
+
+  useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('integration');
+    if (!slug) return;
+    const platform = ACCOUNTING_PLATFORMS.find(p => p.slug === slug);
+    const status = params.get('status');
+    if (status === 'connected' && platform) {
+      setMsg({ type: 'ok', text: `${platform.label} connected.` });
+      load();
+    } else if (status === 'error') {
+      setMsg({ type: 'error', text: params.get('error') || 'Connection failed.' });
+    }
+    const url = new URL(window.location.href);
+    ['integration', 'status', 'error'].forEach(k => url.searchParams.delete(k));
+    window.history.replaceState({}, '', url.toString());
+  }, []);
+
+  function setRowBusy(slug, value) {
+    setBusy(b => ({ ...b, [slug]: value }));
+  }
+
+  async function handleConnect(platform) {
+    setRowBusy(platform.slug, 'connect');
+    setMsg(null);
+    try {
+      const { data } = await api.get(platform.authorizePath);
+      window.location.href = data.authorize_url;
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || `Could not start ${platform.label} authorization.` });
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function handleTest(platform, config) {
+    setRowBusy(platform.slug, 'test');
+    setMsg(null);
+    try {
+      const { data } = await api.post(`/billing/accounting-configs/${config.id}/test/`);
+      setMsg({ type: 'ok', text: data.detail || 'Connection OK.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Connection test failed.' });
+    } finally {
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function handleSyncNow(platform, config) {
+    setRowBusy(platform.slug, 'sync');
+    setMsg(null);
+    try {
+      await api.post(`/billing/accounting-configs/${config.id}/sync-now/`);
+      setMsg({ type: 'ok', text: 'Sync dispatched. Records will appear in the sync log shortly.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Could not dispatch sync.' });
+    } finally {
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function handleDisconnect(platform) {
+    if (!window.confirm(`Disconnect ${platform.label}? Stored tokens will be cleared.`)) return;
+    setRowBusy(platform.slug, 'disconnect');
+    setMsg(null);
+    try {
+      await api.post(platform.disconnectPath);
+      setMsg({ type: 'ok', text: `${platform.label} disconnected.` });
+      load();
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Disconnect failed.' });
+    } finally {
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">Accounting Integrations</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Invoice, payment, and journal sync</div>
+      </div>
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 0 }}>
+        {msg && (
+          <div style={{
+            fontSize: 12, padding: '8px 12px', margin: '12px 16px 0', borderRadius: 6,
+            color:      msg.type === 'ok' ? '#0a7d3a' : '#b91c1c',
+            background: msg.type === 'ok' ? '#ecfdf3' : '#fff5f5',
+            border:     `1px solid ${msg.type === 'ok' ? '#a7f3d0' : '#fecaca'}`,
+          }}>{msg.text}</div>
+        )}
+        {configs === undefined && (
+          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', padding: '14px 18px' }}>Loading…</div>
+        )}
+        {configs !== undefined && ACCOUNTING_PLATFORMS.map(platform => {
+          const config = configs.find(c => c.platform === platform.slug);
+          const connected = config && config.is_active;
+          const rowBusy = busy[platform.slug] || '';
+          return (
+            <div key={platform.slug} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderTop: 'var(--border)' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{platform.label}</div>
+                {!connected && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{platform.desc}</div>
+                )}
+                {connected && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                    {platform.tenantLabel}: <span style={{ fontWeight: 600 }}>{config.base_url || '—'}</span>
+                    {config.last_synced_at && (
+                      <> · Last sync {new Date(config.last_synced_at).toLocaleString()}</>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+                {!connected && (
+                  <button className="btn btn-primary btn-sm" disabled={!!rowBusy} onClick={() => handleConnect(platform)}>
+                    {rowBusy === 'connect' ? 'Connecting…' : 'Connect'}
+                  </button>
+                )}
+                {connected && (
+                  <>
+                    <span className="badge badge-teal">Connected</span>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleTest(platform, config)}>
+                      {rowBusy === 'test' ? 'Testing…' : 'Test'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleSyncNow(platform, config)}>
+                      {rowBusy === 'sync' ? 'Dispatching…' : 'Sync now'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleDisconnect(platform)} style={{ color: '#b91c1c' }}>
+                      {rowBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Stripe Connect card ────────────────────────────────────────────────────
 
 function StripeConnectCard({ marina }) {
@@ -1199,6 +1360,9 @@ export default function Settings() {
             {/* Stripe Connect — live */}
             <StripeConnectCard marina={marina} />
 
+            {/* Accounting Integrations — live */}
+            <AccountingIntegrationsCard />
+
             {/* Integrations — Coming Soon */}
             <div className="card">
               <div className="card-header"><div className="card-header-title">Integrations</div></div>
@@ -1207,7 +1371,6 @@ export default function Settings() {
               </div>
               <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
                 {[
-                  { name: 'Xero Accounting',    desc: 'Invoice and payment sync' },
                   { name: 'AIS Vessel Tracking',desc: 'MarineTraffic API' },
                   { name: 'OpenWeatherMap',     desc: 'Live weather conditions' },
                   { name: 'DocuSign',           desc: 'Electronic signatures' },
