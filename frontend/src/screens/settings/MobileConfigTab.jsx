@@ -1,5 +1,5 @@
 // frontend/src/screens/settings/MobileConfigTab.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../api.js';
 
 const LABEL = {
@@ -229,10 +229,9 @@ export default function MobileConfigTab({ marina }) {
               >Open live portal →</a>
             )}
           </div>
-          <PhonePreview config={config} marinaName={marina?.name || 'Your Marina'} brand={brand} />
+          <PortalIframePreview config={config} marinaName={marina?.name || 'Your Marina'} />
           <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 10, textAlign: 'center', lineHeight: 1.5 }}>
-            A faithful rendering of the member home screen.<br />
-            Click <strong>Open live portal</strong> to see your real portal.
+            Live preview from the real portal. Edits show instantly.
           </div>
         </div>
       </div>
@@ -240,15 +239,36 @@ export default function MobileConfigTab({ marina }) {
   );
 }
 
-// ── Phone preview — mirrors portal MemberHomeTab pixel-for-pixel ─────────
+// ── Portal iframe preview ────────────────────────────────────────────────
+// Loads PORTAL_URL/__preview/ and posts config updates over postMessage. The
+// preview screen in the portal bypasses auth and tenant detection.
 
-function PhonePreview({ config, marinaName, brand }) {
-  const tabs = [
-    { id: 'home',      label: 'Home',      enabled: true },
-    { id: 'utilities', label: 'Utilities', enabled: config.enable_utilities !== false },
-    { id: 'services',  label: 'Services',  enabled: config.enable_boatyard  !== false },
-    { id: 'account',   label: 'Account',   enabled: true },
-  ].filter(t => t.enabled);
+function PortalIframePreview({ config, marinaName }) {
+  const iframeRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const previewUrl = `${PORTAL_URL.replace(/\/$/, '')}/__preview/`;
+  const targetOrigin = useMemo(() => {
+    try { return new URL(PORTAL_URL).origin; }
+    catch { return '*'; }
+  }, []);
+
+  // Listen for the iframe's "ready" handshake.
+  useEffect(() => {
+    function onMessage(e) {
+      if (e.data?.type === 'portal-preview-ready') setReady(true);
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Push the current config whenever it changes (and after the iframe is ready).
+  useEffect(() => {
+    if (!ready || !iframeRef.current) return;
+    iframeRef.current.contentWindow.postMessage(
+      { type: 'portal-preview-update', config, marinaName },
+      targetOrigin,
+    );
+  }, [config, marinaName, ready, targetOrigin]);
 
   return (
     <div style={{
@@ -258,101 +278,29 @@ function PhonePreview({ config, marinaName, brand }) {
       <div style={{ width: 80, height: 5, background: '#333', borderRadius: 3, margin: '6px auto 8px' }} />
       <div style={{
         background: '#f4f6f8', borderRadius: 28, overflow: 'hidden',
-        height: 560, display: 'flex', flexDirection: 'column',
+        height: 560, position: 'relative',
       }}>
-        {/* Header */}
-        <div style={{ padding: '20px 16px 0', flexShrink: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#1a2d4a', lineHeight: 1.15 }}>
-            {marinaName}
+        <iframe
+          ref={iframeRef}
+          src={previewUrl}
+          title="Member portal preview"
+          style={{
+            width: '100%', height: '100%', border: 'none', display: 'block',
+            background: '#f4f6f8',
+          }}
+          // sandbox kept permissive enough for postMessage + same-origin storage access
+          sandbox="allow-scripts allow-same-origin"
+        />
+        {!ready && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, color: 'rgba(0,0,0,0.4)', background: '#f4f6f8',
+          }}>
+            Loading preview…
           </div>
-        </div>
-
-        {/* Scrolling body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-          {/* Gate Access */}
-          <div style={cardStyle}>
-            <div style={cardTitleStyle}>Gate Access</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-              <div>
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Main Gate PIN</div>
-                <div style={{
-                  fontSize: 26, fontWeight: 800, color: brand,
-                  fontFamily: '"IBM Plex Mono", monospace', letterSpacing: '4px',
-                }}>4128</div>
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>Tap to copy</div>
-            </div>
-          </div>
-
-          {/* WiFi */}
-          {(config.wifi_name || config.wifi_password) ? (
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>WiFi</div>
-              {config.wifi_name && (
-                <div style={wifiRowStyle}>
-                  <span style={{ color: 'rgba(0,0,0,0.4)' }}>Network</span>
-                  <span style={{ fontWeight: 600, color: '#1a2d4a' }}>{config.wifi_name}</span>
-                </div>
-              )}
-              {config.wifi_password && (
-                <div style={wifiRowStyle}>
-                  <span style={{ color: 'rgba(0,0,0,0.4)' }}>Password</span>
-                  <span style={{ fontWeight: 600, color: '#1a2d4a', fontFamily: 'monospace' }}>{config.wifi_password}</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ ...cardStyle, opacity: 0.5 }}>
-              <div style={cardTitleStyle}>WiFi</div>
-              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 0' }}>
-                Add a network name and password to display them here.
-              </div>
-            </div>
-          )}
-
-          {/* Local guide */}
-          {config.local_guide ? (
-            <div style={cardStyle}>
-              <div style={cardTitleStyle}>Local Guide</div>
-              <div style={{
-                fontSize: 12, color: '#1a2d4a', whiteSpace: 'pre-wrap', lineHeight: 1.45,
-              }}>{config.local_guide}</div>
-            </div>
-          ) : null}
-        </div>
-
-        {/* Bottom nav */}
-        <div style={{
-          display: 'flex', borderTop: '1px solid rgba(0,0,0,0.08)', background: '#fff',
-          padding: '6px 0 10px', flexShrink: 0,
-        }}>
-          {tabs.map((t, i) => (
-            <div key={t.id} style={{
-              flex: 1, textAlign: 'center', fontSize: 10, fontWeight: 600,
-              color: i === 0 ? brand : 'rgba(0,0,0,0.4)',
-            }}>
-              <div style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: i === 0 ? brand : 'rgba(0,0,0,0.25)',
-                margin: '0 auto 4px',
-              }} />
-              {t.label}
-            </div>
-          ))}
-        </div>
+        )}
       </div>
     </div>
   );
 }
-
-const cardStyle = {
-  background: '#fff', borderRadius: 12, padding: 14, margin: '10px 14px 0',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.06)',
-};
-const cardTitleStyle = {
-  fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)',
-  textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8,
-};
-const wifiRowStyle = {
-  display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13,
-};
