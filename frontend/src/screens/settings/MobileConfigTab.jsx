@@ -61,6 +61,8 @@ export default function MobileConfigTab({ marina }) {
   return (
     <div className="mc-root">
       {patchError && <div className="mc-error">{patchError}</div>}
+      <div className="mc-layout">
+      <div className="mc-form-col">
       {/* Brand & Identity */}
       <div className="mc-section-title">Brand &amp; Identity</div>
       <div className="mc-card">
@@ -141,6 +143,116 @@ export default function MobileConfigTab({ marina }) {
           {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save Content'}
         </button>
       </form>
+      </div>
+      <div className="mc-preview-col">
+        <ClientPreview config={config} marinaName={marina?.name || 'Your Marina'} />
+      </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientPreview({ config, marinaName }) {
+  const [mode, setMode] = useState('app');
+  const brand = config.brand_color || '#0c1f3d';
+  return (
+    <div className="mc-preview-sticky">
+      <div className="mc-preview-header">
+        <div className="mc-preview-title">Client Preview</div>
+        <div className="mc-preview-tabs">
+          <button
+            type="button"
+            className={`mc-preview-tab${mode === 'app' ? ' active' : ''}`}
+            onClick={() => setMode('app')}
+          >Mobile App</button>
+          <button
+            type="button"
+            className={`mc-preview-tab${mode === 'email' ? ' active' : ''}`}
+            onClick={() => setMode('email')}
+          >Arrival Email</button>
+        </div>
+      </div>
+      {mode === 'app' ? (
+        <PhonePreview config={config} marinaName={marinaName} brand={brand} />
+      ) : (
+        <EmailPreview config={config} marinaName={marinaName} brand={brand} />
+      )}
+    </div>
+  );
+}
+
+function PhonePreview({ config, marinaName, brand }) {
+  const features = [
+    { key: 'enable_boatyard', label: 'Boatyard' },
+    { key: 'enable_utilities', label: 'Utilities' },
+    { key: 'enable_documents', label: 'Documents' },
+  ].filter(f => config[f.key] !== false);
+  return (
+    <div className="mc-phone">
+      <div className="mc-phone-notch" />
+      <div className="mc-phone-screen">
+        <div className="mc-phone-hero" style={{ background: brand }}>
+          <div className="mc-phone-hello">Welcome aboard</div>
+          <div className="mc-phone-marina">{marinaName}</div>
+        </div>
+        <div className="mc-phone-body">
+          <div className="mc-phone-card">
+            <div className="mc-phone-card-label">WiFi</div>
+            <div className="mc-phone-card-value">{config.wifi_name || '—'}</div>
+            <div className="mc-phone-card-sub">{config.wifi_password ? `Password: ${config.wifi_password}` : 'No password set'}</div>
+          </div>
+          <div className="mc-phone-tiles">
+            {features.length === 0 && <div className="mc-phone-empty">No features enabled</div>}
+            {features.map(f => (
+              <div key={f.key} className="mc-phone-tile" style={{ borderColor: brand }}>
+                <div className="mc-phone-tile-dot" style={{ background: brand }} />
+                {f.label}
+              </div>
+            ))}
+          </div>
+          <div className="mc-phone-card">
+            <div className="mc-phone-card-label">Local Guide</div>
+            <div className="mc-phone-guide">
+              {config.local_guide
+                ? config.local_guide
+                : <span style={{ opacity: 0.5 }}>Add tips, contacts, and recommendations…</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailPreview({ config, marinaName, brand }) {
+  return (
+    <div className="mc-email">
+      <div className="mc-email-meta">
+        <div><strong>From:</strong> {marinaName}</div>
+        <div><strong>Subject:</strong> Your arrival info — {marinaName}</div>
+      </div>
+      <div className="mc-email-body">
+        <div className="mc-email-hero" style={{ background: brand }}>
+          <div className="mc-email-hero-title">Welcome to {marinaName}</div>
+        </div>
+        <div className="mc-email-section">
+          <p>We're looking forward to your visit. Here's what you'll need on arrival.</p>
+        </div>
+        <div className="mc-email-section">
+          <div className="mc-email-h">WiFi</div>
+          <div>Network: <strong>{config.wifi_name || '—'}</strong></div>
+          <div>Password: <strong>{config.wifi_password || '—'}</strong></div>
+        </div>
+        {config.local_guide && (
+          <div className="mc-email-section">
+            <div className="mc-email-h">Local Guide</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{config.local_guide}</div>
+          </div>
+        )}
+        <div className="mc-email-footer">
+          Safe travels,<br />The {marinaName} team
+        </div>
+      </div>
     </div>
   );
 }
