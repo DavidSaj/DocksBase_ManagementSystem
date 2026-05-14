@@ -224,7 +224,7 @@ class UtilityIntegrationViewSet(viewsets.ModelViewSet):
 # Webhook key — generate / rotate / revoke
 # ---------------------------------------------------------------------------
 
-def _generate_key(prefix_len: int) -> tuple[str, str]:
+def _generate_key() -> tuple[str, str]:
     """Return (plaintext, hashed). Plaintext is sk_<base64>."""
     raw       = secrets.token_urlsafe(48)
     plaintext = f'sk_{raw}'
@@ -266,7 +266,7 @@ class MeterWebhookKeyRotateView(APIView):
         marina = _marina(request)
         row, _ = MarinaMeterWebhookKey.objects.get_or_create(marina=marina)
 
-        plaintext, hashed = _generate_key(MarinaMeterWebhookKey.PREFIX_LEN)
+        plaintext, hashed = _generate_key()
         row.key_prefix = plaintext[:MarinaMeterWebhookKey.PREFIX_LEN]
         row.key_hash   = hashed
         row.is_active  = True
@@ -303,8 +303,8 @@ class DeviceTokenView(APIView):
         meter = self._meter(request, pk)
         if not meter.hardware_id:
             meter.hardware_id = f'hw_{secrets.token_urlsafe(16)}'
-        plaintext, hashed = _generate_key(prefix_len=11)
-        meter.device_token_prefix = plaintext[:11]
+        plaintext, hashed = _generate_key()
+        meter.device_token_prefix = plaintext[:MarinaMeterWebhookKey.PREFIX_LEN]
         meter.device_token_hash   = hashed
         meter.save(update_fields=['hardware_id', 'device_token_prefix', 'device_token_hash'])
         return Response({'hardware_id': meter.hardware_id, 'device_token': plaintext})

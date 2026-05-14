@@ -18,9 +18,21 @@ function IntegrationModal({ initial, onClose, onSaved }) {
     e.preventDefault();
     setSaving(true); setErr('');
     try {
-      const body = { vendor, credentials: { api_key: apiKey, base_url: baseUrl || undefined } };
-      if (initial) await api.patch(`/utilities/integrations/${initial.id}/`, body);
-      else         await api.post('/utilities/integrations/', body);
+      const trimmedKey = apiKey.trim();
+      let body;
+      if (initial) {
+        // Edit: only include credentials if the user typed a new api_key.
+        body = { vendor };
+        if (trimmedKey) {
+          body.credentials = { api_key: trimmedKey };
+          if (baseUrl) body.credentials.base_url = baseUrl;
+        }
+        await api.patch(`/utilities/integrations/${initial.id}/`, body);
+      } else {
+        body = { vendor, credentials: { api_key: trimmedKey } };
+        if (baseUrl) body.credentials.base_url = baseUrl;
+        await api.post('/utilities/integrations/', body);
+      }
       onSaved();
       onClose();
     } catch (ex) {

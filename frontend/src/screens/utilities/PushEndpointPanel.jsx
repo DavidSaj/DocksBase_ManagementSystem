@@ -38,6 +38,7 @@ export default function PushEndpointPanel() {
     if (!confirm('Revoke the key? Any system using it will lose access.')) return;
     setBusy(true);
     await api.delete('/utilities/webhook-key/');
+    setData(null);
     setBusy(false);
     load();
   }
