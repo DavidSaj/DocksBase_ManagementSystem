@@ -15,6 +15,7 @@ from celery import shared_task
 from apps.accounts.models import Marina
 from apps.ais.adapters.marinetraffic import MarineTrafficAdapter
 from apps.ais.services import upsert_position
+from apps.vessels.models import Vessel
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,6 @@ def poll_ais_for_marina(marina_id: int):
     # Pre-resolve known vessels in ONE query rather than per-reading.
     # A busy harbour can return 300+ AIS contacts and we run this every
     # 60 s — N+1 would exhaust the DB connection pool quickly.
-    from apps.vessels.models import Vessel
     mmsis = [r.mmsi for r in readings]
     known_vessels = {
         v.mmsi: v for v in
