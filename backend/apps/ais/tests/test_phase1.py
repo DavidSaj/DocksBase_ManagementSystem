@@ -183,3 +183,38 @@ class GetInboundETAsTests(TestCase):
         # 60 nm north of Harwich — outside the 50 nm default.
         upsert_position(self.marina, _make_reading(lat=53.0, lng=1.283, speed=8))
         self.assertEqual(get_inbound_etas(self.marina, max_distance_nm=50), [])
+
+
+from unittest.mock import patch
+
+from apps.ais.tasks import poll_ais_for_marina
+
+
+class PollTaskTests(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(
+            name='Harwich',
+            lat=Decimal('51.945'), lng=Decimal('1.283'),
+            marinetraffic_api_key='fake',
+            ais_poll_radius_nm=10,
+        )
+
+    @patch('apps.ais.tasks.MarineTrafficAdapter')
+    def test_poll_creates_positions(self, MockAdapter):
+        MockAdapter.return_value.fetch_positions.return_value = [_make_reading()]
+        poll_ais_for_marina(self.marina.id)
+        self.assertEqual(VesselPosition.objects.count(), 1)
+
+    @patch('apps.ais.tasks.MarineTrafficAdapter')
+    def test_missing_key_skips(self, MockAdapter):
+        Marina.objects.filter(pk=self.marina.pk).update(marinetraffic_api_key='')
+        poll_ais_for_marina(self.marina.id)
+        MockAdapter.assert_not_called()
+        self.assertEqual(VesselPosition.objects.count(), 0)
+
+    @patch('apps.ais.tasks.MarineTrafficAdapter')
+    def test_provider_failure_is_swallowed(self, MockAdapter):
+        MockAdapter.return_value.fetch_positions.side_effect = RuntimeError('401')
+        # Must not raise.
+        poll_ais_for_marina(self.marina.id)
+        self.assertEqual(VesselPosition.objects.count(), 0)

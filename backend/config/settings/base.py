@@ -282,6 +282,11 @@ CELERY_TASK_ROUTES = {
     'sustainability.generate_esg_report_async': {'queue': 'pdf_generation'},
 }
 CELERY_BEAT_SCHEDULE = {
+    # ── AIS (Phase 1) ────────────────────────────────────────────────────────
+    'poll-ais-positions-1min': {
+        'task':     'apps.ais.tasks.poll_ais_for_all_marinas',
+        'schedule': 60.0,  # every 60 seconds
+    },
     # ── Sustainability (Track 12) ─────────────────────────────────────────────
     'roll-sustainability-ledger': {
         'task': 'sustainability.roll_sustainability_ledger',
