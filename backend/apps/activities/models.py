@@ -109,6 +109,7 @@ class ActivityExtra(models.Model):
 
 class ActivityBooking(models.Model):
     class Status(models.TextChoices):
+        REQUESTED = 'requested', 'Requested'
         CONFIRMED = 'confirmed', 'Confirmed'
         CANCELLED = 'cancelled', 'Cancelled'
         COMPLETED = 'completed', 'Completed'

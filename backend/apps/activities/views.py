@@ -12,6 +12,11 @@ from .serializers import (
 )
 from .services.booking import SeasonWarning, ResourceUnavailable, book_activity_session
 from .services.cancellation import cancel_activity_booking
+from .services.transitions import (
+    confirm_requested_booking,
+    reject_requested_booking,
+    CapacityExceeded,
+)
 
 
 class CancellationPolicyViewSet(viewsets.ModelViewSet):
@@ -167,6 +172,30 @@ class ActivityBookingViewSet(viewsets.ModelViewSet):
             raise err
         except ValueError as exc:
             raise ValidationError({'detail': str(exc)})
+
+    @action(detail=True, methods=['post'], url_path='confirm')
+    def confirm(self, request, pk=None):
+        booking = self.get_object()
+        try:
+            confirm_requested_booking(booking)
+        except CapacityExceeded as exc:
+            return Response(
+                {'detail': 'capacity_exceeded', 'remaining': exc.remaining},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ActivityBookingSerializer(booking).data)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        booking = self.get_object()
+        reason = request.data.get('reason', '')
+        try:
+            reject_requested_booking(booking, reason=reason)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ActivityBookingSerializer(booking).data)
 
     @action(detail=True, methods=['post'], url_path='cancel')
 
