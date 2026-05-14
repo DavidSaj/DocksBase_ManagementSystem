@@ -39,6 +39,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    'apps.common',
     'apps.accounts',
     'apps.berths',
     'apps.reservations',
@@ -161,6 +162,11 @@ TWILIO_ACCOUNT_SID  = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN   = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM_NUMBER  = os.environ.get('TWILIO_FROM_NUMBER', '')
 
+CAPTCHA_PROVIDER   = os.environ.get('CAPTCHA_PROVIDER', 'turnstile')  # 'turnstile' | 'recaptcha_v3'
+CAPTCHA_SITE_KEY   = os.environ.get('CAPTCHA_SITE_KEY', '')
+CAPTCHA_SECRET_KEY = os.environ.get('CAPTCHA_SECRET_KEY', '')
+CAPTCHA_BYPASS     = os.environ.get('CAPTCHA_BYPASS', '').lower() == 'true'
+
 # Supabase Storage (S3-compatible). Falls back to local FileSystemStorage when env vars absent.
 _supabase_endpoint = os.environ.get('SUPABASE_S3_ENDPOINT', '')
 if _supabase_endpoint:
@@ -205,6 +211,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/min',
         'user': '200/min',
+        'public_activity_request': '10/hour',
     },
 }
 
