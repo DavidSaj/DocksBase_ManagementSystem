@@ -24,8 +24,8 @@ export default function TaxRatesSettings() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get('/billing/tax-rates/');
-      setRates(data);
+      const { data } = await api.get('/billing/tax-rates/');
+      setRates(Array.isArray(data) ? data : (data?.results ?? []));
     } catch {
       setError('Failed to load tax rates.');
     } finally {
