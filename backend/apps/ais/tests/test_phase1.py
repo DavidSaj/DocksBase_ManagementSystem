@@ -38,3 +38,64 @@ class GeometryTests(TestCase):
 
     def test_point_in_polygon_empty(self):
         self.assertFalse(point_in_polygon(5.0, 5.0, []))
+
+
+from datetime import datetime, timezone
+from unittest.mock import patch, MagicMock
+
+from apps.ais.adapters.base import AISReading
+from apps.ais.adapters.marinetraffic import MarineTrafficAdapter
+
+
+class MarineTrafficAdapterTests(TestCase):
+    BBOX = (51.0, 53.0, 0.5, 2.5)  # minlat, maxlat, minlng, maxlng
+
+    @patch('apps.ais.adapters.marinetraffic.requests.get')
+    def test_fetch_positions_returns_readings(self, mock_get):
+        # MT 'simple' protocol returns a list of dicts.
+        mock_get.return_value = MagicMock(
+            ok=True,
+            status_code=200,
+            json=lambda: [
+                {
+                    'MMSI': '227123456',
+                    'LAT': '52.105',
+                    'LON': '1.420',
+                    'SPEED': '94',     # tenths of knots
+                    'COURSE': '142',
+                    'HEADING': '140',
+                    'STATUS': '0',
+                    'TIMESTAMP': '2026-05-14T15:04:00',
+                },
+            ],
+        )
+        adapter = MarineTrafficAdapter(api_key='fake')
+        readings = adapter.fetch_positions(self.BBOX)
+        self.assertEqual(len(readings), 1)
+        r = readings[0]
+        self.assertEqual(r.mmsi, '227123456')
+        self.assertAlmostEqual(float(r.lat), 52.105, places=3)
+        self.assertAlmostEqual(float(r.speed_kn), 9.4, places=1)
+        self.assertEqual(r.reported_at.year, 2026)
+
+    @patch('apps.ais.adapters.marinetraffic.requests.get')
+    def test_fetch_positions_raises_on_4xx(self, mock_get):
+        mock_get.return_value = MagicMock(ok=False, status_code=401, text='unauthorized')
+        adapter = MarineTrafficAdapter(api_key='bad')
+        with self.assertRaises(Exception):
+            adapter.fetch_positions(self.BBOX)
+
+    @patch('apps.ais.adapters.marinetraffic.requests.get')
+    def test_fetch_positions_drops_malformed(self, mock_get):
+        mock_get.return_value = MagicMock(
+            ok=True, status_code=200,
+            json=lambda: [
+                {'MMSI': 'bad', 'LAT': 'x', 'LON': 'y'},  # malformed
+                {'MMSI': '227000001', 'LAT': '52.1', 'LON': '1.0',
+                 'SPEED': '0', 'COURSE': '0', 'HEADING': '0',
+                 'STATUS': '5', 'TIMESTAMP': '2026-05-14T15:04:00'},
+            ],
+        )
+        readings = MarineTrafficAdapter(api_key='fake').fetch_positions(self.BBOX)
+        self.assertEqual(len(readings), 1)
+        self.assertEqual(readings[0].mmsi, '227000001')
