@@ -103,9 +103,20 @@ alias_router.register(r'exchange-rates',     ExchangeRateViewSet,               
 alias_router.register(r'surcharge-rules',    SurchargeRuleViewSet,              basename='surcharge-rule-alias')
 alias_router.register(r'accounting-sync',    AccountingSyncRecordViewSet,         basename='accounting-sync-alias')
 
+from apps.accounting.views_xero_oauth import (
+    XeroAuthorizeView,
+    XeroCallbackView,
+    XeroDisconnectView,
+)
+
 urlpatterns = [
     path('', include(router.urls)),
     path('', include(alias_router.urls)),
+
+    # Xero OAuth
+    path('xero/authorize/',  XeroAuthorizeView.as_view(),  name='xero-authorize'),
+    path('xero/callback/',   XeroCallbackView.as_view(),   name='xero-callback'),
+    path('xero/disconnect/', XeroDisconnectView.as_view(), name='xero-disconnect'),
 
     # Red diesel declaration — fuel dock sub-endpoint
     path(
