@@ -59,6 +59,11 @@ class SmartMeter(models.Model):
     is_active            = models.BooleanField(default=True)
     last_polled          = models.DateTimeField(null=True, blank=True)
     is_online            = models.BooleanField(default=True)
+    hardware_id               = models.CharField(max_length=64, blank=True, db_index=True,
+                                                 help_text='Public identifier the device sends in X-Hardware-ID')
+    device_token_prefix       = models.CharField(max_length=16, blank=True, db_index=True)
+    device_token_hash         = models.CharField(max_length=128, blank=True)
+    device_token_last_used_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ('marina', 'vendor', 'device_id')
@@ -96,7 +101,12 @@ class MeterReading(models.Model):
 
     class Meta:
         ordering = ['recorded_at']
-        indexes = [models.Index(fields=['meter', 'recorded_at'])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['meter', 'recorded_at'],
+                name='utilities_meterreading_meter_recorded_uniq',
+            ),
+        ]
 
     def __str__(self):
         return f'Reading {self.meter} @ {self.recorded_at}'
@@ -331,3 +341,34 @@ class PendingUtilityCharge(models.Model):
 
     def __str__(self):
         return f'PendingCharge {self.member} {self.amount}'
+
+
+# ---------------------------------------------------------------------------
+# MarinaMeterWebhookKey — one rotatable key per marina (hashed at rest)
+# ---------------------------------------------------------------------------
+
+class MarinaMeterWebhookKey(models.Model):
+    """
+    One webhook key per marina, used by external systems to POST readings
+    to /utilities/webhook/readings/.
+
+    Stored as `key_prefix` (plaintext, used for fast lookup + UI display) +
+    `key_hash` (Django-hashed full plaintext). Plaintext is returned to the
+    manager exactly once, when generated/rotated. There is no way to recover
+    it later — the manager must rotate.
+    """
+
+    PREFIX_LEN = 11  # "sk_" + 8 random chars
+
+    marina       = models.OneToOneField(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='meter_webhook_key'
+    )
+    key_prefix   = models.CharField(max_length=16, db_index=True, blank=True)
+    key_hash     = models.CharField(max_length=128, blank=True)
+    is_active    = models.BooleanField(default=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    rotated_at   = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f'Webhook key — {self.marina} ({self.key_prefix or "unissued"})'
