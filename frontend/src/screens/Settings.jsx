@@ -84,14 +84,6 @@ const MI = {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const FLAG_DEFS = [
-  { key: 'restaurant',  label: 'Restaurant module',            desc: 'Enable F&B screens' },
-  { key: 'events',      label: 'Events module',                desc: 'Event and venue hire' },
-  { key: 'portal',      label: 'Customer self-service portal', desc: 'Boater web portal' },
-  { key: 'ais',         label: 'AIS map overlay',              desc: 'Show live vessel positions' },
-  { key: 'multimarina', label: 'Multi-marina mode',            desc: 'Group reporting' },
-];
-
 const ROLE_LABELS = { owner: 'Owner', manager: 'Manager', staff: 'Staff', boater: 'Boater' };
 
 const PLAN_OPTIONS = [
@@ -476,13 +468,6 @@ export default function Settings() {
       smtp_password:           marina.smtp_password           ?? '',
       smtp_use_tls:            marina.smtp_use_tls            ?? true,
     });
-    setFlags({
-      restaurant:  marina.features?.restaurant  ?? false,
-      events:      marina.features?.events      ?? false,
-      portal:      marina.features?.portal      ?? false,
-      ais:         marina.features?.ais         ?? false,
-      multimarina: marina.features?.multimarina ?? false,
-    });
   }, [marina]);
 
   function fm(field) { return mf?.[field] ?? ''; }
@@ -570,20 +555,6 @@ export default function Settings() {
       setPermForm(null);
     } catch {
       alert('Could not save permissions.');
-    }
-  }
-
-  // ── Feature flags ──────────────────────────────────────────────────────
-
-  const [flags, setFlags] = useState({});
-  const [flagsSaving, setFlagsSaving] = useState(false);
-
-  async function saveFlags() {
-    setFlagsSaving(true);
-    try {
-      await updateMarina({ features: flags });
-    } finally {
-      setFlagsSaving(false);
     }
   }
 
@@ -1223,29 +1194,6 @@ export default function Settings() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* Feature Flags — real */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Feature Flags</div></div>
-              <div className="card-body" style={{ padding: 0 }}>
-                {marinaLoading ? (
-                  <div style={{ padding: '16px 18px', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
-                ) : FLAG_DEFS.map(f => (
-                  <div key={f.key} style={{ display: 'flex', alignItems: 'center', padding: '13px 18px', borderBottom: 'var(--border)', gap: 16 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>{f.label}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{f.desc}</div>
-                    </div>
-                    <Toggle on={flags[f.key] ?? false} onChange={v => setFlags(prev => ({ ...prev, [f.key]: v }))} />
-                  </div>
-                ))}
-                <div style={{ padding: '12px 18px' }}>
-                  <button className="btn btn-primary btn-sm" disabled={flagsSaving || marinaLoading} onClick={saveFlags}>
-                    {flagsSaving ? 'Saving…' : 'Save Flags'}
-                  </button>
-                </div>
               </div>
             </div>
 
