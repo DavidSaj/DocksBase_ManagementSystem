@@ -888,7 +888,10 @@ export default function Settings() {
 
   const [marineTraffic, setMarineTraffic] = useState({ data: null, apiKey: '', saving: false, msg: null });
   const [openWeather,   setOpenWeather]   = useState({ data: null, apiKey: '', saving: false, msg: null });
-  const [docusign,      setDocusign]      = useState({ data: null, apiKey: '', accountId: '', saving: false, msg: null });
+  const [docusign,      setDocusign]      = useState({
+    data: null, apiKey: '', accountId: '', userId: '', baseUrl: '', privateKey: '',
+    saving: false, msg: null,
+  });
 
   useEffect(() => {
     if (tab !== 'integrations') return;
@@ -901,7 +904,13 @@ export default function Settings() {
       if (cancelled) return;
       if (mt) setMarineTraffic(s => ({ ...s, data: mt }));
       if (ow) setOpenWeather(s => ({ ...s, data: ow }));
-      if (ds) setDocusign(s => ({ ...s, data: ds, accountId: ds.docusign_account_id || '' }));
+      if (ds) setDocusign(s => ({
+        ...s,
+        data:      ds,
+        accountId: ds.docusign_account_id || '',
+        userId:    ds.docusign_user_id || '',
+        baseUrl:   ds.docusign_base_url || '',
+      }));
     });
     return () => { cancelled = true; };
   }, [tab]);
@@ -926,7 +935,17 @@ export default function Settings() {
     setState(s => ({ ...s, saving: true, msg: null }));
     try {
       const { data } = await api.patch(endpoint, body);
-      setState(s => ({ ...s, data, apiKey: '', accountId: data.docusign_account_id || '', saving: false, msg: { type: 'ok', text: 'Disconnected.' } }));
+      setState(s => ({
+        ...s,
+        data,
+        apiKey:     '',
+        accountId:  data.docusign_account_id || '',
+        userId:     data.docusign_user_id || '',
+        baseUrl:    data.docusign_base_url || '',
+        privateKey: '',
+        saving:     false,
+        msg:        { type: 'ok', text: 'Disconnected.' },
+      }));
     } catch {
       setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Disconnect failed.' } }));
     }
@@ -1807,11 +1826,19 @@ export default function Settings() {
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
-                Alternative e-signature provider to Dropbox Sign. Your account is billed directly by DocuSign — DocksBase never sees payment.{' '}
-                <a href="https://developers.docusign.com/" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
-                  Create a DocuSign developer account →
+                Alternative e-signature provider to Dropbox Sign. Uses DocuSign JWT Grant — set up an app in DocuSign Admin → <em>Apps and Keys</em>, upload an RSA public key, then grant impersonation consent for the user you'll send envelopes as.{' '}
+                <a href="https://developers.docusign.com/platform/auth/jwt/" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  DocuSign JWT setup guide →
                 </a>
               </div>
+              <FieldRow label="Base URL" hint="Sandbox: https://demo.docusign.net/restapi · Production: https://<region>.docusign.net/restapi">
+                <input
+                  type="text"
+                  value={docusign.baseUrl}
+                  onChange={e => setDocusign(s => ({ ...s, baseUrl: e.target.value }))}
+                  placeholder="https://demo.docusign.net/restapi"
+                />
+              </FieldRow>
               <FieldRow label="Account ID" hint="Found in DocuSign Admin → API and Keys → API Account ID">
                 <input
                   type="text"
@@ -1820,9 +1847,17 @@ export default function Settings() {
                   placeholder="e.g. 1a2b3c4d-..."
                 />
               </FieldRow>
+              <FieldRow label="User ID" hint="Impersonation user (GUID from Admin → Users → API Username)">
+                <input
+                  type="text"
+                  value={docusign.userId}
+                  onChange={e => setDocusign(s => ({ ...s, userId: e.target.value }))}
+                  placeholder="e.g. 1a2b3c4d-..."
+                />
+              </FieldRow>
               <FieldRow
-                label="Integration Key (API Key)"
-                hint={docusign.data?.connected ? `Current key ending in ···${docusign.data.api_key_tail}` : 'Found in DocuSign Admin → Apps and Keys'}
+                label="Integration Key"
+                hint={docusign.data?.connected ? `Current key ending in ···${docusign.data.api_key_tail}` : 'Found in DocuSign Admin → Apps and Keys (this is the client_id)'}
               >
                 <input
                   type="password"
@@ -1830,6 +1865,18 @@ export default function Settings() {
                   onChange={e => setDocusign(s => ({ ...s, apiKey: e.target.value }))}
                   placeholder={docusign.data?.connected ? 'Leave blank to keep current key' : 'Paste integration key here'}
                   autoComplete="new-password"
+                />
+              </FieldRow>
+              <FieldRow
+                label="RSA Private Key"
+                hint={docusign.data?.private_key_present ? 'A private key is on file — paste a new one to replace it.' : 'Paste the full PEM (-----BEGIN RSA PRIVATE KEY----- ... -----END RSA PRIVATE KEY-----)'}
+              >
+                <textarea
+                  rows={5}
+                  value={docusign.privateKey}
+                  onChange={e => setDocusign(s => ({ ...s, privateKey: e.target.value }))}
+                  placeholder={docusign.data?.private_key_present ? 'Leave blank to keep current key' : '-----BEGIN RSA PRIVATE KEY-----\n...'}
+                  style={{ fontFamily: 'monospace', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
                 />
               </FieldRow>
               {docusign.msg && (
@@ -1841,12 +1888,17 @@ export default function Settings() {
                 <button
                   className="btn btn-primary"
                   disabled={docusign.saving}
-                  onClick={() => saveSimpleIntegration(
-                    setDocusign, docusign,
-                    '/marina/integrations/docusign/',
-                    { api_key: docusign.apiKey, docusign_account_id: docusign.accountId },
-                    'DocuSign',
-                  )}
+                  onClick={() => {
+                    const body = {
+                      docusign_base_url:    docusign.baseUrl,
+                      docusign_account_id:  docusign.accountId,
+                      docusign_user_id:     docusign.userId,
+                    };
+                    if (docusign.apiKey)     body.docusign_api_key     = docusign.apiKey;
+                    if (docusign.privateKey) body.docusign_private_key = docusign.privateKey;
+                    saveSimpleIntegration(setDocusign, docusign,
+                      '/marina/integrations/docusign/', body, 'DocuSign');
+                  }}
                 >
                   {docusign.saving ? 'Saving…' : docusign.data?.connected ? 'Update' : 'Connect'}
                 </button>
@@ -1855,7 +1907,10 @@ export default function Settings() {
                     className="btn btn-ghost"
                     style={{ color: 'var(--red)' }}
                     disabled={docusign.saving}
-                    onClick={() => disconnectSimple(setDocusign, '/marina/integrations/docusign/', { api_key: '', docusign_account_id: '' })}
+                    onClick={() => disconnectSimple(setDocusign, '/marina/integrations/docusign/', {
+                      docusign_api_key: '', docusign_account_id: '', docusign_user_id: '',
+                      docusign_private_key: '', docusign_base_url: '',
+                    })}
                   >
                     Disconnect
                   </button>

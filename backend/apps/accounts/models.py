@@ -74,6 +74,12 @@ class Marina(models.Model):
     openweathermap_api_key = models.CharField(max_length=255, blank=True, default='')
     docusign_api_key       = models.CharField(max_length=255, blank=True, default='')
     docusign_account_id    = models.CharField(max_length=255, blank=True, default='')
+    docusign_user_id       = models.CharField(max_length=64, blank=True, default='')
+    docusign_private_key   = models.TextField(blank=True, default='')
+    docusign_base_url      = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text='Account base URL, e.g. https://demo.docusign.net/restapi or https://na2.docusign.net/restapi',
+    )
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration

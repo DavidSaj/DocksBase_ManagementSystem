@@ -1,6 +1,12 @@
 from django.db import models
 
 
+PROVIDER_CHOICES = [
+    ('dropboxsign', 'Dropbox Sign'),
+    ('docusign',    'DocuSign'),
+]
+
+
 class DocTemplate(models.Model):
     CATEGORY = [
         ('lease',             'Lease'),
@@ -19,7 +25,20 @@ class DocTemplate(models.Model):
     last_used = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     file = models.FileField(upload_to='doc_templates/', blank=True)
+
+    # E-sign provider this template was uploaded to. A template lives in
+    # exactly one provider's account, so this is set at creation and never
+    # changes for the life of the template.
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='dropboxsign')
     dropboxsign_template_id = models.CharField(max_length=200, blank=True)
+    docusign_template_id    = models.CharField(max_length=200, blank=True)
+
+    def provider_template_id(self) -> str:
+        """Return the template id for the active provider."""
+        return (
+            self.docusign_template_id if self.provider == 'docusign'
+            else self.dropboxsign_template_id
+        )
 
     class Meta:
         ordering = ['-created_at']
@@ -40,13 +59,26 @@ class Envelope(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default='pending')
     reminders_sent = models.IntegerField(default=0)
+
+    # Provider is copied from the template at send time so we can still look
+    # the envelope up after the template's provider is (hypothetically)
+    # changed in the future.
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='dropboxsign')
     dropboxsign_request_id = models.CharField(max_length=200, blank=True)
+    docusign_envelope_id   = models.CharField(max_length=200, blank=True)
 
     class Meta:
         ordering = ['-sent_at']
 
     def __str__(self):
         return f'Envelope #{self.pk} — {self.template.name}'
+
+    def provider_request_id(self) -> str:
+        """Return the request/envelope id for the active provider."""
+        return (
+            self.docusign_envelope_id if self.provider == 'docusign'
+            else self.dropboxsign_request_id
+        )
 
 
 class MemberDocument(models.Model):
