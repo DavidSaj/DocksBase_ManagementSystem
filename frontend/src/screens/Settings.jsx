@@ -128,6 +128,8 @@ const ACCOUNTING_PLATFORMS = [
   { slug: 'xero',                label: 'Xero',                            desc: 'UK / AU / NZ / global',  authorizePath: '/xero/authorize/', disconnectPath: '/xero/disconnect/', tenantLabel: 'Organisation' },
   { slug: 'qbo',                 label: 'QuickBooks Online',               desc: 'US / UK / CA / global',  authorizePath: '/qbo/authorize/',  disconnectPath: '/qbo/disconnect/',  tenantLabel: 'Company' },
   { slug: 'sage_business_cloud', label: 'Sage Business Cloud Accounting',  desc: 'UK / IE / FR / DE / ES', authorizePath: '/sage/authorize/', disconnectPath: '/sage/disconnect/', tenantLabel: 'Business' },
+  { slug: 'dynamics365',         label: 'Dynamics 365 Business Central',   desc: 'Global · Microsoft 365', authorizePath: '/d365/authorize/', disconnectPath: '/d365/disconnect/', tenantLabel: 'Environment' },
+  { slug: 'myob',                label: 'MYOB AccountRight Live',          desc: 'AU / NZ',                authorizePath: '/myob/authorize/', disconnectPath: '/myob/disconnect/', tenantLabel: 'Company file' },
 ];
 
 function AccountingIntegrationsCard() {

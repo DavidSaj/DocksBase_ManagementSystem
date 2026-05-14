@@ -118,6 +118,16 @@ from apps.accounting.views_sage_oauth import (
     SageCallbackView,
     SageDisconnectView,
 )
+from apps.accounting.views_myob_oauth import (
+    MYOBAuthorizeView,
+    MYOBCallbackView,
+    MYOBDisconnectView,
+)
+from apps.accounting.views_d365_oauth import (
+    D365AuthorizeView,
+    D365CallbackView,
+    D365DisconnectView,
+)
 from apps.accounting.views_export import JournalCSVExportView
 from apps.accounting.views_datev_export import DatevCSVExportView
 
@@ -139,6 +149,16 @@ urlpatterns = [
     path('sage/authorize/',  SageAuthorizeView.as_view(),  name='sage-authorize'),
     path('sage/callback/',   SageCallbackView.as_view(),   name='sage-callback'),
     path('sage/disconnect/', SageDisconnectView.as_view(), name='sage-disconnect'),
+
+    # MYOB AccountRight Live OAuth
+    path('myob/authorize/',  MYOBAuthorizeView.as_view(),  name='myob-authorize'),
+    path('myob/callback/',   MYOBCallbackView.as_view(),   name='myob-callback'),
+    path('myob/disconnect/', MYOBDisconnectView.as_view(), name='myob-disconnect'),
+
+    # Dynamics 365 Business Central OAuth (Azure AD)
+    path('d365/authorize/',  D365AuthorizeView.as_view(),  name='d365-authorize'),
+    path('d365/callback/',   D365CallbackView.as_view(),   name='d365-callback'),
+    path('d365/disconnect/', D365DisconnectView.as_view(), name='d365-disconnect'),
 
     # Generic journal CSV export (universal fallback)
     path('accounting/export/journal.csv/', JournalCSVExportView.as_view(), name='journal-csv-export'),

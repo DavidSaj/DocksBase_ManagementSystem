@@ -177,6 +177,19 @@ SAGE_CLIENT_SECRET = os.environ.get('SAGE_CLIENT_SECRET', '')
 SAGE_REDIRECT_URI  = os.environ.get('SAGE_REDIRECT_URI', '')
 SAGE_SCOPES        = os.environ.get('SAGE_SCOPES', 'full_access')
 SAGE_COUNTRY       = os.environ.get('SAGE_COUNTRY', 'gb')   # gb, ie, fr, de, es, us, ca
+
+# MYOB AccountRight Live OAuth2.
+MYOB_CLIENT_ID     = os.environ.get('MYOB_CLIENT_ID', '')
+MYOB_CLIENT_SECRET = os.environ.get('MYOB_CLIENT_SECRET', '')
+MYOB_REDIRECT_URI  = os.environ.get('MYOB_REDIRECT_URI', '')
+MYOB_SCOPES        = os.environ.get('MYOB_SCOPES', 'CompanyFile la.global')
+
+# Dynamics 365 Business Central (Azure AD).
+D365_CLIENT_ID     = os.environ.get('D365_CLIENT_ID', '')
+D365_CLIENT_SECRET = os.environ.get('D365_CLIENT_SECRET', '')
+D365_REDIRECT_URI  = os.environ.get('D365_REDIRECT_URI', '')
+D365_TENANT        = os.environ.get('D365_TENANT', 'organizations')   # AAD tenant id or 'common'/'organizations'
+D365_ENVIRONMENT   = os.environ.get('D365_ENVIRONMENT', 'production') # BC environment name
 INGRESS_WEBHOOK_SECRET = os.environ.get('INGRESS_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')
