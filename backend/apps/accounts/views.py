@@ -641,3 +641,62 @@ class DropboxSignSettingsView(APIView):
             'client_id': marina.dropboxsign_client_id,
             'api_key_tail': key[-4:] if len(key) >= 4 else '',
         })
+
+
+# ---------------------------------------------------------------------------
+# Simple credential-only integration views — store API key (and optional
+# secondary id) on Marina, expose GET/PATCH for the Settings UI.
+# ---------------------------------------------------------------------------
+
+class _SingleKeyIntegrationView(APIView):
+    """
+    Base class for integrations that just hold an API key on the Marina model.
+    Subclasses set `key_field` (and optionally `extra_field` for a second
+    identifier such as a DocuSign account id).
+    """
+    permission_classes = [IsMarinaStaff]
+    key_field   = None   # str — Marina field name for the API key
+    extra_field = None   # optional str — Marina field name for a secondary id
+
+    def _payload(self, marina):
+        key = getattr(marina, self.key_field) or ''
+        data = {
+            'connected':    bool(key) and (
+                bool(getattr(marina, self.extra_field) or '') if self.extra_field else True
+            ),
+            'api_key_tail': key[-4:] if len(key) >= 4 else '',
+        }
+        if self.extra_field:
+            data[self.extra_field] = getattr(marina, self.extra_field) or ''
+        return data
+
+    def get(self, request):
+        return Response(self._payload(request.user.marina))
+
+    def patch(self, request):
+        marina = request.user.marina
+        api_key = request.data.get('api_key', getattr(marina, self.key_field))
+        setattr(marina, self.key_field, api_key or '')
+        update_fields = [self.key_field]
+        if self.extra_field:
+            extra = request.data.get(self.extra_field, getattr(marina, self.extra_field))
+            setattr(marina, self.extra_field, extra or '')
+            update_fields.append(self.extra_field)
+        marina.save(update_fields=update_fields)
+        return Response(self._payload(marina))
+
+
+class MarineTrafficSettingsView(_SingleKeyIntegrationView):
+    """AIS vessel tracking — MarineTraffic API key."""
+    key_field = 'marinetraffic_api_key'
+
+
+class OpenWeatherMapSettingsView(_SingleKeyIntegrationView):
+    """OpenWeatherMap API key."""
+    key_field = 'openweathermap_api_key'
+
+
+class DocuSignSettingsView(_SingleKeyIntegrationView):
+    """DocuSign — needs both an integration key and an account id."""
+    key_field   = 'docusign_api_key'
+    extra_field = 'docusign_account_id'
