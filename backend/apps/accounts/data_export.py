@@ -185,10 +185,13 @@ def generate_data_export(self, export_id):
     try:
         data, counts, errors = _build_zip(export.marina)
         stamp = datetime.now(tz=timezone.utc).strftime('%Y%m%d-%H%M%S')
-        path = f'exports/{export.marina_id}/{stamp}-export-{export.pk}.zip'
-        default_storage.save(path, ContentFile(data))
+        requested_path = f'exports/{export.marina_id}/{stamp}-export-{export.pk}.zip'
+        # default_storage.save() may return a suffixed path if the requested
+        # name already exists (FileSystemStorage default). Use the returned
+        # path so we read back the file we actually wrote.
+        actual_path = default_storage.save(requested_path, ContentFile(data))
 
-        export.file_path     = path
+        export.file_path     = actual_path
         export.size_bytes    = len(data)
         export.entity_counts = counts
         export.error_message = '\n'.join(errors) if errors else ''
@@ -201,7 +204,7 @@ def generate_data_export(self, export_id):
         # via the view, so this URL is only the convenience one.
         signed_url = ''
         try:
-            signed_url = default_storage.url(path)
+            signed_url = default_storage.url(actual_path)
         except Exception:
             pass
         _send_ready_email(export, signed_url)
