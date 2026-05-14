@@ -92,7 +92,7 @@ class MeterReading(models.Model):
     meter       = models.ForeignKey(SmartMeter, on_delete=models.CASCADE, related_name='readings')
     reading_kwh = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
     reading_m3  = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
-    recorded_at = models.DateTimeField(db_index=True)
+    recorded_at = models.DateTimeField()
     source      = models.CharField(
         max_length=20,
         default='auto',

@@ -56,8 +56,14 @@ class Migration(migrations.Migration):
         ),
 
         # -----------------------------------------------------------------
-        # MeterReading — swap composite index for unique constraint
+        # MeterReading — drop redundant single-column index on recorded_at,
+        # then swap composite index for unique constraint
         # -----------------------------------------------------------------
+        migrations.AlterField(
+            model_name='meterreading',
+            name='recorded_at',
+            field=models.DateTimeField(),
+        ),
         migrations.RemoveIndex(
             model_name='meterreading',
             name='utilities_m_meter_i_dd771c_idx',
