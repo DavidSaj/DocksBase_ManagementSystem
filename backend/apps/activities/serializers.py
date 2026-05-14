@@ -123,6 +123,7 @@ class ActivityBookingSerializer(serializers.ModelSerializer):
     )
 
     activity_name  = serializers.CharField(source='activity.name', read_only=True)
+    activity_capacity_max = serializers.IntegerField(source='activity.capacity_max', read_only=True)
     invoice_number = serializers.CharField(
         source='invoice.invoice_number', read_only=True, allow_null=True
     )
@@ -133,7 +134,7 @@ class ActivityBookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityBooking
         fields = [
-            'id', 'marina', 'activity', 'activity_name',
+            'id', 'marina', 'activity', 'activity_name', 'activity_capacity_max',
             'member', 'lead_name', 'lead_email', 'lead_phone',
             'start_datetime', 'end_datetime',
             'participant_count', 'status', 'payment_mode', 'season_override',
@@ -148,7 +149,7 @@ class ActivityBookingSerializer(serializers.ModelSerializer):
             'id', 'marina', 'end_datetime', 'status',
             'cancelled_at', 'refund_amount', 'expires_at', 'created_at',
             'participants', 'booking_extras',
-            'activity_name', 'invoice_number', 'assigned_instructor_name',
+            'activity_name', 'activity_capacity_max', 'invoice_number', 'assigned_instructor_name',
         ]
 
 
