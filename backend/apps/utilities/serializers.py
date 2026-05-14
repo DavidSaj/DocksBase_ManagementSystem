@@ -58,8 +58,10 @@ class SmartMeterSerializer(serializers.ModelSerializer):
             'id', 'marina', 'berth', 'vendor', 'meter_type',
             'device_id', 'label', 'poll_interval_minutes',
             'is_active', 'last_polled', 'is_online',
+            'hardware_id', 'device_token_prefix', 'device_token_last_used_at',
         ]
-        read_only_fields = ['last_polled', 'is_online']
+        read_only_fields = ['last_polled', 'is_online',
+                            'hardware_id', 'device_token_prefix', 'device_token_last_used_at']
 
 
 # ---------------------------------------------------------------------------
