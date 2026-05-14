@@ -218,3 +218,65 @@ class PollTaskTests(TestCase):
         # Must not raise.
         poll_ais_for_marina(self.marina.id)
         self.assertEqual(VesselPosition.objects.count(), 0)
+
+
+from rest_framework.test import APIClient
+from apps.accounts.models import User
+
+
+class InboundETAViewTests(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(
+            name='Harwich', lat=Decimal('51.945'), lng=Decimal('1.283'),
+        )
+        self.other = Marina.objects.create(
+            name='Felixstowe', lat=Decimal('51.961'), lng=Decimal('1.347'),
+        )
+        self.user = User.objects.create_user(
+            email='hm@harwich.test', password='pw',
+            marina=self.marina, role='manager',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+        self.vessel = Vessel.objects.create(marina=self.marina, name='Wanderer', mmsi='227123456')
+        self.berth = Berth.objects.create(marina=self.marina, code='A1')
+        Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=date.today(), check_out=date.today() + timedelta(days=1),
+            status='confirmed',
+        )
+        upsert_position(self.marina, _make_reading(lat=52.0, lng=1.5, speed=8))
+
+    def test_returns_inbound_rows(self):
+        r = self.client.get('/api/v1/ais/inbound/')
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertIn('inbound', body)
+        self.assertEqual(len(body['inbound']), 1)
+        row = body['inbound'][0]
+        self.assertEqual(row['mmsi'], '227123456')
+        self.assertIn('eta_minutes', row)
+        self.assertIn('fetched_at', body)
+
+    def test_unauthenticated_returns_401(self):
+        anon = APIClient()
+        r = anon.get('/api/v1/ais/inbound/')
+        self.assertEqual(r.status_code, 401)
+
+    def test_scoped_to_user_marina(self):
+        # Seed the other marina with a vessel + booking + position.
+        v = Vessel.objects.create(marina=self.other, name='Otter', mmsi='227999999')
+        bt = Berth.objects.create(marina=self.other, code='B1')
+        Booking.objects.create(
+            marina=self.other, berth=bt, vessel=v,
+            check_in=date.today(), check_out=date.today() + timedelta(days=1),
+            status='confirmed',
+        )
+        upsert_position(self.other, _make_reading(mmsi='227999999', lat=51.97, lng=1.35))
+
+        r = self.client.get('/api/v1/ais/inbound/')
+        body = r.json()
+        mmsis = [row['mmsi'] for row in body['inbound']]
+        self.assertIn('227123456', mmsis)
+        self.assertNotIn('227999999', mmsis)
