@@ -4,6 +4,7 @@ import useMarina from '../hooks/useMarina.js';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
+import DataTab from './settings/DataTab.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -895,6 +896,7 @@ export default function Settings() {
           ['notifications', 'Notifications',    true],
           ['integrations',  'Integrations',     false],
           ['mobile-app',    'Mobile App',       false],
+          ['data',          'Data',             false],
           ['system',        'System',           false],
         ].map(([v, l, cs]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>
@@ -1592,6 +1594,9 @@ export default function Settings() {
           <MobileConfigTab marina={marina} />
         </div>
       )}
+
+      {/* ── DATA ─────────────────────────────────────────────────────── */}
+      {tab === 'data' && <DataTab />}
 
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (

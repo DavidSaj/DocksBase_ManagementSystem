@@ -277,3 +277,45 @@ class MarinaGroupUserRole(models.Model):
 
     def __str__(self):
         return f'{self.user} in {self.group.name} ({self.role})'
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Data export — manager-triggered marina-wide CSV/JSON archive.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class DataExport(models.Model):
+    """One marina-wide data-export job.
+
+    The actual file is written to default storage at `file_path`. We never
+    expose the storage path directly; downloads go through a view that
+    returns a short-lived signed URL.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        RUNNING = 'running', 'Running'
+        READY   = 'ready',   'Ready'
+        FAILED  = 'failed',  'Failed'
+
+    marina        = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='data_exports',
+    )
+    requested_by  = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='data_exports_requested',
+    )
+    status        = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    file_path     = models.CharField(max_length=500, blank=True)
+    size_bytes    = models.BigIntegerField(null=True, blank=True)
+    entity_counts = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    ready_at      = models.DateTimeField(null=True, blank=True)
+    expires_at    = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'DataExport(marina={self.marina_id}, status={self.status})'
