@@ -95,7 +95,7 @@ Per connection, one row:
   - **Copy outbound URL** — copies `${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics` to clipboard, shows a 1.5s "Copied!" toast or button-text swap.
   - **Remove** — same confirm flow as today.
 
-The inbound URL is no longer surfaced as monospace text in the row. To see/edit it, the user clicks the row body, which expands an inline detail panel below the row showing both URLs (inbound editable, outbound copy-only). Default state: collapsed. (Alternative if expansion is too much: hide the inbound URL entirely behind the kebab menu — choose at implementation time based on which feels less cramped. Don't add a third UI layer.)
+The inbound URL is no longer surfaced as monospace text in the row. The kebab menu gets an **Edit URLs** item (4th item) that swaps the row's body for an inline editor — name (read-only display), inbound URL input, save / cancel buttons. Save calls `PATCH /ota-connections/<id>/` with `{inbound_ical_url}`. Cancel reverts. This matches the inline-reveal pattern the existing "+ Add connection" button already uses, so no new interaction model is introduced.
 
 ### Add-connection form
 
