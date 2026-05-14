@@ -4,6 +4,26 @@ import Ic from '../components/ui/Icon.jsx';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+const LABEL = {
+  fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)',
+  textTransform: 'uppercase', letterSpacing: '0.5px',
+  display: 'block', marginBottom: 4,
+};
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card" style={{ width: 460, padding: 24, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close"><Ic n="x" s={12} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function fmt(val, currency = '') {
   if (val == null) return '—';
   const num = parseFloat(val);
@@ -125,11 +145,12 @@ function JournalTab() {
       <div className="card">
         <div className="card-body" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: '1 1 160px' }}>
-            <label className="form-label" style={{ fontSize: 11 }}>Source Type</label>
+            <label style={LABEL}>Source Type</label>
             <select
-              className="form-control form-control-sm"
+              className="input"
               value={sourceType}
               onChange={e => setSourceType(e.target.value)}
+              style={{ width: '100%' }}
             >
               <option value="">All types</option>
               {Object.entries(SOURCE_LABELS).map(([v, l]) => (
@@ -138,21 +159,23 @@ function JournalTab() {
             </select>
           </div>
           <div style={{ flex: '1 1 140px' }}>
-            <label className="form-label" style={{ fontSize: 11 }}>Date From</label>
+            <label style={LABEL}>Date From</label>
             <input
-              type="date" className="form-control form-control-sm"
+              type="date" className="input"
               value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              style={{ width: '100%' }}
             />
           </div>
           <div style={{ flex: '1 1 140px' }}>
-            <label className="form-label" style={{ fontSize: 11 }}>Date To</label>
+            <label style={LABEL}>Date To</label>
             <input
-              type="date" className="form-control form-control-sm"
+              type="date" className="input"
               value={dateTo} onChange={e => setDateTo(e.target.value)}
+              style={{ width: '100%' }}
             />
           </div>
           <div>
-            <button className="btn btn-sm" style={{ background: 'var(--navy, #1a2d4a)', color: '#fff' }} onClick={load}>
+            <button className="btn btn-sm btn-primary" onClick={load}>
               Filter
             </button>
           </div>
@@ -214,6 +237,7 @@ function AccountsTab() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ code: '', name: '', account_type: 'revenue' });
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
   useEffect(() => {
@@ -223,16 +247,23 @@ function AccountsTab() {
       .finally(() => setLoading(false));
   }, []);
 
+  function openForm() {
+    setForm({ code: '', name: '', account_type: 'revenue' });
+    setFormError('');
+    setShowForm(true);
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     setSaving(true);
+    setFormError('');
     try {
       const { data } = await api.post('/accounts/', form);
       setAccounts(prev => [data, ...prev]);
-      setForm({ code: '', name: '', account_type: 'revenue' });
       setShowForm(false);
-    } catch {
-      // silent
+    } catch (err) {
+      const d = err?.response?.data;
+      setFormError(d?.detail ?? Object.values(d ?? {}).flat().join(' ') ?? 'Save failed.');
     } finally {
       setSaving(false);
     }
@@ -255,58 +286,61 @@ function AccountsTab() {
             </button>
           ))}
         </div>
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={() => setShowForm(v => !v)}
-        >
-          {showForm ? 'Cancel' : '+ Add Account'}
+        <button className="btn btn-primary btn-sm" onClick={openForm}>
+          <Ic n="plus" s={12} /> Add Account
         </button>
       </div>
 
-      {/* Inline create form */}
       {showForm && (
-        <div className="card">
-          <div className="card-header"><div className="card-header-title">New Account</div></div>
-          <div className="card-body">
-            <form onSubmit={handleCreate} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: '0 0 100px' }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Code</label>
-                <input
-                  className="form-control form-control-sm"
-                  placeholder="4100"
-                  value={form.code}
-                  onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-                  required
-                />
-              </div>
-              <div style={{ flex: '1 1 200px' }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Name</label>
-                <input
-                  className="form-control form-control-sm"
-                  placeholder="Berth Revenue"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div style={{ flex: '0 0 150px' }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Type</label>
-                <select
-                  className="form-control form-control-sm"
-                  value={form.account_type}
-                  onChange={e => setForm(f => ({ ...f, account_type: e.target.value }))}
-                >
-                  {['asset', 'liability', 'equity', 'revenue', 'expense'].map(t => (
-                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-              <button className="btn btn-sm btn-primary" type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+        <Modal title="New Account" onClose={() => setShowForm(false)}>
+          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={LABEL}>Code</label>
+              <input
+                className="input"
+                placeholder="4100"
+                value={form.code}
+                onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                required
+                autoFocus
+                style={{ marginTop: 4, width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={LABEL}>Name</label>
+              <input
+                className="input"
+                placeholder="Berth Revenue"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                required
+                style={{ marginTop: 4, width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={LABEL}>Type</label>
+              <select
+                className="input"
+                value={form.account_type}
+                onChange={e => setForm(f => ({ ...f, account_type: e.target.value }))}
+                style={{ marginTop: 4, width: '100%' }}
+              >
+                {['asset', 'liability', 'equity', 'revenue', 'expense'].map(t => (
+                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            {formError && (
+              <div style={{ fontSize: 12, color: '#b91c1c', background: '#fff5f5', borderRadius: 6, padding: '8px 12px' }}>{formError}</div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+                {saving ? 'Saving…' : 'Create Account'}
               </button>
-            </form>
-          </div>
-        </div>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* Table */}
@@ -362,6 +396,7 @@ function CostCentresTab() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ code: '', name: '' });
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     api.get('/cost-centres/')
@@ -370,16 +405,23 @@ function CostCentresTab() {
       .finally(() => setLoading(false));
   }, []);
 
+  function openForm() {
+    setForm({ code: '', name: '' });
+    setFormError('');
+    setShowForm(true);
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     setSaving(true);
+    setFormError('');
     try {
       const { data } = await api.post('/cost-centres/', form);
       setCentres(prev => [...prev, data]);
-      setForm({ code: '', name: '' });
       setShowForm(false);
-    } catch {
-      // silent
+    } catch (err) {
+      const d = err?.response?.data;
+      setFormError(d?.detail ?? Object.values(d ?? {}).flat().join(' ') ?? 'Save failed.');
     } finally {
       setSaving(false);
     }
@@ -389,42 +431,48 @@ function CostCentresTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-sm btn-primary" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ Add Cost Centre'}
+        <button className="btn btn-primary btn-sm" onClick={openForm}>
+          <Ic n="plus" s={12} /> Add Cost Centre
         </button>
       </div>
 
       {showForm && (
-        <div className="card">
-          <div className="card-header"><div className="card-header-title">New Cost Centre</div></div>
-          <div className="card-body">
-            <form onSubmit={handleCreate} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: '0 0 100px' }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Code</label>
-                <input
-                  className="form-control form-control-sm"
-                  placeholder="FUEL"
-                  value={form.code}
-                  onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-                  required
-                />
-              </div>
-              <div style={{ flex: '1 1 200px' }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Name</label>
-                <input
-                  className="form-control form-control-sm"
-                  placeholder="Fuel Dock"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <button className="btn btn-sm btn-primary" type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+        <Modal title="New Cost Centre" onClose={() => setShowForm(false)}>
+          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={LABEL}>Code</label>
+              <input
+                className="input"
+                placeholder="FUEL"
+                value={form.code}
+                onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                required
+                autoFocus
+                style={{ marginTop: 4, width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={LABEL}>Name</label>
+              <input
+                className="input"
+                placeholder="Fuel Dock"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                required
+                style={{ marginTop: 4, width: '100%' }}
+              />
+            </div>
+            {formError && (
+              <div style={{ fontSize: 12, color: '#b91c1c', background: '#fff5f5', borderRadius: 6, padding: '8px 12px' }}>{formError}</div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+                {saving ? 'Saving…' : 'Create Cost Centre'}
               </button>
-            </form>
-          </div>
-        </div>
+            </div>
+          </form>
+        </Modal>
       )}
 
       <div className="card">
