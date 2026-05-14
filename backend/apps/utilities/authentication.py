@@ -17,9 +17,10 @@ Why no user object?
   fields or staff assignment — not via a per-session user context.
 """
 
+from django.contrib.auth.hashers import check_password
+from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
-from django.utils import timezone
 
 
 class ForkliftDeviceTokenAuthentication(BaseAuthentication):
@@ -53,8 +54,6 @@ class ForkliftDeviceTokenAuthentication(BaseAuthentication):
     def authenticate_header(self, request):
         return 'ForkliftDeviceToken'
 
-
-from django.contrib.auth.hashers import check_password
 
 
 def _touch_last_used(model, pk, current, field='last_used_at'):
