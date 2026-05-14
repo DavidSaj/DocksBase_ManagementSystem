@@ -99,3 +99,87 @@ class MarineTrafficAdapterTests(TestCase):
         readings = MarineTrafficAdapter(api_key='fake').fetch_positions(self.BBOX)
         self.assertEqual(len(readings), 1)
         self.assertEqual(readings[0].mmsi, '227000001')
+
+
+from datetime import date, timedelta
+from decimal import Decimal
+
+from django.utils import timezone
+
+from apps.accounts.models import Marina
+from apps.vessels.models import Vessel
+from apps.berths.models import Berth
+from apps.reservations.models import Booking
+from apps.ais.adapters.base import AISReading
+from apps.ais.models import VesselPosition
+from apps.ais.services import get_inbound_etas, upsert_position
+
+
+def _make_reading(mmsi='227123456', lat=52.0, lng=1.0, speed=10.0):
+    return AISReading(
+        mmsi=mmsi,
+        lat=Decimal(str(lat)),
+        lng=Decimal(str(lng)),
+        speed_kn=Decimal(str(speed)),
+        course_deg=0, heading_deg=0, nav_status='',
+        reported_at=timezone.now(),
+    )
+
+
+class UpsertPositionTests(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Harwich', lat=Decimal('51.945'), lng=Decimal('1.283'))
+        self.vessel = Vessel.objects.create(marina=self.marina, name='Wanderer', mmsi='227123456')
+
+    def test_first_upsert_creates_row(self):
+        reading = _make_reading()
+        pos = upsert_position(self.marina, reading, vessel=self.vessel)
+        self.assertEqual(VesselPosition.objects.count(), 1)
+        self.assertEqual(pos.vessel_id, self.vessel.id)
+
+    def test_second_upsert_updates_in_place(self):
+        upsert_position(self.marina, _make_reading(lat=52.0))
+        upsert_position(self.marina, _make_reading(lat=52.5))
+        self.assertEqual(VesselPosition.objects.count(), 1)
+        pos = VesselPosition.objects.get()
+        self.assertAlmostEqual(float(pos.lat), 52.5, places=3)
+
+    def test_unmatched_mmsi_leaves_vessel_null(self):
+        upsert_position(self.marina, _make_reading(mmsi='999999999'))
+        pos = VesselPosition.objects.get(mmsi='999999999')
+        self.assertIsNone(pos.vessel_id)
+
+
+class GetInboundETAsTests(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Harwich', lat=Decimal('51.945'), lng=Decimal('1.283'))
+        self.vessel = Vessel.objects.create(marina=self.marina, name='Wanderer', mmsi='227123456')
+        self.berth = Berth.objects.create(marina=self.marina, code='A1')
+        self.booking = Booking.objects.create(
+            marina=self.marina, berth=self.berth, vessel=self.vessel,
+            check_in=date.today(), check_out=date.today() + timedelta(days=1),
+            status='confirmed',
+        )
+
+    def test_inbound_returns_booking_with_eta(self):
+        upsert_position(self.marina, _make_reading(lat=52.0, lng=1.5, speed=10.0))
+        rows = get_inbound_etas(self.marina)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['booking_id'], self.booking.id)
+        self.assertGreater(rows[0]['distance_nm'], 0)
+        self.assertGreater(rows[0]['eta_minutes'], 0)
+        # eta must be ISO 8601 — not pre-formatted HH:MM (timezone safety).
+        self.assertIn('T', rows[0]['eta'])
+
+    def test_no_ais_returns_empty(self):
+        self.assertEqual(get_inbound_etas(self.marina), [])
+
+    def test_other_marina_invisible(self):
+        other = Marina.objects.create(name='Felixstowe', lat=Decimal('51.961'), lng=Decimal('1.347'))
+        upsert_position(other, _make_reading())
+        self.assertEqual(get_inbound_etas(self.marina), [])
+
+    def test_distant_vessel_filtered_out(self):
+        # 60 nm north of Harwich — outside the 50 nm default.
+        upsert_position(self.marina, _make_reading(lat=53.0, lng=1.283, speed=8))
+        self.assertEqual(get_inbound_etas(self.marina, max_distance_nm=50), [])
