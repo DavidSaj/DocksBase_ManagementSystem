@@ -16,31 +16,43 @@ from apps.reservations.models import Booking
 logger = logging.getLogger(__name__)
 
 
-def upsert_position(marina, reading: AISReading, vessel=None) -> VesselPosition:
+def upsert_position(
+    marina,
+    reading: AISReading,
+    vessel=None,
+    *,
+    in_basin: bool = False,
+    last_transition_at=None,
+    transition: str | None = None,
+):
     """
     Insert or update the latest position for (marina, mmsi).
 
-    `vessel` is passed in by the caller — the batch poll path in tasks.py
-    pre-fetches all marina vessels in one query before looping over the
-    readings, so we never do per-row vessel SELECTs from inside this
-    function. If `None` is passed the position is recorded with no vessel
-    link (legitimate case for AIS-only transients).
+    The caller (poll task) computes basin state via `compute_transition()`
+    BEFORE invoking this function. `in_basin` and `last_transition_at` are
+    written in the same UPDATE that records lat/lng, so a busy marina with
+    300 contacts at 60 s polling produces 300 UPDATEs per cycle, not 600.
+
+    Returns `(VesselPosition, transition)` where `transition` is one of
+    'enter', 'exit', or None.
     """
     obj, _ = VesselPosition.objects.update_or_create(
         marina=marina, mmsi=reading.mmsi,
         defaults={
-            'lat':         reading.lat,
-            'lng':         reading.lng,
-            'speed_kn':    reading.speed_kn,
-            'course_deg':  reading.course_deg,
-            'heading_deg': reading.heading_deg,
-            'nav_status':  reading.nav_status,
-            'reported_at': reading.reported_at,
-            'vessel':      vessel,
-            'source':      'marinetraffic',
+            'lat':                reading.lat,
+            'lng':                reading.lng,
+            'speed_kn':           reading.speed_kn,
+            'course_deg':         reading.course_deg,
+            'heading_deg':        reading.heading_deg,
+            'nav_status':         reading.nav_status,
+            'reported_at':        reading.reported_at,
+            'vessel':             vessel,
+            'source':             'marinetraffic',
+            'in_basin':           in_basin,
+            'last_transition_at': last_transition_at,
         },
     )
-    return obj
+    return obj, transition
 
 
 def get_inbound_etas(

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.ais.detect_events import DWELL, compute_transition
 
@@ -60,3 +60,54 @@ class ComputeTransitionTests(SimpleTestCase):
         in_basin, last, t = compute_transition(p, 5.0, 5.0, SQUARE, NOW)
         self.assertTrue(in_basin)
         self.assertEqual(t, 'enter')
+
+
+from decimal import Decimal
+
+from django.utils import timezone
+
+from apps.accounts.models import Marina
+from apps.ais.adapters.base import AISReading
+from apps.ais.models import VesselPosition
+from apps.ais.services import upsert_position
+
+
+class UpsertPositionSignatureTests(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(
+            name='M', lat=Decimal('52.0'), lng=Decimal('1.0'),
+        )
+        self.reading = AISReading(
+            mmsi='227111111',
+            lat=Decimal('52.001'),
+            lng=Decimal('1.001'),
+            speed_kn=Decimal('5.0'),
+            course_deg=180,
+            heading_deg=180,
+            nav_status='UnderwayUsingEngine',
+            reported_at=timezone.now(),
+        )
+
+    def test_upsert_persists_in_basin_and_last_transition_in_one_row(self):
+        now = timezone.now()
+        position, transition = upsert_position(
+            self.marina, self.reading, vessel=None,
+            in_basin=True, last_transition_at=now, transition='enter',
+        )
+        self.assertTrue(position.in_basin)
+        self.assertEqual(position.last_transition_at, now)
+        self.assertEqual(transition, 'enter')
+
+    def test_upsert_second_call_updates_same_row(self):
+        upsert_position(self.marina, self.reading, vessel=None,
+                        in_basin=False, last_transition_at=None, transition=None)
+        upsert_position(self.marina, self.reading, vessel=None,
+                        in_basin=True,
+                        last_transition_at=timezone.now(),
+                        transition='enter')
+        self.assertEqual(
+            VesselPosition.objects.filter(
+                marina=self.marina, mmsi=self.reading.mmsi,
+            ).count(),
+            1,
+        )

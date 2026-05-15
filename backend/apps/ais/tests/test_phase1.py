@@ -133,7 +133,7 @@ class UpsertPositionTests(TestCase):
 
     def test_first_upsert_creates_row(self):
         reading = _make_reading()
-        pos = upsert_position(self.marina, reading, vessel=self.vessel)
+        pos, _ = upsert_position(self.marina, reading, vessel=self.vessel)
         self.assertEqual(VesselPosition.objects.count(), 1)
         self.assertEqual(pos.vessel_id, self.vessel.id)
 
