@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
                 'indexes': [
                     models.Index(
                         fields=['marina', '-reported_at'],
-                        name='ais_position_marina_reported_idx',
+                        name='ais_pos_marina_reported_idx',
                     ),
                 ],
             },
