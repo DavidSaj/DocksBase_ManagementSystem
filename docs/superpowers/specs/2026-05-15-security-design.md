@@ -26,7 +26,7 @@ Four sub-features, gated independently so a marina can adopt them at its own pac
 - **SSO / SAML.** Out of scope for the foreseeable future.
 - **Login-attempt rate-limiting.** Done by the existing DRF throttle scopes for now.
 - **Audit log export to S3 / SIEM.** Internal table only.
-- **Boater portal MFA.** Boaters are not in scope — only marina staff users (`role in {owner, manager, staff}`).
+- **Boater portal MFA / IP allowlist / email re-verify.** All four sub-features apply ONLY to marina staff (`role in {owner, manager, staff}`). Boaters (`role='boater'`) remain on the existing magic-link / member-auth flow and are never subjected to the new middleware. The boater PWA at `booking.docksbase.com` must continue to work from any IP, with no TOTP prompt, and without periodic re-verification — that's a different threat model with a near-zero blast radius (a compromised boater account exposes one boater's own reservations, not 500 marinas' worth of PII). Concretely: the IP allowlist middleware short-circuits to `None` when `user.role == 'boater'`, the email re-verify middleware already short-circuits the same way, and MFA enrollment is never offered to boaters.
 
 ## Decisions made during brainstorming
 
@@ -319,6 +319,9 @@ class IPAllowlistMiddleware(MiddlewareMixin):
         user = getattr(request, 'user', None)
         if user is None or not user.is_authenticated:
             return None
+        # Boaters are explicitly out of scope — see §Non-goals.
+        if getattr(user, 'role', None) == 'boater':
+            return None
         marina = getattr(user, 'marina', None)
         if marina is None:
             return None
@@ -597,6 +600,11 @@ The backfill is critical: without it, every existing user hits the 210-day block
 - Challenge token TTL: 5 minutes; expired → 401.
 - **Brute-force protection**: 5 wrong attempts on the same challenge → challenge invalidated (`invalidated_at` set); 6th attempt with the CORRECT code still returns 401. User must re-do the password step.
 - **Challenge binding**: a challenge created for user A cannot be consumed to mint a JWT for user B — the verify endpoint loads the user solely from `MFAChallenge.user_id` and ignores any user hint in the payload. Test: log in as A to obtain challenge, attempt verify, assert the returned JWT decodes to A's `user_id` and not anything else.
+
+`apps.security.tests.test_scope_boater_exempt`:
+- A boater (`role='boater'`) hitting any path is exempt from the IP allowlist regardless of marina configuration — even with a non-empty allowlist excluding their IP, they get through.
+- A boater is never offered MFA enrollment, never subject to the marina policy flag, and is never blocked by the email re-verify middleware regardless of `email_verified_at` age.
+- The boater portal endpoints (`/api/v1/portal/*`, `/api/v1/public/*`, `/api/v1/auth/member/*` etc.) are reachable by anonymous and boater users from outside the marina's IP allowlist.
 
 `apps.security.tests.test_ip_allowlist`:
 - Empty allowlist: any request allowed.
