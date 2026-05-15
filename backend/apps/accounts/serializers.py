@@ -14,6 +14,7 @@ class MarinaSerializer(serializers.ModelSerializer):
             'name', 'address', 'lat', 'lng', 'timezone', 'contact_email', 'phone',
             'currency', 'vat_rate', 'vat_number', 'payment_terms', 'booking_mode',
             'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft', 'fuel_berths',
+            'basin_polygon', 'ais_poll_radius_nm',
             'operations_paused',
             # email / SMTP config
             'notification_from_email', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_use_tls',
@@ -29,6 +30,22 @@ class MarinaSerializer(serializers.ModelSerializer):
             'support_access_granted_until',
             'created_at',
         ]
+
+    def validate_basin_polygon(self, value):
+        if not value:
+            return []
+        if not isinstance(value, list) or len(value) < 3:
+            raise serializers.ValidationError('Polygon must have at least 3 vertices.')
+        for v in value:
+            if not isinstance(v, (list, tuple)) or len(v) != 2:
+                raise serializers.ValidationError('Each vertex must be [lat, lng].')
+            try:
+                lat, lng = float(v[0]), float(v[1])
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Vertex coordinates must be numeric.')
+            if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+                raise serializers.ValidationError('Vertex coordinates out of range.')
+        return value
 
 
 class UserSerializer(serializers.ModelSerializer):
