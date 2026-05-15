@@ -633,6 +633,16 @@ function OTAConnectionsCard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {error && <div style={{ fontSize: 12, color: '#c0392b', padding: '4px 0' }}>{error}</div>}
+      {connections.length > 0 && connections.every(c => (c.berth_count ?? 0) === 0) && (
+        <div style={{
+          fontSize: 11,
+          color: 'rgba(0,0,0,0.55)',
+          padding: '4px 0',
+          fontStyle: 'italic',
+        }}>
+          No berths allocated to any connection yet. Set a target % in Channels to start receiving bookings.
+        </div>
+      )}
       {connections.length === 0 && !error && (
         <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 0' }}>No OTA connections yet.</div>
       )}
@@ -874,7 +884,6 @@ export default function Settings() {
       vonage_from:             marina.vonage_from             ?? '',
       messagebird_access_key:  marina.messagebird_access_key  ?? '',
       messagebird_originator:  marina.messagebird_originator  ?? '',
-      // Notification rules — { ruleKey: { email: bool, sms: bool } }
       notification_rules:      marina.notification_rules      ?? {},
     });
   }, [marina]);
