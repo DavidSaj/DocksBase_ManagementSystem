@@ -80,8 +80,8 @@ LOCAL_APPS = [
     'apps.tenants',
     'apps.marketplace',
     'apps.tickets',
+    'apps.security',
     'apps.ais',
-    # API Access
     'apps.api_keys',
 ]
 
@@ -99,6 +99,9 @@ MIDDLEWARE = [
     'apps.admin_portal.middleware.ImpersonationAuditMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Task 3: adds X-Email-Reverify: warning header for users approaching re-verification expiry.
+    # Must run after DRF view dispatch so request.user is fully JWT-authenticated.
+    'apps.security.middleware.EmailReverifyHeaderMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -249,12 +252,14 @@ CHANNEL_LAYERS = {
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'apps.api_keys.authentication.APIKeyAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.security.authentication.MFAGatedJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
         'apps.admin_portal.permissions.IsSafeModeReadOnly',
         'apps.accounts.permissions.ModulePermission',
+        'apps.security.permissions.IPAllowlistPermission',
+        'apps.security.permissions.EmailReverifyPermission',
     ),
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',

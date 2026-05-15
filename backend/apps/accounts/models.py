@@ -92,6 +92,10 @@ class Marina(models.Model):
     )
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
+    # Security: when True, owners and managers without active MFA are routed
+    # to forced enrollment on next login (after the password step).
+    require_mfa_for_managers = models.BooleanField(default=False)
+
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
     require_manager_approval_loa_m = models.DecimalField(
         max_digits=5, decimal_places=1, null=True, blank=True,
@@ -252,6 +256,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         choices=[('admin', 'Admin'), ('support', 'Support')],
         blank=True,
     )
+
+    # Security T3: periodic email re-verification (180/210-day thresholds).
+    # Null means never explicitly verified via re-verification flow; the
+    # backfill migration sets this to created_at for all pre-existing users so
+    # they don't immediately hit the 210-day hard block.
+    email_verified_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

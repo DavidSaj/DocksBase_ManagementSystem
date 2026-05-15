@@ -7,6 +7,7 @@ import TaxRatesSettings from './TaxRatesSettings.jsx';
 import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
+import SecurityCard from './Settings/SecurityCard.jsx';
 import BasinPolygonEditor from './BasinPolygonEditor.jsx';
 import ApiDocsModal from './Settings/ApiDocsModal.jsx';
 import DataTab from './settings/DataTab.jsx';
@@ -796,7 +797,7 @@ function SupportAccessSection() {
 
 // ── API Access helpers ─────────────────────────────────────────────────────
 
-function relTime(iso) {
+function usedSince(iso) {
   if (!iso) return 'Never used';
   const ms = Date.now() - new Date(iso).getTime();
   const s = Math.floor(ms / 1000);
@@ -828,51 +829,6 @@ function StatusPill({ status }) {
     }}>
       {status === 'active' ? '● Active' : capitalize(status)}
     </span>
-  );
-}
-
-function KebabMenu({ items }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        className="btn btn-ghost btn-sm"
-        onClick={() => setOpen(o => !o)}
-        aria-label="More actions"
-        style={{ padding: '4px 8px', fontSize: 16, lineHeight: 1 }}
-      >⋮</button>
-      {open && (
-        <div style={{
-          position: 'absolute', right: 0, top: '100%', marginTop: 4,
-          background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-          minWidth: 180, zIndex: 10,
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {items.map((it, i) => (
-            <button
-              key={i}
-              disabled={it.disabled}
-              onClick={() => { if (!it.disabled) { setOpen(false); it.onClick(); } }}
-              style={{
-                textAlign: 'left', padding: '8px 12px', fontSize: 13,
-                background: 'transparent', border: 0,
-                cursor: it.disabled ? 'not-allowed' : 'pointer',
-                color: it.danger ? '#c0392b' : 'inherit',
-                opacity: it.disabled ? 0.4 : 1,
-              }}
-            >{it.label}</button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -984,7 +940,7 @@ function APIAccessCard({ onOpenDocs }) {
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', textAlign: 'right', flexShrink: 0 }}>
-                    <div>{relTime(k.last_used_at)}</div>
+                    <div>{usedSince(k.last_used_at)}</div>
                     <div>Created {shortDate(k.created_at)}</div>
                   </div>
                   <KebabMenu
@@ -2123,31 +2079,11 @@ export default function Settings() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Security — Coming Soon */}
+            {/* Security */}
             <div className="card">
               <div className="card-header"><div className="card-header-title">Security</div></div>
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <ComingSoonBanner />
-                <div style={{ opacity: 0.5, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>Two-factor authentication</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>Required for Owners & Managers</div>
-                    </div>
-                    <span className="badge badge-gray">Not configured</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>Session timeout</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>Auto-logout after idle period</div>
-                    </div>
-                    <span className="badge badge-gray">—</span>
-                  </div>
-                  <FieldRow label="IP Allowlist" hint="Leave blank to allow all IPs">
-                    <input type="text" disabled placeholder="e.g. 192.168.1.0/24" />
-                  </FieldRow>
-                  <button className="btn btn-ghost btn-sm" disabled style={{ alignSelf: 'flex-start' }}>View Audit Log</button>
-                </div>
+                <SecurityCard />
               </div>
             </div>
 
