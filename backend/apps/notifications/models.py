@@ -7,6 +7,7 @@ class Notification(models.Model):
         ('booking_request', 'Booking Request'),
         ('overdue_invoice', 'Overdue Invoice'),
         ('maintenance_assigned', 'Maintenance Assigned'),
+        ('activity_request', 'Activity Request'),
     ]
 
     marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='notifications')

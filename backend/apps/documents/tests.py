@@ -97,7 +97,7 @@ class ServiceLayerTest(TestCase):
         self.member = make_member(self.marina)
         self.template = DocTemplate.objects.create(marina=self.marina, name='Lease', category='lease')
 
-    @patch('apps.documents.services.dropbox_sign')
+    @patch('apps.documents.providers.dropbox.dropbox_sign')
     def test_create_embedded_template_draft_returns_edit_url(self, mock_ds):
         mock_api = MagicMock()
         mock_ds.TemplateApi.return_value = mock_api
@@ -108,7 +108,7 @@ class ServiceLayerTest(TestCase):
         self.assertEqual(result, 'https://dsign.example/edit/abc')
         mock_api.create_embedded_template_draft.assert_called_once()
 
-    @patch('apps.documents.services.dropbox_sign')
+    @patch('apps.documents.providers.dropbox.dropbox_sign')
     def test_send_envelope_returns_request_id(self, mock_ds):
         mock_api = MagicMock()
         mock_ds.SignatureRequestApi.return_value = mock_api
@@ -124,13 +124,13 @@ class ServiceLayerTest(TestCase):
         self.assertEqual(result, 'req_abc123')
         mock_api.send_with_template.assert_called_once()
 
-    @patch('apps.documents.services.dropbox_sign')
+    @patch('apps.documents.providers.dropbox.dropbox_sign')
     def test_get_signed_pdf_url(self, mock_ds):
         mock_api = MagicMock()
         mock_ds.SignatureRequestApi.return_value = mock_api
         mock_api.get.return_value.signature_request.signing_url = 'https://dsign.example/signed.pdf'
 
-        url = get_signed_pdf_url('req_abc123', api_key='')
+        url = get_signed_pdf_url('req_abc123', api_key='', marina=self.marina)
         self.assertEqual(url, 'https://dsign.example/signed.pdf')
 
 

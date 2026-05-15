@@ -8,6 +8,7 @@ import { SCREEN_INFO } from '../copy/screenInfo.js';
 import usePOSCatalog from '../hooks/usePOSCatalog.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
+import FuelPricesWidget from './FuelPricesWidget.jsx';
 import api from '../api.js';
 
 const FUEL_DOCK_FILTER = { operational_type: 'fuel_dock' };
@@ -230,6 +231,8 @@ function FuelDockTab() {
           onCancel={() => setBerthPickingId(null)}
         />
       )}
+
+      <FuelPricesWidget />
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
