@@ -165,6 +165,13 @@ class WaiverView(PortalBookingMixin, APIView):
             return None
 
     def _uses_esign(self, marina, tpl):
+        if tpl.provider == 'docusign':
+            return bool(
+                marina.docusign_api_key and marina.docusign_account_id
+                and marina.docusign_user_id and marina.docusign_private_key
+                and marina.docusign_base_url
+                and tpl.docusign_template_id
+            )
         return bool(
             marina.dropboxsign_api_key
             and marina.dropboxsign_client_id
@@ -176,13 +183,14 @@ class WaiverView(PortalBookingMixin, APIView):
         if booking.waiver_envelope_id:
             return get_existing_embedded_sign_url(
                 booking.waiver_envelope_id,
-                api_key=marina.dropboxsign_api_key,
+                marina=marina,
+                provider_key=tpl.provider,
             )
         request_id, sign_url = create_embedded_sign_url(
             booking,
-            tpl.dropboxsign_template_id,
-            api_key=marina.dropboxsign_api_key,
-            client_id=marina.dropboxsign_client_id,
+            tpl.provider_template_id(),
+            marina=marina,
+            provider_key=tpl.provider,
         )
         booking.waiver_envelope_id = request_id
         booking.save(update_fields=['waiver_envelope_id'])

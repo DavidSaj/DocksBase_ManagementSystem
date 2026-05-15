@@ -9,7 +9,7 @@ const stats = [
 ]
 ---
 <section class={styles.section}>
-  <div class={styles.grid}>
+  <div class={styles.grid} data-stats-grid>
     {stats.map(s => (
       <div class={styles.item}>
         <div class={styles.num}>{s.num}<span>{s.suffix}</span></div>
@@ -18,3 +18,17 @@ const stats = [
     ))}
   </div>
 </section>
+
+<script define:vars={{ itemCls: styles.item, visibleCls: styles.itemVisible }}>
+  document.querySelectorAll('[data-stats-grid]').forEach(grid => {
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        grid.querySelectorAll('.' + itemCls).forEach((item, i) =>
+          setTimeout(() => item.classList.add(visibleCls), i * 100)
+        )
+        obs.unobserve(grid)
+      }
+    }, { threshold: 0.2 })
+    obs.observe(grid)
+  })
+</script>

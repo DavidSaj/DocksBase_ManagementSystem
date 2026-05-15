@@ -36,14 +36,18 @@ class TestOffsetContribution:
         )
 
     def _make_line_item(self, invoice, unit_price, category='offset', is_discountable=False):
-        from apps.billing.models import InvoiceLineItem
-        from apps.billing.models import ChargeableItem
+        from apps.billing.models import InvoiceLineItem, ChargeableItem, TaxRate
+        tax, _ = TaxRate.objects.get_or_create(
+            marina=invoice.marina, name='Standard',
+            defaults={'rate': Decimal('0.00'), 'is_default': True},
+        )
         chargeable = ChargeableItem.objects.create(
             marina=invoice.marina,
             name='Carbon Offset',
             category=category,
             unit_price=unit_price,
             is_discountable=is_discountable,
+            tax_category=tax,
         )
         return InvoiceLineItem.objects.create(
             invoice=invoice,
@@ -85,8 +89,10 @@ class TestOffsetContribution:
 
     def test_offset_coupon_discount_blocked_by_is_discountable_false(self):
         """OffsetContribution line items have is_discountable=False on ChargeableItem."""
-        from apps.billing.models import ChargeableItem
+        from apps.billing.models import ChargeableItem, TaxRate
         marina = self._make_marina()
+        tax = TaxRate.objects.create(marina=marina, name='Standard',
+                                     rate=Decimal('0.00'), is_default=True)
         # Create a carbon offset chargeable item
         item = ChargeableItem.objects.create(
             marina=marina,
@@ -94,5 +100,6 @@ class TestOffsetContribution:
             category='offset',
             unit_price=Decimal('25.00'),
             is_discountable=False,
+            tax_category=tax,
         )
         assert item.is_discountable is False
