@@ -3,6 +3,7 @@ import useBookings from '../hooks/useBookings.js';
 import useOverview from '../hooks/useOverview.js';
 import useWeather from '../hooks/useWeather.js';
 import useMarina from '../hooks/useMarina.js';
+import InboundETACard from '../components/InboundETACard.jsx';
 
 function relativeTime(isoStr) {
   const diff = Date.now() - new Date(isoStr).getTime();
@@ -159,6 +160,9 @@ export default function Overview({ setScreen }) {
               )}
             </div>
           </div>
+
+          {/* Inbound — AIS */}
+          <InboundETACard />
 
           {/* Urgent */}
           <div className="card">

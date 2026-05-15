@@ -72,6 +72,14 @@ class Marina(models.Model):
     dropboxsign_client_id  = models.CharField(max_length=255, blank=True, default='')
     marinetraffic_api_key  = models.CharField(max_length=255, blank=True, default='')
     openweathermap_api_key = models.CharField(max_length=255, blank=True, default='')
+    basin_polygon = models.JSONField(
+        default=list, blank=True,
+        help_text='Marina basin polygon as list of [lat, lng] vertices. Used for AIS arrival detection.',
+    )
+    ais_poll_radius_nm = models.IntegerField(
+        default=10,
+        help_text='Bounding-box radius around marina lat/lng (nautical miles) used to query AIS providers.',
+    )
     docusign_api_key       = models.CharField(max_length=255, blank=True, default='')
     docusign_account_id    = models.CharField(max_length=255, blank=True, default='')
     docusign_user_id       = models.CharField(max_length=64, blank=True, default='')

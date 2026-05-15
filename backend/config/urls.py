@@ -49,6 +49,7 @@ urlpatterns = [
         path('', include('apps.tenants.urls')),
         path('', include('apps.marketplace.urls')),
         path('', include('apps.tickets.urls')),
+        path('ais/', include('apps.ais.urls')),
     ])),
 ]
 
