@@ -1,9 +1,18 @@
 import datetime
+from decimal import Decimal, InvalidOperation
+from django.db import transaction
 from django.utils import timezone
-from rest_framework import generics, serializers as drf_serializers
+from rest_framework import generics, serializers as drf_serializers, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import FuelDockEntry
-from .serializers import FuelDockEntrySerializer
+from apps.billing.models import ChargeableItem
+from .models import FuelDockEntry, FuelPriceChange
+from .serializers import (
+    FuelDockEntrySerializer,
+    FuelProductSerializer,
+    FuelPriceChangeSerializer,
+)
 from .notifications import notify_sms
 
 
@@ -115,3 +124,71 @@ class FuelQueueDetailView(generics.RetrieveUpdateDestroyAPIView):
                 extra.update(_bill_completion(entry, total, now))
 
         serializer.save(**extra)
+
+
+class FuelProductListView(generics.ListAPIView):
+    """Active fuel ChargeableItems (those with fuel_dock_type set), for the price widget."""
+    serializer_class = FuelProductSerializer
+
+    def get_queryset(self):
+        return (
+            ChargeableItem.objects
+            .filter(marina=self.request.user.marina, is_active=True)
+            .exclude(fuel_dock_type='')
+            .order_by('fuel_dock_type', 'name')
+        )
+
+
+class FuelProductPriceUpdateView(APIView):
+    """PATCH /fuel-dock/products/<id>/price/ — update unit_price and log history."""
+
+    def patch(self, request, pk):
+        try:
+            item = ChargeableItem.objects.get(
+                pk=pk, marina=request.user.marina, is_active=True,
+            )
+        except ChargeableItem.DoesNotExist:
+            return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not item.fuel_dock_type:
+            return Response({'detail': 'Not a fuel product.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        raw = request.data.get('unit_price')
+        try:
+            new_price = Decimal(str(raw))
+        except (InvalidOperation, TypeError):
+            return Response({'unit_price': 'Invalid price.'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_price < 0:
+            return Response({'unit_price': 'Price must be 0 or greater.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        old_price = item.unit_price
+        if new_price == old_price:
+            return Response(FuelProductSerializer(item).data)
+
+        staff = getattr(getattr(request.user, 'staff_profile', None), 'pk', None)
+        note  = (request.data.get('note') or '').strip()[:200]
+
+        with transaction.atomic():
+            item.unit_price = new_price
+            item.save(update_fields=['unit_price'])
+            FuelPriceChange.objects.create(
+                marina=request.user.marina,
+                item=item,
+                old_price=old_price,
+                new_price=new_price,
+                changed_by_id=staff,
+                note=note,
+            )
+
+        return Response(FuelProductSerializer(item).data)
+
+
+class FuelPriceChangeListView(generics.ListAPIView):
+    serializer_class = FuelPriceChangeSerializer
+
+    def get_queryset(self):
+        return (
+            FuelPriceChange.objects
+            .filter(marina=self.request.user.marina)
+            .select_related('item', 'changed_by')[:50]
+        )
