@@ -172,6 +172,68 @@ class LoginView(TokenObtainPairView):
     serializer_class = DocksBaseTokenSerializer
     permission_classes = [permissions.AllowAny]
 
+    def post(self, request, *args, **kwargs):
+        # Run the standard serializer validation (password check, email-not-verified guard).
+        # This raises an exception on failure, which DRF turns into the appropriate 400/401.
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.user  # set by TokenObtainPairSerializer after successful validation
+
+        # Import here to avoid circular imports at module load time.
+        from apps.security.services import mfa as mfa_service
+
+        marina = getattr(user, 'marina', None)
+
+        # Case B / C — user has active MFA
+        try:
+            user_mfa = user.mfa
+            has_active_mfa = user_mfa.is_active
+        except Exception:
+            has_active_mfa = False
+
+        if has_active_mfa:
+            # Case C: valid trust cookie → bypass MFA, issue tokens normally
+            if mfa_service.is_device_trusted(request, user):
+                return _normal_token_response(serializer)
+
+            # Case B: issue challenge, suppress tokens
+            challenge = mfa_service.issue_challenge(user, purpose='login')
+            return Response({
+                'mfa_required': True,
+                'mfa_challenge_token': challenge.token,
+            })
+
+        # Case D — marina policy requires MFA, user has none (and is owner/manager)
+        if (
+            marina is not None
+            and getattr(marina, 'require_mfa_for_managers', False)
+            and getattr(user, 'role', None) in ('owner', 'manager')
+        ):
+            # Start enrollment (handles all 4 pre-existing states; abandons if needed)
+            try:
+                _, secret = mfa_service.start_enrollment(user)
+            except ValueError:
+                # Edge case: user somehow has active MFA already — treat as Case A
+                return _normal_token_response(serializer)
+
+            qr_uri = mfa_service.build_totp_uri(user, secret)
+            challenge = mfa_service.issue_challenge(user, purpose='enrollment')
+            return Response({
+                'mfa_enrollment_required': True,
+                'mfa_enrollment_token': challenge.token,
+                'mfa_secret': secret,
+                'mfa_qr_uri': qr_uri,
+            })
+
+        # Case A — no MFA, no marina policy: issue tokens normally
+        return _normal_token_response(serializer)
+
+
+def _normal_token_response(serializer):
+    """Return the standard {access, refresh, user} response from a validated serializer."""
+    return Response(serializer.validated_data)
+
 
 class MarinaProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = MarinaSerializer

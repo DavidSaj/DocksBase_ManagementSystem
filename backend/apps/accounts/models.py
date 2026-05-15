@@ -72,6 +72,10 @@ class Marina(models.Model):
     dropboxsign_client_id  = models.CharField(max_length=255, blank=True, default='')
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
+    # Security: when True, owners and managers without active MFA are routed
+    # to forced enrollment on next login (after the password step).
+    require_mfa_for_managers = models.BooleanField(default=False)
+
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
     require_manager_approval_loa_m = models.DecimalField(
         max_digits=5, decimal_places=1, null=True, blank=True,
