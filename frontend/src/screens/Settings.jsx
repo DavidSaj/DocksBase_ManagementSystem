@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
 import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
+import ApiDocsModal from './Settings/ApiDocsModal.jsx';
 import DataTab from './settings/DataTab.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
@@ -791,10 +793,318 @@ function SupportAccessSection() {
   );
 }
 
+// ── API Access helpers ─────────────────────────────────────────────────────
+
+function relTime(iso) {
+  if (!iso) return 'Never used';
+  const ms = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Used ${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `Used ${d}d ago`;
+}
+
+function shortDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function StatusPill({ status }) {
+  const styles = {
+    active:  { background: '#d1fae5', color: '#065f46' },
+    revoked: { background: '#f3f4f6', color: '#6b7280' },
+    expired: { background: '#fff7ed', color: '#c2410c' },
+  };
+  const s = styles[status] ?? styles.revoked;
+  return (
+    <span style={{
+      ...s, borderRadius: 20, padding: '2px 9px',
+      fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+    }}>
+      {status === 'active' ? '● Active' : capitalize(status)}
+    </span>
+  );
+}
+
+function KebabMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={() => setOpen(o => !o)}
+        aria-label="More actions"
+        style={{ padding: '4px 8px', fontSize: 16, lineHeight: 1 }}
+      >⋮</button>
+      {open && (
+        <div style={{
+          position: 'absolute', right: 0, top: '100%', marginTop: 4,
+          background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          minWidth: 180, zIndex: 10,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {items.map((it, i) => (
+            <button
+              key={i}
+              disabled={it.disabled}
+              onClick={() => { if (!it.disabled) { setOpen(false); it.onClick(); } }}
+              style={{
+                textAlign: 'left', padding: '8px 12px', fontSize: 13,
+                background: 'transparent', border: 0,
+                cursor: it.disabled ? 'not-allowed' : 'pointer',
+                color: it.danger ? '#c0392b' : 'inherit',
+                opacity: it.disabled ? 0.4 : 1,
+              }}
+            >{it.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function APIAccessCard({ onOpenDocs }) {
+  const [keys, setKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formExpiry, setFormExpiry] = useState('');
+  const [formSaving, setFormSaving] = useState(false);
+  const [revealKey, setRevealKey] = useState(null); // raw key string
+  const [copied, setCopied] = useState(false);
+
+  function fetchKeys() {
+    setLoading(true);
+    api.get('/api-keys/')
+      .then(r => setKeys(r.data.results ?? r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { fetchKeys(); }, []);
+
+  async function handleGenerate(e) {
+    e.preventDefault();
+    if (!formName.trim()) return;
+    setFormSaving(true);
+    try {
+      const payload = { name: formName.trim() };
+      if (formExpiry) payload.expires_at = formExpiry;
+      const { data } = await api.post('/api-keys/', payload);
+      setRevealKey(data.key);
+      setShowForm(false);
+      setFormName('');
+      setFormExpiry('');
+      fetchKeys();
+    } catch {
+      alert('Could not generate API key. Please try again.');
+    } finally {
+      setFormSaving(false);
+    }
+  }
+
+  async function handleRevoke(id) {
+    if (!window.confirm('Revoke this key? Active integrations using it will stop working.')) return;
+    try {
+      await api.post(`/api-keys/${id}/revoke/`);
+      setKeys(prev => prev.map(k => k.id === id ? { ...k, status: 'revoked' } : k));
+    } catch {
+      alert('Could not revoke key.');
+    }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Permanently delete this key? This cannot be undone.')) return;
+    try {
+      await api.delete(`/api-keys/${id}/`);
+      setKeys(prev => prev.filter(k => k.id !== id));
+    } catch {
+      alert('Could not delete key.');
+    }
+  }
+
+  function handleCopy() {
+    if (!revealKey) return;
+    navigator.clipboard.writeText(revealKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  function handleCloseReveal() {
+    setRevealKey(null);
+    setCopied(false);
+  }
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">API Access</div>
+          <button className="btn btn-ghost btn-sm" onClick={onOpenDocs} style={{ fontSize: 12 }}>
+            View docs
+          </button>
+        </div>
+        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+          {/* Key list */}
+          {loading ? (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>Loading…</div>
+          ) : keys.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.38)', padding: '8px 0', marginBottom: 12 }}>
+              No API keys yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 12 }}>
+              {keys.map(k => (
+                <div key={k.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 0', borderBottom: '1px solid rgba(0,0,0,0.06)',
+                }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <StatusPill status={k.status} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{k.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', fontFamily: 'monospace', marginTop: 2 }}>
+                      {k.key_prefix}••••••{k.last_four}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', textAlign: 'right', flexShrink: 0 }}>
+                    <div>{relTime(k.last_used_at)}</div>
+                    <div>Created {shortDate(k.created_at)}</div>
+                  </div>
+                  <KebabMenu
+                    items={k.status === 'active'
+                      ? [{ label: 'Revoke', danger: true, onClick: () => handleRevoke(k.id) }]
+                      : [{ label: 'Delete', danger: true, onClick: () => handleDelete(k.id) }]
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Inline generate form */}
+          {showForm ? (
+            <form onSubmit={handleGenerate} style={{
+              background: 'var(--bg, #f9f9fb)', borderRadius: 8, padding: '14px 16px',
+              border: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: '2 1 160px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>NAME</div>
+                  <input
+                    style={MI}
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="e.g. Production integration"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div style={{ flex: '1 1 140px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>
+                    EXPIRES <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional)</span>
+                  </div>
+                  <input
+                    type="date"
+                    style={MI}
+                    value={formExpiry}
+                    onChange={e => setFormExpiry(e.target.value)}
+                    min={new Date().toISOString().slice(0, 10)}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>Leave expiry blank for no expiry.</div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowForm(false); setFormName(''); setFormExpiry(''); }}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={formSaving || !formName.trim()}>
+                  {formSaving ? 'Generating…' : 'Generate'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ alignSelf: 'flex-start', fontSize: 12 }}
+              onClick={() => setShowForm(true)}
+            >
+              <Ic n="plus" s={11} /> Generate new key
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Key Reveal Modal */}
+      {revealKey && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          onClick={e => e.target === e.currentTarget && handleCloseReveal()}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>API Key Generated</div>
+
+            {/* Warning banner */}
+            <div style={{
+              background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8,
+              padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#9a3412',
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+            }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>⚠</span>
+              <span>Save this key now. You will not be able to view it again.</span>
+            </div>
+
+            {/* Key display */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' }}>
+              <input
+                readOnly
+                value={revealKey}
+                onClick={e => e.target.select()}
+                style={{
+                  flex: 1, fontFamily: 'monospace', fontSize: 12, padding: '8px 10px',
+                  border: '1px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#f6f8fa',
+                  wordBreak: 'break-all',
+                }}
+              />
+              <button className="btn btn-ghost btn-sm" onClick={handleCopy} style={{ flexShrink: 0 }}>
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={handleCloseReveal}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function Settings() {
   const [tab, setTab] = useState('marina');
+  const { user } = useAuth();
+  const isOwner = user?.role === 'owner';
+
+  // ── API Docs modal ─────────────────────────────────────────────────────
+  const [docsModalOpen, setDocsModalOpen] = useState(false);
 
   // ── Billing ────────────────────────────────────────────────────────────
   const [billing, setBilling] = useState(null);
@@ -1845,26 +2155,10 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* API Access — Coming Soon */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">API Access</div></div>
-              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <ComingSoonBanner />
-                <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>Production key</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 3, fontFamily: 'monospace', letterSpacing: '0.3px' }}>No key generated</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" disabled>Copy</button>
-                      <button className="btn btn-danger btn-sm" disabled>Revoke</button>
-                    </div>
-                  </div>
-                  <button className="btn btn-primary btn-sm" disabled style={{ alignSelf: 'flex-start', marginTop: 12 }}><Ic n="plus" s={11} />Generate New Key</button>
-                </div>
-              </div>
-            </div>
+            {/* API Access — owner only */}
+            {isOwner && (
+              <APIAccessCard onOpenDocs={() => setDocsModalOpen(true)} />
+            )}
 
           </div>
         </div>
@@ -2206,6 +2500,9 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* ── API Docs modal ─────────────────────────────────────────────── */}
+      {docsModalOpen && <ApiDocsModal onClose={() => setDocsModalOpen(false)} />}
     </div>
   );
 }

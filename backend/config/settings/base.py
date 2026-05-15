@@ -81,6 +81,8 @@ LOCAL_APPS = [
     'apps.marketplace',
     'apps.tickets',
     'apps.ais',
+    # API Access
+    'apps.api_keys',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -246,6 +248,7 @@ CHANNEL_LAYERS = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'apps.api_keys.authentication.APIKeyAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
@@ -267,6 +270,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/min',
         'user': '200/min',
+        'api_key': '1000/hour',
         'public_activity_request': '10/hour',
     },
 }
