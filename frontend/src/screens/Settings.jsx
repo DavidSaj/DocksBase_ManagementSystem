@@ -881,6 +881,57 @@ export default function Settings() {
     }
   }
 
+  // ── Integrations — MarineTraffic / OpenWeatherMap / DocuSign ───────────
+  //
+  // Each is just an API key (DocuSign needs a second account id). One generic
+  // state shape per provider keeps the JSX terse.
+
+  const [marineTraffic, setMarineTraffic] = useState({ data: null, apiKey: '', saving: false, msg: null });
+  const [openWeather,   setOpenWeather]   = useState({ data: null, apiKey: '', saving: false, msg: null });
+  const [docusign,      setDocusign]      = useState({ data: null, apiKey: '', accountId: '', saving: false, msg: null });
+
+  useEffect(() => {
+    if (tab !== 'integrations') return;
+    let cancelled = false;
+    Promise.all([
+      api.get('/marina/integrations/marinetraffic/').then(r => r.data).catch(() => null),
+      api.get('/marina/integrations/openweathermap/').then(r => r.data).catch(() => null),
+      api.get('/marina/integrations/docusign/').then(r => r.data).catch(() => null),
+    ]).then(([mt, ow, ds]) => {
+      if (cancelled) return;
+      if (mt) setMarineTraffic(s => ({ ...s, data: mt }));
+      if (ow) setOpenWeather(s => ({ ...s, data: ow }));
+      if (ds) setDocusign(s => ({ ...s, data: ds, accountId: ds.docusign_account_id || '' }));
+    });
+    return () => { cancelled = true; };
+  }, [tab]);
+
+  async function saveSimpleIntegration(setState, state, endpoint, body, label) {
+    setState(s => ({ ...s, saving: true, msg: null }));
+    try {
+      const { data } = await api.patch(endpoint, body);
+      setState(s => ({
+        ...s,
+        data,
+        apiKey: '',
+        saving: false,
+        msg: { type: 'ok', text: data.connected ? `${label} connected.` : `${label} settings saved.` },
+      }));
+    } catch {
+      setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Save failed. Check the value and try again.' } }));
+    }
+  }
+
+  async function disconnectSimple(setState, endpoint, body) {
+    setState(s => ({ ...s, saving: true, msg: null }));
+    try {
+      const { data } = await api.patch(endpoint, body);
+      setState(s => ({ ...s, data, apiKey: '', accountId: data.docusign_account_id || '', saving: false, msg: { type: 'ok', text: 'Disconnected.' } }));
+    } catch {
+      setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Disconnect failed.' } }));
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -1444,32 +1495,6 @@ export default function Settings() {
             {/* Accounting Integrations — live */}
             <AccountingIntegrationsCard />
 
-            {/* Integrations — Coming Soon */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Integrations</div></div>
-              <div className="card-body" style={{ paddingBottom: 8 }}>
-                <ComingSoonBanner />
-              </div>
-              <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                {[
-                  { name: 'AIS Vessel Tracking',desc: 'MarineTraffic API' },
-                  { name: 'OpenWeatherMap',     desc: 'Live weather conditions' },
-                  { name: 'DocuSign',           desc: 'Electronic signatures' },
-                ].map(int => (
-                  <div key={int.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: 'var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{int.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{int.desc}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="badge badge-gray">Not set up</span>
-                      <button className="btn btn-ghost btn-sm" disabled>Connect</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Feature Flags — real */}
             <div className="card">
               <div className="card-header"><div className="card-header-title">Feature Flags</div></div>
@@ -1595,7 +1620,7 @@ export default function Settings() {
 
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (
-        <div style={{ maxWidth: 560 }}>
+        <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Dropbox Sign</div>
@@ -1651,6 +1676,191 @@ export default function Settings() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* ── AIS Vessel Tracking — MarineTraffic ───────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">AIS Vessel Tracking</div>
+              {marineTraffic.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Connect MarineTraffic to show live vessel positions on the harbor map. Your account is billed directly by MarineTraffic.{' '}
+                <a href="https://www.marinetraffic.com/en/ais-api-services" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Get an API key →
+                </a>
+              </div>
+              <FieldRow
+                label="API Key"
+                hint={marineTraffic.data?.connected ? `Current key ending in ···${marineTraffic.data.api_key_tail}` : 'Found in MarineTraffic → API Services → My API Keys'}
+              >
+                <input
+                  type="password"
+                  value={marineTraffic.apiKey}
+                  onChange={e => setMarineTraffic(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={marineTraffic.data?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {marineTraffic.msg && (
+                <div style={{ fontSize: 12, color: marineTraffic.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {marineTraffic.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={marineTraffic.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setMarineTraffic, marineTraffic,
+                    '/marina/integrations/marinetraffic/',
+                    { api_key: marineTraffic.apiKey },
+                    'MarineTraffic',
+                  )}
+                >
+                  {marineTraffic.saving ? 'Saving…' : marineTraffic.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {marineTraffic.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={marineTraffic.saving}
+                    onClick={() => disconnectSimple(setMarineTraffic, '/marina/integrations/marinetraffic/', { api_key: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── OpenWeatherMap ────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">OpenWeatherMap</div>
+              {openWeather.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Show live local weather on the dashboard, using your marina's lat/lng from Marina Profile.{' '}
+                <a href="https://openweathermap.org/api" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Get a free API key →
+                </a>
+              </div>
+              <FieldRow
+                label="API Key"
+                hint={openWeather.data?.connected ? `Current key ending in ···${openWeather.data.api_key_tail}` : 'Found in OpenWeatherMap → My API Keys'}
+              >
+                <input
+                  type="password"
+                  value={openWeather.apiKey}
+                  onChange={e => setOpenWeather(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={openWeather.data?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {openWeather.msg && (
+                <div style={{ fontSize: 12, color: openWeather.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {openWeather.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={openWeather.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setOpenWeather, openWeather,
+                    '/marina/integrations/openweathermap/',
+                    { api_key: openWeather.apiKey },
+                    'OpenWeatherMap',
+                  )}
+                >
+                  {openWeather.saving ? 'Saving…' : openWeather.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {openWeather.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={openWeather.saving}
+                    onClick={() => disconnectSimple(setOpenWeather, '/marina/integrations/openweathermap/', { api_key: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── DocuSign ──────────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">DocuSign</div>
+              {docusign.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Alternative e-signature provider to Dropbox Sign. Your account is billed directly by DocuSign — DocksBase never sees payment.{' '}
+                <a href="https://developers.docusign.com/" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Create a DocuSign developer account →
+                </a>
+              </div>
+              <FieldRow label="Account ID" hint="Found in DocuSign Admin → API and Keys → API Account ID">
+                <input
+                  type="text"
+                  value={docusign.accountId}
+                  onChange={e => setDocusign(s => ({ ...s, accountId: e.target.value }))}
+                  placeholder="e.g. 1a2b3c4d-..."
+                />
+              </FieldRow>
+              <FieldRow
+                label="Integration Key (API Key)"
+                hint={docusign.data?.connected ? `Current key ending in ···${docusign.data.api_key_tail}` : 'Found in DocuSign Admin → Apps and Keys'}
+              >
+                <input
+                  type="password"
+                  value={docusign.apiKey}
+                  onChange={e => setDocusign(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={docusign.data?.connected ? 'Leave blank to keep current key' : 'Paste integration key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {docusign.msg && (
+                <div style={{ fontSize: 12, color: docusign.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {docusign.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={docusign.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setDocusign, docusign,
+                    '/marina/integrations/docusign/',
+                    { api_key: docusign.apiKey, docusign_account_id: docusign.accountId },
+                    'DocuSign',
+                  )}
+                >
+                  {docusign.saving ? 'Saving…' : docusign.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {docusign.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={docusign.saving}
+                    onClick={() => disconnectSimple(setDocusign, '/marina/integrations/docusign/', { api_key: '', docusign_account_id: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

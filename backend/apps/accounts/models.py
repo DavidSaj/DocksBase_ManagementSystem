@@ -70,6 +70,10 @@ class Marina(models.Model):
     waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
     dropboxsign_api_key    = models.CharField(max_length=255, blank=True, default='')
     dropboxsign_client_id  = models.CharField(max_length=255, blank=True, default='')
+    marinetraffic_api_key  = models.CharField(max_length=255, blank=True, default='')
+    openweathermap_api_key = models.CharField(max_length=255, blank=True, default='')
+    docusign_api_key       = models.CharField(max_length=255, blank=True, default='')
+    docusign_account_id    = models.CharField(max_length=255, blank=True, default='')
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
