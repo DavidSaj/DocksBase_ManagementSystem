@@ -1,5 +1,5 @@
 """
-Security middleware stubs.
+Security middleware.
 
 Task 2 decision: IP allowlist enforcement is implemented as a DRF permission class
 (`apps.security.permissions.IPAllowlistPermission`) rather than a Django middleware
@@ -23,9 +23,40 @@ TODO(audit-log): log ip_blocked event once SecurityAuditLog lands in T4.
   The placeholder lives in IPAllowlistPermission.has_permission() — search for
   the comment there to find the right insertion point.
 
-Task 3 will add EmailReverifyMiddleware here as a real Django middleware (it
-operates on response headers, making a DRF permission class less natural).
+Task 3 adds EmailReverifyHeaderMiddleware (below): a real Django middleware that
+adds X-Email-Reverify: warning response headers for users in the warning state.
+Using Django middleware here (rather than a DRF permission class) is correct
+because we need to mutate the response, which DRF BasePermission cannot do.
+request.user IS populated by the time process_response runs because the DRF view
+dispatch has already authenticated the user.
 """
 
-# This file is intentionally sparse for Task 2.
-# EmailReverifyMiddleware is added in Task 3.
+from django.utils.deprecation import MiddlewareMixin
+
+
+class EmailReverifyHeaderMiddleware(MiddlewareMixin):
+    """
+    Adds X-Email-Reverify: warning header when the authenticated user is in
+    warning state (180–209 days since email_verified_at).
+
+    Boaters are exempt from the re-verification feature entirely, so they
+    never receive the header.
+
+    This runs AFTER the DRF view, so request.user is the fully JWT-authenticated
+    user (not just Django's session user).
+    """
+
+    def process_response(self, request, response):
+        user = getattr(request, 'user', None)
+        if not (user and getattr(user, 'is_authenticated', False)):
+            return response
+
+        # Boaters are exempt per spec §Non-goals
+        if getattr(user, 'role', None) == 'boater':
+            return response
+
+        from .services.reverify import status_for
+        if status_for(user) == 'warning':
+            response['X-Email-Reverify'] = 'warning'
+
+        return response

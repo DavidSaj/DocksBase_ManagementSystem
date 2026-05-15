@@ -152,3 +152,62 @@ class IPAllowlistPermission(BasePermission):
             'code': 'ip_not_allowed',
         }
         return False
+
+
+# ---------------------------------------------------------------------------
+# EmailReverifyPermission (Task 3)
+# ---------------------------------------------------------------------------
+
+class EmailReverifyPermission(BasePermission):
+    """
+    Global DRF permission class enforcing periodic email re-verification.
+
+    Users whose email_verified_at (or created_at fallback) is ≥ 210 days ago
+    are hard-blocked. Users at 180–209 days receive a warning header (set via
+    EmailReverifyHeaderMiddleware in middleware.py, not here — DRF permission
+    classes cannot add response headers).
+
+    Exempt paths (login, token refresh, the re-verify endpoints themselves) are
+    always allowed through, even for blocked users.
+
+    Boaters are exempt per spec §Non-goals.
+    """
+
+    EXEMPT_PATHS = frozenset({
+        '/api/v1/auth/token/',
+        '/api/v1/auth/token/refresh/',
+        '/api/v1/auth/token/mfa-verify/',
+        '/api/v1/auth/token/mfa-enroll-complete/',
+        '/api/v1/auth/verify-email/',
+        '/api/v1/auth/reverify-email/request/',
+        '/api/v1/auth/reverify-email/confirm/',
+        '/api/v1/auth/me/',
+        '/healthz',
+        '/api/v1/healthz',
+    })
+
+    message = {
+        'detail': 'Email re-verification required.',
+        'code': 'email_reverify_required',
+    }
+
+    def has_permission(self, request, view) -> bool:
+        # Exempt paths bypass enforcement (auth endpoints, reverify itself, etc.)
+        if request.path in self.EXEMPT_PATHS:
+            return True
+
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated):
+            return True  # leave anonymous to IsAuthenticated
+
+        # Boaters are explicitly out of scope — see spec §Non-goals.
+        if getattr(user, 'role', None) == 'boater':
+            return True
+
+        from .services.reverify import status_for
+        status = status_for(user)
+        if status == 'blocked':
+            return False  # DRF returns 403 with self.message
+
+        # 'warning' is signalled via X-Email-Reverify header in EmailReverifyHeaderMiddleware
+        return True

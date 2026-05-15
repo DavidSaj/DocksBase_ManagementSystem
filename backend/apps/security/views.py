@@ -304,3 +304,77 @@ class WhoamiIPView(APIView):
 
     def get(self, request):
         return Response({'ip': _client_ip(request)})
+
+
+# ---------------------------------------------------------------------------
+# Task 3: Email re-verification endpoints
+# ---------------------------------------------------------------------------
+
+class ReverifyEmailRequestView(APIView):
+    """
+    POST /api/v1/auth/reverify-email/request/
+
+    Generates a new EmailVerification token for the authenticated user and
+    sends a re-verification email. Returns 204 No Content.
+
+    This endpoint is in EmailReverifyPermission.EXEMPT_PATHS and
+    IPAllowlistPermission._EXEMPT_PATHS so that blocked users can always
+    reach it to unblock themselves.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from apps.accounts.models import EmailVerification
+        from apps.accounts.emails import send_verification_email
+
+        user = request.user
+
+        # Replace any existing token (idempotent — re-sending is always safe)
+        EmailVerification.objects.filter(user=user).delete()
+        ev = EmailVerification.objects.create(user=user)
+
+        send_verification_email(user, ev.token)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ReverifyEmailConfirmView(APIView):
+    """
+    POST /api/v1/auth/reverify-email/confirm/
+
+    Body: {token: "<uuid>"}
+
+    Looks up the EmailVerification token, verifies it, sets
+    user.email_verified_at = now(), and deletes the token. Returns 200.
+
+    This endpoint is anonymous (no JWT required) so the frontend can
+    handle re-verification like the original email-verify flow.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from apps.accounts.models import EmailVerification
+        from django.db import transaction as _tx
+
+        token = request.data.get('token')
+        if not token:
+            return Response(
+                {'detail': 'Token is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            ev = EmailVerification.objects.select_related('user').get(token=token)
+        except (EmailVerification.DoesNotExist, ValueError):
+            return Response(
+                {'detail': 'Invalid or expired token.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with _tx.atomic():
+            user = ev.user
+            user.email_verified_at = timezone.now()
+            user.save(update_fields=['email_verified_at'])
+            ev.delete()
+
+        return Response({'detail': 'Email re-verified successfully.'}, status=status.HTTP_200_OK)

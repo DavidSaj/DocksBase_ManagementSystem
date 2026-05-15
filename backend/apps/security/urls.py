@@ -10,6 +10,8 @@ from .views import (
     MFAStatusView,
     IPAllowlistViewSet,
     WhoamiIPView,
+    ReverifyEmailRequestView,
+    ReverifyEmailConfirmView,
 )
 
 router = DefaultRouter()
@@ -27,4 +29,10 @@ urlpatterns = [
 
     # Whoami-IP helper (Task 2)
     path('security/whoami-ip/', WhoamiIPView.as_view(), name='whoami-ip'),
+
+    # Task 3: Email re-verification endpoints.
+    # These paths resolve to /api/v1/auth/reverify-email/... because
+    # apps.security.urls is included at path('') under /api/v1/ in config/urls.py.
+    path('auth/reverify-email/request/', ReverifyEmailRequestView.as_view(), name='reverify-email-request'),
+    path('auth/reverify-email/confirm/', ReverifyEmailConfirmView.as_view(), name='reverify-email-confirm'),
 ]

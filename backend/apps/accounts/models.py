@@ -213,6 +213,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
     )
 
+    # Security T3: periodic email re-verification (180/210-day thresholds).
+    # Null means never explicitly verified via re-verification flow; the
+    # backfill migration sets this to created_at for all pre-existing users so
+    # they don't immediately hit the 210-day hard block.
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
 
