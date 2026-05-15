@@ -12,6 +12,7 @@ from .views import (
     WhoamiIPView,
     ReverifyEmailRequestView,
     ReverifyEmailConfirmView,
+    AuditLogListView,
 )
 
 router = DefaultRouter()
@@ -29,6 +30,9 @@ urlpatterns = [
 
     # Whoami-IP helper (Task 2)
     path('security/whoami-ip/', WhoamiIPView.as_view(), name='whoami-ip'),
+
+    # Task 4: Audit log (owner-only, paginated, newest first)
+    path('security/audit/', AuditLogListView.as_view(), name='security-audit'),
 
     # Task 3: Email re-verification endpoints.
     # These paths resolve to /api/v1/auth/reverify-email/... because

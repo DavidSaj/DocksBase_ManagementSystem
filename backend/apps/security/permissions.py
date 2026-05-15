@@ -146,7 +146,19 @@ class IPAllowlistPermission(BasePermission):
         if any(_ip_in_cidr(ip, e.cidr) for e in entries):
             return True
 
-        # TODO(audit-log): log ip_blocked event once SecurityAuditLog lands in T4
+        # Log the blocked request (T4 audit log)
+        try:
+            from apps.security.services.audit import log_event
+            log_event(
+                marina=marina,
+                actor=user,
+                event_type='ip_blocked',
+                payload={'path': request.path},
+                request=request,
+            )
+        except Exception:
+            pass  # Never let audit failure break the permission check
+
         self.message = {
             'detail': 'Your IP address is not allowed for this marina.',
             'code': 'ip_not_allowed',

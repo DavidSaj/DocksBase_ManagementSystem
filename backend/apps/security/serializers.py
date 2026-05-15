@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.security.models import MarinaIPAllowlist
+from apps.security.models import MarinaIPAllowlist, SecurityAuditLog
 
 
 class MFAStatusSerializer(serializers.Serializer):
@@ -49,4 +49,25 @@ class MarinaIPAllowlistSerializer(serializers.ModelSerializer):
     def get_created_by_email(self, obj):
         if obj.created_by:
             return obj.created_by.email
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Task 4: Audit Log
+# ---------------------------------------------------------------------------
+
+class SecurityAuditLogSerializer(serializers.ModelSerializer):
+    actor_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SecurityAuditLog
+        fields = [
+            'id', 'event_type', 'payload', 'ip_address', 'user_agent',
+            'actor_email', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_actor_email(self, obj):
+        if obj.actor:
+            return obj.actor.email
         return None

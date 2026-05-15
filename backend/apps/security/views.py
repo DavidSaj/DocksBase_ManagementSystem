@@ -10,8 +10,10 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from rest_framework.pagination import PageNumberPagination
+
 from apps.accounts.serializers import UserSerializer
-from apps.security.models import MFABackupCode, MarinaIPAllowlist
+from apps.security.models import MFABackupCode, MarinaIPAllowlist, SecurityAuditLog
 from apps.security.permissions import IsMarinaOwner, _client_ip, _ip_in_cidr
 from apps.security.serializers import (
     MFADisableSerializer,
@@ -19,6 +21,7 @@ from apps.security.serializers import (
     MFALoginEnrollCompleteSerializer,
     MFALoginVerifySerializer,
     MarinaIPAllowlistSerializer,
+    SecurityAuditLogSerializer,
 )
 from apps.security.services import mfa as mfa_service
 
@@ -88,6 +91,12 @@ class MFAEnrollCompleteView(APIView):
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Audit: MFA enrolled (settings flow)
+        from apps.security.services.audit import log_event
+        marina = getattr(user, 'marina', None)
+        if marina is not None:
+            log_event(marina=marina, actor=user, event_type='mfa_enrolled', payload={}, request=request)
+
         return Response({
             'enrolled_at': mfa.enrolled_at,
             'backup_codes': raw_codes,
@@ -106,10 +115,20 @@ class MFADisableView(APIView):
         if not ser.is_valid():
             return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        user = request.user
         try:
-            mfa_service.disable_mfa(request.user, ser.validated_data['password'])
+            mfa_service.disable_mfa(user, ser.validated_data['password'])
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Audit: MFA disabled
+        from apps.security.services.audit import log_event
+        marina = getattr(user, 'marina', None)
+        if marina is not None:
+            log_event(
+                marina=marina, actor=user, event_type='mfa_disabled',
+                payload={'disabled_via': 'self'}, request=request,
+            )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -145,20 +164,53 @@ class MFALoginVerifyView(APIView):
             )
 
         user = challenge.user
+        marina = getattr(user, 'marina', None)
 
-        # Try TOTP first, then backup code
+        # Try TOTP first, then backup code — track which method succeeded
+        from apps.security.services.audit import log_event
+
         verified = mfa_service.verify_totp(user, code)
+        method_used = 'totp' if verified else None
+
         if not verified:
             verified = mfa_service.consume_backup_code(user, code)
+            if verified:
+                method_used = 'backup_code'
 
         if not verified:
             mfa_service.record_failed_attempt(challenge)
+            # Audit: mfa_failed — determine reason
+            if challenge.invalidated_at is not None:
+                reason = 'invalidated_challenge'
+            elif challenge.expires_at < timezone.now():
+                reason = 'expired_challenge'
+            else:
+                reason = 'bad_code'
+            if marina is not None:
+                log_event(
+                    marina=marina, actor=user, event_type='mfa_failed',
+                    payload={'reason': reason}, request=request,
+                )
             return Response(
                 {'detail': 'Invalid MFA code.'},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
         mfa_service.mark_challenge_consumed(challenge)
+
+        # Audit: mfa_succeeded
+        if marina is not None:
+            log_event(
+                marina=marina, actor=user, event_type='mfa_succeeded',
+                payload={'method': method_used}, request=request,
+            )
+            # Audit: backup_code_used (remaining count)
+            if method_used == 'backup_code':
+                remaining = MFABackupCode.objects.filter(user=user, used_at__isnull=True).count()
+                log_event(
+                    marina=marina, actor=user, event_type='backup_code_used',
+                    payload={'remaining': remaining}, request=request,
+                )
 
         refresh = RefreshToken.for_user(user)
         response_data = {
@@ -210,6 +262,12 @@ class MFALoginEnrollCompleteView(APIView):
 
         mfa_service.mark_challenge_consumed(challenge)
 
+        # Audit: MFA enrolled (login Case D enrollment)
+        from apps.security.services.audit import log_event
+        marina = getattr(user, 'marina', None)
+        if marina is not None:
+            log_event(marina=marina, actor=user, event_type='mfa_enrolled', payload={}, request=request)
+
         refresh = RefreshToken.for_user(user)
         return Response({
             'access': str(refresh.access_token),
@@ -249,6 +307,19 @@ class IPAllowlistViewSet(ModelViewSet):
     def perform_create(self, serializer):
         marina = self.request.user.marina
         serializer.save(marina=marina, created_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        """Override to audit before deletion."""
+        from apps.security.services.audit import log_event
+        marina = self.request.user.marina
+        log_event(
+            marina=marina,
+            actor=self.request.user,
+            event_type='ip_allowlist_removed',
+            payload={'cidr': instance.cidr, 'label': instance.label},
+            request=self.request,
+        )
+        instance.delete()
 
     def create(self, request, *args, **kwargs):
         """
@@ -291,6 +362,20 @@ class IPAllowlistViewSet(ModelViewSet):
 
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
+
+        # Audit: IP allowlist entry added
+        from apps.security.services.audit import log_event
+        log_event(
+            marina=marina,
+            actor=request.user,
+            event_type='ip_allowlist_added',
+            payload={
+                'cidr': serializer.validated_data['cidr'],
+                'label': serializer.validated_data.get('label', ''),
+            },
+            request=request,
+        )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
@@ -373,8 +458,56 @@ class ReverifyEmailConfirmView(APIView):
 
         with _tx.atomic():
             user = ev.user
+            previous_verified_at = user.email_verified_at
             user.email_verified_at = timezone.now()
             user.save(update_fields=['email_verified_at'])
             ev.delete()
 
+        # Audit: email re-verified
+        from apps.security.services.audit import log_event
+        marina = getattr(user, 'marina', None)
+        if marina is not None:
+            log_event(
+                marina=marina,
+                actor=user,
+                event_type='email_reverified',
+                payload={
+                    'previous_verified_at': (
+                        previous_verified_at.isoformat() if previous_verified_at else None
+                    ),
+                },
+                request=request,
+            )
+
         return Response({'detail': 'Email re-verified successfully.'}, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: Audit Log
+# ---------------------------------------------------------------------------
+
+class AuditLogPagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class AuditLogListView(APIView):
+    """
+    GET /api/v1/security/audit/
+    Returns a paginated list of SecurityAuditLog events for the caller's marina.
+    Newest events first. Owner-only.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsMarinaOwner]
+
+    def get(self, request):
+        marina = getattr(request.user, 'marina', None)
+        if marina is None:
+            return Response([], status=status.HTTP_200_OK)
+
+        qs = SecurityAuditLog.objects.filter(marina=marina).order_by('-created_at')
+
+        paginator = AuditLogPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        serializer = SecurityAuditLogSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)

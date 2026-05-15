@@ -50,6 +50,7 @@ urlpatterns = [
         path('', include('apps.marketplace.urls')),
         path('', include('apps.tickets.urls')),
         path('', include('apps.security.urls')),
+        path('', include('apps.api_keys.urls')),
     ])),
 ]
 

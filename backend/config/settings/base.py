@@ -80,6 +80,7 @@ LOCAL_APPS = [
     'apps.marketplace',
     'apps.tickets',
     'apps.security',
+    'apps.api_keys',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -237,6 +238,7 @@ CHANNEL_LAYERS = {
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'apps.security.authentication.MFAGatedJWTAuthentication',
+        'apps.api_keys.authentication.APIKeyAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',

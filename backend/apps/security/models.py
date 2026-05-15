@@ -141,3 +141,60 @@ class MarinaIPAllowlist(models.Model):
 
     def __str__(self):
         return f'MarinaIPAllowlist({self.marina_id}, {self.cidr})'
+
+
+# ---------------------------------------------------------------------------
+# Task 4: Security Audit Log
+# ---------------------------------------------------------------------------
+
+class SecurityAuditLog(models.Model):
+    """
+    Append-only record of security-relevant events.
+
+    Owner-readable, never editable or deletable via the API.
+    Retention policy is not yet defined — leave that to a future cleanup task.
+
+    payload shape is event_type-specific — see spec §Audit log payload schema.
+    Never include raw secrets, passwords, codes, or challenge tokens in payload.
+    """
+
+    EVENT_CHOICES = [
+        ('mfa_enrolled', 'MFA enrolled'),
+        ('mfa_disabled', 'MFA disabled'),
+        ('mfa_failed', 'MFA verification failed'),
+        ('mfa_succeeded', 'MFA verification succeeded'),
+        ('backup_code_used', 'Backup code used'),
+        ('ip_allowlist_added', 'IP allowlist entry added'),
+        ('ip_allowlist_removed', 'IP allowlist entry removed'),
+        ('ip_blocked', 'Request blocked by IP allowlist'),
+        ('password_changed', 'Password changed'),
+        ('email_reverified', 'Email re-verified'),
+        ('api_key_created', 'API key created'),
+        ('api_key_revoked', 'API key revoked'),
+        ('api_key_deleted', 'API key deleted'),
+    ]
+
+    marina = models.ForeignKey(
+        'accounts.Marina',
+        on_delete=models.CASCADE,
+        related_name='security_events',
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    event_type = models.CharField(max_length=40, choices=EVENT_CHOICES, db_index=True)
+    payload = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['marina', '-created_at'])]
+
+    def __str__(self):
+        return f'SecurityAuditLog({self.marina_id}, {self.event_type}, {self.created_at})'
