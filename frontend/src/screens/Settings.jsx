@@ -4,6 +4,7 @@ import useMarina from '../hooks/useMarina.js';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
+import SecurityCard from './Settings/SecurityCard.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -1509,31 +1510,11 @@ export default function Settings() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Security — Coming Soon */}
+            {/* Security */}
             <div className="card">
               <div className="card-header"><div className="card-header-title">Security</div></div>
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <ComingSoonBanner />
-                <div style={{ opacity: 0.5, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>Two-factor authentication</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>Required for Owners & Managers</div>
-                    </div>
-                    <span className="badge badge-gray">Not configured</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>Session timeout</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>Auto-logout after idle period</div>
-                    </div>
-                    <span className="badge badge-gray">—</span>
-                  </div>
-                  <FieldRow label="IP Allowlist" hint="Leave blank to allow all IPs">
-                    <input type="text" disabled placeholder="e.g. 192.168.1.0/24" />
-                  </FieldRow>
-                  <button className="btn btn-ghost btn-sm" disabled style={{ alignSelf: 'flex-start' }}>View Audit Log</button>
-                </div>
+                <SecurityCard />
               </div>
             </div>
 
