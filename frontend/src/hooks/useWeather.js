@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react';
+import api from '../api.js';
 
-const WMO = {
-  0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
-  45: 'Fog', 48: 'Icy fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
-  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
-  71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
-  80: 'Showers', 81: 'Heavy showers', 82: 'Violent showers',
-  95: 'Thunderstorm', 96: 'Thunderstorm + hail', 99: 'Thunderstorm + heavy hail',
-};
-
-function degToCompass(deg) {
-  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
-}
-
+/**
+ * Fetches current weather from the backend, which proxies OpenWeatherMap
+ * if the marina has configured an API key, or Open-Meteo as a free fallback.
+ * The hook keeps the `weather` shape consistent with what Overview.jsx renders.
+ *
+ * The `lat`/`lng` args are kept for backward compatibility / gating only —
+ * the backend reads the marina's location from the authenticated user, but
+ * skipping the fetch when no location is set spares a 400 round-trip.
+ */
 export default function useWeather(lat, lng) {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,28 +17,28 @@ export default function useWeather(lat, lng) {
 
   useEffect(() => {
     if (!lat || !lng) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
-    const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,wind_speed_10m,wind_direction_10m,weathercode&wind_speed_unit=kn`;
-    const mUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&current=wave_height`;
-
-    Promise.all([
-      fetch(wUrl).then(r => r.json()),
-      fetch(mUrl).then(r => r.json()).catch(() => null),
-    ])
-      .then(([w, m]) => {
-        const c = w.current;
+    api.get('/marina/weather/')
+      .then(({ data }) => {
+        if (cancelled) return;
         setWeather({
-          temp: `${Math.round(c.temperature_2m)}°C`,
-          wind: `${Math.round(c.wind_speed_10m)}kn ${degToCompass(c.wind_direction_10m)}`,
-          swell: m?.current?.wave_height != null ? `${m.current.wave_height}m` : '—',
-          condition: WMO[c.weathercode] ?? 'Unknown',
-          updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          temp: `${data.temp_c}°C`,
+          wind: `${data.wind_kn}kn${data.wind_dir ? ` ${data.wind_dir}` : ''}`,
+          swell: data.wave_height_m != null ? `${data.wave_height_m}m` : '—',
+          condition: data.condition || 'Unknown',
+          source: data.source,
+          updatedAt: data.updated_at
+            ? new Date(data.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '',
         });
       })
-      .catch(e => setError(e))
-      .finally(() => setLoading(false));
+      .catch(e => { if (!cancelled) setError(e); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
   }, [lat, lng]);
 
   return { weather, loading, error };

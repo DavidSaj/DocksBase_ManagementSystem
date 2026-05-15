@@ -17,7 +17,7 @@ const { eyebrow, title, body, checklist, cta, image, alt, reverse = false, cream
 ---
 <section class={`${styles.section} ${cream ? styles.cream : ''}`} id="about">
   <div class={styles.inner}>
-    <div class={`${styles.layout} ${reverse ? styles.reverse : ''}`}>
+    <div class={`${styles.layout} ${reverse ? styles.reverse : ''}`} data-split-layout>
       <div class={styles.imageWrap}>
         <img src={image} alt={alt} loading="lazy" class={styles.img} />
         <div class={styles.imgOverlay} />
@@ -43,3 +43,16 @@ const { eyebrow, title, body, checklist, cta, image, alt, reverse = false, cream
     </div>
   </div>
 </section>
+
+<script define:vars={{ imgCls: styles.imageWrap, imgVisibleCls: styles.imageVisible, textCls: styles.text, textVisibleCls: styles.textVisible }}>
+  document.querySelectorAll('[data-split-layout]').forEach(layout => {
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        layout.querySelector('.' + imgCls)?.classList.add(imgVisibleCls)
+        layout.querySelector('.' + textCls)?.classList.add(textVisibleCls)
+        obs.unobserve(layout)
+      }
+    }, { threshold: 0.12 })
+    obs.observe(layout)
+  })
+</script>

@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro'
 import Nav from '../../components/Nav'
 import Hero from '../../components/Hero.astro'
 import TrustBar from '../../components/TrustBar.astro'
-import Features from '../../components/Features.astro'
+import Features from '../../components/Features'
 import Stats from '../../components/Stats.astro'
 import ProductSection from '../../components/ProductSection.astro'
 import SplitSection from '../../components/SplitSection.astro'
@@ -27,7 +27,7 @@ const t = getStrings(lang)
   <Nav lang={lang} t={t} client:load />
   <Hero t={t} />
   <TrustBar />
-  <Features />
+  <Features client:visible />
   <Stats />
   <ProductSection />
 

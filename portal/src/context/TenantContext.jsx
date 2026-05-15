@@ -12,6 +12,8 @@ export function detectTenant() {
   const { hostname, pathname, search } = window.location;
 
   if (APP_HOSTNAMES.has(hostname)) return null;
+  // Preview iframe — bypass tenant detection entirely.
+  if (pathname.startsWith('/__preview')) return null;
 
   const params = new URLSearchParams(search);
   const prefill = {};

@@ -4,6 +4,8 @@ from django.db import models, IntegrityError as _IntegrityError, transaction as 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils.text import slugify
 
+from .fields import EncryptedCharField
+
 
 def _default_onboarding():
     return {
@@ -70,6 +72,24 @@ class Marina(models.Model):
     waiver_template_id = models.CharField(max_length=255, null=True, blank=True)
     dropboxsign_api_key    = models.CharField(max_length=255, blank=True, default='')
     dropboxsign_client_id  = models.CharField(max_length=255, blank=True, default='')
+    marinetraffic_api_key  = models.CharField(max_length=255, blank=True, default='')
+    openweathermap_api_key = models.CharField(max_length=255, blank=True, default='')
+    basin_polygon = models.JSONField(
+        default=list, blank=True,
+        help_text='Marina basin polygon as list of [lat, lng] vertices. Used for AIS arrival detection.',
+    )
+    ais_poll_radius_nm = models.IntegerField(
+        default=10,
+        help_text='Bounding-box radius around marina lat/lng (nautical miles) used to query AIS providers.',
+    )
+    docusign_api_key       = models.CharField(max_length=255, blank=True, default='')
+    docusign_account_id    = models.CharField(max_length=255, blank=True, default='')
+    docusign_user_id       = models.CharField(max_length=64, blank=True, default='')
+    docusign_private_key   = models.TextField(blank=True, default='')
+    docusign_base_url      = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text='Account base URL, e.g. https://demo.docusign.net/restapi or https://na2.docusign.net/restapi',
+    )
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
@@ -122,8 +142,32 @@ class Marina(models.Model):
     smtp_host     = models.CharField(max_length=255, blank=True, help_text='SMTP host (leave blank to use platform default).')
     smtp_port     = models.PositiveIntegerField(null=True, blank=True, help_text='SMTP port, e.g. 587.')
     smtp_user     = models.CharField(max_length=255, blank=True)
-    smtp_password = models.CharField(max_length=255, blank=True, help_text='Stored in plaintext — use environment secrets for production deployments.')
+    smtp_password = EncryptedCharField(max_length=512, blank=True, help_text='Encrypted at rest with DOCKSBASE_FERNET_KEY.')
     smtp_use_tls  = models.BooleanField(default=True)
+
+    # SMS configuration (per-marina provider override; falls back to platform defaults)
+    SMS_PROVIDER_CHOICES = [
+        ('twilio',      'Twilio'),
+        ('vonage',      'Vonage'),
+        ('messagebird', 'MessageBird'),
+    ]
+    sms_enabled       = models.BooleanField(default=False, help_text='Master switch for outgoing SMS from this marina.')
+    sms_provider      = models.CharField(max_length=20, choices=SMS_PROVIDER_CHOICES, default='twilio', blank=True)
+    # Twilio
+    twilio_account_sid = models.CharField(max_length=64,  blank=True)
+    twilio_auth_token  = EncryptedCharField(max_length=512, blank=True, help_text='Encrypted at rest with DOCKSBASE_FERNET_KEY.')
+    twilio_from_number = models.CharField(max_length=32,  blank=True, help_text='E.164 format, e.g. +14155551234.')
+    # Vonage (formerly Nexmo)
+    vonage_api_key     = models.CharField(max_length=64,  blank=True)
+    vonage_api_secret  = EncryptedCharField(max_length=512, blank=True, help_text='Encrypted at rest with DOCKSBASE_FERNET_KEY.')
+    vonage_from        = models.CharField(max_length=32,  blank=True, help_text='Sender ID or E.164 number.')
+    # MessageBird
+    messagebird_access_key = EncryptedCharField(max_length=512, blank=True, help_text='Encrypted at rest with DOCKSBASE_FERNET_KEY.')
+    messagebird_originator = models.CharField(max_length=32,  blank=True, help_text='Sender ID or E.164 number.')
+
+    # Notification rules: per-rule channel toggles, e.g.
+    # {'new_booking_confirmation': {'email': true, 'sms': false}, ...}
+    notification_rules = models.JSONField(default=dict, blank=True)
 
     # Track 5 — Warranty GL accounts
     # billing.Account does not yet exist; using billing.ChargeableItem as a

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
 
 const CATEGORY_LABELS = {
@@ -103,19 +104,15 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
   }, [open, item, category]);
 
   useEffect(() => {
-    if (open) {
-      // Assume api is available globally or passed as prop; adjust as needed
-      const api = window.api || (typeof window !== 'undefined' && window.fetch ? window.fetch : null);
-      if (api && typeof api.get === 'function') {
-        api.get('/billing/tax-rates/').then(data => {
-          setTaxRates(data);
-          if (!item) {
-            const def = data.find(r => r.is_default);
-            if (def) setForm(f => ({ ...f, tax_category_id: String(def.id) }));
-          }
-        }).catch(() => {});
+    if (!open) return;
+    api.get('/billing/tax-rates/').then(({ data }) => {
+      const list = Array.isArray(data) ? data : (data?.results ?? []);
+      setTaxRates(list);
+      if (!item) {
+        const def = list.find(r => r.is_default);
+        if (def) setForm(f => ({ ...f, tax_category_id: String(def.id) }));
       }
-    }
+    }).catch(() => {});
   }, [open, item]);
 
   function set(k) {

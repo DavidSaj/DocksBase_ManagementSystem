@@ -1,110 +1,106 @@
-from django.conf import settings
+"""
+E-signature service layer.
 
-try:
-    import dropbox_sign
-except ImportError:
-    dropbox_sign = None  # type: ignore[assignment]
+Public API (unchanged from the original module-level functions, so callers
+in apps.documents.views and apps.portal.checkin_views keep working):
 
+    create_embedded_template_draft(template, file_path, *, marina) -> edit_url
+    send_envelope(envelope, *, marina) -> request_id_or_envelope_id
+    get_signed_pdf_url(envelope_or_request_id, *, marina) -> url
+    create_embedded_sign_url(booking, template_id, *, marina, envelope_pk=None)
+        -> (request_id, sign_url)
+    get_existing_embedded_sign_url(envelope_or_request_id, *, marina) -> url
 
-def _api_client(api_key: str):
-    configuration = dropbox_sign.Configuration(username=api_key)
-    return dropbox_sign.ApiClient(configuration)
+Behind the scenes each function picks a provider via `_provider_for(...)`
+and delegates. Today only DropboxSignProvider is implemented; DocuSignProvider
+lives in `.providers.docusign` and will be wired in once we ship the JWT auth
+work.
+"""
+from __future__ import annotations
 
-
-def _resolve_api_key(api_key):
-    """Use marina key if provided, fall back to global setting."""
-    return api_key or getattr(settings, 'DROPBOX_SIGN_API_KEY', '')
-
-
-def create_embedded_template_draft(template, file_path: str, *, api_key: str, client_id: str) -> str:
-    with _api_client(_resolve_api_key(api_key)) as client:
-        api = dropbox_sign.TemplateApi(client)
-        data = dropbox_sign.EmbeddedCreateEmbeddedTemplateDraftRequest(
-            client_id=client_id or getattr(settings, 'DROPBOX_SIGN_CLIENT_ID', ''),
-            files=[file_path],
-            title=template.name,
-            signer_roles=[{'name': 'Member', 'order': 0}],
-            metadata={
-                'marina_id': str(template.marina_id),
-                'template_pk': str(template.pk),
-            },
-        )
-        result = api.create_embedded_template_draft(data)
-        return result.embedded_template.edit_url
+from .providers.base   import ESignProvider
+from .providers.dropbox import DropboxSignProvider
+from .providers.docusign import DocuSignProvider
 
 
-def send_envelope(envelope, *, api_key: str, client_id: str = '') -> str:
-    with _api_client(_resolve_api_key(api_key)) as client:
-        api = dropbox_sign.SignatureRequestApi(client)
-        signer = dropbox_sign.SubSignatureRequestTemplateSigner(
-            role='Member',
-            name=envelope.recipient.name,
-            email_address=envelope.recipient.email,
-        )
-        data = dropbox_sign.SignatureRequestSendWithTemplateRequest(
-            template_ids=[envelope.template.dropboxsign_template_id],
-            signers=[signer],
-            metadata={
-                'marina_id': str(envelope.marina_id),
-                'envelope_pk': str(envelope.pk),
-            },
-        )
-        result = api.send_with_template(data)
-        return result.signature_request.signature_request_id
+def _provider_for_template(template) -> ESignProvider:
+    return _provider(template.provider, template.marina)
 
 
-def get_signed_pdf_url(signature_request_id: str, *, api_key: str) -> str:
-    with _api_client(_resolve_api_key(api_key)) as client:
-        api = dropbox_sign.SignatureRequestApi(client)
-        result = api.get(signature_request_id)
-        return result.signature_request.signing_url
+def _provider_for_envelope(envelope) -> ESignProvider:
+    return _provider(envelope.provider, envelope.marina)
+
+
+def _provider(provider_key: str, marina) -> ESignProvider:
+    if provider_key == 'docusign':
+        return DocuSignProvider(marina)
+    return DropboxSignProvider(marina)
+
+
+def create_embedded_template_draft(template, file_path: str, *, api_key: str = '', client_id: str = '') -> str:
+    """
+    NOTE: `api_key`/`client_id` kept as keyword args for backward compatibility
+    with the existing caller in `apps.documents.views`. They are ignored — the
+    provider reads credentials from `template.marina`.
+    """
+    return _provider_for_template(template).create_embedded_template_draft(template, file_path)
+
+
+def send_envelope(envelope, *, api_key: str = '', client_id: str = '') -> str:
+    return _provider_for_envelope(envelope).send_envelope(envelope)
+
+
+def get_signed_pdf_url(envelope_or_request_id, *, api_key: str = '', marina=None) -> str:
+    """
+    Backward-compatible: callers pass a raw request_id and the dropboxsign
+    api_key. We accept that, or a richer (envelope, marina) call. If only
+    request_id is provided we cannot know the provider, so we default to
+    Dropbox Sign — matching previous behavior.
+    """
+    from apps.documents.models import Envelope
+    if hasattr(envelope_or_request_id, 'provider'):
+        env = envelope_or_request_id
+        return _provider_for_envelope(env).get_signed_pdf_url(env.provider_request_id())
+    # Legacy path
+    env = Envelope.objects.filter(dropboxsign_request_id=envelope_or_request_id).first()
+    if env:
+        return _provider_for_envelope(env).get_signed_pdf_url(envelope_or_request_id)
+    if marina:
+        return DropboxSignProvider(marina).get_signed_pdf_url(envelope_or_request_id)
+    raise ValueError('marina argument is required for legacy get_signed_pdf_url call.')
 
 
 def create_embedded_sign_url(
     booking,
-    ds_template_id: str,
+    template_id: str,
     *,
-    api_key: str,
-    client_id: str,
+    api_key: str = '',
+    client_id: str = '',
     envelope_pk=None,
+    marina=None,
+    provider_key: str = 'dropboxsign',
 ) -> tuple[str, str]:
-    """Create an embedded signature request for the boater waiver.
-
-    Returns (signature_request_id, sign_url).
     """
-    with _api_client(_resolve_api_key(api_key)) as client:
-        sig_api = dropbox_sign.SignatureRequestApi(client)
-        embedded_api = dropbox_sign.EmbeddedApi(client)
-
-        metadata = {'booking_id': str(booking.id)}
-        if envelope_pk is not None:
-            metadata['envelope_pk'] = str(envelope_pk)
-
-        data = dropbox_sign.SignatureRequestCreateEmbeddedWithTemplateRequest(
-            client_id=client_id or getattr(settings, 'DROPBOX_SIGN_CLIENT_ID', ''),
-            template_ids=[ds_template_id],
-            subject='Marina Waiver',
-            signers=[
-                dropbox_sign.SubSignatureRequestTemplateSigner(
-                    role='Boater',
-                    name=booking.guest_name or 'Boater',
-                    email_address=booking.guest_email,
-                )
-            ],
-            metadata=metadata,
-        )
-        sig_response = sig_api.signature_request_create_embedded_with_template(data)
-        request_id = sig_response.signature_request.signature_request_id
-        signature_id = sig_response.signature_request.signatures[0].signature_id
-        url_response = embedded_api.embedded_sign_url(signature_id)
-        return request_id, url_response.embedded.sign_url
+    Boater-waiver path. Caller must pass either `marina` (preferred) or fall
+    back to legacy positional. `provider_key` selects which provider to use.
+    """
+    marina = marina or getattr(booking, 'marina', None)
+    if marina is None:
+        raise ValueError('marina is required for create_embedded_sign_url.')
+    return _provider(provider_key, marina).create_embedded_sign_url(
+        booking, template_id, envelope_pk=envelope_pk,
+    )
 
 
-def get_existing_embedded_sign_url(signature_request_id: str, *, api_key: str) -> str:
-    with _api_client(_resolve_api_key(api_key)) as client:
-        sig_api = dropbox_sign.SignatureRequestApi(client)
-        embedded_api = dropbox_sign.EmbeddedApi(client)
-        sig_response = sig_api.signature_request_get(signature_request_id)
-        signature_id = sig_response.signature_request.signatures[0].signature_id
-        url_response = embedded_api.embedded_sign_url(signature_id)
-        return url_response.embedded.sign_url
+def get_existing_embedded_sign_url(envelope_or_request_id, *, api_key: str = '', marina=None,
+                                   provider_key: str = 'dropboxsign') -> str:
+    from apps.documents.models import Envelope
+    if hasattr(envelope_or_request_id, 'provider'):
+        env = envelope_or_request_id
+        return _provider_for_envelope(env).get_existing_embedded_sign_url(env.provider_request_id())
+    env = Envelope.objects.filter(dropboxsign_request_id=envelope_or_request_id).first()
+    if env:
+        return _provider_for_envelope(env).get_existing_embedded_sign_url(envelope_or_request_id)
+    if marina is None:
+        raise ValueError('marina argument is required for legacy call.')
+    return _provider(provider_key, marina).get_existing_embedded_sign_url(envelope_or_request_id)

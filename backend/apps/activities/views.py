@@ -3,15 +3,21 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Activity, ActivityBooking, ActivityResourceRequirement, CancellationPolicy
+from .models import Activity, ActivityBooking, ActivityResourceRequirement, ActivityTimeSlot, CancellationPolicy
 from .serializers import (
     ActivityBookingSerializer,
     ActivityResourceRequirementSerializer,
     ActivitySerializer,
+    ActivityTimeSlotSerializer,
     CancellationPolicySerializer,
 )
 from .services.booking import SeasonWarning, ResourceUnavailable, book_activity_session
 from .services.cancellation import cancel_activity_booking
+from .services.transitions import (
+    confirm_requested_booking,
+    reject_requested_booking,
+    CapacityExceeded,
+)
 
 
 class CancellationPolicyViewSet(viewsets.ModelViewSet):
@@ -168,6 +174,30 @@ class ActivityBookingViewSet(viewsets.ModelViewSet):
         except ValueError as exc:
             raise ValidationError({'detail': str(exc)})
 
+    @action(detail=True, methods=['post'], url_path='confirm')
+    def confirm(self, request, pk=None):
+        booking = self.get_object()
+        try:
+            confirm_requested_booking(booking)
+        except CapacityExceeded as exc:
+            return Response(
+                {'detail': 'capacity_exceeded', 'remaining': exc.remaining},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ActivityBookingSerializer(booking).data)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        booking = self.get_object()
+        reason = request.data.get('reason', '')
+        try:
+            reject_requested_booking(booking, reason=reason)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ActivityBookingSerializer(booking).data)
+
     @action(detail=True, methods=['post'], url_path='cancel')
 
     def cancel(self, request, pk=None):
@@ -202,6 +232,24 @@ class ActivityResourceRequirementViewSet(viewsets.ModelViewSet):
             activity__marina=self.request.user.marina
         ).select_related('activity', 'staff_member', 'asset')
 
+        activity_id = self.request.query_params.get('activity')
+        if activity_id:
+            qs = qs.filter(activity_id=activity_id)
+        return qs
+
+
+class ActivityTimeSlotViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for weekly activity time slots.
+    Filters: ?activity=<id>
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ActivityTimeSlotSerializer
+
+    def get_queryset(self):
+        qs = ActivityTimeSlot.objects.filter(
+            activity__marina=self.request.user.marina
+        ).select_related('activity')
         activity_id = self.request.query_params.get('activity')
         if activity_id:
             qs = qs.filter(activity_id=activity_id)

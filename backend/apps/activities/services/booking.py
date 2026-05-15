@@ -22,6 +22,50 @@ from apps.activities.services.availability import (
 from apps.activities.services.billing import create_activity_invoice
 
 
+def attach_assets_and_invoice(booking, required_assets=None):
+    """
+    Create asset reservations and invoice for an existing booking row.
+
+    Must be called inside a transaction.atomic() block.
+
+    Parameters
+    ----------
+    booking:
+        The ActivityBooking instance (already persisted).
+    required_assets:
+        Optional list of (Asset, quantity) pairs. If None, falls back to
+        resolving requirements from booking.activity.resource_requirements.
+        Pass an empty list (or omit) for activities with no resource requirements —
+        the function becomes a no-op on the asset side.
+    """
+    from psycopg2.extras import DateTimeTZRange
+
+    if required_assets is None:
+        # Resolve from the activity's requirements (used by the confirm-from-REQUESTED path)
+        required_assets = []
+        for req in booking.activity.resource_requirements.select_related('asset').all():
+            if req.resource_type == 'asset' and req.asset:
+                required_assets.append((req.asset, req.quantity_required))
+
+    # Asset reservations — ExclusionConstraint will raise IntegrityError on double-book
+    window = DateTimeTZRange(booking.start_datetime, booking.end_datetime)
+    for asset, qty in required_assets:
+        for _ in range(qty):
+            AssetReservation.objects.create(
+                marina=booking.marina,
+                asset=asset,
+                activity_booking=booking,
+                time_range=window,
+            )
+
+    # Invoice creation (for direct payment and berth_invoice modes)
+    payment_mode = booking.payment_mode
+    if payment_mode in ('direct', 'berth_invoice'):
+        invoice = create_activity_invoice(booking)
+        booking.invoice = invoice
+        booking.save(update_fields=['invoice'])
+
+
 class SeasonWarning(Exception):
     """Raised when booking date is outside season window and season_override is False."""
 
@@ -89,7 +133,6 @@ def book_activity_session(
     The ExclusionConstraint on AssetReservation will raise IntegrityError on a race condition
     double-book — the transaction rolls back cleanly, leaving the DB in a consistent state.
     """
-    from psycopg2.extras import DateTimeTZRange
     from apps.staff.models import StaffMember
 
     participant_data  = participant_data or []
@@ -176,22 +219,7 @@ def book_activity_session(
         for edata in extras_data:
             ActivityBookingExtra.objects.create(booking=booking, **edata)
 
-        # Asset reservations — ExclusionConstraint will raise IntegrityError on double-book
-        window = DateTimeTZRange(start_datetime, end_datetime)
-        for asset, qty in required_assets:
-            for _ in range(qty):
-                AssetReservation.objects.create(
-                    marina=marina,
-                    asset=asset,
-                    activity_booking=booking,
-                    time_range=window,
-                )
-
-        # Invoice creation (for direct payment and berth_invoice modes)
-        if payment_mode in ('direct', 'berth_invoice'):
-            invoice = create_activity_invoice(booking)
-            booking.invoice = invoice
-            booking.save(update_fields=['invoice'])
+        attach_assets_and_invoice(booking, required_assets=required_assets)
 
     # Non-blocking: fire ACTIVITY_BOOKED journey trigger (Track 7)
     # Registered on_commit so it only fires after the transaction commits successfully
