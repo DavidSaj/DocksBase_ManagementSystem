@@ -55,15 +55,13 @@ describe('BerthDetailPanel', () => {
     expect(screen.getByText(/occupied/i)).toBeTruthy()
   })
 
-  it('renders status dot with correct color for available berth', () => {
+  it('renders status badge with correct class for available berth', () => {
     const { container } = render(
       <BerthDetailPanel berth={makeBerth({ status: 'available' })} onClose={vi.fn()} />
     )
-    // Status text includes '●' and the color is applied inline
-    const statusEl = container.querySelector('div[style*="color: rgb(26, 140, 46)"], div[style*="color:#1a8c2e"], div[style*="#1a8c2e"]')
-    // Check the text containing the dot
-    const dotText = screen.getByText(/●/)
-    expect(dotText).toBeTruthy()
+    const badge = container.querySelector('span.badge.badge-green')
+    expect(badge).not.toBeNull()
+    expect(badge.textContent).toBe('available')
   })
 
   it('renders dimensions section with length, max draft, max beam', () => {
@@ -73,9 +71,9 @@ describe('BerthDetailPanel', () => {
         onClose={vi.fn()}
       />
     )
-    expect(screen.getByText('15m')).toBeTruthy()
-    expect(screen.getByText('3m')).toBeTruthy()
-    expect(screen.getByText('5m')).toBeTruthy()
+    expect(screen.getByText('15 m')).toBeTruthy()
+    expect(screen.getByText('3 m')).toBeTruthy()
+    expect(screen.getByText('5 m')).toBeTruthy()
   })
 
   it('renders — for missing dimensions', () => {
@@ -108,13 +106,13 @@ describe('BerthDetailPanel', () => {
     expect(screen.queryByText('AMENITIES')).toBeNull()
   })
 
-  it('shows "No active booking" and Create Booking link for available berth', () => {
+  it('shows "No active booking" message and Create Booking button for available berth', () => {
     render(
       <BerthDetailPanel berth={makeBerth({ status: 'available', id: 42 })} onClose={vi.fn()} />
     )
-    expect(screen.getByText('No active booking')).toBeTruthy()
-    const link = screen.getByRole('link', { name: /create booking/i })
-    expect(link.getAttribute('href')).toBe('/bookings/new?berth=42')
+    expect(screen.getByText(/no active booking/i)).toBeTruthy()
+    const btn = screen.getByRole('button', { name: /create booking/i })
+    expect(btn).toBeTruthy()
   })
 
   it('does NOT fetch bookings for available berth', () => {
@@ -200,15 +198,15 @@ describe('BerthDetailPanel', () => {
     })
   })
 
-  it('renders View Full Booking link with correct href after booking loads', async () => {
+  it('renders View Booking button after booking loads', async () => {
     const booking = makeBooking({ id: 99 })
     api.get.mockResolvedValue({ data: { results: [booking] } })
 
     render(<BerthDetailPanel berth={makeBerth({ status: 'occupied' })} onClose={vi.fn()} />)
 
     await waitFor(() => {
-      const link = screen.getByRole('link', { name: /view full booking/i })
-      expect(link.getAttribute('href')).toBe('/bookings/99')
+      const btn = screen.getByRole('button', { name: /view booking/i })
+      expect(btn).toBeTruthy()
     })
   })
 

@@ -42,6 +42,8 @@ vi.mock('../mapBuilderUtils.js', () => ({
     absY: parseFloat(berth.local_y) + 5,
   })),
   sortItemsForRender: vi.fn(items => items),
+  berthCanvasDims: vi.fn(() => ({ berthW: 1, berthH: 2 })),
+  berthDimsForPier: vi.fn(() => ({ berthW: 1, berthH: 2 })),
 }))
 
 // ── Mock api.js (needed transitively by BerthDetailPanel real module before mock kicks in)
