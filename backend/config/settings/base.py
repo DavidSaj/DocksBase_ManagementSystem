@@ -80,6 +80,7 @@ LOCAL_APPS = [
     'apps.tenants',
     'apps.marketplace',
     'apps.tickets',
+    'apps.ais',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -154,6 +155,54 @@ PLATFORM_FEE_RATE = '0.01'  # 1% of GMV
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_CONNECT_WEBHOOK_SECRET = os.environ.get('STRIPE_CONNECT_WEBHOOK_SECRET', '')
+
+# Xero OAuth2 (accounting integration). Empty by default — when unset, the
+# Connect button in Settings tells the user the integration is unconfigured.
+XERO_CLIENT_ID = os.environ.get('XERO_CLIENT_ID', '')
+XERO_CLIENT_SECRET = os.environ.get('XERO_CLIENT_SECRET', '')
+XERO_REDIRECT_URI = os.environ.get('XERO_REDIRECT_URI', '')
+XERO_SCOPES = os.environ.get(
+    'XERO_SCOPES',
+    'offline_access accounting.transactions accounting.contacts accounting.settings'
+)
+
+# QuickBooks Online OAuth2.
+QBO_CLIENT_ID = os.environ.get('QBO_CLIENT_ID', '')
+QBO_CLIENT_SECRET = os.environ.get('QBO_CLIENT_SECRET', '')
+QBO_REDIRECT_URI = os.environ.get('QBO_REDIRECT_URI', '')
+QBO_SCOPES = os.environ.get('QBO_SCOPES', 'com.intuit.quickbooks.accounting openid email profile')
+QBO_SANDBOX = os.environ.get('QBO_SANDBOX', '').lower() in ('1', 'true', 'yes')
+
+# Sage Business Cloud Accounting OAuth2.
+SAGE_CLIENT_ID     = os.environ.get('SAGE_CLIENT_ID', '')
+SAGE_CLIENT_SECRET = os.environ.get('SAGE_CLIENT_SECRET', '')
+SAGE_REDIRECT_URI  = os.environ.get('SAGE_REDIRECT_URI', '')
+SAGE_SCOPES        = os.environ.get('SAGE_SCOPES', 'full_access')
+SAGE_COUNTRY       = os.environ.get('SAGE_COUNTRY', 'gb')   # gb, ie, fr, de, es, us, ca
+
+# MYOB AccountRight Live OAuth2.
+MYOB_CLIENT_ID     = os.environ.get('MYOB_CLIENT_ID', '')
+MYOB_CLIENT_SECRET = os.environ.get('MYOB_CLIENT_SECRET', '')
+MYOB_REDIRECT_URI  = os.environ.get('MYOB_REDIRECT_URI', '')
+MYOB_SCOPES        = os.environ.get('MYOB_SCOPES', 'CompanyFile la.global')
+
+# Dynamics 365 Business Central (Azure AD).
+D365_CLIENT_ID     = os.environ.get('D365_CLIENT_ID', '')
+D365_CLIENT_SECRET = os.environ.get('D365_CLIENT_SECRET', '')
+D365_REDIRECT_URI  = os.environ.get('D365_REDIRECT_URI', '')
+D365_TENANT        = os.environ.get('D365_TENANT', 'organizations')   # AAD tenant id or 'common'/'organizations'
+D365_ENVIRONMENT   = os.environ.get('D365_ENVIRONMENT', 'production') # BC environment name
+
+# Oracle NetSuite OAuth2.
+NETSUITE_CLIENT_ID     = os.environ.get('NETSUITE_CLIENT_ID', '')
+NETSUITE_CLIENT_SECRET = os.environ.get('NETSUITE_CLIENT_SECRET', '')
+NETSUITE_REDIRECT_URI  = os.environ.get('NETSUITE_REDIRECT_URI', '')
+NETSUITE_SCOPES        = os.environ.get('NETSUITE_SCOPES', 'rest_webservices')
+
+# Sage Intacct XML gateway credentials. Sender = marketplace partner identity;
+# user credentials are entered per-marina via the connection form.
+INTACCT_SENDER_ID       = os.environ.get('INTACCT_SENDER_ID', '')
+INTACCT_SENDER_PASSWORD = os.environ.get('INTACCT_SENDER_PASSWORD', '')
 INGRESS_WEBHOOK_SECRET = os.environ.get('INGRESS_WEBHOOK_SECRET', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 WEBSITE_URL = os.environ.get('WEBSITE_URL', '')
@@ -166,6 +215,13 @@ CAPTCHA_PROVIDER   = os.environ.get('CAPTCHA_PROVIDER', 'turnstile')  # 'turnsti
 CAPTCHA_SITE_KEY   = os.environ.get('CAPTCHA_SITE_KEY', '')
 CAPTCHA_SECRET_KEY = os.environ.get('CAPTCHA_SECRET_KEY', '')
 CAPTCHA_BYPASS     = os.environ.get('CAPTCHA_BYPASS', '').lower() == 'true'
+
+# Fernet key used by apps.accounts.encryption to encrypt sensitive credential
+# columns (SMTP password, SMS-provider auth tokens). Required in production —
+# apps.accounts.encryption._fernet() raises at import if DEBUG=False and this
+# is unset. Generate with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+DOCKSBASE_FERNET_KEY = os.environ.get('DOCKSBASE_FERNET_KEY', '')
 
 # Supabase Storage (S3-compatible). Falls back to local FileSystemStorage when env vars absent.
 _supabase_endpoint = os.environ.get('SUPABASE_S3_ENDPOINT', '')
@@ -240,6 +296,11 @@ CELERY_TASK_ROUTES = {
     'sustainability.generate_esg_report_async': {'queue': 'pdf_generation'},
 }
 CELERY_BEAT_SCHEDULE = {
+    # ── AIS (Phase 1) ────────────────────────────────────────────────────────
+    'poll-ais-positions-1min': {
+        'task':     'apps.ais.tasks.poll_ais_for_all_marinas',
+        'schedule': 60.0,  # every 60 seconds
+    },
     # ── Sustainability (Track 12) ─────────────────────────────────────────────
     'roll-sustainability-ledger': {
         'task': 'sustainability.roll_sustainability_ledger',
@@ -280,6 +341,10 @@ CELERY_BEAT_SCHEDULE = {
     'send-prearival-reminders': {
         'task': 'reservations.send_prearival_reminders',
         'schedule': crontab(hour=10, minute=0),          # daily 10:00 UTC
+    },
+    'send-departure-reminders': {
+        'task': 'reservations.send_departure_reminders',
+        'schedule': crontab(hour=9, minute=0),           # daily 09:00 UTC
     },
     'auto-no-show': {
         'task': 'reservations.auto_no_show',

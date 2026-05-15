@@ -641,3 +641,231 @@ class DropboxSignSettingsView(APIView):
             'client_id': marina.dropboxsign_client_id,
             'api_key_tail': key[-4:] if len(key) >= 4 else '',
         })
+
+
+# ---------------------------------------------------------------------------
+# Simple credential-only integration views — store API key (and optional
+# secondary id) on Marina, expose GET/PATCH for the Settings UI.
+# ---------------------------------------------------------------------------
+
+class _SingleKeyIntegrationView(APIView):
+    """
+    Base class for integrations that just hold an API key on the Marina model.
+    Subclasses set `key_field` (and optionally `extra_field` for a second
+    identifier such as a DocuSign account id).
+    """
+    permission_classes = [IsMarinaStaff]
+    key_field   = None   # str — Marina field name for the API key
+    extra_field = None   # optional str — Marina field name for a secondary id
+
+    def _payload(self, marina):
+        key = getattr(marina, self.key_field) or ''
+        data = {
+            'connected':    bool(key) and (
+                bool(getattr(marina, self.extra_field) or '') if self.extra_field else True
+            ),
+            'api_key_tail': key[-4:] if len(key) >= 4 else '',
+        }
+        if self.extra_field:
+            data[self.extra_field] = getattr(marina, self.extra_field) or ''
+        return data
+
+    def get(self, request):
+        return Response(self._payload(request.user.marina))
+
+    def patch(self, request):
+        marina = request.user.marina
+        api_key = request.data.get('api_key', getattr(marina, self.key_field))
+        setattr(marina, self.key_field, api_key or '')
+        update_fields = [self.key_field]
+        if self.extra_field:
+            extra = request.data.get(self.extra_field, getattr(marina, self.extra_field))
+            setattr(marina, self.extra_field, extra or '')
+            update_fields.append(self.extra_field)
+        marina.save(update_fields=update_fields)
+        return Response(self._payload(marina))
+
+
+class MarineTrafficSettingsView(_SingleKeyIntegrationView):
+    """AIS vessel tracking — MarineTraffic API key."""
+    key_field = 'marinetraffic_api_key'
+
+
+class OpenWeatherMapSettingsView(_SingleKeyIntegrationView):
+    """OpenWeatherMap API key."""
+    key_field = 'openweathermap_api_key'
+
+
+class DocuSignSettingsView(APIView):
+    """
+    DocuSign needs more than a single key: Integration Key, API Account Id,
+    impersonation User Id, RSA private key, and the account base URL.
+    `connected` is true once all five are populated.
+    """
+    permission_classes = [IsMarinaStaff]
+
+    FIELDS = [
+        'docusign_api_key', 'docusign_account_id', 'docusign_user_id',
+        'docusign_private_key', 'docusign_base_url',
+    ]
+
+    def _payload(self, marina):
+        key = marina.docusign_api_key or ''
+        priv = marina.docusign_private_key or ''
+        return {
+            'connected': all(getattr(marina, f) for f in self.FIELDS),
+            'api_key_tail':         key[-4:] if len(key) >= 4 else '',
+            'docusign_account_id':  marina.docusign_account_id or '',
+            'docusign_user_id':     marina.docusign_user_id or '',
+            'docusign_base_url':    marina.docusign_base_url or '',
+            'private_key_present':  bool(priv),
+        }
+
+    def get(self, request):
+        return Response(self._payload(request.user.marina))
+
+    def patch(self, request):
+        marina = request.user.marina
+        update_fields = []
+        for field in self.FIELDS:
+            if field in request.data:
+                value = request.data.get(field) or ''
+                # Private key blank on update means "keep existing" so the
+                # manager doesn't have to re-paste the whole RSA block.
+                if field == 'docusign_private_key' and value == '' and marina.docusign_private_key:
+                    continue
+                setattr(marina, field, value)
+                update_fields.append(field)
+        if update_fields:
+            marina.save(update_fields=update_fields)
+        return Response(self._payload(marina))
+
+
+# ---------------------------------------------------------------------------
+# Marina weather — proxies OpenWeatherMap if the marina has a key configured,
+# otherwise falls back to Open-Meteo (no-key public API). 10-minute cache.
+# ---------------------------------------------------------------------------
+
+_WEATHER_CACHE_TTL = 60 * 10  # 10 min
+
+_OWM_CONDITIONS = {
+    'Clear': 'Clear sky', 'Clouds': 'Cloudy', 'Rain': 'Rain',
+    'Drizzle': 'Drizzle', 'Thunderstorm': 'Thunderstorm', 'Snow': 'Snow',
+    'Mist': 'Mist', 'Fog': 'Fog', 'Haze': 'Haze', 'Smoke': 'Smoke',
+    'Dust': 'Dust', 'Sand': 'Sand', 'Ash': 'Ash', 'Squall': 'Squall',
+    'Tornado': 'Tornado',
+}
+
+_OPEN_METEO_WMO = {
+    0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Icy fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
+    61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+    71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+    80: 'Showers', 81: 'Heavy showers', 82: 'Violent showers',
+    95: 'Thunderstorm', 96: 'Thunderstorm + hail', 99: 'Thunderstorm + heavy hail',
+}
+
+
+def _deg_to_compass(deg):
+    if deg is None:
+        return ''
+    return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][round(deg / 45) % 8]
+
+
+def _fetch_openweathermap(lat, lng, api_key):
+    """Returns the canonical weather dict, or raises on failure."""
+    import requests
+    r = requests.get(
+        'https://api.openweathermap.org/data/2.5/weather',
+        params={'lat': lat, 'lon': lng, 'units': 'metric', 'appid': api_key},
+        timeout=8,
+    )
+    r.raise_for_status()
+    d = r.json()
+    main_group = (d.get('weather') or [{}])[0].get('main', '')
+    return {
+        'temp_c':       round(d['main']['temp']),
+        'wind_kn':      round(d['wind']['speed'] * 1.94384),  # m/s -> kn
+        'wind_dir':     _deg_to_compass(d['wind'].get('deg')),
+        'wave_height_m': None,  # OWM doesn't have wave height
+        'condition':    _OWM_CONDITIONS.get(main_group, main_group or 'Unknown'),
+        'source':       'openweathermap',
+    }
+
+
+def _fetch_open_meteo(lat, lng):
+    import requests
+    w = requests.get(
+        'https://api.open-meteo.com/v1/forecast',
+        params={
+            'latitude': lat, 'longitude': lng,
+            'current': 'temperature_2m,wind_speed_10m,wind_direction_10m,weathercode',
+            'wind_speed_unit': 'kn',
+        },
+        timeout=8,
+    )
+    w.raise_for_status()
+    cur = w.json()['current']
+    wave_height_m = None
+    try:
+        m = requests.get(
+            'https://marine-api.open-meteo.com/v1/marine',
+            params={'latitude': lat, 'longitude': lng, 'current': 'wave_height'},
+            timeout=8,
+        )
+        if m.ok:
+            wave_height_m = m.json().get('current', {}).get('wave_height')
+    except requests.RequestException:
+        pass
+    return {
+        'temp_c':        round(cur['temperature_2m']),
+        'wind_kn':       round(cur['wind_speed_10m']),
+        'wind_dir':      _deg_to_compass(cur.get('wind_direction_10m')),
+        'wave_height_m': wave_height_m,
+        'condition':     _OPEN_METEO_WMO.get(cur.get('weathercode'), 'Unknown'),
+        'source':        'open-meteo',
+    }
+
+
+class MarinaWeatherView(APIView):
+    """
+    GET /api/v1/marina/weather/
+    Returns current conditions at the marina's lat/lng. Uses OpenWeatherMap
+    when the marina has configured an API key; otherwise falls back to the
+    free Open-Meteo service. Response is cached for 10 minutes per marina.
+    """
+    permission_classes = [IsMarinaStaff]
+
+    def get(self, request):
+        marina = request.user.marina
+        if marina.lat is None or marina.lng is None:
+            return Response(
+                {'detail': 'Marina location not set. Add lat/lng in Marina Profile.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        owm_key = marina.openweathermap_api_key or ''
+        cache_key = f'weather:marina:{marina.pk}:{"owm" if owm_key else "om"}'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
+        try:
+            if owm_key:
+                data = _fetch_openweathermap(float(marina.lat), float(marina.lng), owm_key)
+            else:
+                data = _fetch_open_meteo(float(marina.lat), float(marina.lng))
+        except Exception:
+            # Last-resort fallback: if OWM failed (bad key, rate limit, etc.),
+            # try Open-Meteo so the widget still shows something.
+            try:
+                data = _fetch_open_meteo(float(marina.lat), float(marina.lng))
+            except Exception:
+                return Response(
+                    {'detail': 'Weather service unavailable.'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+        data['updated_at'] = timezone.now().isoformat()
+        cache.set(cache_key, data, _WEATHER_CACHE_TTL)
+        return Response(data)

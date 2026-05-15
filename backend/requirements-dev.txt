@@ -1,2 +1,5 @@
+channels>=4.0,<5.0
 faker>=24.0.0
+pytest>=8.0
+pytest-django>=4.8
 watchdog>=4.0,<5.0

@@ -699,11 +699,13 @@ class APInvoiceLineItem(models.Model):
 
 class AccountingIntegrationConfig(models.Model):
     class Platform(models.TextChoices):
-        XERO         = 'xero',         'Xero'
-        NETSUITE     = 'netsuite',     'Oracle NetSuite'
-        DYNAMICS_365 = 'dynamics365',  'Microsoft Dynamics 365 Business Central'
-        SAGE_INTACCT = 'sage_intacct', 'Sage Intacct'
-        MYOB         = 'myob',         'MYOB'
+        XERO                = 'xero',                'Xero'
+        QBO                 = 'qbo',                 'QuickBooks Online'
+        SAGE_BUSINESS_CLOUD = 'sage_business_cloud', 'Sage Business Cloud Accounting'
+        NETSUITE            = 'netsuite',            'Oracle NetSuite'
+        DYNAMICS_365        = 'dynamics365',         'Microsoft Dynamics 365 Business Central'
+        SAGE_INTACCT        = 'sage_intacct',        'Sage Intacct'
+        MYOB                = 'myob',                'MYOB'
 
     marina         = models.ForeignKey(
         'accounts.Marina', on_delete=models.CASCADE, related_name='accounting_configs'

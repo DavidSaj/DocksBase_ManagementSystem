@@ -1,22 +1,46 @@
 // frontend/src/screens/settings/MobileConfigTab.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../api.js';
 
-function Toggle({ label, desc, checked, onChange }) {
+const LABEL = {
+  fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)',
+  textTransform: 'uppercase', letterSpacing: '0.5px',
+  display: 'block', marginBottom: 6,
+};
+
+const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://portal.docksbase.com';
+
+function Toggle({ on, onChange, disabled }) {
   return (
-    <div className="mc-toggle-row">
-      <div>
-        <div className="mc-toggle-label">{label}</div>
-        <div className="mc-toggle-desc">{desc}</div>
+    <div
+      onClick={() => !disabled && onChange(!on)}
+      style={{
+        width: 32, height: 18, borderRadius: 9, cursor: disabled ? 'default' : 'pointer',
+        background: on ? '#0075de' : 'rgba(0,0,0,0.15)',
+        position: 'relative', transition: 'background 0.15s', flexShrink: 0,
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <div style={{
+        position: 'absolute', top: 2, left: on ? 16 : 2,
+        width: 14, height: 14, borderRadius: '50%', background: '#fff',
+        transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }} />
+    </div>
+  );
+}
+
+function ToggleRow({ label, desc, checked, onChange }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', padding: '13px 18px',
+      borderBottom: 'var(--border)', gap: 16,
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{desc}</div>
       </div>
-      <button
-        className={`mc-toggle-btn${checked ? ' on' : ''}`}
-        onClick={() => onChange(!checked)}
-        type="button"
-        aria-pressed={checked}
-      >
-        {checked ? 'ON' : 'OFF'}
-      </button>
+      <Toggle on={checked} onChange={onChange} />
     </div>
   );
 }
@@ -25,6 +49,7 @@ export default function MobileConfigTab({ marina }) {
   const [config, setConfig] = useState(marina?.app_config || {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
+  const [savingFlag, setSavingFlag] = useState(false);
   const [patchError, setPatchError] = useState(null);
   const patchTimer = useRef(null);
   const savedTimer = useRef(null);
@@ -33,17 +58,21 @@ export default function MobileConfigTab({ marina }) {
 
   function patch(updates) {
     setConfig(c => ({ ...c, ...updates }));
+    setPatchError(null);
+    setSavingFlag(true);
     clearTimeout(patchTimer.current);
     patchTimer.current = setTimeout(() => {
-      api.patch('/api/v1/marina/app-config/', updates)
-        .catch(() => setPatchError('Auto-save failed. Please refresh and try again.'));
+      api.patch('/marina/app-config/', updates)
+        .catch(() => setPatchError('Auto-save failed. Please refresh and try again.'))
+        .finally(() => setSavingFlag(false));
     }, 300);
   }
 
   function saveContent(e) {
     e.preventDefault();
     setSaving(true);
-    api.patch('/api/v1/marina/app-config/', {
+    setPatchError(null);
+    api.patch('/marina/app-config/', {
       wifi_name:     config.wifi_name     || '',
       wifi_password: config.wifi_password || '',
       local_guide:   config.local_guide   || '',
@@ -58,89 +87,220 @@ export default function MobileConfigTab({ marina }) {
       .finally(() => setSaving(false));
   }
 
+  const brand = config.brand_color || '#0c1f3d';
+  const portalUrl = marina?.slug ? `${PORTAL_URL}/${marina.slug}` : null;
+
   return (
-    <div className="mc-root">
-      {patchError && <div className="mc-error">{patchError}</div>}
-      {/* Brand & Identity */}
-      <div className="mc-section-title">Brand &amp; Identity</div>
-      <div className="mc-card">
-        <label className="mc-label" htmlFor="mc-brand-color">Primary Brand Color</label>
-        <div className="mc-color-row">
-          <input
-            type="color"
-            id="mc-brand-color"
-            className="mc-color-picker"
-            value={config.brand_color || '#0c1f3d'}
-            onChange={e => setConfig(c => ({ ...c, brand_color: e.target.value }))}
-            onBlur={e => patch({ brand_color: e.target.value })}
-          />
-          <input
-            type="text"
-            className="mc-color-hex"
-            value={config.brand_color || '#0c1f3d'}
-            onChange={e => setConfig(c => ({ ...c, brand_color: e.target.value }))}
-            onBlur={e => /^#[0-9a-fA-F]{6}$/.test(e.target.value) && patch({ brand_color: e.target.value })}
-            maxLength={7}
-            aria-label="Brand color hex value"
-          />
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
+        {patchError && (
+          <div style={{
+            background: '#fff5f5', color: '#b91c1c', border: '1px solid #fecaca',
+            borderRadius: 6, padding: '10px 14px', fontSize: 13,
+          }}>{patchError}</div>
+        )}
+
+        {/* Brand */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-title">Brand</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Color applied to the member portal</div>
+          </div>
+          <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <input
+              type="color"
+              value={config.brand_color || '#0c1f3d'}
+              onChange={e => setConfig(c => ({ ...c, brand_color: e.target.value }))}
+              onBlur={e => patch({ brand_color: e.target.value })}
+              style={{ width: 44, height: 36, padding: 2, border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer' }}
+              aria-label="Primary brand color"
+            />
+            <input
+              type="text"
+              className="input"
+              value={config.brand_color || '#0c1f3d'}
+              onChange={e => setConfig(c => ({ ...c, brand_color: e.target.value }))}
+              onBlur={e => /^#[0-9a-fA-F]{6}$/.test(e.target.value) && patch({ brand_color: e.target.value })}
+              maxLength={7}
+              style={{ width: 110, fontFamily: 'monospace' }}
+            />
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginLeft: 'auto' }}>
+              {savingFlag ? 'Saving…' : 'Saves automatically'}
+            </div>
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-title">Features</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Toggle what members can see</div>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <ToggleRow
+              label="Boatyard Services"
+              desc="Members can submit work orders and maintenance requests"
+              checked={config.enable_boatyard !== false}
+              onChange={v => patch({ enable_boatyard: v })}
+            />
+            <ToggleRow
+              label="Utility Tracking"
+              desc="Members see their Dockwalk meter readings and usage costs"
+              checked={config.enable_utilities !== false}
+              onChange={v => patch({ enable_utilities: v })}
+            />
+            <div style={{ borderBottom: 0 }}>
+              <ToggleRow
+                label="Document Vault"
+                desc="Members must upload insurance and registration documents"
+                checked={config.enable_documents !== false}
+                onChange={v => patch({ enable_documents: v })}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-title">Content</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Information shown on the member home screen</div>
+          </div>
+          <form className="card-body" onSubmit={saveContent} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={LABEL}>WiFi Network Name</label>
+              <input
+                className="input"
+                type="text"
+                value={config.wifi_name || ''}
+                onChange={e => setConfig(c => ({ ...c, wifi_name: e.target.value }))}
+                placeholder="Marina-Guest"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={LABEL}>WiFi Password</label>
+              <input
+                className="input"
+                type="text"
+                value={config.wifi_password || ''}
+                onChange={e => setConfig(c => ({ ...c, wifi_password: e.target.value }))}
+                placeholder="••••••••"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={LABEL}>Local Guide</label>
+              <textarea
+                className="input"
+                rows={6}
+                placeholder={"e.g.\nBest pizza: Joe's Catch +1 555 0123\nEmergency tow: SeaTow +1 555 9999"}
+                value={config.local_guide || ''}
+                onChange={e => setConfig(c => ({ ...c, local_guide: e.target.value }))}
+                style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 4 }}>
+                Shown to members on arrival. Plain text or HTML.
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
+                {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save Content'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 
-      {/* Feature Toggles */}
-      <div className="mc-section-title">Feature Toggles</div>
-      <div className="mc-card">
-        <Toggle
-          label="Boatyard Services"
-          desc="Members can submit work orders and maintenance requests"
-          checked={config.enable_boatyard !== false}
-          onChange={v => patch({ enable_boatyard: v })}
-        />
-        <Toggle
-          label="Utility Tracking"
-          desc="Members see their Dockwalk meter readings and usage costs"
-          checked={config.enable_utilities !== false}
-          onChange={v => patch({ enable_utilities: v })}
-        />
-        <Toggle
-          label="Document Vault"
-          desc="Members must upload insurance and registration documents"
-          checked={config.enable_documents !== false}
-          onChange={v => patch({ enable_documents: v })}
-        />
+      {/* Preview column */}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ position: 'sticky', top: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Member Portal Preview
+            </div>
+            {portalUrl && (
+              <a
+                href={portalUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: 11, color: '#0075de', fontWeight: 600, textDecoration: 'none' }}
+              >Open live portal →</a>
+            )}
+          </div>
+          <PortalIframePreview config={config} marinaName={marina?.name || 'Your Marina'} />
+          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 10, textAlign: 'center', lineHeight: 1.5 }}>
+            Live preview from the real portal. Edits show instantly.
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Content */}
-      <div className="mc-section-title">Content</div>
-      <form className="mc-card" onSubmit={saveContent}>
-        <label className="mc-label" htmlFor="mc-wifi-name">WiFi Network Name</label>
-        <input
-          id="mc-wifi-name"
-          className="mc-input"
-          type="text"
-          value={config.wifi_name || ''}
-          onChange={e => setConfig(c => ({ ...c, wifi_name: e.target.value }))}
+// ── Portal iframe preview ────────────────────────────────────────────────
+// Loads PORTAL_URL/__preview/ and posts config updates over postMessage. The
+// preview screen in the portal bypasses auth and tenant detection.
+
+function PortalIframePreview({ config, marinaName }) {
+  const iframeRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const previewUrl = `${PORTAL_URL.replace(/\/$/, '')}/__preview/`;
+  const targetOrigin = useMemo(() => {
+    try { return new URL(PORTAL_URL).origin; }
+    catch { return '*'; }
+  }, []);
+
+  // Listen for the iframe's "ready" handshake.
+  useEffect(() => {
+    function onMessage(e) {
+      if (e.data?.type === 'portal-preview-ready') setReady(true);
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Push the current config whenever it changes (and after the iframe is ready).
+  useEffect(() => {
+    if (!ready || !iframeRef.current) return;
+    iframeRef.current.contentWindow.postMessage(
+      { type: 'portal-preview-update', config, marinaName },
+      targetOrigin,
+    );
+  }, [config, marinaName, ready, targetOrigin]);
+
+  return (
+    <div style={{
+      width: 290, margin: '0 auto', background: '#111', borderRadius: 38, padding: 9,
+      boxShadow: '0 12px 36px rgba(0,0,0,0.18)',
+    }}>
+      <div style={{ width: 80, height: 5, background: '#333', borderRadius: 3, margin: '6px auto 8px' }} />
+      <div style={{
+        background: '#f4f6f8', borderRadius: 28, overflow: 'hidden',
+        height: 560, position: 'relative',
+      }}>
+        <iframe
+          ref={iframeRef}
+          src={previewUrl}
+          title="Member portal preview"
+          style={{
+            width: '100%', height: '100%', border: 'none', display: 'block',
+            background: '#f4f6f8',
+          }}
+          // sandbox kept permissive enough for postMessage + same-origin storage access
+          sandbox="allow-scripts allow-same-origin"
         />
-        <label className="mc-label" htmlFor="mc-wifi-pass">WiFi Password</label>
-        <input
-          id="mc-wifi-pass"
-          className="mc-input"
-          type="text"
-          value={config.wifi_password || ''}
-          onChange={e => setConfig(c => ({ ...c, wifi_password: e.target.value }))}
-        />
-        <label className="mc-label" htmlFor="mc-local-guide">Local Guide</label>
-        <textarea
-          id="mc-local-guide"
-          className="mc-textarea"
-          rows={5}
-          placeholder={"e.g.\nBest pizza: Joe's Catch +1 555 0123\nEmergency tow: SeaTow +1 555 9999"}
-          value={config.local_guide || ''}
-          onChange={e => setConfig(c => ({ ...c, local_guide: e.target.value }))}
-        />
-        <button className="mc-save" type="submit" disabled={saving}>
-          {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save Content'}
-        </button>
-      </form>
+        {!ready && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, color: 'rgba(0,0,0,0.4)', background: '#f4f6f8',
+          }}>
+            Loading preview…
+          </div>
+        )}
+      </div>
     </div>
   );
 }

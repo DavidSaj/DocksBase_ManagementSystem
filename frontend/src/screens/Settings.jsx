@@ -92,27 +92,306 @@ const PLAN_OPTIONS = [
   { key: 'enterprise',   name: 'Enterprise',    monthlyPrice: 899, tagline: 'For large marinas & groups' },
 ];
 
-// Placeholder notification groups — displayed in disabled/coming-soon state
+// Notification rule catalog. Each rule has a stable `key` used as the JSON
+// key in marina.notification_rules. Send-site wiring is a follow-up — for now
+// these toggles only persist user intent.
 const NOTIF_GROUPS = [
   { group: 'Bookings', items: [
-    { label: 'New booking confirmation' },
-    { label: 'Arrival reminder (24h before)' },
-    { label: 'Departure reminder' },
-    { label: 'Overstay alert' },
+    { key: 'booking_new_confirmation',   label: 'New booking confirmation' },
+    { key: 'booking_arrival_reminder_24h', label: 'Arrival reminder (24h before)' },
+    { key: 'booking_departure_reminder', label: 'Departure reminder' },
+    { key: 'booking_overstay_alert',     label: 'Overstay alert' },
   ]},
   { group: 'Payments', items: [
-    { label: 'Invoice issued' },
-    { label: 'Payment received' },
-    { label: 'Payment overdue (7 days)' },
-    { label: 'Payment overdue (30 days)' },
+    { key: 'payment_invoice_issued',     label: 'Invoice issued' },
+    { key: 'payment_received',           label: 'Payment received' },
+    { key: 'payment_overdue_7d',         label: 'Payment overdue (7 days)' },
+    { key: 'payment_overdue_30d',        label: 'Payment overdue (30 days)' },
   ]},
   { group: 'Operations', items: [
-    { label: 'Critical defect logged' },
-    { label: 'Incident reported' },
-    { label: 'Document expiry (30 days)' },
-    { label: 'Insurance expiry (30 days)' },
+    { key: 'ops_critical_defect',        label: 'Critical defect logged' },
+    { key: 'ops_incident_reported',      label: 'Incident reported' },
+    { key: 'ops_document_expiry_30d',    label: 'Document expiry (30 days)' },
+    { key: 'ops_insurance_expiry_30d',   label: 'Insurance expiry (30 days)' },
   ]},
 ];
+
+// Visible label + the marina.* fields each SMS provider requires.
+// `secretFlag` names the read-only `has_*` boolean returned by the Marina API
+// for write-only credential fields. When the backend reports the secret is on
+// file, the UI shows a "Set" badge and uses a generic masked placeholder so
+// staff don't think the credential is missing. Leaving the field empty on
+// save is a no-op — the backend strips empty strings before persisting.
+const SMS_PROVIDERS = [
+  { key: 'twilio', label: 'Twilio', helpUrl: 'https://console.twilio.com', fields: [
+    { name: 'twilio_account_sid', label: 'Account SID',  type: 'text',     placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+    { name: 'twilio_auth_token',  label: 'Auth Token',   type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_twilio_auth_token' },
+    { name: 'twilio_from_number', label: 'From Number',  type: 'text',     placeholder: '+14155551234', hint: 'E.164 format. Buy a number in the Twilio console.' },
+  ]},
+  { key: 'vonage', label: 'Vonage (Nexmo)', helpUrl: 'https://dashboard.nexmo.com', fields: [
+    { name: 'vonage_api_key',     label: 'API Key',      type: 'text',     placeholder: '' },
+    { name: 'vonage_api_secret',  label: 'API Secret',   type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_vonage_api_secret' },
+    { name: 'vonage_from',        label: 'Sender',       type: 'text',     placeholder: '+14155551234 or MarinaName', hint: 'E.164 number or 11-char alphanumeric sender ID (where allowed).' },
+  ]},
+  { key: 'messagebird', label: 'MessageBird', helpUrl: 'https://dashboard.messagebird.com', fields: [
+    { name: 'messagebird_access_key', label: 'Access Key', type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_messagebird_access_key' },
+    { name: 'messagebird_originator', label: 'Originator', type: 'text',     placeholder: '+14155551234 or MarinaName', hint: 'E.164 number or alphanumeric sender ID.' },
+  ]},
+];
+
+// Reusable inline badge for "this credential is on file but its value is not
+// shown for security reasons". Rendered next to write-only password fields.
+function SetBadge() {
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase',
+      background: 'rgba(34,168,121,0.15)', color: 'var(--teal, #1f8c66)',
+      borderRadius: 3, padding: '2px 6px', marginLeft: 8,
+    }}>Saved</span>
+  );
+}
+
+// ── Accounting integrations card ──────────────────────────────────────────
+
+const ACCOUNTING_PLATFORMS = [
+  { slug: 'xero',                kind: 'oauth',             label: 'Xero',                            desc: 'UK / AU / NZ / global',  authorizePath: '/xero/authorize/',          disconnectPath: '/xero/disconnect/',          tenantLabel: 'Organisation' },
+  { slug: 'qbo',                 kind: 'oauth',             label: 'QuickBooks Online',               desc: 'US / UK / CA / global',  authorizePath: '/qbo/authorize/',           disconnectPath: '/qbo/disconnect/',           tenantLabel: 'Company' },
+  { slug: 'sage_business_cloud', kind: 'oauth',             label: 'Sage Business Cloud Accounting',  desc: 'UK / IE / FR / DE / ES', authorizePath: '/sage/authorize/',          disconnectPath: '/sage/disconnect/',          tenantLabel: 'Business' },
+  { slug: 'dynamics365',         kind: 'oauth',             label: 'Dynamics 365 Business Central',   desc: 'Global · Microsoft 365', authorizePath: '/d365/authorize/',          disconnectPath: '/d365/disconnect/',          tenantLabel: 'Environment' },
+  { slug: 'myob',                kind: 'oauth',             label: 'MYOB AccountRight Live',          desc: 'AU / NZ',                authorizePath: '/myob/authorize/',          disconnectPath: '/myob/disconnect/',          tenantLabel: 'Company file' },
+  { slug: 'netsuite',            kind: 'oauth-with-prompt', label: 'Oracle NetSuite',                 desc: 'US / global enterprise', authorizePath: '/netsuite/authorize/',      disconnectPath: '/netsuite/disconnect/',      tenantLabel: 'Account ID',
+    promptLabel: 'NetSuite Account ID', promptHelp: 'Found under Setup → Company → Company Information (e.g. TSTDRV1234567).', promptParam: 'account_id' },
+  { slug: 'sage_intacct',        kind: 'credentials',       label: 'Sage Intacct',                    desc: 'US / UK mid-market',     connectPath:   '/sage-intacct/connect/',    disconnectPath: '/sage-intacct/disconnect/',  tenantLabel: 'Company ID',
+    fields: [
+      { name: 'company_id',    label: 'Company ID',     placeholder: 'YOURCO',         type: 'text',     required: true },
+      { name: 'user_id',       label: 'User ID',        placeholder: 'docksbase_user', type: 'text',     required: true },
+      { name: 'user_password', label: 'User Password',  placeholder: '',               type: 'password', required: true },
+      { name: 'location_id',   label: 'Location ID',    placeholder: 'optional',       type: 'text',     required: false },
+    ] },
+];
+
+function AccountingIntegrationsCard() {
+  const [configs, setConfigs] = useState(undefined); // undefined=loading, array=loaded
+  const [busy, setBusy] = useState({}); // { [slug]: 'connect'|'test'|'sync'|'disconnect' }
+  const [msg, setMsg]  = useState(null); // { type, text }
+
+  const load = () =>
+    api.get('/billing/accounting-configs/')
+      .then(r => setConfigs(r.data.results ?? r.data))
+      .catch(() => setConfigs([]));
+
+  useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('integration');
+    if (!slug) return;
+    const platform = ACCOUNTING_PLATFORMS.find(p => p.slug === slug);
+    const status = params.get('status');
+    if (status === 'connected' && platform) {
+      setMsg({ type: 'ok', text: `${platform.label} connected.` });
+      load();
+    } else if (status === 'error') {
+      setMsg({ type: 'error', text: params.get('error') || 'Connection failed.' });
+    }
+    const url = new URL(window.location.href);
+    ['integration', 'status', 'error'].forEach(k => url.searchParams.delete(k));
+    window.history.replaceState({}, '', url.toString());
+  }, []);
+
+  function setRowBusy(slug, value) {
+    setBusy(b => ({ ...b, [slug]: value }));
+  }
+
+  const [credForm, setCredForm] = useState(null); // { platform, values: {…} } | null
+  const [credSaving, setCredSaving] = useState(false);
+
+  async function handleConnect(platform) {
+    if (platform.kind === 'credentials') {
+      const initial = {};
+      platform.fields.forEach(f => { initial[f.name] = ''; });
+      setCredForm({ platform, values: initial });
+      setMsg(null);
+      return;
+    }
+    if (platform.kind === 'oauth-with-prompt') {
+      const value = window.prompt(`${platform.promptLabel}\n\n${platform.promptHelp || ''}`);
+      if (!value) return;
+      setRowBusy(platform.slug, 'connect');
+      setMsg(null);
+      try {
+        const { data } = await api.get(platform.authorizePath, { params: { [platform.promptParam]: value } });
+        window.location.href = data.authorize_url;
+      } catch (err) {
+        setMsg({ type: 'error', text: err?.response?.data?.detail || `Could not start ${platform.label} authorization.` });
+        setRowBusy(platform.slug, '');
+      }
+      return;
+    }
+    setRowBusy(platform.slug, 'connect');
+    setMsg(null);
+    try {
+      const { data } = await api.get(platform.authorizePath);
+      window.location.href = data.authorize_url;
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || `Could not start ${platform.label} authorization.` });
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function submitCredentials() {
+    if (!credForm) return;
+    setCredSaving(true);
+    setMsg(null);
+    try {
+      await api.post(credForm.platform.connectPath, credForm.values);
+      setMsg({ type: 'ok', text: `${credForm.platform.label} connected.` });
+      setCredForm(null);
+      load();
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Connection failed.' });
+    } finally {
+      setCredSaving(false);
+    }
+  }
+
+  async function handleTest(platform, config) {
+    setRowBusy(platform.slug, 'test');
+    setMsg(null);
+    try {
+      const { data } = await api.post(`/billing/accounting-configs/${config.id}/test/`);
+      setMsg({ type: 'ok', text: data.detail || 'Connection OK.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Connection test failed.' });
+    } finally {
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function handleSyncNow(platform, config) {
+    setRowBusy(platform.slug, 'sync');
+    setMsg(null);
+    try {
+      await api.post(`/billing/accounting-configs/${config.id}/sync-now/`);
+      setMsg({ type: 'ok', text: 'Sync dispatched. Records will appear in the sync log shortly.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Could not dispatch sync.' });
+    } finally {
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  async function handleDisconnect(platform) {
+    if (!window.confirm(`Disconnect ${platform.label}? Stored tokens will be cleared.`)) return;
+    setRowBusy(platform.slug, 'disconnect');
+    setMsg(null);
+    try {
+      await api.post(platform.disconnectPath);
+      setMsg({ type: 'ok', text: `${platform.label} disconnected.` });
+      load();
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.detail || 'Disconnect failed.' });
+    } finally {
+      setRowBusy(platform.slug, '');
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-header-title">Accounting Integrations</div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Invoice, payment, and journal sync</div>
+      </div>
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 0 }}>
+        {msg && (
+          <div style={{
+            fontSize: 12, padding: '8px 12px', margin: '12px 16px 0', borderRadius: 6,
+            color:      msg.type === 'ok' ? '#0a7d3a' : '#b91c1c',
+            background: msg.type === 'ok' ? '#ecfdf3' : '#fff5f5',
+            border:     `1px solid ${msg.type === 'ok' ? '#a7f3d0' : '#fecaca'}`,
+          }}>{msg.text}</div>
+        )}
+        {configs === undefined && (
+          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', padding: '14px 18px' }}>Loading…</div>
+        )}
+        {credForm && (
+          <div style={{ borderTop: 'var(--border)', padding: '14px 18px', background: '#fafafa' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+              Connect {credForm.platform.label}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {credForm.platform.fields.map(f => (
+                <div key={f.name}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }}>
+                    {f.label}{f.required && ' *'}
+                  </label>
+                  <input
+                    className="input"
+                    type={f.type}
+                    placeholder={f.placeholder}
+                    value={credForm.values[f.name] || ''}
+                    onChange={e => setCredForm(c => ({ ...c, values: { ...c.values, [f.name]: e.target.value } }))}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                <button className="btn btn-ghost btn-sm" disabled={credSaving} onClick={() => setCredForm(null)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" disabled={credSaving} onClick={submitCredentials}>
+                  {credSaving ? 'Testing & saving…' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {configs !== undefined && ACCOUNTING_PLATFORMS.map(platform => {
+          const config = configs.find(c => c.platform === platform.slug);
+          const connected = config && config.is_active;
+          const rowBusy = busy[platform.slug] || '';
+          return (
+            <div key={platform.slug} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderTop: 'var(--border)' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{platform.label}</div>
+                {!connected && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{platform.desc}</div>
+                )}
+                {connected && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                    {platform.tenantLabel}: <span style={{ fontWeight: 600 }}>{config.base_url || '—'}</span>
+                    {config.last_synced_at && (
+                      <> · Last sync {new Date(config.last_synced_at).toLocaleString()}</>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+                {!connected && (
+                  <button className="btn btn-primary btn-sm" disabled={!!rowBusy} onClick={() => handleConnect(platform)}>
+                    {rowBusy === 'connect' ? 'Connecting…' : 'Connect'}
+                  </button>
+                )}
+                {connected && (
+                  <>
+                    <span className="badge badge-teal">Connected</span>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleTest(platform, config)}>
+                      {rowBusy === 'test' ? 'Testing…' : 'Test'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleSyncNow(platform, config)}>
+                      {rowBusy === 'sync' ? 'Dispatching…' : 'Sync now'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" disabled={!!rowBusy} onClick={() => handleDisconnect(platform)} style={{ color: '#b91c1c' }}>
+                      {rowBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ── Stripe Connect card ────────────────────────────────────────────────────
 
@@ -584,6 +863,19 @@ export default function Settings() {
       smtp_user:               marina.smtp_user               ?? '',
       smtp_password:           marina.smtp_password           ?? '',
       smtp_use_tls:            marina.smtp_use_tls            ?? true,
+      // SMS config
+      sms_enabled:             marina.sms_enabled             ?? false,
+      sms_provider:            marina.sms_provider            || 'twilio',
+      twilio_account_sid:      marina.twilio_account_sid      ?? '',
+      twilio_auth_token:       marina.twilio_auth_token       ?? '',
+      twilio_from_number:      marina.twilio_from_number      ?? '',
+      vonage_api_key:          marina.vonage_api_key          ?? '',
+      vonage_api_secret:       marina.vonage_api_secret       ?? '',
+      vonage_from:             marina.vonage_from             ?? '',
+      messagebird_access_key:  marina.messagebird_access_key  ?? '',
+      messagebird_originator:  marina.messagebird_originator  ?? '',
+      // Notification rules — { ruleKey: { email: bool, sms: bool } }
+      notification_rules:      marina.notification_rules      ?? {},
     });
   }, [marina]);
 
@@ -602,6 +894,46 @@ export default function Settings() {
     } finally {
       setMarinaSaving(false);
     }
+  }
+
+  async function saveSmsConfig() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({
+        sms_enabled:            !!mf.sms_enabled,
+        sms_provider:           mf.sms_provider || 'twilio',
+        twilio_account_sid:     mf.twilio_account_sid     ?? '',
+        twilio_auth_token:      mf.twilio_auth_token      ?? '',
+        twilio_from_number:     mf.twilio_from_number     ?? '',
+        vonage_api_key:         mf.vonage_api_key         ?? '',
+        vonage_api_secret:      mf.vonage_api_secret      ?? '',
+        vonage_from:            mf.vonage_from            ?? '',
+        messagebird_access_key: mf.messagebird_access_key ?? '',
+        messagebird_originator: mf.messagebird_originator ?? '',
+      });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  async function saveNotificationRules() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({ notification_rules: mf.notification_rules ?? {} });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  function toggleRule(ruleKey, channel, value) {
+    setMf(prev => {
+      const rules = { ...(prev.notification_rules ?? {}) };
+      const current = rules[ruleKey] ?? { email: false, sms: false };
+      rules[ruleKey] = { ...current, [channel]: value };
+      return { ...prev, notification_rules: rules };
+    });
   }
 
   async function saveSmtpConfig() {
@@ -724,6 +1056,76 @@ export default function Settings() {
       setDsMsg({ type: 'ok', text: 'Disconnected.' });
     } finally {
       setDsSaving(false);
+    }
+  }
+
+  // ── Integrations — MarineTraffic / OpenWeatherMap / DocuSign ───────────
+  //
+  // Each is just an API key (DocuSign needs a second account id). One generic
+  // state shape per provider keeps the JSX terse.
+
+  const [marineTraffic, setMarineTraffic] = useState({ data: null, apiKey: '', saving: false, msg: null });
+  const [openWeather,   setOpenWeather]   = useState({ data: null, apiKey: '', saving: false, msg: null });
+  const [docusign,      setDocusign]      = useState({
+    data: null, apiKey: '', accountId: '', userId: '', baseUrl: '', privateKey: '',
+    saving: false, msg: null,
+  });
+
+  useEffect(() => {
+    if (tab !== 'integrations') return;
+    let cancelled = false;
+    Promise.all([
+      api.get('/marina/integrations/marinetraffic/').then(r => r.data).catch(() => null),
+      api.get('/marina/integrations/openweathermap/').then(r => r.data).catch(() => null),
+      api.get('/marina/integrations/docusign/').then(r => r.data).catch(() => null),
+    ]).then(([mt, ow, ds]) => {
+      if (cancelled) return;
+      if (mt) setMarineTraffic(s => ({ ...s, data: mt }));
+      if (ow) setOpenWeather(s => ({ ...s, data: ow }));
+      if (ds) setDocusign(s => ({
+        ...s,
+        data:      ds,
+        accountId: ds.docusign_account_id || '',
+        userId:    ds.docusign_user_id || '',
+        baseUrl:   ds.docusign_base_url || '',
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [tab]);
+
+  async function saveSimpleIntegration(setState, state, endpoint, body, label) {
+    setState(s => ({ ...s, saving: true, msg: null }));
+    try {
+      const { data } = await api.patch(endpoint, body);
+      setState(s => ({
+        ...s,
+        data,
+        apiKey: '',
+        saving: false,
+        msg: { type: 'ok', text: data.connected ? `${label} connected.` : `${label} settings saved.` },
+      }));
+    } catch {
+      setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Save failed. Check the value and try again.' } }));
+    }
+  }
+
+  async function disconnectSimple(setState, endpoint, body) {
+    setState(s => ({ ...s, saving: true, msg: null }));
+    try {
+      const { data } = await api.patch(endpoint, body);
+      setState(s => ({
+        ...s,
+        data,
+        apiKey:     '',
+        accountId:  data.docusign_account_id || '',
+        userId:     data.docusign_user_id || '',
+        baseUrl:    data.docusign_base_url || '',
+        privateKey: '',
+        saving:     false,
+        msg:        { type: 'ok', text: 'Disconnected.' },
+      }));
+    } catch {
+      setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Disconnect failed.' } }));
     }
   }
 
@@ -1225,12 +1627,13 @@ export default function Settings() {
                   placeholder="apikey or your SMTP login"
                 />
               </FieldRow>
-              <FieldRow label="SMTP Password">
+              <FieldRow label={<>SMTP Password{marina?.has_smtp_password && <SetBadge />}</>} hint={marina?.has_smtp_password ? 'Leave blank to keep the saved password.' : undefined}>
                 <input
                   type="password" style={MI}
                   value={fm('smtp_password')}
                   onChange={e => setM('smtp_password', e.target.value)}
                   placeholder="••••••••••••••••"
+                  autoComplete="new-password"
                 />
               </FieldRow>
               <FieldRow label="Use TLS">
@@ -1247,31 +1650,98 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Notification rules — coming soon */}
+          {/* Outgoing SMS configurator */}
+          {(() => {
+            const activeProvider = SMS_PROVIDERS.find(p => p.key === (mf?.sms_provider || 'twilio')) ?? SMS_PROVIDERS[0];
+            return (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-header-title">Outgoing SMS</div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                    Sign up with an SMS provider (e.g. Twilio), buy a sending number, and paste the credentials here. SMS rules in the table below only fire when SMS is enabled and the provider is fully configured. You pay your provider directly per message sent.
+                  </div>
+                </div>
+                <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <FieldRow label="Enable SMS">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 34 }}>
+                        <Toggle on={!!mf?.sms_enabled} onChange={v => setM('sms_enabled', v)} />
+                        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{mf?.sms_enabled ? 'Enabled' : 'Disabled'}</span>
+                      </div>
+                    </FieldRow>
+                    <FieldRow label="Provider" hint={<>API console: <a href={activeProvider.helpUrl} target="_blank" rel="noreferrer">{activeProvider.helpUrl.replace(/^https?:\/\//, '')}</a></>}>
+                      <select
+                        style={MI}
+                        value={mf?.sms_provider || 'twilio'}
+                        onChange={e => setM('sms_provider', e.target.value)}
+                      >
+                        {SMS_PROVIDERS.map(p => (
+                          <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                      </select>
+                    </FieldRow>
+                    {activeProvider.fields.map(f => {
+                      const isSet = f.secretFlag && marina?.[f.secretFlag];
+                      const hint = isSet ? 'Leave blank to keep the saved value.' : f.hint;
+                      return (
+                        <FieldRow key={f.name} label={<>{f.label}{isSet && <SetBadge />}</>} hint={hint}>
+                          <input
+                            type={f.type} style={MI}
+                            value={fm(f.name)}
+                            onChange={e => setM(f.name, e.target.value)}
+                            placeholder={f.placeholder}
+                            autoComplete={f.type === 'password' ? 'new-password' : 'off'}
+                          />
+                        </FieldRow>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <button className="btn btn-primary" disabled={marinaSaving} onClick={saveSmsConfig}>
+                      {marinaSaving ? 'Saving…' : 'Save SMS Settings'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Automated Notification Rules — functional */}
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Automated Notification Rules</div>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Configure which events trigger email alerts</div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                Choose which channels each event uses. SMS is greyed out until SMS is enabled above.
+              </div>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
-              <ComingSoonBanner />
-              <div style={{ opacity: 0.4, pointerEvents: 'none' }}>
-                {NOTIF_GROUPS.map(group => (
-                  <div key={group.group}>
-                    <div style={{ padding: '12px 18px 6px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.4)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
-                      {group.group}
-                    </div>
-                    {group.items.map(item => (
-                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: 'var(--border)', gap: 16 }}>
-                        <div style={{ flex: 1, fontSize: 12.5, color: 'rgba(0,0,0,0.8)' }}>{item.label}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', width: 32 }}>Email</span>
-                          <Toggle on={false} onChange={() => {}} />
+              {NOTIF_GROUPS.map(group => (
+                <div key={group.group}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '10px 18px 8px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.45)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
+                    <div style={{ flex: 1 }}>{group.group}</div>
+                    <div style={{ width: 70, textAlign: 'center', fontSize: 10 }}>Email</div>
+                    <div style={{ width: 70, textAlign: 'center', fontSize: 10 }}>SMS</div>
+                  </div>
+                  {group.items.map(item => {
+                    const rule = mf?.notification_rules?.[item.key] ?? { email: false, sms: false };
+                    return (
+                      <div key={item.key} style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: 'var(--border)', gap: 16 }}>
+                        <div style={{ flex: 1, fontSize: 12.5, color: 'rgba(0,0,0,0.85)' }}>{item.label}</div>
+                        <div style={{ width: 70, display: 'flex', justifyContent: 'center' }}>
+                          <Toggle on={!!rule.email} onChange={v => toggleRule(item.key, 'email', v)} />
+                        </div>
+                        <div style={{ width: 70, display: 'flex', justifyContent: 'center', opacity: mf?.sms_enabled ? 1 : 0.35, pointerEvents: mf?.sms_enabled ? 'auto' : 'none' }}>
+                          <Toggle on={!!rule.sms} onChange={v => toggleRule(item.key, 'sms', v)} />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{ padding: '14px 18px' }}>
+                <button className="btn btn-primary" disabled={marinaSaving} onClick={saveNotificationRules}>
+                  {marinaSaving ? 'Saving…' : 'Save Notification Rules'}
+                </button>
               </div>
             </div>
           </div>
@@ -1287,32 +1757,8 @@ export default function Settings() {
             {/* Stripe Connect — live */}
             <StripeConnectCard marina={marina} />
 
-            {/* Integrations — Coming Soon */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Integrations</div></div>
-              <div className="card-body" style={{ paddingBottom: 8 }}>
-                <ComingSoonBanner />
-              </div>
-              <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                {[
-                  { name: 'Xero Accounting',    desc: 'Invoice and payment sync' },
-                  { name: 'AIS Vessel Tracking',desc: 'MarineTraffic API' },
-                  { name: 'OpenWeatherMap',     desc: 'Live weather conditions' },
-                  { name: 'DocuSign',           desc: 'Electronic signatures' },
-                ].map(int => (
-                  <div key={int.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: 'var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{int.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{int.desc}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="badge badge-gray">Not set up</span>
-                      <button className="btn btn-ghost btn-sm" disabled>Connect</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Accounting Integrations — live */}
+            <AccountingIntegrationsCard />
 
             {/* OTA Connections */}
             <div className="card">
@@ -1416,7 +1862,7 @@ export default function Settings() {
 
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (
-        <div style={{ maxWidth: 560 }}>
+        <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Dropbox Sign</div>
@@ -1472,6 +1918,227 @@ export default function Settings() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* ── AIS Vessel Tracking — MarineTraffic ───────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">AIS Vessel Tracking</div>
+              {marineTraffic.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Connect MarineTraffic to show live vessel positions on the harbor map. Your account is billed directly by MarineTraffic.{' '}
+                <a href="https://www.marinetraffic.com/en/ais-api-services" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Get an API key →
+                </a>
+              </div>
+              <FieldRow
+                label="API Key"
+                hint={marineTraffic.data?.connected ? `Current key ending in ···${marineTraffic.data.api_key_tail}` : 'Found in MarineTraffic → API Services → My API Keys'}
+              >
+                <input
+                  type="password"
+                  value={marineTraffic.apiKey}
+                  onChange={e => setMarineTraffic(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={marineTraffic.data?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {marineTraffic.msg && (
+                <div style={{ fontSize: 12, color: marineTraffic.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {marineTraffic.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={marineTraffic.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setMarineTraffic, marineTraffic,
+                    '/marina/integrations/marinetraffic/',
+                    { api_key: marineTraffic.apiKey },
+                    'MarineTraffic',
+                  )}
+                >
+                  {marineTraffic.saving ? 'Saving…' : marineTraffic.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {marineTraffic.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={marineTraffic.saving}
+                    onClick={() => disconnectSimple(setMarineTraffic, '/marina/integrations/marinetraffic/', { api_key: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── OpenWeatherMap ────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">OpenWeatherMap</div>
+              {openWeather.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Show live local weather on the dashboard, using your marina's lat/lng from Marina Profile.{' '}
+                <a href="https://openweathermap.org/api" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Get a free API key →
+                </a>
+              </div>
+              <FieldRow
+                label="API Key"
+                hint={openWeather.data?.connected ? `Current key ending in ···${openWeather.data.api_key_tail}` : 'Found in OpenWeatherMap → My API Keys'}
+              >
+                <input
+                  type="password"
+                  value={openWeather.apiKey}
+                  onChange={e => setOpenWeather(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={openWeather.data?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {openWeather.msg && (
+                <div style={{ fontSize: 12, color: openWeather.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {openWeather.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={openWeather.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setOpenWeather, openWeather,
+                    '/marina/integrations/openweathermap/',
+                    { api_key: openWeather.apiKey },
+                    'OpenWeatherMap',
+                  )}
+                >
+                  {openWeather.saving ? 'Saving…' : openWeather.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {openWeather.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={openWeather.saving}
+                    onClick={() => disconnectSimple(setOpenWeather, '/marina/integrations/openweathermap/', { api_key: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── DocuSign ──────────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">DocuSign</div>
+              {docusign.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Alternative e-signature provider to Dropbox Sign. Uses DocuSign JWT Grant — set up an app in DocuSign Admin → <em>Apps and Keys</em>, upload an RSA public key, then grant impersonation consent for the user you'll send envelopes as.{' '}
+                <a href="https://developers.docusign.com/platform/auth/jwt/" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  DocuSign JWT setup guide →
+                </a>
+              </div>
+              <FieldRow label="Base URL" hint="Sandbox: https://demo.docusign.net/restapi · Production: https://<region>.docusign.net/restapi">
+                <input
+                  type="text"
+                  value={docusign.baseUrl}
+                  onChange={e => setDocusign(s => ({ ...s, baseUrl: e.target.value }))}
+                  placeholder="https://demo.docusign.net/restapi"
+                />
+              </FieldRow>
+              <FieldRow label="Account ID" hint="Found in DocuSign Admin → API and Keys → API Account ID">
+                <input
+                  type="text"
+                  value={docusign.accountId}
+                  onChange={e => setDocusign(s => ({ ...s, accountId: e.target.value }))}
+                  placeholder="e.g. 1a2b3c4d-..."
+                />
+              </FieldRow>
+              <FieldRow label="User ID" hint="Impersonation user (GUID from Admin → Users → API Username)">
+                <input
+                  type="text"
+                  value={docusign.userId}
+                  onChange={e => setDocusign(s => ({ ...s, userId: e.target.value }))}
+                  placeholder="e.g. 1a2b3c4d-..."
+                />
+              </FieldRow>
+              <FieldRow
+                label="Integration Key"
+                hint={docusign.data?.connected ? `Current key ending in ···${docusign.data.api_key_tail}` : 'Found in DocuSign Admin → Apps and Keys (this is the client_id)'}
+              >
+                <input
+                  type="password"
+                  value={docusign.apiKey}
+                  onChange={e => setDocusign(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={docusign.data?.connected ? 'Leave blank to keep current key' : 'Paste integration key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              <FieldRow
+                label="RSA Private Key"
+                hint={docusign.data?.private_key_present ? 'A private key is on file — paste a new one to replace it.' : 'Paste the full PEM (-----BEGIN RSA PRIVATE KEY----- ... -----END RSA PRIVATE KEY-----)'}
+              >
+                <textarea
+                  rows={5}
+                  value={docusign.privateKey}
+                  onChange={e => setDocusign(s => ({ ...s, privateKey: e.target.value }))}
+                  placeholder={docusign.data?.private_key_present ? 'Leave blank to keep current key' : '-----BEGIN RSA PRIVATE KEY-----\n...'}
+                  style={{ fontFamily: 'monospace', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                />
+              </FieldRow>
+              {docusign.msg && (
+                <div style={{ fontSize: 12, color: docusign.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {docusign.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={docusign.saving}
+                  onClick={() => {
+                    const body = {
+                      docusign_base_url:    docusign.baseUrl,
+                      docusign_account_id:  docusign.accountId,
+                      docusign_user_id:     docusign.userId,
+                    };
+                    if (docusign.apiKey)     body.docusign_api_key     = docusign.apiKey;
+                    if (docusign.privateKey) body.docusign_private_key = docusign.privateKey;
+                    saveSimpleIntegration(setDocusign, docusign,
+                      '/marina/integrations/docusign/', body, 'DocuSign');
+                  }}
+                >
+                  {docusign.saving ? 'Saving…' : docusign.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {docusign.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={docusign.saving}
+                    onClick={() => disconnectSimple(setDocusign, '/marina/integrations/docusign/', {
+                      docusign_api_key: '', docusign_account_id: '', docusign_user_id: '',
+                      docusign_private_key: '', docusign_base_url: '',
+                    })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

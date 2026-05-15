@@ -492,23 +492,3 @@ svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
   margin-top: 16px;
 }
 
-/* ── Mobile Configurator ─────────────────────────────────────────── */
-.mc-root          { padding: 0 0 40px; }
-.mc-section-title { font-size: 12px; font-weight: 700; color: rgba(0,0,0,0.4); text-transform: uppercase; letter-spacing: 0.5px; padding: 20px 0 6px; }
-.mc-card          { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 4px; border: 1px solid rgba(0,0,0,0.08); }
-.mc-label         { display: block; font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.5); margin-bottom: 6px; margin-top: 12px; }
-.mc-label:first-child { margin-top: 0; }
-.mc-input         { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; font-size: 14px; box-sizing: border-box; }
-.mc-textarea      { width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; font-size: 14px; resize: vertical; box-sizing: border-box; font-family: inherit; }
-.mc-save          { margin-top: 16px; padding: 10px 24px; background: #0c1f3d; color: #fff; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; }
-.mc-save:disabled { opacity: 0.5; }
-.mc-color-row     { display: flex; align-items: center; gap: 10px; }
-.mc-color-picker  { width: 40px; height: 40px; border: 1px solid #ddd; border-radius: 4px; padding: 2px; cursor: pointer; }
-.mc-color-hex     { width: 100px; border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; font-size: 14px; font-family: monospace; }
-.mc-toggle-row    { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.06); }
-.mc-toggle-row:last-child { border-bottom: none; }
-.mc-toggle-label  { font-size: 14px; font-weight: 600; color: #1a2d4a; margin-bottom: 2px; }
-.mc-toggle-desc   { font-size: 12px; color: rgba(0,0,0,0.45); }
-.mc-toggle-btn    { padding: 6px 14px; border: 2px solid #ddd; border-radius: 20px; background: #fff; font-size: 13px; font-weight: 700; cursor: pointer; color: rgba(0,0,0,0.4); transition: all 0.15s; }
-.mc-toggle-btn.on { background: #27ae60; border-color: #27ae60; color: #fff; }
-.mc-error { background: #fff3f3; color: #c0392b; border: 1px solid #f5c6cb; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; }

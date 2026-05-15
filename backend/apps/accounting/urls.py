@@ -103,9 +103,88 @@ alias_router.register(r'exchange-rates',     ExchangeRateViewSet,               
 alias_router.register(r'surcharge-rules',    SurchargeRuleViewSet,              basename='surcharge-rule-alias')
 alias_router.register(r'accounting-sync',    AccountingSyncRecordViewSet,         basename='accounting-sync-alias')
 
+from apps.accounting.views_xero_oauth import (
+    XeroAuthorizeView,
+    XeroCallbackView,
+    XeroDisconnectView,
+)
+from apps.accounting.views_qbo_oauth import (
+    QBOAuthorizeView,
+    QBOCallbackView,
+    QBODisconnectView,
+)
+from apps.accounting.views_sage_oauth import (
+    SageAuthorizeView,
+    SageCallbackView,
+    SageDisconnectView,
+)
+from apps.accounting.views_myob_oauth import (
+    MYOBAuthorizeView,
+    MYOBCallbackView,
+    MYOBDisconnectView,
+)
+from apps.accounting.views_d365_oauth import (
+    D365AuthorizeView,
+    D365CallbackView,
+    D365DisconnectView,
+)
+from apps.accounting.views_netsuite_oauth import (
+    NetSuiteAuthorizeView,
+    NetSuiteCallbackView,
+    NetSuiteDisconnectView,
+)
+from apps.accounting.views_intacct_connect import (
+    IntacctStatusView,
+    IntacctConnectView,
+    IntacctDisconnectView,
+)
+from apps.accounting.views_export import JournalCSVExportView
+from apps.accounting.views_datev_export import DatevCSVExportView
+
 urlpatterns = [
     path('', include(router.urls)),
     path('', include(alias_router.urls)),
+
+    # Xero OAuth
+    path('xero/authorize/',  XeroAuthorizeView.as_view(),  name='xero-authorize'),
+    path('xero/callback/',   XeroCallbackView.as_view(),   name='xero-callback'),
+    path('xero/disconnect/', XeroDisconnectView.as_view(), name='xero-disconnect'),
+
+    # QuickBooks Online OAuth
+    path('qbo/authorize/',  QBOAuthorizeView.as_view(),  name='qbo-authorize'),
+    path('qbo/callback/',   QBOCallbackView.as_view(),   name='qbo-callback'),
+    path('qbo/disconnect/', QBODisconnectView.as_view(), name='qbo-disconnect'),
+
+    # Sage Business Cloud Accounting OAuth
+    path('sage/authorize/',  SageAuthorizeView.as_view(),  name='sage-authorize'),
+    path('sage/callback/',   SageCallbackView.as_view(),   name='sage-callback'),
+    path('sage/disconnect/', SageDisconnectView.as_view(), name='sage-disconnect'),
+
+    # MYOB AccountRight Live OAuth
+    path('myob/authorize/',  MYOBAuthorizeView.as_view(),  name='myob-authorize'),
+    path('myob/callback/',   MYOBCallbackView.as_view(),   name='myob-callback'),
+    path('myob/disconnect/', MYOBDisconnectView.as_view(), name='myob-disconnect'),
+
+    # Dynamics 365 Business Central OAuth (Azure AD)
+    path('d365/authorize/',  D365AuthorizeView.as_view(),  name='d365-authorize'),
+    path('d365/callback/',   D365CallbackView.as_view(),   name='d365-callback'),
+    path('d365/disconnect/', D365DisconnectView.as_view(), name='d365-disconnect'),
+
+    # NetSuite OAuth (account-scoped)
+    path('netsuite/authorize/',  NetSuiteAuthorizeView.as_view(),  name='netsuite-authorize'),
+    path('netsuite/callback/',   NetSuiteCallbackView.as_view(),   name='netsuite-callback'),
+    path('netsuite/disconnect/', NetSuiteDisconnectView.as_view(), name='netsuite-disconnect'),
+
+    # Sage Intacct credential form (no OAuth)
+    path('sage-intacct/status/',     IntacctStatusView.as_view(),     name='sage-intacct-status'),
+    path('sage-intacct/connect/',    IntacctConnectView.as_view(),    name='sage-intacct-connect'),
+    path('sage-intacct/disconnect/', IntacctDisconnectView.as_view(), name='sage-intacct-disconnect'),
+
+    # Generic journal CSV export (universal fallback)
+    path('accounting/export/journal.csv/', JournalCSVExportView.as_view(), name='journal-csv-export'),
+
+    # DATEV Buchungsstapel export (Germany)
+    path('accounting/export/datev.csv/',   DatevCSVExportView.as_view(),   name='datev-csv-export'),
 
     # Red diesel declaration — fuel dock sub-endpoint
     path(

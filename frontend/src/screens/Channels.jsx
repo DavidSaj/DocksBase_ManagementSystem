@@ -240,71 +240,137 @@ function AllocationCard({ conn, berths, onUpdate }) {
 
 // ── Section 4: Berth Assignment Grid ──────────────────────────────────────
 
-function BerthGrid({ berths, setBerths, connections, categories }) {
-  const [saving, setSaving] = useState(null); // category id while saving
+// Group by the size-style "berth type" the calendar uses (e.g. "Small", "Large").
+// Falls back to the alphabetic prefix of the code so legacy berths still group
+// sensibly (matches BerthCalendar.berthDisplayType).
+function berthDisplayType(berth) {
+  if (berth.berth_type) return berth.berth_type;
+  const m = (berth.code || '').match(/^([A-Za-z]+)/);
+  return m ? m[1] : 'Other';
+}
 
-  function getCategoryValue(catId) {
-    const catBerths = berths.filter(b => b.category === catId);
-    if (catBerths.length === 0) return '';
-    const unique = [...new Set(catBerths.map(b => b.ota_connection))];
-    if (unique.length > 1) return '__mixed__';
-    return unique[0] == null ? '' : String(unique[0]);
+function BerthGrid({ berths, setBerths, connections, categories }) {
+  const [savingBerthId, setSavingBerthId] = useState(null);
+  const [expanded, setExpanded] = useState(() => new Set());
+
+  function toggle(typeKey) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(typeKey)) next.delete(typeKey);
+      else next.add(typeKey);
+      return next;
+    });
   }
 
-  async function handleCategoryChange(catId, connId) {
-    setSaving(catId);
-    const catBerths = berths.filter(b => b.category === catId);
+  async function handleBerthChange(berthId, connId) {
+    setSavingBerthId(berthId);
     try {
-      const results = await Promise.allSettled(
-        catBerths.map(b =>
-          api.patch(`/berths/${b.id}/`, { ota_connection: connId }).then(({ data }) => ({ id: b.id, data }))
-        )
-      );
-      const succeededIds = new Set(
-        results.filter(r => r.status === 'fulfilled').map(r => r.value.id)
-      );
-      if (succeededIds.size > 0) {
-        setBerths(prev =>
-          prev.map(b => succeededIds.has(b.id) ? { ...b, ota_connection: connId } : b)
-        );
-      }
+      await api.patch(`/berths/${berthId}/`, { ota_connection: connId });
+      setBerths(prev => prev.map(b => b.id === berthId ? { ...b, ota_connection: connId } : b));
     } finally {
-      setSaving(null);
+      setSavingBerthId(null);
     }
   }
+
+  function summary(typeBerths) {
+    const directCount = typeBerths.filter(b => b.ota_connection == null).length;
+    const parts = [];
+    if (directCount > 0) parts.push(`${directCount} Direct`);
+    const byConn = new Map();
+    typeBerths.forEach(b => {
+      if (b.ota_connection != null) byConn.set(b.ota_connection, (byConn.get(b.ota_connection) || 0) + 1);
+    });
+    byConn.forEach((count, connId) => {
+      const c = connections.find(x => x.id === connId);
+      parts.push(`${count} ${c ? c.name : 'OTA'}`);
+    });
+    return parts.join(' · ') || 'No berths';
+  }
+
+  // Group berths by their display type ("Small", "Large", …) and sort the
+  // groups alphabetically so the layout is stable across reloads.
+  const grouped = new Map();
+  berths.forEach(b => {
+    const key = berthDisplayType(b);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(b);
+  });
+  const types = [...grouped.keys()].sort((a, b) => a.localeCompare(b));
+
+  // Category-name lookup so we can append "(Premium Slip)" etc. per berth.
+  const categoryNameById = new Map(categories.map(c => [c.id, c.name]));
 
   return (
     <div className="card">
       <div className="card-header">
         <div className="card-header-title">Berth Assignment</div>
       </div>
-      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {categories.map(cat => {
-          const val = getCategoryValue(cat.id);
-          const isMixed = val === '__mixed__';
-          const isSaving = saving === cat.id;
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {types.length === 0 && (
+          <div style={{ padding: '12px', fontSize: 12, opacity: 0.6 }}>No berths to assign.</div>
+        )}
+        {types.map(type => {
+          const typeBerths = grouped.get(type);
+          const isOpen = expanded.has(type);
           return (
-            <div
-              key={cat.id}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{cat.name}</div>
-              <select
-                value={val}
-                disabled={isSaving}
-                onChange={e => {
-                  const v = e.target.value;
-                  if (v === '__mixed__') return;
-                  handleCategoryChange(cat.id, v ? Number(v) : null);
+            <div key={type} style={{ border: 'var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <button
+                type="button"
+                onClick={() => toggle(type)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
+                  textAlign: 'left',
                 }}
-                style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: 'var(--border)' }}
               >
-                {isMixed && <option value="__mixed__" disabled>Mixed</option>}
-                <option value="">Direct</option>
-                {connections.map(c => (
-                  <option key={c.id} value={String(c.id)}>{c.name}</option>
-                ))}
-              </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, opacity: 0.6, width: 10 }}>{isOpen ? '▾' : '▸'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>{type}</span>
+                  <span style={{ fontSize: 11, opacity: 0.6 }}>({typeBerths.length})</span>
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.7 }}>{summary(typeBerths)}</div>
+              </button>
+              {isOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', borderTop: 'var(--border)' }}>
+                  {typeBerths.map(b => {
+                    const val = b.ota_connection == null ? '' : String(b.ota_connection);
+                    const isSaving = savingBerthId === b.id;
+                    const catName = b.category != null ? categoryNameById.get(b.category) : null;
+                    return (
+                      <div
+                        key={b.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 12px 6px 32px', fontSize: 12,
+                        }}
+                      >
+                        <div>
+                          <span>{b.code || b.name || `Berth #${b.id}`}</span>
+                          {catName && (
+                            <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.55 }}>
+                              ({catName})
+                            </span>
+                          )}
+                        </div>
+                        <select
+                          value={val}
+                          disabled={isSaving}
+                          onChange={e => {
+                            const v = e.target.value;
+                            handleBerthChange(b.id, v ? Number(v) : null);
+                          }}
+                          style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: 'var(--border)' }}
+                        >
+                          <option value="">Direct</option>
+                          {connections.map(c => (
+                            <option key={c.id} value={String(c.id)}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
