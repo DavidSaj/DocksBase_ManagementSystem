@@ -11,16 +11,21 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from datetime import datetime as _dt
+from datetime import time as _time
 from datetime import timedelta as _td
 from typing import Optional, Tuple
 
 from django.db import transaction as _txn
 from django.utils import timezone as _tz
+from django.utils.timezone import now as _real_now
 
 from apps.ais.geometry import point_in_polygon
+from apps.ais.models import VesselPosition as _VP
 from apps.ais.notifications import (
     notify_auto_checkin,
     notify_auto_checkout,
+    notify_no_show,
 )
 from apps.reservations.models import Booking as _Booking
 
@@ -140,3 +145,48 @@ def _finalize_turnaround_invoice(booking):
             billing_service.finalize_invoice(draft)
         except Exception:
             logger.exception('ais.turnaround.finalize_failed booking=%s', booking.id)
+
+
+def detect_no_shows(marina, *, recipient):
+    """
+    Flag confirmed bookings whose vessel has historical AIS but no recent
+    contact within 1 h of expected arrival. Dark-Transponder guard skips
+    vessels that have never transmitted to us.
+    """
+    now = _tz.now()
+    default_eta = _time(18, 0)
+
+    candidates = (
+        _Booking.objects
+        .filter(
+            marina=marina,
+            status__in=['confirmed', 'awaiting_payment'],
+            check_in=now.date(),
+            ais_no_show_predicted=False,
+            vessel__isnull=False,
+        )
+        .select_related('vessel')
+    )
+
+    for booking in candidates:
+        eta_time = booking.eta or default_eta
+        expected = _dt.combine(booking.check_in, eta_time, tzinfo=now.tzinfo)
+        if now < expected - _td(hours=2):
+            continue
+
+        # Dark Transponder guard: only treat absence as suspicious for
+        # vessels we have proof are AIS-equipped.
+        if not _VP.objects.filter(vessel_id=booking.vessel_id).exists():
+            continue
+
+        nearby = _VP.objects.filter(
+            marina=marina,
+            vessel_id=booking.vessel_id,
+            reported_at__gte=_real_now() - _td(hours=1),
+        ).exists()
+        if nearby:
+            continue
+
+        booking.ais_no_show_predicted = True
+        booking.save(update_fields=['ais_no_show_predicted'])
+        notify_no_show(booking, recipient=recipient)
