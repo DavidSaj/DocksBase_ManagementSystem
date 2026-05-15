@@ -30,6 +30,10 @@ class VesselPosition(models.Model):
 
     # Set by event detection (Phase 2). Phase 1 always leaves this False.
     in_basin    = models.BooleanField(default=False)
+    last_transition_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Last time in_basin transitioned. Used to apply hysteresis to prevent edge-flicker.',
+    )
 
     class Meta:
         constraints = [
@@ -45,3 +49,21 @@ class VesselPosition(models.Model):
 
     def __str__(self):
         return f'{self.mmsi} @ {self.lat},{self.lng}'
+
+
+class AISNotificationSent(models.Model):
+    """Audit row enforcing one SMS per (booking, kind) for the lifetime of a booking."""
+    booking = models.ForeignKey(
+        'reservations.Booking', on_delete=models.CASCADE,
+        related_name='ais_notifications_sent',
+    )
+    kind = models.CharField(max_length=30)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['booking', 'kind'],
+                name='ais_notif_booking_kind_uniq',
+            ),
+        ]

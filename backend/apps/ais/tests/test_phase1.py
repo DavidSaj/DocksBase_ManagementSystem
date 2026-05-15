@@ -280,3 +280,16 @@ class InboundETAViewTests(TestCase):
         mmsis = [row['mmsi'] for row in body['inbound']]
         self.assertIn('227123456', mmsis)
         self.assertNotIn('227999999', mmsis)
+
+
+class Phase2ModelTests(TestCase):
+    def test_vessel_position_last_transition_at_nullable(self):
+        from apps.ais.models import VesselPosition
+        f = VesselPosition._meta.get_field('last_transition_at')
+        self.assertTrue(f.null)
+        self.assertTrue(f.blank)
+
+    def test_ais_notification_sent_unique_per_booking_kind(self):
+        from apps.ais.models import AISNotificationSent
+        constraints = {c.name for c in AISNotificationSent._meta.constraints}
+        self.assertIn('ais_notif_booking_kind_uniq', constraints)
