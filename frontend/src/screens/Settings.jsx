@@ -4,6 +4,7 @@ import useMarina from '../hooks/useMarina.js';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
+import BasinPolygonEditor from './BasinPolygonEditor.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -1049,6 +1050,25 @@ export default function Settings() {
                 )}
               </div>
             </div>
+
+            {!marinaLoading && fm('lat') && fm('lng') && (
+              <div className="card">
+                <details>
+                  <summary
+                    className="card-header"
+                    style={{ cursor: 'pointer', listStyle: 'none' }}
+                  >
+                    <div className="card-header-title">AIS Basin (advanced)</div>
+                  </summary>
+                  <div className="card-body">
+                    <BasinPolygonEditor
+                      marina={mf}
+                      onSaved={(polygon) => setM('basin_polygon', polygon)}
+                    />
+                  </div>
+                </details>
+              </div>
+            )}
 
           </div>
 
