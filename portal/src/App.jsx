@@ -3,6 +3,7 @@ import { useTenant } from './context/TenantContext';
 import PortalGate       from './components/shell/PortalGate';
 import BookingWizard    from './screens/BookingWizard';
 import BookingConfirmed from './screens/BookingConfirmed';
+import PreviewScreen    from './screens/PreviewScreen';
 
 function BookingWizardPage() {
   const { marina } = useTenant();
@@ -25,6 +26,8 @@ function BookingConfirmedPage({ cancelled }) {
 export default function App() {
   return (
     <Routes>
+      <Route path="/__preview"                   element={<PreviewScreen />} />
+      <Route path="/__preview/"                  element={<PreviewScreen />} />
       <Route path="/:slug/book"                  element={<BookingWizardPage />} />
       <Route path="/:slug/booking/:id/confirmed" element={<BookingConfirmedPage cancelled={false} />} />
       <Route path="/:slug/booking/:id/cancelled" element={<BookingConfirmedPage cancelled={true} />} />
