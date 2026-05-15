@@ -696,10 +696,49 @@ class OpenWeatherMapSettingsView(_SingleKeyIntegrationView):
     key_field = 'openweathermap_api_key'
 
 
-class DocuSignSettingsView(_SingleKeyIntegrationView):
-    """DocuSign — needs both an integration key and an account id."""
-    key_field   = 'docusign_api_key'
-    extra_field = 'docusign_account_id'
+class DocuSignSettingsView(APIView):
+    """
+    DocuSign needs more than a single key: Integration Key, API Account Id,
+    impersonation User Id, RSA private key, and the account base URL.
+    `connected` is true once all five are populated.
+    """
+    permission_classes = [IsMarinaStaff]
+
+    FIELDS = [
+        'docusign_api_key', 'docusign_account_id', 'docusign_user_id',
+        'docusign_private_key', 'docusign_base_url',
+    ]
+
+    def _payload(self, marina):
+        key = marina.docusign_api_key or ''
+        priv = marina.docusign_private_key or ''
+        return {
+            'connected': all(getattr(marina, f) for f in self.FIELDS),
+            'api_key_tail':         key[-4:] if len(key) >= 4 else '',
+            'docusign_account_id':  marina.docusign_account_id or '',
+            'docusign_user_id':     marina.docusign_user_id or '',
+            'docusign_base_url':    marina.docusign_base_url or '',
+            'private_key_present':  bool(priv),
+        }
+
+    def get(self, request):
+        return Response(self._payload(request.user.marina))
+
+    def patch(self, request):
+        marina = request.user.marina
+        update_fields = []
+        for field in self.FIELDS:
+            if field in request.data:
+                value = request.data.get(field) or ''
+                # Private key blank on update means "keep existing" so the
+                # manager doesn't have to re-paste the whole RSA block.
+                if field == 'docusign_private_key' and value == '' and marina.docusign_private_key:
+                    continue
+                setattr(marina, field, value)
+                update_fields.append(field)
+        if update_fields:
+            marina.save(update_fields=update_fields)
+        return Response(self._payload(marina))
 
 
 # ---------------------------------------------------------------------------
