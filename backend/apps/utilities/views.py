@@ -335,6 +335,9 @@ class WebhookReadingsView(APIView):
     permission_classes     = []
 
     def post(self, request):
+        if request.auth is None:
+            return Response({'detail': 'Webhook key required.'},
+                            status=status.HTTP_401_UNAUTHORIZED)
         marina = request.auth.marina
 
         serializer = ReadingIngestSerializer(data=request.data)
@@ -380,6 +383,9 @@ class DeviceReadingsView(APIView):
     permission_classes     = []
 
     def post(self, request):
+        if request.auth is None:
+            return Response({'detail': 'Device credentials required.'},
+                            status=status.HTTP_401_UNAUTHORIZED)
         meter = request.auth  # a SmartMeter instance
 
         serializer = ReadingIngestSerializer(data=request.data)
