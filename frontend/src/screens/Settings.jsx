@@ -100,27 +100,64 @@ const PLAN_OPTIONS = [
   { key: 'enterprise',   name: 'Enterprise',    monthlyPrice: 899, tagline: 'For large marinas & groups' },
 ];
 
-// Placeholder notification groups — displayed in disabled/coming-soon state
+// Notification rule catalog. Each rule has a stable `key` used as the JSON
+// key in marina.notification_rules. Send-site wiring is a follow-up — for now
+// these toggles only persist user intent.
 const NOTIF_GROUPS = [
   { group: 'Bookings', items: [
-    { label: 'New booking confirmation' },
-    { label: 'Arrival reminder (24h before)' },
-    { label: 'Departure reminder' },
-    { label: 'Overstay alert' },
+    { key: 'booking_new_confirmation',   label: 'New booking confirmation' },
+    { key: 'booking_arrival_reminder_24h', label: 'Arrival reminder (24h before)' },
+    { key: 'booking_departure_reminder', label: 'Departure reminder' },
+    { key: 'booking_overstay_alert',     label: 'Overstay alert' },
   ]},
   { group: 'Payments', items: [
-    { label: 'Invoice issued' },
-    { label: 'Payment received' },
-    { label: 'Payment overdue (7 days)' },
-    { label: 'Payment overdue (30 days)' },
+    { key: 'payment_invoice_issued',     label: 'Invoice issued' },
+    { key: 'payment_received',           label: 'Payment received' },
+    { key: 'payment_overdue_7d',         label: 'Payment overdue (7 days)' },
+    { key: 'payment_overdue_30d',        label: 'Payment overdue (30 days)' },
   ]},
   { group: 'Operations', items: [
-    { label: 'Critical defect logged' },
-    { label: 'Incident reported' },
-    { label: 'Document expiry (30 days)' },
-    { label: 'Insurance expiry (30 days)' },
+    { key: 'ops_critical_defect',        label: 'Critical defect logged' },
+    { key: 'ops_incident_reported',      label: 'Incident reported' },
+    { key: 'ops_document_expiry_30d',    label: 'Document expiry (30 days)' },
+    { key: 'ops_insurance_expiry_30d',   label: 'Insurance expiry (30 days)' },
   ]},
 ];
+
+// Visible label + the marina.* fields each SMS provider requires.
+// `secretFlag` names the read-only `has_*` boolean returned by the Marina API
+// for write-only credential fields. When the backend reports the secret is on
+// file, the UI shows a "Set" badge and uses a generic masked placeholder so
+// staff don't think the credential is missing. Leaving the field empty on
+// save is a no-op — the backend strips empty strings before persisting.
+const SMS_PROVIDERS = [
+  { key: 'twilio', label: 'Twilio', helpUrl: 'https://console.twilio.com', fields: [
+    { name: 'twilio_account_sid', label: 'Account SID',  type: 'text',     placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+    { name: 'twilio_auth_token',  label: 'Auth Token',   type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_twilio_auth_token' },
+    { name: 'twilio_from_number', label: 'From Number',  type: 'text',     placeholder: '+14155551234', hint: 'E.164 format. Buy a number in the Twilio console.' },
+  ]},
+  { key: 'vonage', label: 'Vonage (Nexmo)', helpUrl: 'https://dashboard.nexmo.com', fields: [
+    { name: 'vonage_api_key',     label: 'API Key',      type: 'text',     placeholder: '' },
+    { name: 'vonage_api_secret',  label: 'API Secret',   type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_vonage_api_secret' },
+    { name: 'vonage_from',        label: 'Sender',       type: 'text',     placeholder: '+14155551234 or MarinaName', hint: 'E.164 number or 11-char alphanumeric sender ID (where allowed).' },
+  ]},
+  { key: 'messagebird', label: 'MessageBird', helpUrl: 'https://dashboard.messagebird.com', fields: [
+    { name: 'messagebird_access_key', label: 'Access Key', type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_messagebird_access_key' },
+    { name: 'messagebird_originator', label: 'Originator', type: 'text',     placeholder: '+14155551234 or MarinaName', hint: 'E.164 number or alphanumeric sender ID.' },
+  ]},
+];
+
+// Reusable inline badge for "this credential is on file but its value is not
+// shown for security reasons". Rendered next to write-only password fields.
+function SetBadge() {
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase',
+      background: 'rgba(34,168,121,0.15)', color: 'var(--teal, #1f8c66)',
+      borderRadius: 3, padding: '2px 6px', marginLeft: 8,
+    }}>Saved</span>
+  );
+}
 
 // ── Accounting integrations card ──────────────────────────────────────────
 
@@ -717,6 +754,19 @@ export default function Settings() {
       smtp_user:               marina.smtp_user               ?? '',
       smtp_password:           marina.smtp_password           ?? '',
       smtp_use_tls:            marina.smtp_use_tls            ?? true,
+      // SMS config
+      sms_enabled:             marina.sms_enabled             ?? false,
+      sms_provider:            marina.sms_provider            || 'twilio',
+      twilio_account_sid:      marina.twilio_account_sid      ?? '',
+      twilio_auth_token:       marina.twilio_auth_token       ?? '',
+      twilio_from_number:      marina.twilio_from_number      ?? '',
+      vonage_api_key:          marina.vonage_api_key          ?? '',
+      vonage_api_secret:       marina.vonage_api_secret       ?? '',
+      vonage_from:             marina.vonage_from             ?? '',
+      messagebird_access_key:  marina.messagebird_access_key  ?? '',
+      messagebird_originator:  marina.messagebird_originator  ?? '',
+      // Notification rules — { ruleKey: { email: bool, sms: bool } }
+      notification_rules:      marina.notification_rules      ?? {},
     });
     setFlags({
       restaurant:  marina.features?.restaurant  ?? false,
@@ -742,6 +792,46 @@ export default function Settings() {
     } finally {
       setMarinaSaving(false);
     }
+  }
+
+  async function saveSmsConfig() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({
+        sms_enabled:            !!mf.sms_enabled,
+        sms_provider:           mf.sms_provider || 'twilio',
+        twilio_account_sid:     mf.twilio_account_sid     ?? '',
+        twilio_auth_token:      mf.twilio_auth_token      ?? '',
+        twilio_from_number:     mf.twilio_from_number     ?? '',
+        vonage_api_key:         mf.vonage_api_key         ?? '',
+        vonage_api_secret:      mf.vonage_api_secret      ?? '',
+        vonage_from:            mf.vonage_from            ?? '',
+        messagebird_access_key: mf.messagebird_access_key ?? '',
+        messagebird_originator: mf.messagebird_originator ?? '',
+      });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  async function saveNotificationRules() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({ notification_rules: mf.notification_rules ?? {} });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  function toggleRule(ruleKey, channel, value) {
+    setMf(prev => {
+      const rules = { ...(prev.notification_rules ?? {}) };
+      const current = rules[ruleKey] ?? { email: false, sms: false };
+      rules[ruleKey] = { ...current, [channel]: value };
+      return { ...prev, notification_rules: rules };
+    });
   }
 
   async function saveSmtpConfig() {
@@ -1379,12 +1469,13 @@ export default function Settings() {
                   placeholder="apikey or your SMTP login"
                 />
               </FieldRow>
-              <FieldRow label="SMTP Password">
+              <FieldRow label={<>SMTP Password{marina?.has_smtp_password && <SetBadge />}</>} hint={marina?.has_smtp_password ? 'Leave blank to keep the saved password.' : undefined}>
                 <input
                   type="password" style={MI}
                   value={fm('smtp_password')}
                   onChange={e => setM('smtp_password', e.target.value)}
                   placeholder="••••••••••••••••"
+                  autoComplete="new-password"
                 />
               </FieldRow>
               <FieldRow label="Use TLS">
@@ -1401,31 +1492,98 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Notification rules — coming soon */}
+          {/* Outgoing SMS configurator */}
+          {(() => {
+            const activeProvider = SMS_PROVIDERS.find(p => p.key === (mf?.sms_provider || 'twilio')) ?? SMS_PROVIDERS[0];
+            return (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-header-title">Outgoing SMS</div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                    Sign up with an SMS provider (e.g. Twilio), buy a sending number, and paste the credentials here. SMS rules in the table below only fire when SMS is enabled and the provider is fully configured. You pay your provider directly per message sent.
+                  </div>
+                </div>
+                <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <FieldRow label="Enable SMS">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 34 }}>
+                        <Toggle on={!!mf?.sms_enabled} onChange={v => setM('sms_enabled', v)} />
+                        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{mf?.sms_enabled ? 'Enabled' : 'Disabled'}</span>
+                      </div>
+                    </FieldRow>
+                    <FieldRow label="Provider" hint={<>API console: <a href={activeProvider.helpUrl} target="_blank" rel="noreferrer">{activeProvider.helpUrl.replace(/^https?:\/\//, '')}</a></>}>
+                      <select
+                        style={MI}
+                        value={mf?.sms_provider || 'twilio'}
+                        onChange={e => setM('sms_provider', e.target.value)}
+                      >
+                        {SMS_PROVIDERS.map(p => (
+                          <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                      </select>
+                    </FieldRow>
+                    {activeProvider.fields.map(f => {
+                      const isSet = f.secretFlag && marina?.[f.secretFlag];
+                      const hint = isSet ? 'Leave blank to keep the saved value.' : f.hint;
+                      return (
+                        <FieldRow key={f.name} label={<>{f.label}{isSet && <SetBadge />}</>} hint={hint}>
+                          <input
+                            type={f.type} style={MI}
+                            value={fm(f.name)}
+                            onChange={e => setM(f.name, e.target.value)}
+                            placeholder={f.placeholder}
+                            autoComplete={f.type === 'password' ? 'new-password' : 'off'}
+                          />
+                        </FieldRow>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <button className="btn btn-primary" disabled={marinaSaving} onClick={saveSmsConfig}>
+                      {marinaSaving ? 'Saving…' : 'Save SMS Settings'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Automated Notification Rules — functional */}
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Automated Notification Rules</div>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Configure which events trigger email alerts</div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                Choose which channels each event uses. SMS is greyed out until SMS is enabled above.
+              </div>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
-              <ComingSoonBanner />
-              <div style={{ opacity: 0.4, pointerEvents: 'none' }}>
-                {NOTIF_GROUPS.map(group => (
-                  <div key={group.group}>
-                    <div style={{ padding: '12px 18px 6px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.4)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
-                      {group.group}
-                    </div>
-                    {group.items.map(item => (
-                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: 'var(--border)', gap: 16 }}>
-                        <div style={{ flex: 1, fontSize: 12.5, color: 'rgba(0,0,0,0.8)' }}>{item.label}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', width: 32 }}>Email</span>
-                          <Toggle on={false} onChange={() => {}} />
+              {NOTIF_GROUPS.map(group => (
+                <div key={group.group}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '10px 18px 8px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.45)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
+                    <div style={{ flex: 1 }}>{group.group}</div>
+                    <div style={{ width: 70, textAlign: 'center', fontSize: 10 }}>Email</div>
+                    <div style={{ width: 70, textAlign: 'center', fontSize: 10 }}>SMS</div>
+                  </div>
+                  {group.items.map(item => {
+                    const rule = mf?.notification_rules?.[item.key] ?? { email: false, sms: false };
+                    return (
+                      <div key={item.key} style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: 'var(--border)', gap: 16 }}>
+                        <div style={{ flex: 1, fontSize: 12.5, color: 'rgba(0,0,0,0.85)' }}>{item.label}</div>
+                        <div style={{ width: 70, display: 'flex', justifyContent: 'center' }}>
+                          <Toggle on={!!rule.email} onChange={v => toggleRule(item.key, 'email', v)} />
+                        </div>
+                        <div style={{ width: 70, display: 'flex', justifyContent: 'center', opacity: mf?.sms_enabled ? 1 : 0.35, pointerEvents: mf?.sms_enabled ? 'auto' : 'none' }}>
+                          <Toggle on={!!rule.sms} onChange={v => toggleRule(item.key, 'sms', v)} />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{ padding: '14px 18px' }}>
+                <button className="btn btn-primary" disabled={marinaSaving} onClick={saveNotificationRules}>
+                  {marinaSaving ? 'Saving…' : 'Save Notification Rules'}
+                </button>
               </div>
             </div>
           </div>

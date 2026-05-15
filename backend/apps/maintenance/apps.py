@@ -7,3 +7,5 @@ class MaintenanceConfig(AppConfig):
 
     def ready(self):
         import apps.notifications.signals  # noqa: F401
+        # post_save receivers for ops_critical_defect / ops_incident_reported.
+        from . import receivers  # noqa: F401
