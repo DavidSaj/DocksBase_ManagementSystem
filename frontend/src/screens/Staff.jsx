@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import Ic from '../components/ui/Icon.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import useStaff from '../hooks/useStaff.js';
 import useShifts from '../hooks/useShifts.js';
 import useCertifications from '../hooks/useCertifications.js';
@@ -320,6 +322,10 @@ export default function Staff() {
         </div>
       )}
 
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Staff</span>
+        <ScreenInfo title="Staff" body={SCREEN_INFO.staff} />
+      </div>
       <div className="tabs">
         {[['directory','Directory'],['rota','Weekly Rota'],['certifications','Certifications']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => { setTab(v); setSel(null); }}>{l}</div>

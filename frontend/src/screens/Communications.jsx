@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -799,7 +801,10 @@ export default function Communications() {
       <div className="page-header" style={{ marginBottom: 24 }}>
         <div className="row align-items-center">
           <div className="col-auto">
-            <div className="page-title">Communications</div>
+            <div className="page-title" style={{ display: 'flex', alignItems: 'center' }}>
+              Communications
+              <ScreenInfo title="Communications" body={SCREEN_INFO.communications} />
+            </div>
           </div>
         </div>
       </div>

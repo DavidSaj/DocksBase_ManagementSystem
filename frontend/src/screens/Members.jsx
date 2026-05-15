@@ -4,6 +4,8 @@ import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api, { sendMagicLink } from '../api.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 function NewMemberModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
@@ -315,6 +317,10 @@ export default function Members({ setScreen }) {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Members</span>
+        <ScreenInfo title="Members" body={SCREEN_INFO.members} />
+      </div>
       <div className="tabs">
         {[['members','Members & Owners'],['docs','Document Vault'],['compliance','Compliance']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

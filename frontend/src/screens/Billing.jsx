@@ -3,6 +3,8 @@ import useInvoices from '../hooks/useInvoices.js';
 import useBoaterAccounts from '../hooks/useBoaterAccounts.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import api from '../api.js';
 import { ageDays } from '../utils/ageDays.js';
 
@@ -440,6 +442,10 @@ export default function Billing() {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Billing</span>
+        <ScreenInfo title="Billing" body={SCREEN_INFO.billing} />
+      </div>
       <div className="tabs">
         {[['invoices','Invoices'],['boater-accounts','Boater Accounts'],['payment-plans','Payment Plans'],['utilities','Utility Meters'],['debtors','Aged Debtors'],['accounts','Accounts']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -1229,7 +1231,10 @@ export default function Charter() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--navy, #1a2d4a)', letterSpacing: '-0.5px' }}>Charter &amp; Harbour</div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--navy, #1a2d4a)', letterSpacing: '-0.5px' }}>Charter &amp; Harbour</div>
+          <ScreenInfo title="Charter & Harbour" body={SCREEN_INFO.charter} />
+        </div>
         <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>Manage charter fleet bookings, harbour dues, shipping agents, and commercial vessel calls.</div>
       </div>
 
