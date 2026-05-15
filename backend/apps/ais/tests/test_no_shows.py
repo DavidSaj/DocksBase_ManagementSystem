@@ -56,13 +56,15 @@ class NoShowDetectionTests(TestCase):
     @patch('apps.ais.detect_events.notify_no_show')
     def test_skips_when_recent_contact_exists(self, mock_notify):
         booking = self._make_booking()
+        mocked_now = datetime.combine(date.today(), time(13, 0), tzinfo=dt_tz.utc)
+        # Recent relative to the mocked clock (12:30 on the same simulated day),
+        # so the 1-hour liveness window catches it deterministically.
         VesselPosition.objects.create(
             marina=self.marina, mmsi='227111111', vessel=self.vessel,
             lat=Decimal('45.0'), lng=Decimal('1.0'),
-            reported_at=timezone.now() - timedelta(minutes=30),
+            reported_at=mocked_now - timedelta(minutes=30),
         )
-        with patch('apps.ais.detect_events._tz.now',
-                   return_value=datetime.combine(date.today(), time(13, 0), tzinfo=dt_tz.utc)):
+        with patch('apps.ais.detect_events._tz.now', return_value=mocked_now):
             detect_no_shows(self.marina, recipient=self.user)
         booking.refresh_from_db()
         self.assertFalse(booking.ais_no_show_predicted)

@@ -91,14 +91,21 @@ def poll_ais_for_marina(marina_id: int):
         if transition:
             transitions.append((position, transition))
 
-    for position, transition in transitions:
-        if transition == 'enter':
-            on_basin_enter(position, recipient=recipient)
-        else:
-            on_basin_exit(position, recipient=recipient)
-
+    # All event handlers require an in-app recipient (notify() FK is NOT NULL).
+    # Without a marina user we record positions but skip dispatch; the next
+    # poll cycle will retry once a user exists.
     if recipient is not None:
+        for position, transition in transitions:
+            if transition == 'enter':
+                on_basin_enter(position, recipient=recipient)
+            else:
+                on_basin_exit(position, recipient=recipient)
         detect_no_shows(marina, recipient=recipient)
+    elif transitions:
+        logger.warning(
+            'AIS poll marina=%s suppressed %d transition(s): no recipient user',
+            marina_id, len(transitions),
+        )
 
     logger.info('AIS poll marina=%s readings=%d matched=%d transitions=%d',
                 marina_id, len(readings),

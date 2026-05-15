@@ -18,7 +18,6 @@ from typing import Optional, Tuple
 
 from django.db import transaction as _txn
 from django.utils import timezone as _tz
-from django.utils.timezone import now as _real_now
 
 from apps.ais.geometry import point_in_polygon
 from apps.ais.models import VesselPosition as _VP
@@ -126,7 +125,10 @@ def on_basin_exit(position, *, recipient):
     with _txn.atomic():
         booking.status = 'checked_out'
         booking.save(update_fields=['status'])
-        _finalize_turnaround_invoice(booking)
+    # Finalize after the status flip commits — a finalize failure must not
+    # roll back the checkout. Matches the manual-checkout pattern in
+    # apps/reservations/views.py:82-95.
+    _finalize_turnaround_invoice(booking)
     notify_auto_checkout(booking, recipient=recipient)
 
 
@@ -182,7 +184,7 @@ def detect_no_shows(marina, *, recipient):
         nearby = _VP.objects.filter(
             marina=marina,
             vessel_id=booking.vessel_id,
-            reported_at__gte=_real_now() - _td(hours=1),
+            reported_at__gte=now - _td(hours=1),
         ).exists()
         if nearby:
             continue
