@@ -3,6 +3,7 @@ import logging
 from django.conf import settings
 from django.core.mail import send_mail
 
+from apps.accounts.notifications import rule_enabled
 from apps.portal.checkin_utils import make_magic_url
 
 _log = logging.getLogger(__name__)
@@ -92,6 +93,8 @@ def send_reject_email(booking, reason):
 
 
 def send_booking_confirmed_email(booking):
+    if not rule_enabled(booking.marina, 'booking_new_confirmation', 'email'):
+        return
     from apps.accounts.emails import _base, _h1, _p, _btn, _divider, _small, _NAVY, _MUTED, _TEXT
     marina    = booking.marina
     magic_url = make_magic_url(booking)
@@ -182,6 +185,8 @@ def send_reservation_confirmed_email(reservation):
     Includes RES-{pk} reference prominently (airline-style PNR) and a magic
     deep-link that authenticates the boater directly into their Boarding Pass.
     """
+    if not rule_enabled(reservation.marina, 'booking_new_confirmation', 'email'):
+        return
     from apps.portal.checkin_utils import make_reservation_magic_url
     from apps.accounts.emails import _base, _h1, _p, _btn, _divider, _small, _NAVY, _MUTED, _TEXT
 

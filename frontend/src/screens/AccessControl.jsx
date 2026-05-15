@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1744,7 +1746,10 @@ export default function AccessControl() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* Page header */}
       <div className="page-header" style={{ marginBottom: 0, paddingBottom: 0 }}>
-        <div className="page-title">Security &amp; Access Control</div>
+        <div className="page-title" style={{ display: 'flex', alignItems: 'center' }}>
+          Security &amp; Access Control
+          <ScreenInfo title="Security & Access Control" body={SCREEN_INFO.accessControl} />
+        </div>
       </div>
 
       {/* Tab bar */}

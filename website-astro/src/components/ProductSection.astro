@@ -3,7 +3,7 @@ import styles from './ProductSection.module.css'
 ---
 <section class={styles.section} id="product">
   <div class={styles.inner}>
-    <div class={styles.layout}>
+    <div class={styles.layout} data-product-layout>
       <div class={styles.text}>
         <div class={styles.eyebrow}>Live Platform</div>
         <h2 class={styles.title}>Built for the dock. Ready on day one.</h2>
@@ -24,3 +24,16 @@ import styles from './ProductSection.module.css'
     </div>
   </div>
 </section>
+
+<script define:vars={{ textCls: styles.text, textVisibleCls: styles.textVisible, shotCls: styles.screenshot, shotVisibleCls: styles.shotVisible }}>
+  document.querySelectorAll('[data-product-layout]').forEach(layout => {
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        layout.querySelector('.' + textCls)?.classList.add(textVisibleCls)
+        setTimeout(() => layout.querySelector('.' + shotCls)?.classList.add(shotVisibleCls), 150)
+        obs.unobserve(layout)
+      }
+    }, { threshold: 0.1 })
+    obs.observe(layout)
+  })
+</script>

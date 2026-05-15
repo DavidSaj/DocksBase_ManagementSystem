@@ -127,7 +127,11 @@ class WebhookIngestTests(_Base):
             marina=self.marina, vendor='rolec', meter_type='electricity',
             device_id='ROLEC-1', label='Berth 1',
         )
-        self.client.credentials()  # drop JWT — ingest must work without it
+        # Drop both header-based JWT and force_authenticate so the
+        # MeterWebhookAuthentication / MeterDeviceAuthentication classes
+        # on the view actually run.
+        self.client.credentials()
+        self.client.force_authenticate(user=None)  # drop JWT — ingest must work without it
 
     def _post(self, payload, key=None):
         return self.client.post(
@@ -223,7 +227,11 @@ class DeviceIngestTests(_Base):
         r = self.client.post(f'/api/v1/utilities/smart-meters/{self.meter.pk}/device-token/')
         self.hw    = r.json()['hardware_id']
         self.token = r.json()['device_token']
+        # Drop both header-based JWT and force_authenticate so the
+        # MeterWebhookAuthentication / MeterDeviceAuthentication classes
+        # on the view actually run.
         self.client.credentials()
+        self.client.force_authenticate(user=None)
 
     def _post(self, payload, hw=None, token=None):
         return self.client.post(
@@ -274,7 +282,11 @@ class LastUsedThrottleTests(_Base):
         body = {'readings': [{'device_id': 'X',
                               'recorded_at': '2026-05-14T10:00:00Z',
                               'cumulative_kwh': '1.0'}]}
+        # Drop both header-based JWT and force_authenticate so the
+        # MeterWebhookAuthentication / MeterDeviceAuthentication classes
+        # on the view actually run.
         self.client.credentials()
+        self.client.force_authenticate(user=None)
 
         self.client.post('/api/v1/utilities/webhook/readings/',
                          body, format='json',
@@ -300,7 +312,11 @@ class LastUsedThrottleTests(_Base):
         body = {'readings': [{'device_id': 'X',
                               'recorded_at': '2026-05-14T10:00:00Z',
                               'cumulative_kwh': '1.0'}]}
+        # Drop both header-based JWT and force_authenticate so the
+        # MeterWebhookAuthentication / MeterDeviceAuthentication classes
+        # on the view actually run.
         self.client.credentials()
+        self.client.force_authenticate(user=None)
 
         self.client.post('/api/v1/utilities/webhook/readings/',
                          body, format='json',

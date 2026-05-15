@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from apps.portal.views import MarinaPublicView
 from apps.portal.public_booking_views import (
     PublicBookingCreateView,
@@ -23,4 +23,5 @@ urlpatterns = [
     path('bookings/engine-request/',            PublicEngineRequestView.as_view(),             name='public-engine-request'),
     path('reservations/intent/',                ReservationIntentView.as_view(),               name='public-reservation-intent'),
     path('reservations/confirm/',               ReservationConfirmView.as_view(),              name='public-reservation-confirm'),
+    path('', include('apps.activities.public_urls')),
 ]
