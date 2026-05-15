@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import ProgressBar from './ProgressBar'
 import StepPlan from './StepPlan'
 import StepMarina from './StepMarina'
@@ -11,7 +10,6 @@ import styles from './SignupPage.module.css'
 const API = import.meta.env.PUBLIC_API_URL || ''
 
 export default function SignupPage({ resume = false }) {
-  const [searchParams] = useSearchParams()
   const [step, setStep] = useState(1)
   const [dir, setDir] = useState(1)
   const [form, setForm] = useState({
@@ -32,7 +30,7 @@ export default function SignupPage({ resume = false }) {
   // Resume flow: token in query string → skip to step 4
   useEffect(() => {
     if (!resume) return
-    const token = searchParams.get('token')
+    const token = new URLSearchParams(window.location.search).get('token')
     if (!token) return
     fetch(`${API}/api/v1/auth/onboarding/resume/`, {
       method: 'POST',
@@ -49,7 +47,7 @@ export default function SignupPage({ resume = false }) {
         }
       })
       .catch(() => {})
-  }, [resume, searchParams])
+  }, [resume])
 
   function patch(fields) { setForm(f => ({ ...f, ...fields })) }
 
