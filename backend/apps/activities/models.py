@@ -109,6 +109,7 @@ class ActivityExtra(models.Model):
 
 class ActivityBooking(models.Model):
     class Status(models.TextChoices):
+        REQUESTED = 'requested', 'Requested'
         CONFIRMED = 'confirmed', 'Confirmed'
         CANCELLED = 'cancelled', 'Cancelled'
         COMPLETED = 'completed', 'Completed'
@@ -231,3 +232,33 @@ class AssetReservation(models.Model):
 
     def __str__(self):
         return f'Reservation: {self.asset} @ {self.time_range}'
+
+
+class ActivityTimeSlot(models.Model):
+    """
+    Weekly recurring slot template for an activity.
+
+    The public booking surface materialises concrete dated slots on demand by
+    walking forward from today and emitting one slot per matching weekday inside
+    the activity's season window. Templates are not pre-expanded into rows.
+    """
+    class Weekday(models.IntegerChoices):
+        MON = 0, 'Monday'
+        TUE = 1, 'Tuesday'
+        WED = 2, 'Wednesday'
+        THU = 3, 'Thursday'
+        FRI = 4, 'Friday'
+        SAT = 5, 'Saturday'
+        SUN = 6, 'Sunday'
+
+    activity   = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='time_slots')
+    weekday    = models.IntegerField(choices=Weekday.choices)
+    start_time = models.TimeField()
+    is_active  = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = [('activity', 'weekday', 'start_time')]
+        ordering = ['weekday', 'start_time']
+
+    def __str__(self):
+        return f'{self.activity.name} {self.get_weekday_display()} {self.start_time:%H:%M}'

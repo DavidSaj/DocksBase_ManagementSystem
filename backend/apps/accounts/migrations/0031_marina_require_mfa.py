@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0026_marina_smtp_config'),
+        ('accounts', '0030_merge_20260515_1043'),
     ]
 
     operations = [

@@ -4,11 +4,17 @@ from apps.billing.models import ChargeableItem
 
 
 class OTAConnectionSerializer(serializers.ModelSerializer):
+    berth_count = serializers.SerializerMethodField()
+
     class Meta:
         model = OTAConnection
         fields = ['id', 'name', 'slug', 'inbound_ical_url', 'outbound_token',
-                  'target_pct', 'auto_allocate', 'last_synced']
-        read_only_fields = ['id', 'slug', 'outbound_token', 'last_synced']
+                  'target_pct', 'auto_allocate', 'last_synced', 'berth_count']
+        read_only_fields = ['id', 'slug', 'outbound_token', 'last_synced', 'berth_count']
+
+    def get_berth_count(self, obj):
+        from .models import Berth
+        return Berth.objects.filter(ota_connection=obj).exclude(status='maintenance').count()
 
     def validate_name(self, value):
         from django.utils.text import slugify

@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0027_marina_require_mfa'),
+        ('accounts', '0031_marina_require_mfa'),
     ]
 
     operations = [

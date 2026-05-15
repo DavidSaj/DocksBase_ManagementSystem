@@ -6,6 +6,39 @@ from config.plans import PLAN_PRICE_IDS, PRICE_ID_TO_PLAN
 
 
 class MarinaSerializer(serializers.ModelSerializer):
+    # Secret credentials: write-only on the wire. The plaintext value is never
+    # included in GET responses; instead the matching ``has_*`` boolean below
+    # tells the UI whether a value is on file so it can render a "saved" hint.
+    # Empty strings sent on PATCH are stripped in ``update()`` so the frontend
+    # can blindly POST the whole form without clobbering existing secrets.
+    smtp_password          = serializers.CharField(write_only=True, required=False, allow_blank=True, style={'input_type': 'password'})
+    twilio_auth_token      = serializers.CharField(write_only=True, required=False, allow_blank=True, style={'input_type': 'password'})
+    vonage_api_secret      = serializers.CharField(write_only=True, required=False, allow_blank=True, style={'input_type': 'password'})
+    messagebird_access_key = serializers.CharField(write_only=True, required=False, allow_blank=True, style={'input_type': 'password'})
+
+    has_smtp_password          = serializers.SerializerMethodField()
+    has_twilio_auth_token      = serializers.SerializerMethodField()
+    has_vonage_api_secret      = serializers.SerializerMethodField()
+    has_messagebird_access_key = serializers.SerializerMethodField()
+
+    # Bare reads on the model instance go through EncryptedCharField.from_db_value,
+    # which decrypts. We don't want that plaintext leaving the serializer, so the
+    # has_* flags introspect the *attribute presence* (truthy ⇒ value is set).
+    def get_has_smtp_password(self, obj)          -> bool: return bool(getattr(obj, 'smtp_password', ''))
+    def get_has_twilio_auth_token(self, obj)      -> bool: return bool(getattr(obj, 'twilio_auth_token', ''))
+    def get_has_vonage_api_secret(self, obj)      -> bool: return bool(getattr(obj, 'vonage_api_secret', ''))
+    def get_has_messagebird_access_key(self, obj) -> bool: return bool(getattr(obj, 'messagebird_access_key', ''))
+
+    _SECRET_FIELDS = ('smtp_password', 'twilio_auth_token', 'vonage_api_secret', 'messagebird_access_key')
+
+    def update(self, instance, validated_data):
+        # Empty string on a write-only secret = "no change". Drop the key
+        # entirely so EncryptedCharField doesn't overwrite the stored value.
+        for f in self._SECRET_FIELDS:
+            if f in validated_data and validated_data[f] == '':
+                validated_data.pop(f)
+        return super().update(instance, validated_data)
+
     class Meta:
         model = Marina
         # FIX 4: explicit fields instead of __all__ — sensitive/admin-only fields are read-only
@@ -14,9 +47,19 @@ class MarinaSerializer(serializers.ModelSerializer):
             'name', 'address', 'lat', 'lng', 'timezone', 'contact_email', 'phone',
             'currency', 'vat_rate', 'vat_number', 'payment_terms', 'booking_mode',
             'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft', 'fuel_berths',
+            'basin_polygon', 'ais_poll_radius_nm',
             'operations_paused',
             # email / SMTP config
             'notification_from_email', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_use_tls',
+            'has_smtp_password',
+            # SMS config
+            'sms_enabled', 'sms_provider',
+            'twilio_account_sid', 'twilio_auth_token', 'twilio_from_number',
+            'vonage_api_key', 'vonage_api_secret', 'vonage_from',
+            'messagebird_access_key', 'messagebird_originator',
+            'has_twilio_auth_token', 'has_vonage_api_secret', 'has_messagebird_access_key',
+            # Notification rules (per-rule channel toggles)
+            'notification_rules',
             # read-only: owner can see but not change
             'id', 'slug', 'status', 'plan', 'trial_ends', 'next_renewal', 'suspend_reason',
             'stripe_account_id', 'mrr_override', 'max_staff', 'features', 'onboarding',
@@ -29,6 +72,22 @@ class MarinaSerializer(serializers.ModelSerializer):
             'support_access_granted_until',
             'created_at',
         ]
+
+    def validate_basin_polygon(self, value):
+        if not value:
+            return []
+        if not isinstance(value, list) or len(value) < 3:
+            raise serializers.ValidationError('Polygon must have at least 3 vertices.')
+        for v in value:
+            if not isinstance(v, (list, tuple)) or len(v) != 2:
+                raise serializers.ValidationError('Each vertex must be [lat, lng].')
+            try:
+                lat, lng = float(v[0]), float(v[1])
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Vertex coordinates must be numeric.')
+            if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+                raise serializers.ValidationError('Vertex coordinates out of range.')
+        return value
 
 
 class UserSerializer(serializers.ModelSerializer):

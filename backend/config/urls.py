@@ -51,6 +51,7 @@ urlpatterns = [
         path('', include('apps.tickets.urls')),
         path('', include('apps.security.urls')),
         path('', include('apps.api_keys.urls')),
+        path('ais/', include('apps.ais.urls')),
     ])),
 ]
 

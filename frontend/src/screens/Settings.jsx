@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
 import SecurityCard from './Settings/SecurityCard.jsx';
+import BasinPolygonEditor from './BasinPolygonEditor.jsx';
+import ApiDocsModal from './Settings/ApiDocsModal.jsx';
+import DataTab from './settings/DataTab.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -85,14 +91,6 @@ const MI = {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const FLAG_DEFS = [
-  { key: 'restaurant',  label: 'Restaurant module',            desc: 'Enable F&B screens' },
-  { key: 'events',      label: 'Events module',                desc: 'Event and venue hire' },
-  { key: 'portal',      label: 'Customer self-service portal', desc: 'Boater web portal' },
-  { key: 'ais',         label: 'AIS map overlay',              desc: 'Show live vessel positions' },
-  { key: 'multimarina', label: 'Multi-marina mode',            desc: 'Group reporting' },
-];
-
 const ROLE_LABELS = { owner: 'Owner', manager: 'Manager', staff: 'Staff', boater: 'Boater' };
 
 const PLAN_OPTIONS = [
@@ -101,27 +99,64 @@ const PLAN_OPTIONS = [
   { key: 'enterprise',   name: 'Enterprise',    monthlyPrice: 899, tagline: 'For large marinas & groups' },
 ];
 
-// Placeholder notification groups — displayed in disabled/coming-soon state
+// Notification rule catalog. Each rule has a stable `key` used as the JSON
+// key in marina.notification_rules. Send-site wiring is a follow-up — for now
+// these toggles only persist user intent.
 const NOTIF_GROUPS = [
   { group: 'Bookings', items: [
-    { label: 'New booking confirmation' },
-    { label: 'Arrival reminder (24h before)' },
-    { label: 'Departure reminder' },
-    { label: 'Overstay alert' },
+    { key: 'booking_new_confirmation',   label: 'New booking confirmation' },
+    { key: 'booking_arrival_reminder_24h', label: 'Arrival reminder (24h before)' },
+    { key: 'booking_departure_reminder', label: 'Departure reminder' },
+    { key: 'booking_overstay_alert',     label: 'Overstay alert' },
   ]},
   { group: 'Payments', items: [
-    { label: 'Invoice issued' },
-    { label: 'Payment received' },
-    { label: 'Payment overdue (7 days)' },
-    { label: 'Payment overdue (30 days)' },
+    { key: 'payment_invoice_issued',     label: 'Invoice issued' },
+    { key: 'payment_received',           label: 'Payment received' },
+    { key: 'payment_overdue_7d',         label: 'Payment overdue (7 days)' },
+    { key: 'payment_overdue_30d',        label: 'Payment overdue (30 days)' },
   ]},
   { group: 'Operations', items: [
-    { label: 'Critical defect logged' },
-    { label: 'Incident reported' },
-    { label: 'Document expiry (30 days)' },
-    { label: 'Insurance expiry (30 days)' },
+    { key: 'ops_critical_defect',        label: 'Critical defect logged' },
+    { key: 'ops_incident_reported',      label: 'Incident reported' },
+    { key: 'ops_document_expiry_30d',    label: 'Document expiry (30 days)' },
+    { key: 'ops_insurance_expiry_30d',   label: 'Insurance expiry (30 days)' },
   ]},
 ];
+
+// Visible label + the marina.* fields each SMS provider requires.
+// `secretFlag` names the read-only `has_*` boolean returned by the Marina API
+// for write-only credential fields. When the backend reports the secret is on
+// file, the UI shows a "Set" badge and uses a generic masked placeholder so
+// staff don't think the credential is missing. Leaving the field empty on
+// save is a no-op — the backend strips empty strings before persisting.
+const SMS_PROVIDERS = [
+  { key: 'twilio', label: 'Twilio', helpUrl: 'https://console.twilio.com', fields: [
+    { name: 'twilio_account_sid', label: 'Account SID',  type: 'text',     placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+    { name: 'twilio_auth_token',  label: 'Auth Token',   type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_twilio_auth_token' },
+    { name: 'twilio_from_number', label: 'From Number',  type: 'text',     placeholder: '+14155551234', hint: 'E.164 format. Buy a number in the Twilio console.' },
+  ]},
+  { key: 'vonage', label: 'Vonage (Nexmo)', helpUrl: 'https://dashboard.nexmo.com', fields: [
+    { name: 'vonage_api_key',     label: 'API Key',      type: 'text',     placeholder: '' },
+    { name: 'vonage_api_secret',  label: 'API Secret',   type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_vonage_api_secret' },
+    { name: 'vonage_from',        label: 'Sender',       type: 'text',     placeholder: '+14155551234 or MarinaName', hint: 'E.164 number or 11-char alphanumeric sender ID (where allowed).' },
+  ]},
+  { key: 'messagebird', label: 'MessageBird', helpUrl: 'https://dashboard.messagebird.com', fields: [
+    { name: 'messagebird_access_key', label: 'Access Key', type: 'password', placeholder: '••••••••••••••••', secretFlag: 'has_messagebird_access_key' },
+    { name: 'messagebird_originator', label: 'Originator', type: 'text',     placeholder: '+14155551234 or MarinaName', hint: 'E.164 number or alphanumeric sender ID.' },
+  ]},
+];
+
+// Reusable inline badge for "this credential is on file but its value is not
+// shown for security reasons". Rendered next to write-only password fields.
+function SetBadge() {
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase',
+      background: 'rgba(34,168,121,0.15)', color: 'var(--teal, #1f8c66)',
+      borderRadius: 3, padding: '2px 6px', marginLeft: 8,
+    }}>Saved</span>
+  );
+}
 
 // ── Accounting integrations card ──────────────────────────────────────────
 
@@ -440,6 +475,80 @@ function StripeConnectCard({ marina }) {
   );
 }
 
+// ── OTA Connections helpers ────────────────────────────────────────────────
+
+function relTime(ms) {
+  const s = Math.max(Math.floor(ms / 1000), 0);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+function otaStatus(conn) {
+  if (!conn.inbound_ical_url) {
+    return { key: 'outbound_only', label: 'Outbound only', tone: 'gray' };
+  }
+  if (!conn.last_synced) {
+    return { key: 'never_synced', label: 'Never synced', tone: 'orange' };
+  }
+  const ageMs = Date.now() - new Date(conn.last_synced).getTime();
+  if (ageMs < 60 * 60 * 1000) {
+    return { key: 'synced_recent', label: `Synced ${relTime(ageMs)} ago`, tone: 'green' };
+  }
+  return { key: 'synced_stale', label: `Synced ${relTime(ageMs)} ago`, tone: 'blue' };
+}
+
+function KebabMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={() => setOpen(o => !o)}
+        aria-label="More actions"
+        style={{ padding: '4px 8px', fontSize: 16, lineHeight: 1 }}
+      >
+        ⋮
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', right: 0, top: '100%', marginTop: 4,
+          background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          minWidth: 180, zIndex: 10,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {items.map((it, i) => (
+            <button
+              key={i}
+              disabled={it.disabled}
+              onClick={() => { if (!it.disabled) { setOpen(false); it.onClick(); } }}
+              style={{
+                textAlign: 'left', padding: '8px 12px', fontSize: 13,
+                background: 'transparent', border: 0, cursor: it.disabled ? 'not-allowed' : 'pointer',
+                color: it.danger ? '#c0392b' : 'inherit',
+                opacity: it.disabled ? 0.4 : 1,
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── OTA Connections card ───────────────────────────────────────────────────
 
 function OTAConnectionsCard() {
@@ -450,6 +559,9 @@ function OTAConnectionsCard() {
   const [syncing, setSyncing] = useState(null); // connection id being synced
   const [removing, setRemoving] = useState(null); // connection id being removed
   const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(null);     // { id, inbound_ical_url } | null
+  const [syncErrors, setSyncErrors] = useState({}); // { [id]: string }
+  const [copied, setCopied] = useState(null);       // id whose URL was just copied
 
   useEffect(() => {
     api.get('/ota-connections/')
@@ -490,16 +602,37 @@ function OTAConnectionsCard() {
   async function triggerSync(conn) {
     if (syncing === conn.id) return;
     setSyncing(conn.id);
-    setError(null);
+    setSyncErrors(prev => ({ ...prev, [conn.id]: '' }));
     try {
       await api.post(`/ota-connections/${conn.id}/sync/`);
       const { data } = await api.get(`/ota-connections/${conn.id}/`);
       setConnections(prev => prev.map(c => c.id === conn.id ? data : c));
-    } catch {
-      setError('Sync failed.');
+    } catch (e) {
+      const detail = e?.response?.data?.detail || 'Sync failed.';
+      setSyncErrors(prev => ({ ...prev, [conn.id]: detail }));
     } finally {
       setSyncing(null);
     }
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    try {
+      const { data } = await api.patch(`/ota-connections/${editing.id}/`, {
+        inbound_ical_url: editing.inbound_ical_url,
+      });
+      setConnections(prev => prev.map(c => c.id === editing.id ? data : c));
+      setEditing(null);
+    } catch {
+      alert('Failed to update URL.');
+    }
+  }
+
+  function copyOutbound(conn) {
+    const url = `${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`;
+    navigator.clipboard?.writeText(url);
+    setCopied(conn.id);
+    setTimeout(() => setCopied(c => c === conn.id ? null : c), 1500);
   }
 
   if (loading) return <div style={{ padding: '12px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>;
@@ -507,50 +640,79 @@ function OTAConnectionsCard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {error && <div style={{ fontSize: 12, color: '#c0392b', padding: '4px 0' }}>{error}</div>}
+      {connections.length > 0 && connections.every(c => (c.berth_count ?? 0) === 0) && (
+        <div style={{
+          fontSize: 11,
+          color: 'rgba(0,0,0,0.55)',
+          padding: '4px 0',
+          fontStyle: 'italic',
+        }}>
+          No berths allocated to any connection yet. Set a target % in Channels to start receiving bookings.
+        </div>
+      )}
       {connections.length === 0 && !error && (
         <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 0' }}>No OTA connections yet.</div>
       )}
-      {connections.map(conn => (
-        <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
-            <button
-              className="btn btn-danger btn-sm"
-              disabled={removing === conn.id}
-              onClick={() => deleteConnection(conn.id)}
-            >
-              {removing === conn.id ? 'Removing…' : 'Remove'}
-            </button>
-          </div>
-          {conn.inbound_ical_url && (
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
-              Inbound: <span style={{ fontFamily: 'monospace' }}>{conn.inbound_ical_url.length > 50 ? conn.inbound_ical_url.slice(0, 50) + '…' : conn.inbound_ical_url}</span>
+      {connections.map(conn => {
+        const isEditing = editing?.id === conn.id;
+        const syncErr   = syncErrors[conn.id];
+        const status    = syncErr
+          ? { key: 'sync_failed', label: 'Sync failed', tone: 'red' }
+          : otaStatus(conn);
+        const isCopied  = copied === conn.id;
+
+        if (isEditing) {
+          return (
+            <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{conn.name}</div>
+              <input
+                type="url"
+                placeholder="Inbound iCal URL"
+                value={editing.inbound_ical_url}
+                onChange={e => setEditing(s => ({ ...s, inbound_ical_url: e.target.value }))}
+                style={{ fontSize: 13 }}
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={saveEdit}>Save</button>
+              </div>
             </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
-              Outbound iCal:
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ marginLeft: 6, fontSize: 10 }}
-                onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`)}
-              >
-                Copy URL
-              </button>
+          );
+        }
+
+        return (
+          <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
+              <span className={`badge badge-${status.tone}`}>{status.label}</span>
+              <KebabMenu items={[
+                {
+                  label: syncing === conn.id ? 'Syncing…' : 'Sync now',
+                  disabled: !conn.inbound_ical_url || syncing === conn.id,
+                  onClick: () => triggerSync(conn),
+                },
+                {
+                  label: isCopied ? 'Copied!' : 'Copy outbound URL',
+                  onClick: () => copyOutbound(conn),
+                },
+                {
+                  label: 'Edit URLs',
+                  onClick: () => setEditing({ id: conn.id, inbound_ical_url: conn.inbound_ical_url || '' }),
+                },
+                {
+                  label: 'Remove',
+                  danger: true,
+                  disabled: removing === conn.id,
+                  onClick: () => deleteConnection(conn.id),
+                },
+              ]} />
             </div>
-            {conn.inbound_ical_url && (
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: 11 }}
-                disabled={syncing === conn.id}
-                onClick={() => triggerSync(conn)}
-              >
-                {syncing === conn.id ? 'Syncing…' : `Sync now${conn.last_synced ? ` · ${new Date(conn.last_synced).toLocaleTimeString()}` : ''}`}
-              </button>
+            {syncErr && (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#c0392b' }}>{syncErr}</div>
             )}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {form ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
@@ -633,10 +795,273 @@ function SupportAccessSection() {
   );
 }
 
+// ── API Access helpers ─────────────────────────────────────────────────────
+
+function usedSince(iso) {
+  if (!iso) return 'Never used';
+  const ms = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Used ${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `Used ${d}d ago`;
+}
+
+function shortDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function StatusPill({ status }) {
+  const styles = {
+    active:  { background: '#d1fae5', color: '#065f46' },
+    revoked: { background: '#f3f4f6', color: '#6b7280' },
+    expired: { background: '#fff7ed', color: '#c2410c' },
+  };
+  const s = styles[status] ?? styles.revoked;
+  return (
+    <span style={{
+      ...s, borderRadius: 20, padding: '2px 9px',
+      fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+    }}>
+      {status === 'active' ? '● Active' : capitalize(status)}
+    </span>
+  );
+}
+
+function APIAccessCard({ onOpenDocs }) {
+  const [keys, setKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formExpiry, setFormExpiry] = useState('');
+  const [formSaving, setFormSaving] = useState(false);
+  const [revealKey, setRevealKey] = useState(null); // raw key string
+  const [copied, setCopied] = useState(false);
+
+  function fetchKeys() {
+    setLoading(true);
+    api.get('/api-keys/')
+      .then(r => setKeys(r.data.results ?? r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { fetchKeys(); }, []);
+
+  async function handleGenerate(e) {
+    e.preventDefault();
+    if (!formName.trim()) return;
+    setFormSaving(true);
+    try {
+      const payload = { name: formName.trim() };
+      if (formExpiry) payload.expires_at = formExpiry;
+      const { data } = await api.post('/api-keys/', payload);
+      setRevealKey(data.key);
+      setShowForm(false);
+      setFormName('');
+      setFormExpiry('');
+      fetchKeys();
+    } catch {
+      alert('Could not generate API key. Please try again.');
+    } finally {
+      setFormSaving(false);
+    }
+  }
+
+  async function handleRevoke(id) {
+    if (!window.confirm('Revoke this key? Active integrations using it will stop working.')) return;
+    try {
+      await api.post(`/api-keys/${id}/revoke/`);
+      setKeys(prev => prev.map(k => k.id === id ? { ...k, status: 'revoked' } : k));
+    } catch {
+      alert('Could not revoke key.');
+    }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Permanently delete this key? This cannot be undone.')) return;
+    try {
+      await api.delete(`/api-keys/${id}/`);
+      setKeys(prev => prev.filter(k => k.id !== id));
+    } catch {
+      alert('Could not delete key.');
+    }
+  }
+
+  function handleCopy() {
+    if (!revealKey) return;
+    navigator.clipboard.writeText(revealKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  function handleCloseReveal() {
+    setRevealKey(null);
+    setCopied(false);
+  }
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-title">API Access</div>
+          <button className="btn btn-ghost btn-sm" onClick={onOpenDocs} style={{ fontSize: 12 }}>
+            View docs
+          </button>
+        </div>
+        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+          {/* Key list */}
+          {loading ? (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>Loading…</div>
+          ) : keys.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.38)', padding: '8px 0', marginBottom: 12 }}>
+              No API keys yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 12 }}>
+              {keys.map(k => (
+                <div key={k.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 0', borderBottom: '1px solid rgba(0,0,0,0.06)',
+                }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <StatusPill status={k.status} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{k.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', fontFamily: 'monospace', marginTop: 2 }}>
+                      {k.key_prefix}••••••{k.last_four}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', textAlign: 'right', flexShrink: 0 }}>
+                    <div>{usedSince(k.last_used_at)}</div>
+                    <div>Created {shortDate(k.created_at)}</div>
+                  </div>
+                  <KebabMenu
+                    items={k.status === 'active'
+                      ? [{ label: 'Revoke', danger: true, onClick: () => handleRevoke(k.id) }]
+                      : [{ label: 'Delete', danger: true, onClick: () => handleDelete(k.id) }]
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Inline generate form */}
+          {showForm ? (
+            <form onSubmit={handleGenerate} style={{
+              background: 'var(--bg, #f9f9fb)', borderRadius: 8, padding: '14px 16px',
+              border: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: '2 1 160px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>NAME</div>
+                  <input
+                    style={MI}
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="e.g. Production integration"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div style={{ flex: '1 1 140px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>
+                    EXPIRES <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional)</span>
+                  </div>
+                  <input
+                    type="date"
+                    style={MI}
+                    value={formExpiry}
+                    onChange={e => setFormExpiry(e.target.value)}
+                    min={new Date().toISOString().slice(0, 10)}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>Leave expiry blank for no expiry.</div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowForm(false); setFormName(''); setFormExpiry(''); }}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={formSaving || !formName.trim()}>
+                  {formSaving ? 'Generating…' : 'Generate'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ alignSelf: 'flex-start', fontSize: 12 }}
+              onClick={() => setShowForm(true)}
+            >
+              <Ic n="plus" s={11} /> Generate new key
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Key Reveal Modal */}
+      {revealKey && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          onClick={e => e.target === e.currentTarget && handleCloseReveal()}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>API Key Generated</div>
+
+            {/* Warning banner */}
+            <div style={{
+              background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8,
+              padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#9a3412',
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+            }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>⚠</span>
+              <span>Save this key now. You will not be able to view it again.</span>
+            </div>
+
+            {/* Key display */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' }}>
+              <input
+                readOnly
+                value={revealKey}
+                onClick={e => e.target.select()}
+                style={{
+                  flex: 1, fontFamily: 'monospace', fontSize: 12, padding: '8px 10px',
+                  border: '1px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#f6f8fa',
+                  wordBreak: 'break-all',
+                }}
+              />
+              <button className="btn btn-ghost btn-sm" onClick={handleCopy} style={{ flexShrink: 0 }}>
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={handleCloseReveal}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function Settings() {
   const [tab, setTab] = useState('marina');
+  const { user } = useAuth();
+  const isOwner = user?.role === 'owner';
+
+  // ── API Docs modal ─────────────────────────────────────────────────────
+  const [docsModalOpen, setDocsModalOpen] = useState(false);
 
   // ── Billing ────────────────────────────────────────────────────────────
   const [billing, setBilling] = useState(null);
@@ -718,13 +1143,18 @@ export default function Settings() {
       smtp_user:               marina.smtp_user               ?? '',
       smtp_password:           marina.smtp_password           ?? '',
       smtp_use_tls:            marina.smtp_use_tls            ?? true,
-    });
-    setFlags({
-      restaurant:  marina.features?.restaurant  ?? false,
-      events:      marina.features?.events      ?? false,
-      portal:      marina.features?.portal      ?? false,
-      ais:         marina.features?.ais         ?? false,
-      multimarina: marina.features?.multimarina ?? false,
+      // SMS config
+      sms_enabled:             marina.sms_enabled             ?? false,
+      sms_provider:            marina.sms_provider            || 'twilio',
+      twilio_account_sid:      marina.twilio_account_sid      ?? '',
+      twilio_auth_token:       marina.twilio_auth_token       ?? '',
+      twilio_from_number:      marina.twilio_from_number      ?? '',
+      vonage_api_key:          marina.vonage_api_key          ?? '',
+      vonage_api_secret:       marina.vonage_api_secret       ?? '',
+      vonage_from:             marina.vonage_from             ?? '',
+      messagebird_access_key:  marina.messagebird_access_key  ?? '',
+      messagebird_originator:  marina.messagebird_originator  ?? '',
+      notification_rules:      marina.notification_rules      ?? {},
     });
   }, [marina]);
 
@@ -743,6 +1173,46 @@ export default function Settings() {
     } finally {
       setMarinaSaving(false);
     }
+  }
+
+  async function saveSmsConfig() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({
+        sms_enabled:            !!mf.sms_enabled,
+        sms_provider:           mf.sms_provider || 'twilio',
+        twilio_account_sid:     mf.twilio_account_sid     ?? '',
+        twilio_auth_token:      mf.twilio_auth_token      ?? '',
+        twilio_from_number:     mf.twilio_from_number     ?? '',
+        vonage_api_key:         mf.vonage_api_key         ?? '',
+        vonage_api_secret:      mf.vonage_api_secret      ?? '',
+        vonage_from:            mf.vonage_from            ?? '',
+        messagebird_access_key: mf.messagebird_access_key ?? '',
+        messagebird_originator: mf.messagebird_originator ?? '',
+      });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  async function saveNotificationRules() {
+    if (!mf) return;
+    setMarinaSaving(true);
+    try {
+      await updateMarina({ notification_rules: mf.notification_rules ?? {} });
+    } finally {
+      setMarinaSaving(false);
+    }
+  }
+
+  function toggleRule(ruleKey, channel, value) {
+    setMf(prev => {
+      const rules = { ...(prev.notification_rules ?? {}) };
+      const current = rules[ruleKey] ?? { email: false, sms: false };
+      rules[ruleKey] = { ...current, [channel]: value };
+      return { ...prev, notification_rules: rules };
+    });
   }
 
   async function saveSmtpConfig() {
@@ -816,20 +1286,6 @@ export default function Settings() {
     }
   }
 
-  // ── Feature flags ──────────────────────────────────────────────────────
-
-  const [flags, setFlags] = useState({});
-  const [flagsSaving, setFlagsSaving] = useState(false);
-
-  async function saveFlags() {
-    setFlagsSaving(true);
-    try {
-      await updateMarina({ features: flags });
-    } finally {
-      setFlagsSaving(false);
-    }
-  }
-
   // ── Integrations — Dropbox Sign ───────────────────────────────────────
 
   const [dsSettings, setDsSettings] = useState(null);
@@ -882,10 +1338,84 @@ export default function Settings() {
     }
   }
 
+  // ── Integrations — MarineTraffic / OpenWeatherMap / DocuSign ───────────
+  //
+  // Each is just an API key (DocuSign needs a second account id). One generic
+  // state shape per provider keeps the JSX terse.
+
+  const [marineTraffic, setMarineTraffic] = useState({ data: null, apiKey: '', saving: false, msg: null });
+  const [openWeather,   setOpenWeather]   = useState({ data: null, apiKey: '', saving: false, msg: null });
+  const [docusign,      setDocusign]      = useState({
+    data: null, apiKey: '', accountId: '', userId: '', baseUrl: '', privateKey: '',
+    saving: false, msg: null,
+  });
+
+  useEffect(() => {
+    if (tab !== 'integrations') return;
+    let cancelled = false;
+    Promise.all([
+      api.get('/marina/integrations/marinetraffic/').then(r => r.data).catch(() => null),
+      api.get('/marina/integrations/openweathermap/').then(r => r.data).catch(() => null),
+      api.get('/marina/integrations/docusign/').then(r => r.data).catch(() => null),
+    ]).then(([mt, ow, ds]) => {
+      if (cancelled) return;
+      if (mt) setMarineTraffic(s => ({ ...s, data: mt }));
+      if (ow) setOpenWeather(s => ({ ...s, data: ow }));
+      if (ds) setDocusign(s => ({
+        ...s,
+        data:      ds,
+        accountId: ds.docusign_account_id || '',
+        userId:    ds.docusign_user_id || '',
+        baseUrl:   ds.docusign_base_url || '',
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [tab]);
+
+  async function saveSimpleIntegration(setState, state, endpoint, body, label) {
+    setState(s => ({ ...s, saving: true, msg: null }));
+    try {
+      const { data } = await api.patch(endpoint, body);
+      setState(s => ({
+        ...s,
+        data,
+        apiKey: '',
+        saving: false,
+        msg: { type: 'ok', text: data.connected ? `${label} connected.` : `${label} settings saved.` },
+      }));
+    } catch {
+      setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Save failed. Check the value and try again.' } }));
+    }
+  }
+
+  async function disconnectSimple(setState, endpoint, body) {
+    setState(s => ({ ...s, saving: true, msg: null }));
+    try {
+      const { data } = await api.patch(endpoint, body);
+      setState(s => ({
+        ...s,
+        data,
+        apiKey:     '',
+        accountId:  data.docusign_account_id || '',
+        userId:     data.docusign_user_id || '',
+        baseUrl:    data.docusign_base_url || '',
+        privateKey: '',
+        saving:     false,
+        msg:        { type: 'ok', text: 'Disconnected.' },
+      }));
+    } catch {
+      setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Disconnect failed.' } }));
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Settings</span>
+        <ScreenInfo title="Settings" body={SCREEN_INFO.settings} />
+      </div>
       {/* Tab bar */}
       <div className="tabs">
         {[
@@ -896,6 +1426,7 @@ export default function Settings() {
           ['notifications', 'Notifications',    true],
           ['integrations',  'Integrations',     false],
           ['mobile-app',    'Mobile App',       false],
+          ['data',          'Data',             false],
           ['system',        'System',           false],
         ].map(([v, l, cs]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>
@@ -999,6 +1530,25 @@ export default function Settings() {
                 )}
               </div>
             </div>
+
+            {!marinaLoading && fm('lat') && fm('lng') && (
+              <div className="card">
+                <details>
+                  <summary
+                    className="card-header"
+                    style={{ cursor: 'pointer', listStyle: 'none' }}
+                  >
+                    <div className="card-header-title">AIS Basin (advanced)</div>
+                  </summary>
+                  <div className="card-body">
+                    <BasinPolygonEditor
+                      marina={mf}
+                      onSaved={(polygon) => setM('basin_polygon', polygon)}
+                    />
+                  </div>
+                </details>
+              </div>
+            )}
 
           </div>
 
@@ -1380,12 +1930,13 @@ export default function Settings() {
                   placeholder="apikey or your SMTP login"
                 />
               </FieldRow>
-              <FieldRow label="SMTP Password">
+              <FieldRow label={<>SMTP Password{marina?.has_smtp_password && <SetBadge />}</>} hint={marina?.has_smtp_password ? 'Leave blank to keep the saved password.' : undefined}>
                 <input
                   type="password" style={MI}
                   value={fm('smtp_password')}
                   onChange={e => setM('smtp_password', e.target.value)}
                   placeholder="••••••••••••••••"
+                  autoComplete="new-password"
                 />
               </FieldRow>
               <FieldRow label="Use TLS">
@@ -1402,31 +1953,98 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Notification rules — coming soon */}
+          {/* Outgoing SMS configurator */}
+          {(() => {
+            const activeProvider = SMS_PROVIDERS.find(p => p.key === (mf?.sms_provider || 'twilio')) ?? SMS_PROVIDERS[0];
+            return (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-header-title">Outgoing SMS</div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                    Sign up with an SMS provider (e.g. Twilio), buy a sending number, and paste the credentials here. SMS rules in the table below only fire when SMS is enabled and the provider is fully configured. You pay your provider directly per message sent.
+                  </div>
+                </div>
+                <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <FieldRow label="Enable SMS">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 34 }}>
+                        <Toggle on={!!mf?.sms_enabled} onChange={v => setM('sms_enabled', v)} />
+                        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{mf?.sms_enabled ? 'Enabled' : 'Disabled'}</span>
+                      </div>
+                    </FieldRow>
+                    <FieldRow label="Provider" hint={<>API console: <a href={activeProvider.helpUrl} target="_blank" rel="noreferrer">{activeProvider.helpUrl.replace(/^https?:\/\//, '')}</a></>}>
+                      <select
+                        style={MI}
+                        value={mf?.sms_provider || 'twilio'}
+                        onChange={e => setM('sms_provider', e.target.value)}
+                      >
+                        {SMS_PROVIDERS.map(p => (
+                          <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                      </select>
+                    </FieldRow>
+                    {activeProvider.fields.map(f => {
+                      const isSet = f.secretFlag && marina?.[f.secretFlag];
+                      const hint = isSet ? 'Leave blank to keep the saved value.' : f.hint;
+                      return (
+                        <FieldRow key={f.name} label={<>{f.label}{isSet && <SetBadge />}</>} hint={hint}>
+                          <input
+                            type={f.type} style={MI}
+                            value={fm(f.name)}
+                            onChange={e => setM(f.name, e.target.value)}
+                            placeholder={f.placeholder}
+                            autoComplete={f.type === 'password' ? 'new-password' : 'off'}
+                          />
+                        </FieldRow>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <button className="btn btn-primary" disabled={marinaSaving} onClick={saveSmsConfig}>
+                      {marinaSaving ? 'Saving…' : 'Save SMS Settings'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Automated Notification Rules — functional */}
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Automated Notification Rules</div>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Configure which events trigger email alerts</div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
+                Choose which channels each event uses. SMS is greyed out until SMS is enabled above.
+              </div>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
-              <ComingSoonBanner />
-              <div style={{ opacity: 0.4, pointerEvents: 'none' }}>
-                {NOTIF_GROUPS.map(group => (
-                  <div key={group.group}>
-                    <div style={{ padding: '12px 18px 6px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.4)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
-                      {group.group}
-                    </div>
-                    {group.items.map(item => (
-                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: 'var(--border)', gap: 16 }}>
-                        <div style={{ flex: 1, fontSize: 12.5, color: 'rgba(0,0,0,0.8)' }}>{item.label}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', width: 32 }}>Email</span>
-                          <Toggle on={false} onChange={() => {}} />
+              {NOTIF_GROUPS.map(group => (
+                <div key={group.group}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '10px 18px 8px', background: 'var(--bg)', fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.45)', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: 'var(--border)' }}>
+                    <div style={{ flex: 1 }}>{group.group}</div>
+                    <div style={{ width: 70, textAlign: 'center', fontSize: 10 }}>Email</div>
+                    <div style={{ width: 70, textAlign: 'center', fontSize: 10 }}>SMS</div>
+                  </div>
+                  {group.items.map(item => {
+                    const rule = mf?.notification_rules?.[item.key] ?? { email: false, sms: false };
+                    return (
+                      <div key={item.key} style={{ display: 'flex', alignItems: 'center', padding: '12px 18px', borderBottom: 'var(--border)', gap: 16 }}>
+                        <div style={{ flex: 1, fontSize: 12.5, color: 'rgba(0,0,0,0.85)' }}>{item.label}</div>
+                        <div style={{ width: 70, display: 'flex', justifyContent: 'center' }}>
+                          <Toggle on={!!rule.email} onChange={v => toggleRule(item.key, 'email', v)} />
+                        </div>
+                        <div style={{ width: 70, display: 'flex', justifyContent: 'center', opacity: mf?.sms_enabled ? 1 : 0.35, pointerEvents: mf?.sms_enabled ? 'auto' : 'none' }}>
+                          <Toggle on={!!rule.sms} onChange={v => toggleRule(item.key, 'sms', v)} />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{ padding: '14px 18px' }}>
+                <button className="btn btn-primary" disabled={marinaSaving} onClick={saveNotificationRules}>
+                  {marinaSaving ? 'Saving…' : 'Save Notification Rules'}
+                </button>
               </div>
             </div>
           </div>
@@ -1444,55 +2062,6 @@ export default function Settings() {
 
             {/* Accounting Integrations — live */}
             <AccountingIntegrationsCard />
-
-            {/* Integrations — Coming Soon */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Integrations</div></div>
-              <div className="card-body" style={{ paddingBottom: 8 }}>
-                <ComingSoonBanner />
-              </div>
-              <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                {[
-                  { name: 'AIS Vessel Tracking',desc: 'MarineTraffic API' },
-                  { name: 'OpenWeatherMap',     desc: 'Live weather conditions' },
-                  { name: 'DocuSign',           desc: 'Electronic signatures' },
-                ].map(int => (
-                  <div key={int.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: 'var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{int.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{int.desc}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="badge badge-gray">Not set up</span>
-                      <button className="btn btn-ghost btn-sm" disabled>Connect</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Feature Flags — real */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Feature Flags</div></div>
-              <div className="card-body" style={{ padding: 0 }}>
-                {marinaLoading ? (
-                  <div style={{ padding: '16px 18px', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
-                ) : FLAG_DEFS.map(f => (
-                  <div key={f.key} style={{ display: 'flex', alignItems: 'center', padding: '13px 18px', borderBottom: 'var(--border)', gap: 16 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>{f.label}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{f.desc}</div>
-                    </div>
-                    <Toggle on={flags[f.key] ?? false} onChange={v => setFlags(prev => ({ ...prev, [f.key]: v }))} />
-                  </div>
-                ))}
-                <div style={{ padding: '12px 18px' }}>
-                  <button className="btn btn-primary btn-sm" disabled={flagsSaving || marinaLoading} onClick={saveFlags}>
-                    {flagsSaving ? 'Saving…' : 'Save Flags'}
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* OTA Connections */}
             <div className="card">
@@ -1542,26 +2111,10 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* API Access — Coming Soon */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">API Access</div></div>
-              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <ComingSoonBanner />
-                <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>Production key</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 3, fontFamily: 'monospace', letterSpacing: '0.3px' }}>No key generated</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" disabled>Copy</button>
-                      <button className="btn btn-danger btn-sm" disabled>Revoke</button>
-                    </div>
-                  </div>
-                  <button className="btn btn-primary btn-sm" disabled style={{ alignSelf: 'flex-start', marginTop: 12 }}><Ic n="plus" s={11} />Generate New Key</button>
-                </div>
-              </div>
-            </div>
+            {/* API Access — owner only */}
+            {isOwner && (
+              <APIAccessCard onOpenDocs={() => setDocsModalOpen(true)} />
+            )}
 
           </div>
         </div>
@@ -1574,9 +2127,12 @@ export default function Settings() {
         </div>
       )}
 
+      {/* ── DATA ─────────────────────────────────────────────────────── */}
+      {tab === 'data' && <DataTab />}
+
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (
-        <div style={{ maxWidth: 560 }}>
+        <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Dropbox Sign</div>
@@ -1634,6 +2190,227 @@ export default function Settings() {
               )}
             </div>
           </div>
+
+          {/* ── AIS Vessel Tracking — MarineTraffic ───────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">AIS Vessel Tracking</div>
+              {marineTraffic.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Connect MarineTraffic to show live vessel positions on the harbor map. Your account is billed directly by MarineTraffic.{' '}
+                <a href="https://www.marinetraffic.com/en/ais-api-services" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Get an API key →
+                </a>
+              </div>
+              <FieldRow
+                label="API Key"
+                hint={marineTraffic.data?.connected ? `Current key ending in ···${marineTraffic.data.api_key_tail}` : 'Found in MarineTraffic → API Services → My API Keys'}
+              >
+                <input
+                  type="password"
+                  value={marineTraffic.apiKey}
+                  onChange={e => setMarineTraffic(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={marineTraffic.data?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {marineTraffic.msg && (
+                <div style={{ fontSize: 12, color: marineTraffic.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {marineTraffic.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={marineTraffic.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setMarineTraffic, marineTraffic,
+                    '/marina/integrations/marinetraffic/',
+                    { api_key: marineTraffic.apiKey },
+                    'MarineTraffic',
+                  )}
+                >
+                  {marineTraffic.saving ? 'Saving…' : marineTraffic.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {marineTraffic.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={marineTraffic.saving}
+                    onClick={() => disconnectSimple(setMarineTraffic, '/marina/integrations/marinetraffic/', { api_key: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── OpenWeatherMap ────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">OpenWeatherMap</div>
+              {openWeather.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Show live local weather on the dashboard, using your marina's lat/lng from Marina Profile.{' '}
+                <a href="https://openweathermap.org/api" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  Get a free API key →
+                </a>
+              </div>
+              <FieldRow
+                label="API Key"
+                hint={openWeather.data?.connected ? `Current key ending in ···${openWeather.data.api_key_tail}` : 'Found in OpenWeatherMap → My API Keys'}
+              >
+                <input
+                  type="password"
+                  value={openWeather.apiKey}
+                  onChange={e => setOpenWeather(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={openWeather.data?.connected ? 'Leave blank to keep current key' : 'Paste API key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              {openWeather.msg && (
+                <div style={{ fontSize: 12, color: openWeather.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {openWeather.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={openWeather.saving}
+                  onClick={() => saveSimpleIntegration(
+                    setOpenWeather, openWeather,
+                    '/marina/integrations/openweathermap/',
+                    { api_key: openWeather.apiKey },
+                    'OpenWeatherMap',
+                  )}
+                >
+                  {openWeather.saving ? 'Saving…' : openWeather.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {openWeather.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={openWeather.saving}
+                    onClick={() => disconnectSimple(setOpenWeather, '/marina/integrations/openweathermap/', { api_key: '' })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── DocuSign ──────────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-header-title">DocuSign</div>
+              {docusign.data?.connected && (
+                <span className="badge badge-green" style={{ fontSize: 10 }}>Connected</span>
+              )}
+            </div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
+                Alternative e-signature provider to Dropbox Sign. Uses DocuSign JWT Grant — set up an app in DocuSign Admin → <em>Apps and Keys</em>, upload an RSA public key, then grant impersonation consent for the user you'll send envelopes as.{' '}
+                <a href="https://developers.docusign.com/platform/auth/jwt/" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
+                  DocuSign JWT setup guide →
+                </a>
+              </div>
+              <FieldRow label="Base URL" hint="Sandbox: https://demo.docusign.net/restapi · Production: https://<region>.docusign.net/restapi">
+                <input
+                  type="text"
+                  value={docusign.baseUrl}
+                  onChange={e => setDocusign(s => ({ ...s, baseUrl: e.target.value }))}
+                  placeholder="https://demo.docusign.net/restapi"
+                />
+              </FieldRow>
+              <FieldRow label="Account ID" hint="Found in DocuSign Admin → API and Keys → API Account ID">
+                <input
+                  type="text"
+                  value={docusign.accountId}
+                  onChange={e => setDocusign(s => ({ ...s, accountId: e.target.value }))}
+                  placeholder="e.g. 1a2b3c4d-..."
+                />
+              </FieldRow>
+              <FieldRow label="User ID" hint="Impersonation user (GUID from Admin → Users → API Username)">
+                <input
+                  type="text"
+                  value={docusign.userId}
+                  onChange={e => setDocusign(s => ({ ...s, userId: e.target.value }))}
+                  placeholder="e.g. 1a2b3c4d-..."
+                />
+              </FieldRow>
+              <FieldRow
+                label="Integration Key"
+                hint={docusign.data?.connected ? `Current key ending in ···${docusign.data.api_key_tail}` : 'Found in DocuSign Admin → Apps and Keys (this is the client_id)'}
+              >
+                <input
+                  type="password"
+                  value={docusign.apiKey}
+                  onChange={e => setDocusign(s => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={docusign.data?.connected ? 'Leave blank to keep current key' : 'Paste integration key here'}
+                  autoComplete="new-password"
+                />
+              </FieldRow>
+              <FieldRow
+                label="RSA Private Key"
+                hint={docusign.data?.private_key_present ? 'A private key is on file — paste a new one to replace it.' : 'Paste the full PEM (-----BEGIN RSA PRIVATE KEY----- ... -----END RSA PRIVATE KEY-----)'}
+              >
+                <textarea
+                  rows={5}
+                  value={docusign.privateKey}
+                  onChange={e => setDocusign(s => ({ ...s, privateKey: e.target.value }))}
+                  placeholder={docusign.data?.private_key_present ? 'Leave blank to keep current key' : '-----BEGIN RSA PRIVATE KEY-----\n...'}
+                  style={{ fontFamily: 'monospace', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                />
+              </FieldRow>
+              {docusign.msg && (
+                <div style={{ fontSize: 12, color: docusign.msg.type === 'ok' ? 'var(--teal)' : 'var(--red)', fontWeight: 600 }}>
+                  {docusign.msg.text}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={docusign.saving}
+                  onClick={() => {
+                    const body = {
+                      docusign_base_url:    docusign.baseUrl,
+                      docusign_account_id:  docusign.accountId,
+                      docusign_user_id:     docusign.userId,
+                    };
+                    if (docusign.apiKey)     body.docusign_api_key     = docusign.apiKey;
+                    if (docusign.privateKey) body.docusign_private_key = docusign.privateKey;
+                    saveSimpleIntegration(setDocusign, docusign,
+                      '/marina/integrations/docusign/', body, 'DocuSign');
+                  }}
+                >
+                  {docusign.saving ? 'Saving…' : docusign.data?.connected ? 'Update' : 'Connect'}
+                </button>
+                {docusign.data?.connected && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--red)' }}
+                    disabled={docusign.saving}
+                    onClick={() => disconnectSimple(setDocusign, '/marina/integrations/docusign/', {
+                      docusign_api_key: '', docusign_account_id: '', docusign_user_id: '',
+                      docusign_private_key: '', docusign_base_url: '',
+                    })}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1679,6 +2456,9 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* ── API Docs modal ─────────────────────────────────────────────── */}
+      {docsModalOpen && <ApiDocsModal onClose={() => setDocsModalOpen(false)} />}
     </div>
   );
 }

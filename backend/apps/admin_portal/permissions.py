@@ -22,8 +22,9 @@ class IsSafeModeReadOnly(BasePermission):
 
     def has_permission(self, request, view):
         token = request.auth
-        # token.get() only works for JWT payload dicts; API key credentials
-        # are model instances — skip safe-mode check for non-JWT auth.
-        if token and callable(getattr(token, 'get', None)) and token.get('is_safe_mode'):
-            return request.method in SAFE_METHODS
+        # Only JWT tokens (dicts / AccessToken objects) carry is_safe_mode.
+        # API keys and other non-JWT auth tokens lack .get() — skip the check.
+        if token and callable(getattr(token, 'get', None)):
+            if token.get('is_safe_mode'):
+                return request.method in SAFE_METHODS
         return True

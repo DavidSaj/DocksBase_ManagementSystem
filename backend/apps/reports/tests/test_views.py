@@ -7,7 +7,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.accounts.models import Marina, User
 from apps.berths.models import Pier, Berth
 from apps.reservations.models import Booking
-from apps.billing.models import Invoice, InvoiceLineItem, ChargeableItem
+from apps.billing.models import Invoice, InvoiceLineItem, ChargeableItem, TaxRate
+
+
+def default_tax_rate(marina):
+    return TaxRate.objects.create(marina=marina, name='Standard', rate=Decimal('0.00'), is_default=True)
 from apps.vessels.models import Vessel
 
 
@@ -29,13 +33,16 @@ class RevenueReportViewTest(TestCase):
         self.user, self.marina = make_user_with_marina('rev@test.com')
         self.client = auth_client(self.user)
 
+        tax = default_tax_rate(self.marina)
         self.ci_berth = ChargeableItem.objects.create(
             marina=self.marina, name='Berth Fee', category='berth',
             pricing_model='per_night', unit_price=Decimal('100.00'),
+            tax_category=tax,
         )
         self.ci_utility = ChargeableItem.objects.create(
             marina=self.marina, name='Electric', category='utility',
             pricing_model='per_kwh', unit_price=Decimal('0.30'),
+            tax_category=tax,
         )
 
         today = date.today()
@@ -111,6 +118,7 @@ class OccupancyReportViewTest(TestCase):
         pricing_tier = ChargeableItem.objects.create(
             marina=self.marina, name='Berth Night', category='berth',
             pricing_model='per_night', unit_price=Decimal('50.00'),
+            tax_category=default_tax_rate(self.marina),
         )
         pier = Pier.objects.create(
             marina=self.marina, code='A',
@@ -173,6 +181,7 @@ class UtilisationReportViewTest(TestCase):
         pricing_tier = ChargeableItem.objects.create(
             marina=self.marina, name='Berth Night', category='berth',
             pricing_model='per_night', unit_price=Decimal('50.00'),
+            tax_category=default_tax_rate(self.marina),
         )
         pier = Pier.objects.create(
             marina=self.marina, code='B',

@@ -3,9 +3,12 @@ import useFuelQueue from '../hooks/useFuelQueue.js';
 import useBerths from '../hooks/useBerths.js';
 import useVessels from '../hooks/useVessels.js';
 import useFuelEntries from '../hooks/useFuelEntries.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import usePOSCatalog from '../hooks/usePOSCatalog.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
+import FuelPricesWidget from './FuelPricesWidget.jsx';
 import api from '../api.js';
 
 const FUEL_DOCK_FILTER = { operational_type: 'fuel_dock' };
@@ -229,6 +232,8 @@ function FuelDockTab() {
         />
       )}
 
+      <FuelPricesWidget />
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
       ) : (
@@ -410,6 +415,10 @@ export default function Operations() {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Operations</span>
+        <ScreenInfo title="Operations" body={SCREEN_INFO.operations} />
+      </div>
       <div className="tabs">
         {[['fueldock', 'Fuel Dock'], ['pos', 'Fuel Dock POS']].map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

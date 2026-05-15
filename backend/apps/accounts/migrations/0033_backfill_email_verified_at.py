@@ -34,7 +34,7 @@ def reverse_backfill(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0028_user_email_verified_at'),
+        ('accounts', '0032_user_email_verified_at'),
     ]
 
     operations = [

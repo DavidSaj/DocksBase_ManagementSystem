@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -295,7 +297,10 @@ export default function BerthIntelligence() {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy, #1a2d4a)' }}>Berth Intelligence</div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy, #1a2d4a)' }}>Berth Intelligence</div>
+          <ScreenInfo title="Berth Intelligence" body={SCREEN_INFO.berthIntelligence} />
+        </div>
         <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
           Live occupancy stats and breakdown by category and operational type
         </div>

@@ -58,7 +58,7 @@ import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
 import Channels from './screens/Channels.jsx';
-import ActivitiesHousekeeping from './screens/ActivitiesHousekeeping.jsx';
+import ActivitiesHousekeeping from './screens/ActivitiesHousekeeping/index.jsx';
 import RevenueIntelligence from './screens/RevenueIntelligence.jsx';
 import BerthIntelligence from './screens/BerthIntelligence.jsx';
 import Loyalty from './screens/Loyalty.jsx';

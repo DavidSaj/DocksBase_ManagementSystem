@@ -88,12 +88,18 @@ class EnvelopeList(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         envelope = serializer.save(marina=self.request.user.marina)
-        request_id = send_envelope(
-            envelope,
-            api_key=self.request.user.marina.dropboxsign_api_key,
-        )
-        envelope.dropboxsign_request_id = request_id
-        envelope.save(update_fields=['dropboxsign_request_id'])
+        # Inherit provider from the template so the envelope is sent through
+        # the right SaaS and `provider_request_id()` returns the right column.
+        envelope.provider = envelope.template.provider
+        envelope.save(update_fields=['provider'])
+
+        request_id = send_envelope(envelope)
+        if envelope.provider == 'docusign':
+            envelope.docusign_envelope_id = request_id
+            envelope.save(update_fields=['docusign_envelope_id'])
+        else:
+            envelope.dropboxsign_request_id = request_id
+            envelope.save(update_fields=['dropboxsign_request_id'])
 
 
 class EnvelopeDetail(generics.RetrieveAPIView):
@@ -111,10 +117,7 @@ class EnvelopeDownload(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if envelope.status != 'completed':
             return Response({'detail': 'Not yet signed.'}, status=status.HTTP_400_BAD_REQUEST)
-        url = get_signed_pdf_url(
-            envelope.dropboxsign_request_id,
-            api_key=request.user.marina.dropboxsign_api_key,
-        )
+        url = get_signed_pdf_url(envelope)
         return Response({'url': url})
 
 

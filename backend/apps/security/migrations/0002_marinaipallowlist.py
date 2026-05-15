@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0027_marina_require_mfa'),
+        ('accounts', '0031_marina_require_mfa'),
         ('security', '0001_initial_mfa'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

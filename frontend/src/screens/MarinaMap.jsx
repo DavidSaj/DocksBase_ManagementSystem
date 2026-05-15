@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import LiveMap from '../components/harbor-map/LiveMap.jsx';
 import BerthCalendar from '../components/harbor-map/BerthCalendar.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 const TABS = [
   { id: 'calendar', label: 'Berth Calendar' },
@@ -28,6 +30,7 @@ export default function MarinaMap() {
     <div style={{ display: 'flex', flexDirection: 'column', margin: -24, height: 'calc(100% + 48px)', overflow: 'hidden' }}>
       {/* Sub-tabs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderBottom: 'var(--border)', background: '#fff', flexShrink: 0, paddingLeft: 2 }}>
+        <ScreenInfo title="Marina Map" body={SCREEN_INFO.map} />
         {TABS.map(tab => (
           <button
             key={tab.id}
