@@ -113,6 +113,17 @@ class UserMFA(models.Model):
 
 The row is created at enrollment-start with a fresh secret but `enrolled_at = None`. The user verifies the first code; on success we set `enrolled_at = now()`. Until then the user has no enforced MFA. This avoids the "I scanned the QR but never confirmed it works, now I'm locked out" failure mode.
 
+**Re-enrollment / abandoned-enrollment handling.** Because `UserMFA` is `OneToOneField`, naïvely calling `UserMFA.objects.create(...)` on the second enrollment attempt would raise `IntegrityError`. The `start-enrollment` endpoint must use `update_or_create` semantics that distinguish three pre-existing states:
+
+| Existing row state | start-enrollment behaviour |
+|---|---|
+| no row | create row with fresh secret, `enrolled_at=None` |
+| row exists, `enrolled_at IS NULL` (abandoned) | overwrite `secret`, leave `enrolled_at=None`. No-op on row PK. Discard any orphan `MFABackupCode` rows for this user. |
+| row exists, `is_active` (`enrolled_at` set, `disabled_at` null) | 400 — user already enrolled. They must explicitly disable first. |
+| row exists, `disabled_at` set (was active, then disabled) | overwrite `secret`, clear `enrolled_at` and `disabled_at`. Discard any orphan `MFABackupCode` rows for this user. |
+
+Implementation: a single `start_enrollment(user)` service function in `services/mfa.py` encapsulates the logic. The viewset calls only this helper.
+
 ### `MFABackupCode`
 
 ```python
@@ -129,14 +140,22 @@ Raw code shape: `XXXX-XXXX` (8 hex chars + dash, ~40 bits, fine for short-lived 
 
 ```python
 class MFAChallenge(models.Model):
-    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mfa_challenges')
-    token      = models.CharField(max_length=64, unique=True, db_index=True)  # secrets.token_urlsafe(48)
-    expires_at = models.DateTimeField()
+    user        = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mfa_challenges')
+    token       = models.CharField(max_length=64, unique=True, db_index=True)  # secrets.token_urlsafe(48)
+    expires_at  = models.DateTimeField()
     consumed_at = models.DateTimeField(null=True, blank=True)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    invalidated_at  = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 ```
 
-The intermediate token issued by the password step. Expires in 5 minutes. Consumed when the verify step succeeds. Single-use.
+The intermediate token issued by the password step. Expires in 5 minutes. **Bound to a specific user** via the FK. Single-use.
+
+**Brute-force protection:** every failed attempt increments `failed_attempts`. After 5 failures the challenge is invalidated (`invalidated_at = now()`); subsequent calls return 401 regardless of code. The user must re-authenticate with email + password to obtain a fresh challenge. Without this cap, a 5-minute window against pyotp's `valid_window=1` (3 acceptable codes out of 10⁶) gives an attacker ~3 × N attempts; capping at 5 keeps brute-force probability ≤ 1.5 × 10⁻⁵.
+
+**Binding semantics in the verify endpoint:** the endpoint receives only `(mfa_challenge_token, code, trust_device?)`. It does NOT accept a `user_id` or `email` parameter. The user is loaded exclusively from `MFAChallenge.user_id`. The final JWT pair is minted for `challenge.user` — never for any other user. This means a stolen challenge token cannot be used to log in as a different user; the worst case is brute-forcing the original user's TOTP, capped by `failed_attempts` above.
+
+The same binding applies to `MFAEnrollment` — see §Login flow.
 
 ### `MarinaIPAllowlist`
 
@@ -276,16 +295,26 @@ This rename is cosmetic — no behavioural difference from `JWTAuthentication`. 
 class IPAllowlistMiddleware(MiddlewareMixin):
     EXEMPT_PATHS = {
         '/api/v1/auth/token/',
-        '/api/v1/auth/token/refresh/',     # only because the auth endpoint already blocks
+        '/api/v1/auth/token/refresh/',
         '/api/v1/auth/token/mfa-verify/',
         '/api/v1/auth/token/mfa-enroll-complete/',
         '/api/v1/auth/verify-email/',
-        '/api/v1/auth/reverify-email/',
+        '/api/v1/auth/reverify-email/request/',
+        '/api/v1/auth/reverify-email/confirm/',
+        '/api/v1/security/ip-allowlist/',          # roaming owner escape hatch (GET + POST)
+        # DELETE /api/v1/security/ip-allowlist/<id>/ matches via the EXEMPT_PREFIXES set below
+        '/api/v1/auth/me/',                        # FE app shell needs this to render
         '/healthz', '/api/v1/healthz',
     }
+    EXEMPT_PREFIXES = (
+        '/api/v1/security/ip-allowlist/',  # covers DELETE /api/v1/security/ip-allowlist/<id>/
+    )
+
+    def _is_exempt(self, path):
+        return path in self.EXEMPT_PATHS or any(path.startswith(p) for p in self.EXEMPT_PREFIXES)
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        if request.path in self.EXEMPT_PATHS:
+        if self._is_exempt(request.path):
             return None
         user = getattr(request, 'user', None)
         if user is None or not user.is_authenticated:
@@ -415,8 +444,15 @@ The two enrollment paths are split because login-time enrollment (Case D) needs 
 | Method | Path | Auth | Body | Returns |
 |---|---|---|---|---|
 | GET | `security/ip-allowlist/` | JWT, owner role | — | `[{id, cidr, label, created_at, created_by_email}]` |
-| POST | `security/ip-allowlist/` | JWT, owner role | `{cidr, label?}` | 201 — refuses if current IP would not be in the new list |
-| DELETE | `security/ip-allowlist/<id>/` | JWT, owner role | — | 204 — refuses if removing this entry would lock the requester out |
+| POST | `security/ip-allowlist/` | JWT, owner role | `{cidr, label?}` | 201 — refuses if current IP would not be in the new list (see "Lockout protection — additive only") |
+| DELETE | `security/ip-allowlist/<id>/` | JWT, owner role | — | 204 — owners may delete any entry from any IP |
+
+**Lockout protection — additive only.** The guard exists only on **add**, not on **remove**. The original spec's "deleting the last entry covering you → 400" rule would have stranded a roaming owner (e.g. one travelling, calling in from a hotel IP after configuring the allowlist from the office). The corrected semantics:
+
+- `POST /security/ip-allowlist/` — refuse with 400 if the new full allowlist would not cover the caller's current IP. Rationale: prevents *accidental* lockout while configuring.
+- `DELETE /security/ip-allowlist/<id>/` — succeed unconditionally for owners. The owner has already proven identity with password + MFA + (existing) JWT to reach this endpoint. They may deliberately empty the allowlist (effectively disabling the feature) from outside any current entry.
+
+To make this reachable from a non-allowlisted IP, the IP allowlist management endpoints are added to the middleware exempt path set — see §IPAllowlistMiddleware.EXEMPT_PATHS below. Authentication still applies; only the IP gate is bypassed for these specific endpoints. This is the documented escape hatch.
 
 ### Audit log
 
@@ -510,6 +546,30 @@ Each event is logged via `apps.security.services.audit.log_event(...)`. Callers:
 
 Each event captures `request.META.get('REMOTE_ADDR')` and `HTTP_USER_AGENT` (truncated to 500 chars).
 
+## Audit log payload schema
+
+Every event carries `marina`, `actor` (nullable), `event_type`, `ip_address`, `user_agent`, `created_at`. The `payload` JSON shape per event:
+
+| `event_type` | `payload` shape |
+|---|---|
+| `mfa_enrolled` | `{}` — actor is the user themselves |
+| `mfa_disabled` | `{disabled_via: 'self' | 'admin'}` |
+| `mfa_failed` | `{reason: 'bad_code' | 'expired_challenge' | 'invalidated_challenge'}` |
+| `mfa_succeeded` | `{method: 'totp' | 'backup_code'}` |
+| `backup_code_used` | `{remaining: <int>}` |
+| `ip_allowlist_added` | `{cidr: '203.0.113.0/24', label: 'office'}` |
+| `ip_allowlist_removed` | `{cidr: '203.0.113.0/24', label: 'office'}` |
+| `ip_blocked` | `{path: '/api/v1/berths/'}` |
+| `password_changed` | `{}` |
+| `email_reverified` | `{previous_verified_at: '2025-11-12T...'}` |
+| `api_key_created` | `{name: 'Accounting integration', key_prefix: 'db_live_aB3xK9pQ'}` |
+| `api_key_revoked` | `{name: 'Accounting integration', key_prefix: 'db_live_aB3xK9pQ'}` |
+| `api_key_deleted` | `{name: 'Accounting integration', key_prefix: 'db_live_aB3xK9pQ'}` |
+
+**Never put a raw key, secret, password, code, or challenge token in a payload.** `key_prefix` is safe (it's already public to the owner via the API Access card). Backup-code reveal at enrollment is NOT logged in payload — only `mfa_enrolled` with empty payload is.
+
+The audit-log UI maps each `event_type` to a human-readable label and renders `payload` as a small key/value table in an expandable row.
+
 ## Migration / backfill
 
 One migration in each affected app:
@@ -526,22 +586,28 @@ The backfill is critical: without it, every existing user hits the 210-day block
 `apps.security.tests.test_mfa`:
 - Enrollment creates inactive UserMFA row.
 - Complete-enrollment with wrong code → fails; with right code → enrollment_at set; backup codes generated and returned.
+- **Abandoned enrollment**: user calls start-enrollment, never completes; a week later calls start-enrollment again → succeeds with a fresh secret (no IntegrityError on the OneToOne constraint). Old backup codes are not retained.
+- **Re-enrollment after disable**: user enrolls, disables, then enrolls again → the row is reused with a fresh secret; `disabled_at` cleared.
+- **Already-enrolled rejection**: an active user calling start-enrollment → 400 with a clear message ("disable existing MFA first").
 - Disable requires password; succeeds; sets disabled_at.
 - TOTP verify with valid current code → succeeds, increments last_verified_at.
 - TOTP verify with code from prior 30s window → succeeds (clock skew tolerance built into pyotp).
 - TOTP verify with wrong code → fails and logs `mfa_failed`.
 - Backup code verify → succeeds, marks `used_at`, single-use semantics (second attempt with same code fails).
 - Challenge token TTL: 5 minutes; expired → 401.
+- **Brute-force protection**: 5 wrong attempts on the same challenge → challenge invalidated (`invalidated_at` set); 6th attempt with the CORRECT code still returns 401. User must re-do the password step.
+- **Challenge binding**: a challenge created for user A cannot be consumed to mint a JWT for user B — the verify endpoint loads the user solely from `MFAChallenge.user_id` and ignores any user hint in the payload. Test: log in as A to obtain challenge, attempt verify, assert the returned JWT decodes to A's `user_id` and not anything else.
 
 `apps.security.tests.test_ip_allowlist`:
 - Empty allowlist: any request allowed.
 - Non-empty allowlist: matching IP allowed; non-matching IP returns 403 with `code: 'ip_not_allowed'` and an `ip_blocked` audit event.
 - IPv4 CIDR (`/24`) and exact (`/32`) both work.
 - IPv6 CIDR works.
-- Saving an entry that excludes the caller's current IP → 400.
-- Deleting the last entry that covers the caller's IP → 400.
+- Saving an entry that excludes the caller's current IP → 400 (additive lockout protection).
+- **Roaming owner**: from an IP outside the current allowlist, a DELETE on any entry succeeds (200/204). Same caller can still GET the list. POST (add) still gated by the additive guard.
+- DELETE consumes auth + role (manager/staff → 403, anonymous → 401), so the escape hatch is only available to authenticated owners.
 - Owner-role-only on the viewset; managers/staff → 403.
-- Exempt paths (`auth/token/`) reachable from outside the allowlist (so a locked-out owner can still log in and fix the list — but the fix itself will fail the save guard).
+- Exempt paths (`auth/token/`, `security/ip-allowlist/...`) reachable from outside the allowlist; everything else from outside → 403.
 
 `apps.security.tests.test_email_reverify`:
 - `status_for(user)` with `email_verified_at = now() - 100d` → 'ok'.
