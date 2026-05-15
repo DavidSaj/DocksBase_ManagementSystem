@@ -9,12 +9,15 @@ const rect = { left: 0, top: 0 }
 
 describe('snapToGrid', () => {
   it('snaps mouse position to nearest grid unit', () => {
-    expect(snapToGrid(25, 25, rect)).toEqual({ gx: 1, gy: 1 })
-    expect(snapToGrid(12, 12, rect)).toEqual({ gx: 1, gy: 1 }) // rounds
+    // GRID=32: round(32/32)=1, round(20/32)=round(0.625)=1
+    expect(snapToGrid(32, 32, rect)).toEqual({ gx: 1, gy: 1 })
+    expect(snapToGrid(20, 20, rect)).toEqual({ gx: 1, gy: 1 }) // rounds
   })
   it('clamps to canvas bounds', () => {
     expect(snapToGrid(-10, -10, rect)).toEqual({ gx: 0, gy: 0 })
-    expect(snapToGrid(9999, 9999, rect)).toEqual({ gx: COLS - 1, gy: ROWS - 1 })
+    // Use a value definitively larger than CW=COLS*GRID so clamping triggers.
+    expect(snapToGrid(COLS * GRID * 2, ROWS * GRID * 2, rect))
+      .toEqual({ gx: COLS - 1, gy: ROWS - 1 })
   })
 
   describe('snapToGrid adaptive zoom', () => {
