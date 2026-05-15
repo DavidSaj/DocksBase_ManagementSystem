@@ -53,9 +53,23 @@ def send_overdue_invoice_alerts(self):
         by_marina.setdefault(inv.marina_id, {'marina': inv.marina, 'invoices': []})
         by_marina[inv.marina_id]['invoices'].append(inv)
 
+    from apps.accounts.notifications import rule_enabled
+
     for marina_id, data in by_marina.items():
         marina = data['marina']
         invoices = data['invoices']
+
+        # Pick the most-overdue invoice to choose between the 7-day and 30-day
+        # rules. The digest contains a mix, so we use the worst case to decide
+        # whether the marina has opted into receiving the digest at all.
+        max_days_overdue = max((today - inv.due_date).days for inv in invoices)
+        rule_key = 'payment_overdue_30d' if max_days_overdue >= 30 else 'payment_overdue_7d'
+        if not rule_enabled(marina, rule_key, 'email'):
+            logger.info(
+                'send_overdue_invoice_alerts: rule %s disabled for marina %s, skipping',
+                rule_key, marina,
+            )
+            continue
 
         # Get owner/manager recipients for this marina
         recipients = list(

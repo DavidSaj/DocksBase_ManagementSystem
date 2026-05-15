@@ -210,6 +210,13 @@ TWILIO_ACCOUNT_SID  = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN   = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM_NUMBER  = os.environ.get('TWILIO_FROM_NUMBER', '')
 
+# Fernet key used by apps.accounts.encryption to encrypt sensitive credential
+# columns (SMTP password, SMS-provider auth tokens). Required in production —
+# apps.accounts.encryption._fernet() raises at import if DEBUG=False and this
+# is unset. Generate with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+DOCKSBASE_FERNET_KEY = os.environ.get('DOCKSBASE_FERNET_KEY', '')
+
 # Supabase Storage (S3-compatible). Falls back to local FileSystemStorage when env vars absent.
 _supabase_endpoint = os.environ.get('SUPABASE_S3_ENDPOINT', '')
 if _supabase_endpoint:
@@ -327,6 +334,10 @@ CELERY_BEAT_SCHEDULE = {
     'send-prearival-reminders': {
         'task': 'reservations.send_prearival_reminders',
         'schedule': crontab(hour=10, minute=0),          # daily 10:00 UTC
+    },
+    'send-departure-reminders': {
+        'task': 'reservations.send_departure_reminders',
+        'schedule': crontab(hour=9, minute=0),           # daily 09:00 UTC
     },
     'auto-no-show': {
         'task': 'reservations.auto_no_show',

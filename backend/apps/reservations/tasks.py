@@ -68,9 +68,15 @@ def send_overstay_alerts(self):
         by_marina.setdefault(booking.marina_id, {'marina': booking.marina, 'bookings': []})
         by_marina[booking.marina_id]['bookings'].append(booking)
 
+    from apps.accounts.notifications import rule_enabled
+
     for marina_id, data in by_marina.items():
         marina = data['marina']
         bookings = data['bookings']
+
+        if not rule_enabled(marina, 'booking_overstay_alert', 'email'):
+            logger.info('send_overstay_alerts: rule disabled for marina %s, skipping', marina)
+            continue
 
         recipients = list(
             User.objects.filter(marina=marina, role__in=['owner', 'manager'])
@@ -169,6 +175,8 @@ def send_prearival_reminders(self):
     sent = 0
     skipped = 0
 
+    from apps.accounts.notifications import rule_enabled
+
     for booking in arrivals:
         if not booking.guest_email:
             logger.debug(
@@ -178,6 +186,9 @@ def send_prearival_reminders(self):
             continue
 
         marina = booking.marina
+        if not rule_enabled(marina, 'booking_arrival_reminder_24h', 'email'):
+            skipped += 1
+            continue
         guest = booking.guest_name or 'there'
         berth = booking.berth.code if booking.berth else '—'
         check_in_fmt = booking.check_in.strftime('%d %B %Y')
@@ -280,7 +291,93 @@ def send_prearival_reminders(self):
 
 
 # ---------------------------------------------------------------------------
-# Task 3: auto_no_show  (daily, 22:00 UTC)
+# Task 3: send_departure_reminders  (daily, 09:00 UTC)
+# ---------------------------------------------------------------------------
+
+@shared_task(bind=True, name='reservations.send_departure_reminders')
+def send_departure_reminders(self):
+    """
+    Daily: for each confirmed/checked-in booking whose check_out is tomorrow,
+    email the guest a short reminder to settle up and depart on time.
+
+    Idempotent — re-runs on the same day re-send the same email (no sent_at
+    flag on Booking). Acceptable for a reminder.
+    """
+    from apps.reservations.models import Booking
+    from apps.accounts.notifications import rule_enabled
+
+    today = timezone.now().date()
+    tomorrow = today + timedelta(days=1)
+
+    departures = (
+        Booking.objects
+        .filter(status__in=['confirmed', 'checked_in'], check_out=tomorrow)
+        .select_related('marina', 'berth', 'vessel')
+    )
+
+    if not departures.exists():
+        logger.info('send_departure_reminders: no departures for %s', tomorrow)
+        return
+
+    sent = 0
+    skipped = 0
+
+    for booking in departures:
+        if not booking.guest_email:
+            skipped += 1
+            continue
+        marina = booking.marina
+        if not rule_enabled(marina, 'booking_departure_reminder', 'email'):
+            skipped += 1
+            continue
+
+        guest = booking.guest_name or 'there'
+        check_out_fmt = booking.check_out.strftime('%d %B %Y')
+        berth = booking.berth.code if booking.berth else '—'
+        contact_parts = []
+        if getattr(marina, 'contact_email', None):
+            contact_parts.append(marina.contact_email)
+        if getattr(marina, 'phone', None):
+            contact_parts.append(marina.phone)
+        contact_line = ' · '.join(contact_parts) if contact_parts else ''
+        contact_txt = f'Questions? Contact the marina: {contact_line}\n\n' if contact_line else ''
+
+        try:
+            send_mail(
+                subject=f"Reminder: your departure from {marina.name} is tomorrow",
+                message=(
+                    f"Hi {guest},\n\n"
+                    f"Just a reminder that your stay at {marina.name} ends tomorrow, "
+                    f"{check_out_fmt}.\n\n"
+                    f"Booking ID: BK-{booking.pk}\n"
+                    f"Berth: {berth}\n"
+                    f"Departure date: {check_out_fmt}\n\n"
+                    f"Please settle any outstanding charges at the office before you cast off "
+                    f"and let the harbour master know once you're clear of the berth so we can "
+                    f"release the slip.\n\n"
+                    f"{contact_txt}"
+                    f"Fair winds,\n"
+                    f"— {marina.name}"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[booking.guest_email],
+                fail_silently=False,
+            )
+            sent += 1
+        except Exception as exc:
+            logger.exception(
+                'send_departure_reminders: failed to send for BK-%s: %s',
+                booking.pk, exc,
+            )
+
+    logger.info(
+        'send_departure_reminders: completed for %s — sent=%d skipped=%d',
+        tomorrow, sent, skipped,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 4: auto_no_show  (daily, 22:00 UTC)
 # ---------------------------------------------------------------------------
 
 @shared_task(bind=True, name='reservations.auto_no_show')
