@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.security.models import MarinaIPAllowlist
+
 
 class MFAStatusSerializer(serializers.Serializer):
     enrolled = serializers.BooleanField()
@@ -30,3 +32,21 @@ class MFALoginVerifySerializer(serializers.Serializer):
 class MFALoginEnrollCompleteSerializer(serializers.Serializer):
     mfa_enrollment_token = serializers.CharField()
     code = serializers.CharField(max_length=10)
+
+
+# ---------------------------------------------------------------------------
+# Task 2: IP Allowlist
+# ---------------------------------------------------------------------------
+
+class MarinaIPAllowlistSerializer(serializers.ModelSerializer):
+    created_by_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MarinaIPAllowlist
+        fields = ['id', 'cidr', 'label', 'created_at', 'created_by_email']
+        read_only_fields = ['id', 'created_at', 'created_by_email']
+
+    def get_created_by_email(self, obj):
+        if obj.created_by:
+            return obj.created_by.email
+        return None

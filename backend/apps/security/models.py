@@ -105,3 +105,39 @@ class MFAChallenge(models.Model):
 
     def __str__(self):
         return f'MFAChallenge(user={self.user_id}, purpose={self.purpose}, consumed={self.consumed_at is not None})'
+
+
+# ---------------------------------------------------------------------------
+# Task 2: IP Allowlist
+# ---------------------------------------------------------------------------
+
+class MarinaIPAllowlist(models.Model):
+    """
+    Per-marina CIDR allowlist entry.
+
+    An empty list means the feature is off (all requests pass).
+    A non-empty list means all authenticated non-boater requests must
+    originate from an IP covered by at least one entry.
+
+    unique_together prevents the same CIDR being added twice for the same marina.
+    """
+    marina = models.ForeignKey(
+        'accounts.Marina',
+        on_delete=models.CASCADE,
+        related_name='ip_allowlist',
+    )
+    cidr = models.CharField(max_length=43)  # e.g. '203.0.113.0/24' or '2001:db8::/32'
+    label = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='+',
+    )
+
+    class Meta:
+        unique_together = [('marina', 'cidr')]
+
+    def __str__(self):
+        return f'MarinaIPAllowlist({self.marina_id}, {self.cidr})'

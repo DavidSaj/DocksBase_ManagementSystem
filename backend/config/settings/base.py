@@ -239,6 +239,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
         'apps.admin_portal.permissions.IsSafeModeReadOnly',
         'apps.accounts.permissions.ModulePermission',
+        'apps.security.permissions.IPAllowlistPermission',
     ),
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
