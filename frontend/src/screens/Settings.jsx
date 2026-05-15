@@ -84,14 +84,6 @@ const MI = {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const FLAG_DEFS = [
-  { key: 'restaurant',  label: 'Restaurant module',            desc: 'Enable F&B screens' },
-  { key: 'events',      label: 'Events module',                desc: 'Event and venue hire' },
-  { key: 'portal',      label: 'Customer self-service portal', desc: 'Boater web portal' },
-  { key: 'ais',         label: 'AIS map overlay',              desc: 'Show live vessel positions' },
-  { key: 'multimarina', label: 'Multi-marina mode',            desc: 'Group reporting' },
-];
-
 const ROLE_LABELS = { owner: 'Owner', manager: 'Manager', staff: 'Staff', boater: 'Boater' };
 
 const PLAN_OPTIONS = [
@@ -476,6 +468,80 @@ function StripeConnectCard({ marina }) {
   );
 }
 
+// ── OTA Connections helpers ────────────────────────────────────────────────
+
+function relTime(ms) {
+  const s = Math.max(Math.floor(ms / 1000), 0);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+function otaStatus(conn) {
+  if (!conn.inbound_ical_url) {
+    return { key: 'outbound_only', label: 'Outbound only', tone: 'gray' };
+  }
+  if (!conn.last_synced) {
+    return { key: 'never_synced', label: 'Never synced', tone: 'orange' };
+  }
+  const ageMs = Date.now() - new Date(conn.last_synced).getTime();
+  if (ageMs < 60 * 60 * 1000) {
+    return { key: 'synced_recent', label: `Synced ${relTime(ageMs)} ago`, tone: 'green' };
+  }
+  return { key: 'synced_stale', label: `Synced ${relTime(ageMs)} ago`, tone: 'blue' };
+}
+
+function KebabMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={() => setOpen(o => !o)}
+        aria-label="More actions"
+        style={{ padding: '4px 8px', fontSize: 16, lineHeight: 1 }}
+      >
+        ⋮
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', right: 0, top: '100%', marginTop: 4,
+          background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          minWidth: 180, zIndex: 10,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {items.map((it, i) => (
+            <button
+              key={i}
+              disabled={it.disabled}
+              onClick={() => { if (!it.disabled) { setOpen(false); it.onClick(); } }}
+              style={{
+                textAlign: 'left', padding: '8px 12px', fontSize: 13,
+                background: 'transparent', border: 0, cursor: it.disabled ? 'not-allowed' : 'pointer',
+                color: it.danger ? '#c0392b' : 'inherit',
+                opacity: it.disabled ? 0.4 : 1,
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── OTA Connections card ───────────────────────────────────────────────────
 
 function OTAConnectionsCard() {
@@ -486,6 +552,9 @@ function OTAConnectionsCard() {
   const [syncing, setSyncing] = useState(null); // connection id being synced
   const [removing, setRemoving] = useState(null); // connection id being removed
   const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(null);     // { id, inbound_ical_url } | null
+  const [syncErrors, setSyncErrors] = useState({}); // { [id]: string }
+  const [copied, setCopied] = useState(null);       // id whose URL was just copied
 
   useEffect(() => {
     api.get('/ota-connections/')
@@ -526,16 +595,37 @@ function OTAConnectionsCard() {
   async function triggerSync(conn) {
     if (syncing === conn.id) return;
     setSyncing(conn.id);
-    setError(null);
+    setSyncErrors(prev => ({ ...prev, [conn.id]: '' }));
     try {
       await api.post(`/ota-connections/${conn.id}/sync/`);
       const { data } = await api.get(`/ota-connections/${conn.id}/`);
       setConnections(prev => prev.map(c => c.id === conn.id ? data : c));
-    } catch {
-      setError('Sync failed.');
+    } catch (e) {
+      const detail = e?.response?.data?.detail || 'Sync failed.';
+      setSyncErrors(prev => ({ ...prev, [conn.id]: detail }));
     } finally {
       setSyncing(null);
     }
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    try {
+      const { data } = await api.patch(`/ota-connections/${editing.id}/`, {
+        inbound_ical_url: editing.inbound_ical_url,
+      });
+      setConnections(prev => prev.map(c => c.id === editing.id ? data : c));
+      setEditing(null);
+    } catch {
+      alert('Failed to update URL.');
+    }
+  }
+
+  function copyOutbound(conn) {
+    const url = `${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`;
+    navigator.clipboard?.writeText(url);
+    setCopied(conn.id);
+    setTimeout(() => setCopied(c => c === conn.id ? null : c), 1500);
   }
 
   if (loading) return <div style={{ padding: '12px 0', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>;
@@ -546,47 +636,66 @@ function OTAConnectionsCard() {
       {connections.length === 0 && !error && (
         <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', padding: '6px 0' }}>No OTA connections yet.</div>
       )}
-      {connections.map(conn => (
-        <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
-            <button
-              className="btn btn-danger btn-sm"
-              disabled={removing === conn.id}
-              onClick={() => deleteConnection(conn.id)}
-            >
-              {removing === conn.id ? 'Removing…' : 'Remove'}
-            </button>
-          </div>
-          {conn.inbound_ical_url && (
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
-              Inbound: <span style={{ fontFamily: 'monospace' }}>{conn.inbound_ical_url.length > 50 ? conn.inbound_ical_url.slice(0, 50) + '…' : conn.inbound_ical_url}</span>
+      {connections.map(conn => {
+        const isEditing = editing?.id === conn.id;
+        const syncErr   = syncErrors[conn.id];
+        const status    = syncErr
+          ? { key: 'sync_failed', label: 'Sync failed', tone: 'red' }
+          : otaStatus(conn);
+        const isCopied  = copied === conn.id;
+
+        if (isEditing) {
+          return (
+            <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{conn.name}</div>
+              <input
+                type="url"
+                placeholder="Inbound iCal URL"
+                value={editing.inbound_ical_url}
+                onChange={e => setEditing(s => ({ ...s, inbound_ical_url: e.target.value }))}
+                style={{ fontSize: 13 }}
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={saveEdit}>Save</button>
+              </div>
             </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
-              Outbound iCal:
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ marginLeft: 6, fontSize: 10 }}
-                onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`)}
-              >
-                Copy URL
-              </button>
+          );
+        }
+
+        return (
+          <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
+              <span className={`badge badge-${status.tone}`}>{status.label}</span>
+              <KebabMenu items={[
+                {
+                  label: syncing === conn.id ? 'Syncing…' : 'Sync now',
+                  disabled: !conn.inbound_ical_url || syncing === conn.id,
+                  onClick: () => triggerSync(conn),
+                },
+                {
+                  label: isCopied ? 'Copied!' : 'Copy outbound URL',
+                  onClick: () => copyOutbound(conn),
+                },
+                {
+                  label: 'Edit URLs',
+                  onClick: () => setEditing({ id: conn.id, inbound_ical_url: conn.inbound_ical_url || '' }),
+                },
+                {
+                  label: 'Remove',
+                  danger: true,
+                  disabled: removing === conn.id,
+                  onClick: () => deleteConnection(conn.id),
+                },
+              ]} />
             </div>
-            {conn.inbound_ical_url && (
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: 11 }}
-                disabled={syncing === conn.id}
-                onClick={() => triggerSync(conn)}
-              >
-                {syncing === conn.id ? 'Syncing…' : `Sync now${conn.last_synced ? ` · ${new Date(conn.last_synced).toLocaleTimeString()}` : ''}`}
-              </button>
+            {syncErr && (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#c0392b' }}>{syncErr}</div>
             )}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {form ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
@@ -768,13 +877,6 @@ export default function Settings() {
       // Notification rules — { ruleKey: { email: bool, sms: bool } }
       notification_rules:      marina.notification_rules      ?? {},
     });
-    setFlags({
-      restaurant:  marina.features?.restaurant  ?? false,
-      events:      marina.features?.events      ?? false,
-      portal:      marina.features?.portal      ?? false,
-      ais:         marina.features?.ais         ?? false,
-      multimarina: marina.features?.multimarina ?? false,
-    });
   }, [marina]);
 
   function fm(field) { return mf?.[field] ?? ''; }
@@ -902,20 +1004,6 @@ export default function Settings() {
       setPermForm(null);
     } catch {
       alert('Could not save permissions.');
-    }
-  }
-
-  // ── Feature flags ──────────────────────────────────────────────────────
-
-  const [flags, setFlags] = useState({});
-  const [flagsSaving, setFlagsSaving] = useState(false);
-
-  async function saveFlags() {
-    setFlagsSaving(true);
-    try {
-      await updateMarina({ features: flags });
-    } finally {
-      setFlagsSaving(false);
     }
   }
 
@@ -1671,29 +1759,6 @@ export default function Settings() {
 
             {/* Accounting Integrations — live */}
             <AccountingIntegrationsCard />
-
-            {/* Feature Flags — real */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Feature Flags</div></div>
-              <div className="card-body" style={{ padding: 0 }}>
-                {marinaLoading ? (
-                  <div style={{ padding: '16px 18px', color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>Loading…</div>
-                ) : FLAG_DEFS.map(f => (
-                  <div key={f.key} style={{ display: 'flex', alignItems: 'center', padding: '13px 18px', borderBottom: 'var(--border)', gap: 16 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>{f.label}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2 }}>{f.desc}</div>
-                    </div>
-                    <Toggle on={flags[f.key] ?? false} onChange={v => setFlags(prev => ({ ...prev, [f.key]: v }))} />
-                  </div>
-                ))}
-                <div style={{ padding: '12px 18px' }}>
-                  <button className="btn btn-primary btn-sm" disabled={flagsSaving || marinaLoading} onClick={saveFlags}>
-                    {flagsSaving ? 'Saving…' : 'Save Flags'}
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* OTA Connections */}
             <div className="card">
