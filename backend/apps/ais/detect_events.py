@@ -11,9 +11,18 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from datetime import timedelta as _td
 from typing import Optional, Tuple
 
+from django.db import transaction as _txn
+from django.utils import timezone as _tz
+
 from apps.ais.geometry import point_in_polygon
+from apps.ais.notifications import (
+    notify_auto_checkin,
+    notify_auto_checkout,
+)
+from apps.reservations.models import Booking as _Booking
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +64,79 @@ def compute_transition(
 
     transition = 'enter' if new_in_basin else 'exit'
     return (new_in_basin, now, transition)
+
+
+def _today():
+    return _tz.localdate()
+
+
+def on_basin_enter(position, *, recipient):
+    if position.vessel_id is None:
+        return
+    today = _today()
+    candidates = _Booking.objects.filter(
+        marina=position.marina,
+        vessel_id=position.vessel_id,
+        status='confirmed',
+        check_in__lte=today + _td(days=1),
+        check_out__gte=today,
+    )
+    matches = list(candidates[:2])
+    if len(matches) == 0:
+        return
+    if len(matches) > 1:
+        logger.warning(
+            'ais.auto_checkin.multiple_match marina=%s vessel=%s count=%d',
+            position.marina_id, position.vessel_id, len(matches),
+        )
+        return
+    booking = matches[0]
+    with _txn.atomic():
+        booking.status = 'checked_in'
+        booking.self_checked_in_at = position.reported_at
+        booking.ais_no_show_predicted = False
+        booking.save(update_fields=['status', 'self_checked_in_at', 'ais_no_show_predicted'])
+    notify_auto_checkin(booking, recipient=recipient)
+
+
+def on_basin_exit(position, *, recipient):
+    if position.vessel_id is None:
+        return
+    today = _today()
+    candidates = _Booking.objects.filter(
+        marina=position.marina,
+        vessel_id=position.vessel_id,
+        status='checked_in',
+        check_out__lte=today + _td(days=1),
+    )
+    matches = list(candidates[:2])
+    if len(matches) != 1:
+        if len(matches) > 1:
+            logger.warning(
+                'ais.auto_checkout.multiple_match marina=%s vessel=%s',
+                position.marina_id, position.vessel_id,
+            )
+        return
+    booking = matches[0]
+    with _txn.atomic():
+        booking.status = 'checked_out'
+        booking.save(update_fields=['status'])
+        _finalize_turnaround_invoice(booking)
+    notify_auto_checkout(booking, recipient=recipient)
+
+
+def _finalize_turnaround_invoice(booking):
+    """Mirror the manual-checkout finalization in apps/reservations/views.py."""
+    from apps.billing.models import Invoice
+    from apps.billing import service as billing_service
+    draft = Invoice.objects.filter(
+        marina=booking.marina,
+        source_type='berth_booking',
+        source_id=str(booking.id),
+        status='draft',
+    ).first()
+    if draft and draft.items.exists():
+        try:
+            billing_service.finalize_invoice(draft)
+        except Exception:
+            logger.exception('ais.turnaround.finalize_failed booking=%s', booking.id)
