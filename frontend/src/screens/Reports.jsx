@@ -1,5 +1,7 @@
 import Ic from '../components/ui/Icon.jsx';
 import { useState } from 'react';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import useBerths from '../hooks/useBerths.js';
 import usePiers from '../hooks/usePiers.js';
 import useInvoices from '../hooks/useInvoices.js';
@@ -59,6 +61,10 @@ export default function Reports() {
           Failed to load reports: {repError}
         </div>
       )}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Reports</span>
+        <ScreenInfo title="Reports" body={SCREEN_INFO.reports} />
+      </div>
       <div className="tabs">
         {[['occupancy','Occupancy'],['revenue','Revenue'],['berths','Berth Utilisation']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => setTab(v)}>{l}</div>

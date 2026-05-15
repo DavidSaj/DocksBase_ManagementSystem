@@ -87,6 +87,36 @@ def on_shift_modified(sender, instance, **kwargs):
         pass  # send_alert must not block instructor assignment clearance
 
 
+@receiver(post_save, sender='activities.ActivityBooking')
+def _notify_managers_on_request(sender, instance, created, **kwargs):
+    """
+    When a public submission creates a REQUESTED ActivityBooking, notify the
+    marina's managers. Manager-side CONFIRMED bookings do not trigger this.
+    """
+    if not created:
+        return
+    from .models import ActivityBooking
+    if instance.status != ActivityBooking.Status.REQUESTED:
+        return
+
+    from apps.accounts.models import User
+    from apps.notifications.utils import notify
+
+    recipients = User.objects.filter(
+        marina=instance.marina, role__in=['manager', 'admin', 'owner']
+    )
+    for user in recipients:
+        notify(
+            marina=instance.marina,
+            recipient=user,
+            kind='activity_request',
+            title='New activity request',
+            body=f'{instance.activity.name} · {instance.lead_name or "Guest"}',
+            link_screen='activities',
+            link_id=instance.pk,
+        )
+
+
 @receiver(post_save, sender='activities.ActivityBookingParticipant')
 @receiver(post_delete, sender='activities.ActivityBookingParticipant')
 def on_participant_count_changed(sender, instance, **kwargs):

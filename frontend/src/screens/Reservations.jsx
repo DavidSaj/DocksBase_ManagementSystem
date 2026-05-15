@@ -8,6 +8,8 @@ import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
 import PendingRequestsTab from '../components/reservations/PendingRequestsTab.jsx';
 import BerthCalendar from '../components/harbor-map/BerthCalendar.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 const filterMap = {
   all:       {},
@@ -816,6 +818,9 @@ export default function Reservations() {
         />
       )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginRight: 2 }}>Reservations</span>
+        <ScreenInfo title="Reservations" body={SCREEN_INFO.reservations} />
+        <div style={{ flex: 1 }} />
         <div className="search"><Ic n="search" s={13} /><input placeholder="Search vessel, owner, booking…" /></div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}><Ic n="plus" s={12} />New Booking</button>
       </div>

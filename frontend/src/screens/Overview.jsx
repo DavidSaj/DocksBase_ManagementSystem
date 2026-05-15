@@ -3,6 +3,8 @@ import useBookings from '../hooks/useBookings.js';
 import useOverview from '../hooks/useOverview.js';
 import useWeather from '../hooks/useWeather.js';
 import useMarina from '../hooks/useMarina.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 import InboundETACard from '../components/InboundETACard.jsx';
 
 function relativeTime(isoStr) {
@@ -80,6 +82,10 @@ export default function Overview({ setScreen }) {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>Overview</span>
+        <ScreenInfo title="Overview" body={SCREEN_INFO.overview} />
+      </div>
       <div className="stat-row">
         {stats.map(s => (
           <div key={s.label} className="card stat-card">

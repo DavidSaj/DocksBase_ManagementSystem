@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1053,6 +1055,10 @@ export default function RevenueIntelligence() {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Revenue Intelligence</span>
+        <ScreenInfo title="Revenue Intelligence" body={SCREEN_INFO.revenueIntelligence} />
+      </div>
       <div className="tabs">
         {TABS.map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

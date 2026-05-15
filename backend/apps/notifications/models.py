@@ -7,6 +7,7 @@ class Notification(models.Model):
         ('booking_request',         'Booking Request'),
         ('overdue_invoice',         'Overdue Invoice'),
         ('maintenance_assigned',    'Maintenance Assigned'),
+        ('activity_request',        'Activity Request'),
         ('ais_auto_checkin',        'AIS Auto Check-in'),
         ('ais_auto_checkout',       'AIS Auto Check-out'),
         ('ais_no_show_predicted',   'AIS No-Show Predicted'),

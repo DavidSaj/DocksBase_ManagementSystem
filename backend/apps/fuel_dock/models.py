@@ -65,3 +65,20 @@ class FuelDockEntry(models.Model):
     def __str__(self):
         name = self.vessel.name if self.vessel else self.guest_description
         return f'FQ-{self.pk} — {name} ({self.status})'
+
+
+class FuelPriceChange(models.Model):
+    """Audit row written every time a fuel ChargeableItem.unit_price changes."""
+    marina      = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='fuel_price_changes')
+    item        = models.ForeignKey('billing.ChargeableItem', on_delete=models.CASCADE, related_name='price_changes')
+    old_price   = models.DecimalField(max_digits=10, decimal_places=2)
+    new_price   = models.DecimalField(max_digits=10, decimal_places=2)
+    changed_by  = models.ForeignKey('staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True, related_name='fuel_price_changes')
+    note        = models.CharField(max_length=200, blank=True)
+    changed_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+
+    def __str__(self):
+        return f'{self.item.name}: {self.old_price} → {self.new_price}'

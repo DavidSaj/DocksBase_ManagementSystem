@@ -7,6 +7,7 @@ psycopg2-binary>=2.9,<3.0
 gunicorn>=23.0,<24.0
 dj-database-url>=2.0,<3.0
 dropbox-sign>=1.0,<2.0
+pyjwt[crypto]>=2.8,<3.0  # RSA signing for DocuSign JWT Grant
 django-storages[s3]>=1.14,<2.0
 boto3>=1.43,<2.0
 botocore>=1.43,<2.0
@@ -26,3 +27,15 @@ django-celery-beat>=2.6,<3.0
 django-model-utils>=4.3
 requests>=2.31
 python-dateutil>=2.8
+
+# SMS providers (used by apps/berths/sms_service.py). Each is imported lazily
+# inside its provider branch; only the one matching marina.sms_provider is
+# actually loaded at runtime.
+twilio>=9.0,<10.0
+vonage>=3.14,<4.0
+messagebird>=2.0,<3.0
+
+# Used by apps.accounts.encryption for at-rest credential encryption (Fernet).
+# Already a transitive dep of several Django packages; pinned explicitly so the
+# encryption code never breaks if the transitive chain changes.
+cryptography>=42.0
