@@ -29,21 +29,4 @@ export const PLANS = [
       'Reports & analytics',
     ],
   },
-  {
-    key:          'enterprise',
-    name:         'Enterprise',
-    monthlyPrice: 899,
-    currency:     'EUR',
-    stripePriceId: import.meta.env.PUBLIC_STRIPE_PRICE_ENTERPRISE,
-    addonPriceId:  import.meta.env.PUBLIC_STRIPE_PRICE_ENTERPRISE_ADDON_MARINA,
-    addonPricePerMarina: 250,
-    tagline:      'For large marinas & groups',
-    features: [
-      'Everything in Professional',
-      'Multi-marina management',
-      'White-label mobile app',
-      'Priority support & SLA',
-      'Custom integrations',
-    ],
-  },
 ]
