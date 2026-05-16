@@ -18,7 +18,8 @@ class StaffInviteTest(TestCase):
         self.g, self.m, self.admin = make_setup()
         self.client.force_authenticate(self.admin)
 
-    def test_invite_creates_new_user(self):
+    def test_invite_creates_inactive_user_and_sends_setup_email(self):
+        from django.core import mail
         resp = self.client.post(
             f'/api/v1/enterprise/groups/{self.g.pk}/staff/invite/',
             {'email': 'new@marina.com', 'marina_id': self.m.id},
@@ -28,9 +29,13 @@ class StaffInviteTest(TestCase):
         u = User.objects.get(email='new@marina.com')
         self.assertEqual(u.marina_id, self.m.id)
         self.assertEqual(u.role, 'manager')
-        self.assertTrue(u.is_active)
+        # New invitees are inactive until they complete the setup link.
+        self.assertFalse(u.is_active)
+        self.assertFalse(u.has_usable_password())
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('new@marina.com', mail.outbox[0].to)
 
-    def test_invite_reactivates_inactive_user(self):
+    def test_invite_reactivates_user_with_existing_password(self):
         existing = User.objects.create_user(email='old@marina.com', password='pass', is_active=False)
         resp = self.client.post(
             f'/api/v1/enterprise/groups/{self.g.pk}/staff/invite/',
@@ -39,7 +44,24 @@ class StaffInviteTest(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         existing.refresh_from_db()
+        # User already had a usable password, so they go straight to active.
         self.assertTrue(existing.is_active)
+
+    def test_invite_reactivates_user_without_password_keeps_inactive_and_emails(self):
+        from django.core import mail
+        existing = User(email='pending@marina.com', is_active=False)
+        existing.set_unusable_password()
+        existing.save()
+        resp = self.client.post(
+            f'/api/v1/enterprise/groups/{self.g.pk}/staff/invite/',
+            {'email': 'pending@marina.com', 'marina_id': self.m.id},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        existing.refresh_from_db()
+        self.assertFalse(existing.is_active)
+        self.assertEqual(existing.marina_id, self.m.id)
+        self.assertEqual(len(mail.outbox), 1)
 
     def test_invite_marina_not_in_group_returns_400(self):
         other = Marina.objects.create(name='Other', slug='other', status='active', currency='EUR')
