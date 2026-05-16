@@ -80,7 +80,7 @@ export default function Overview({ group }) {
         {[
           { label: 'Total Berths',     val: kpis.total_berths.toLocaleString(),                               icon: 'anchor' },
           { label: 'Active Bookings',  val: kpis.total_active_bookings.toLocaleString(),                      icon: 'users'  },
-          { label: 'MRR',              val: `${group.base_currency} ${Number(kpis.total_mrr).toLocaleString()}`, icon: 'dollar' },
+          { label: 'MRR',              val: `${group.base_currency} ${parseFloat(kpis.total_mrr).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, icon: 'dollar' },
           { label: 'Outstanding',      val: `${group.base_currency} ${parseFloat(kpis.total_outstanding).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, icon: 'alert-tri' },
         ].map(k => (
           <div key={k.label} className="card stat-card">

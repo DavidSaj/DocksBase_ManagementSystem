@@ -1,7 +1,14 @@
+import re
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status as http_status
+from django.conf import settings
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 from decimal import Decimal
@@ -12,12 +19,19 @@ from .permissions import IsGroupAdmin
 from .serializers import GroupSummarySerializer, build_marina_card
 
 
+ISO_4217_RE = re.compile(r'^[A-Z]{3}$')
+
+
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Only return groups where the user is an admin — viewer-role memberships
+        # cannot use any other endpoint in this app, so surfacing them would just
+        # produce 403s after the user picks a group.
         roles = MarinaGroupUserRole.objects.filter(
-            user=request.user
+            user=request.user,
+            role=MarinaGroupUserRole.Role.ADMIN,
         ).select_related('group')
         groups = [r.group for r in roles]
         return Response({'groups': GroupSummarySerializer(groups, many=True).data})
@@ -68,18 +82,25 @@ class GroupFinancialsView(APIView):
         today = datetime.date.today()
         missing_fx = []
 
+        # Resolve one rate per (from_currency -> base_currency) per request.
+        # Sentinel value `False` marks "looked up, missing" to skip repeat queries.
+        fx_cache = {}
+
         def to_base(amount, from_currency):
             if from_currency == base_currency:
                 return amount
-            rate = ExchangeRate.objects.filter(
-                from_currency=from_currency,
-                to_currency=base_currency,
-            ).order_by('-id').first()
-            if not rate:
+            if from_currency not in fx_cache:
+                rate = ExchangeRate.objects.filter(
+                    from_currency=from_currency,
+                    to_currency=base_currency,
+                ).order_by('-id').first()
+                fx_cache[from_currency] = rate.rate if rate else False
+            rate = fx_cache[from_currency]
+            if rate is False:
                 if from_currency not in missing_fx:
                     missing_fx.append(from_currency)
                 return None
-            return amount * rate.rate
+            return amount * rate
 
         # Paid this month
         from django.utils import timezone as _tz
@@ -213,12 +234,44 @@ class GroupSettingsView(APIView):
     def patch(self, request, pk):
         group = get_object_or_404(MarinaGroup, pk=pk)
         allowed = {'name', 'billing_contact_email', 'vat_number', 'base_currency'}
-        updated_fields = list(allowed & set(request.data.keys()))
-        for field in updated_fields:
-            setattr(group, field, request.data[field])
-        if updated_fields:
-            group.save(update_fields=updated_fields)
+        updates = {k: v for k, v in request.data.items() if k in allowed}
+
+        if 'base_currency' in updates:
+            raw = updates['base_currency'] or ''
+            normalized = str(raw).strip().upper()
+            if not ISO_4217_RE.match(normalized):
+                return Response(
+                    {'detail': 'base_currency must be a 3-letter ISO 4217 code.'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+            updates['base_currency'] = normalized
+
+        for field, value in updates.items():
+            setattr(group, field, value)
+        if updates:
+            group.save(update_fields=list(updates.keys()))
         return Response(self._data(group))
+
+
+def _send_setup_email(user, marina):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = f"{settings.FRONTEND_URL}/setup/{uid}/{token}"
+    try:
+        send_mail(
+            subject="You've been invited to DocksBase",
+            message=(
+                f"Hi {user.first_name or user.email},\n\n"
+                f"You've been invited to join {marina.name} on DocksBase.\n\n"
+                f"Click the link below to set your password and activate your account:\n{link}\n\n"
+                "DocksBase"
+            ),
+            from_email=None,
+            recipient_list=[user.email],
+        )
+    except Exception:
+        # Don't roll back user creation — admin can re-invite if email delivery fails.
+        pass
 
 
 class GroupStaffInviteView(APIView):
@@ -246,26 +299,39 @@ class GroupStaffInviteView(APIView):
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
         marina = get_object_or_404(Marina, pk=marina_id)
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={'marina': marina, 'role': 'manager', 'is_active': True},
-        )
-        if not created:
-            group_marina_ids = list(group.memberships.values_list('marina_id', flat=True))
-            if user.is_active and user.marina_id not in group_marina_ids:
-                return Response(
-                    {'detail': 'Email already in use by an account in another marina.'},
-                    status=http_status.HTTP_400_BAD_REQUEST,
-                )
-            if not user.is_active:
-                user.marina = marina
-                user.role = 'manager'
-                user.is_active = True
-                user.save(update_fields=['marina', 'role', 'is_active'])
-        response_status = http_status.HTTP_201_CREATED if created else http_status.HTTP_200_OK
+
+        existing = User.objects.filter(email=email).first()
+        if existing is None:
+            # New invite: inactive until they complete the setup link, no password.
+            user = User(email=email, marina=marina, role='manager', is_active=False)
+            user.set_unusable_password()
+            user.save()
+            _send_setup_email(user, marina)
+            return Response(
+                {'id': user.id, 'email': user.email, 'marina_id': marina.id, 'marina_name': marina.name},
+                status=http_status.HTTP_201_CREATED,
+            )
+
+        # Existing user
+        group_marina_ids = list(group.memberships.values_list('marina_id', flat=True))
+        if existing.is_active and existing.marina_id not in group_marina_ids:
+            return Response(
+                {'detail': 'Email already in use by an account in another marina.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Reactivate / re-assign. If they have no usable password yet, keep them
+        # inactive and (re-)send the setup link so they can finish onboarding.
+        existing.marina = marina
+        existing.role = 'manager'
+        needs_setup = not existing.has_usable_password()
+        existing.is_active = not needs_setup
+        existing.save(update_fields=['marina', 'role', 'is_active'])
+        if needs_setup:
+            _send_setup_email(existing, marina)
         return Response(
-            {'id': user.id, 'email': user.email, 'marina_id': marina.id, 'marina_name': marina.name},
-            status=response_status,
+            {'id': existing.id, 'email': existing.email, 'marina_id': marina.id, 'marina_name': marina.name},
+            status=http_status.HTTP_200_OK,
         )
 
 
