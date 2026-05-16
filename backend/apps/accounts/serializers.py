@@ -160,7 +160,7 @@ class DraftAccountSerializer(serializers.Serializer):
     phone          = serializers.CharField(max_length=30)
     contact_email  = serializers.EmailField()
     vat_number     = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    currency       = serializers.ChoiceField(choices=['EUR', 'GBP', 'USD', 'DKK', 'SEK', 'NOK'])
+    currency       = serializers.ChoiceField(choices=['EUR', 'GBP', 'USD', 'CHF', 'DKK', 'SEK', 'NOK'])
     first_name     = serializers.CharField(max_length=150)
     last_name      = serializers.CharField(max_length=150)
     email          = serializers.EmailField()

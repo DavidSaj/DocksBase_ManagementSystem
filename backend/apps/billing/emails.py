@@ -29,7 +29,7 @@ def _invoice_recipient(invoice):
 
 def _amount_str(invoice):
     currency = getattr(invoice.marina, 'currency', 'EUR') or 'EUR'
-    symbol = {'EUR': '€', 'GBP': '£', 'USD': '$'}.get(currency, currency + ' ')
+    symbol = {'EUR': '€', 'GBP': '£', 'USD': '$', 'CHF': 'CHF '}.get(currency, currency + ' ')
     return f'{symbol}{invoice.total:.2f}'
 
 

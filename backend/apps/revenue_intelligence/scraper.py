@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Regex to find a price-like token: optional currency symbol, digits, optional decimals.
 _PRICE_RE = re.compile(
-    r'(?:€|\$|£|EUR|USD|GBP)?\s*(\d{1,6}(?:[.,]\d{1,2})?)',
+    r'(?:€|\$|£|CHF|Fr\.?|EUR|USD|GBP)?\s*(\d{1,6}(?:[.,]\d{1,2})?)',
     re.IGNORECASE,
 )
 
