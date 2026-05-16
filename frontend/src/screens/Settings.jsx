@@ -1511,6 +1511,7 @@ export default function Settings() {
                         <option value="EUR">EUR — Euro (€)</option>
                         <option value="GBP">GBP — British Pound (£)</option>
                         <option value="USD">USD — US Dollar ($)</option>
+                        <option value="CHF">CHF — Swiss Franc</option>
                       </select>
                     </FieldRow>
                     <FieldRow label="Payment Terms" hint="Number of days from invoice issue date">

@@ -59,6 +59,7 @@ class EmissionFactor(models.Model):
         GBP   = 'gbp',   'GBP (spend-based)'
         USD   = 'usd',   'USD (spend-based)'
         EUR   = 'eur',   'EUR (spend-based)'
+        CHF   = 'chf',   'CHF (spend-based)'
 
     class Source(models.TextChoices):
         DEFRA     = 'defra',     'DEFRA (UK)'
