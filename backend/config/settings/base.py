@@ -83,6 +83,7 @@ LOCAL_APPS = [
     'apps.security',
     'apps.ais',
     'apps.api_keys',
+    'apps.waitlist',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -398,6 +399,19 @@ CELERY_BEAT_SCHEDULE = {
     'check-non-returns': {
         'task': 'berths.check_non_returns',
         'schedule': 1800,                                # every 30 minutes
+    },
+    # ── Waitlist (seasonal slips) ────────────────────────────────────────────
+    'waitlist-reminder-t24h': {
+        'task': 'waitlist.send_offer_reminder_t24h',
+        'schedule': 900,                                 # every 15 minutes
+    },
+    'waitlist-reminder-t2h': {
+        'task': 'waitlist.send_offer_reminder_t2h',
+        'schedule': 300,                                 # every 5 minutes
+    },
+    'waitlist-expire-overdue': {
+        'task': 'waitlist.expire_overdue_offers',
+        'schedule': 600,                                 # every 10 minutes
     },
 }
 

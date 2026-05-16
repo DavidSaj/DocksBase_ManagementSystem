@@ -45,6 +45,7 @@ import Staff        from './screens/Staff.jsx';
 import Billing      from './screens/Billing.jsx';
 import Reports      from './screens/Reports.jsx';
 import Members      from './screens/Members.jsx';
+import Waitlist     from './screens/Waitlist.jsx';
 import Restaurant   from './screens/Restaurant.jsx';
 import Events       from './screens/Events.jsx';
 import Settings     from './screens/Settings.jsx';
@@ -75,7 +76,7 @@ import StaffSetup from './screens/StaffSetup.jsx';
 const SCREEN_MAP = {
   overview: Overview, map: MarinaMap, reservations: Reservations,
   vessels: Vessels, boatyard: Boatyard, maintenance: Maintenance,
-  staff: Staff, billing: Billing, reports: Reports, members: Members,
+  staff: Staff, billing: Billing, reports: Reports, members: Members, waitlist: Waitlist,
   restaurant: Restaurant, events: Events, settings: Settings,
   documents: Documents, sales: Sales, operations: Operations,
   infrastructure: Infrastructure,

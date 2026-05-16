@@ -7,6 +7,9 @@ import ActivitiesList   from './screens/activities/ActivitiesList';
 import ActivityDetail   from './screens/activities/ActivityDetail';
 import RequestConfirmed from './screens/activities/RequestConfirmed';
 import PreviewScreen    from './screens/PreviewScreen';
+import WaitlistApplyScreen  from './screens/WaitlistApplyScreen';
+import WaitlistStatusScreen from './screens/WaitlistStatusScreen';
+import WaitlistOfferScreen  from './screens/WaitlistOfferScreen';
 
 function BookingWizardPage() {
   const { marina } = useTenant();
@@ -26,6 +29,16 @@ function BookingConfirmedPage({ cancelled }) {
   return <BookingConfirmed marina={marina} bookingId={id} cancelled={cancelled} />;
 }
 
+function WaitlistApplyPage() {
+  const { marina } = useTenant();
+  return <WaitlistApplyScreen marina={marina} />;
+}
+
+function WaitlistStatusPage() {
+  const { id } = useParams();
+  return <WaitlistStatusScreen entryId={id} />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -37,6 +50,9 @@ export default function App() {
       <Route path="/:slug/activities"                            element={<ActivitiesList />} />
       <Route path="/:slug/activities/:activityId"             element={<ActivityDetail />} />
       <Route path="/:slug/activities/:activityId/requested"   element={<RequestConfirmed />} />
+      <Route path="/:slug/waitlist/apply"          element={<WaitlistApplyPage />} />
+      <Route path="/:slug/waitlist/status/:id"     element={<WaitlistStatusPage />} />
+      <Route path="/:slug/waitlist/offer/:token"   element={<WaitlistOfferScreen />} />
       <Route path="/:slug/*"                                  element={<PortalGate />} />
     </Routes>
   );

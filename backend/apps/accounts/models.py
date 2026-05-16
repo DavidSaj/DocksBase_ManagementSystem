@@ -92,6 +92,14 @@ class Marina(models.Model):
     )
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
+    # Waitlist (apps.waitlist)
+    waitlist_enabled = models.BooleanField(default=False)
+    waitlist_deposit_cents = models.IntegerField(default=7500)
+    max_waitlist_declines = models.IntegerField(
+        default=3,
+        help_text='Number of waitlist offers a boater may decline before being removed.',
+    )
+
     # Security: when True, owners and managers without active MFA are routed
     # to forced enrollment on next login (after the password step).
     require_mfa_for_managers = models.BooleanField(default=False)

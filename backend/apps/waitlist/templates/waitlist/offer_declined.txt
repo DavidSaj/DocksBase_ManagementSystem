@@ -1,0 +1,7 @@
+Hi {{ applicant_name }},
+
+We have recorded your decline of the recent berth offer.
+
+You have declined {{ decline_count }} of {{ max_declines }} offers. If you
+decline {{ remaining_declines }} more, you will be removed from the waitlist
+and your deposit will be refunded.
