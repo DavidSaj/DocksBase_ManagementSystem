@@ -71,6 +71,8 @@ function blankForm(category) {
     is_mandatory_transient_fee: false,
     is_fuel_product:            false,
     show_in_pos:                false,
+    show_in_quick_charge:       false,
+    qty_variable:               false,
     fuel_dock_type:             '',
   };
 }
@@ -95,6 +97,8 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
           is_mandatory_transient_fee: item.is_mandatory_transient_fee ?? false,
           is_fuel_product:            Boolean(item.fuel_dock_type),
           show_in_pos:                item.show_in_pos ?? false,
+          show_in_quick_charge:       item.show_in_quick_charge ?? false,
+          qty_variable:               item.qty_variable ?? false,
           fuel_dock_type:             item.fuel_dock_type ?? '',
         });
       } else {
@@ -150,6 +154,8 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
           show_in_pos:    form.show_in_pos,
           fuel_dock_type: form.is_fuel_product ? (form.fuel_dock_type || '') : '',
         } : {}),
+        show_in_quick_charge: form.show_in_quick_charge,
+        qty_variable:         form.qty_variable,
       };
       if (isEdit) {
         await updateItem(item.id, payload);
@@ -347,6 +353,35 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
               </div>
             </>
           )}
+
+          {/* Quick Charge surface — available for all categories */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={form.show_in_quick_charge}
+                onChange={setCheck('show_in_quick_charge')}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(0,0,0,0.75)' }}>
+                Show in Quick Charge
+              </span>
+            </label>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={form.qty_variable}
+                onChange={setCheck('qty_variable')}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(0,0,0,0.75)' }}>
+                Quantity Variable
+              </span>
+            </label>
+          </div>
 
           {/* Inline error */}
           {error && (
