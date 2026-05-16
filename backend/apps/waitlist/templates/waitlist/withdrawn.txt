@@ -1,0 +1,4 @@
+Hi {{ applicant_name }},
+
+You have been removed from the waitlist at your request. A refund of your
+deposit has been initiated.

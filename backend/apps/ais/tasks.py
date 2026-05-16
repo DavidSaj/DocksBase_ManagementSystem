@@ -55,66 +55,17 @@ def poll_ais_for_marina(marina_id: int):
         logger.warning('AIS poll failed for marina %s: %s', marina_id, e)
         return
 
-    from django.utils import timezone as _tz
-    from apps.ais.detect_events import (
-        compute_transition,
-        on_basin_enter, on_basin_exit,
-        detect_no_shows,
-    )
-    from apps.ais.models import VesselPosition
-
+    # Pre-resolve known vessels in ONE query rather than per-reading.
+    # A busy harbour can return 300+ AIS contacts and we run this every
+    # 60 s — N+1 would exhaust the DB connection pool quickly.
     mmsis = [r.mmsi for r in readings]
     known_vessels = {
         v.mmsi: v for v in
         Vessel.objects.filter(marina=marina, mmsi__in=mmsis)
     }
-    prev_positions = {
-        p.mmsi: p for p in
-        VesselPosition.objects.filter(marina=marina, mmsi__in=mmsis)
-    }
-
-    polygon = marina.basin_polygon or []
-    now = _tz.now()
-    recipient = _pick_event_recipient(marina)
-    transitions = []
 
     for reading in readings:
-        in_basin, last_at, transition = compute_transition(
-            prev_positions.get(reading.mmsi),
-            float(reading.lat), float(reading.lng),
-            polygon, now,
-        )
-        position, _ = upsert_position(
-            marina, reading, vessel=known_vessels.get(reading.mmsi),
-            in_basin=in_basin, last_transition_at=last_at, transition=transition,
-        )
-        if transition:
-            transitions.append((position, transition))
+        upsert_position(marina, reading, vessel=known_vessels.get(reading.mmsi))
 
-    # All event handlers require an in-app recipient (notify() FK is NOT NULL).
-    # Without a marina user we record positions but skip dispatch; the next
-    # poll cycle will retry once a user exists.
-    if recipient is not None:
-        for position, transition in transitions:
-            if transition == 'enter':
-                on_basin_enter(position, recipient=recipient)
-            else:
-                on_basin_exit(position, recipient=recipient)
-        detect_no_shows(marina, recipient=recipient)
-    elif transitions:
-        logger.warning(
-            'AIS poll marina=%s suppressed %d transition(s): no recipient user',
-            marina_id, len(transitions),
-        )
-
-    logger.info('AIS poll marina=%s readings=%d matched=%d transitions=%d',
-                marina_id, len(readings),
-                sum(1 for r in readings if r.mmsi in known_vessels),
-                len(transitions))
-
-
-def _pick_event_recipient(marina):
-    """Owner of the marina is the default in-app recipient for AIS events."""
-    from apps.accounts.models import User
-    return User.objects.filter(marina=marina, role='owner').first() or \
-           User.objects.filter(marina=marina).first()
+    logger.info('AIS poll marina=%s readings=%d matched=%d',
+                marina_id, len(readings), sum(1 for r in readings if r.mmsi in known_vessels))

@@ -36,3 +36,10 @@ def send_review_requests():
 @shared_task
 def sync_dotdigital_segments():
     pass  # implement in services/dotdigital.py
+
+
+@shared_task(name='communications.send_broadcast')
+def send_broadcast(broadcast_id: int):
+    """Celery fan-out task — see services.broadcast.fan_out."""
+    from apps.communications.services.broadcast import fan_out
+    return fan_out(broadcast_id)

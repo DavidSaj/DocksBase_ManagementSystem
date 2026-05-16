@@ -7,6 +7,7 @@ import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import api from '../api.js';
 import { ageDays } from '../utils/ageDays.js';
+import RefundModal from '../components/billing/RefundModal.jsx';
 
 function fmtInv(inv) {
   const rawAmt = inv.total ?? inv.amount;
@@ -194,6 +195,8 @@ export default function Billing() {
 
   const [acctSearch, setAcctSearch]   = useState('');
   const [acctShowAll, setAcctShowAll] = useState(false);
+
+  const [refundInvoice, setRefundInvoice] = useState(null);
 
   const [payAmount, setPayAmount]   = useState('');
   const [payMethod, setPayMethod]   = useState('bank_transfer');
@@ -442,6 +445,22 @@ export default function Billing() {
 
   return (
     <div>
+      {refundInvoice && (
+        <RefundModal
+          invoice={refundInvoice.__memberId ? null : refundInvoice}
+          memberId={refundInvoice.__memberId ?? refundInvoice.member ?? null}
+          onClose={() => setRefundInvoice(null)}
+          onSuccess={(refund) => {
+            alert(
+              refund.is_offline
+                ? `Recorded offline refund of €${(refund.amount_cents / 100).toFixed(2)}.`
+                : `Refund of €${(refund.amount_cents / 100).toFixed(2)} issued (${refund.status}).`
+            );
+            refetch();
+            if (selectedId) refreshDrawer(selectedId);
+          }}
+        />
+      )}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Billing</span>
         <ScreenInfo title="Billing" body={SCREEN_INFO.billing} />
@@ -980,19 +999,28 @@ export default function Billing() {
                   </button>
                 </div>
 
-                {/* Heavy account actions — placeholder until backend endpoints exist */}
+                {/* Heavy account actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
                   {[
-                    'Apply Credit',
-                    'Issue Refund',
-                    'Send Payment Reminder',
-                  ].map(label => (
+                    { label: 'Apply Credit',          enabled: false, onClick: null },
+                    {
+                      label: 'Issue Refund',
+                      enabled: true,
+                      onClick: () => setRefundInvoice({ __memberId: drawerData.member.id }),
+                    },
+                    { label: 'Send Payment Reminder', enabled: false, onClick: null },
+                  ].map(({ label, enabled, onClick }) => (
                     <button
                       key={label}
                       className="btn btn-ghost"
-                      style={{ justifyContent: 'center', opacity: 0.4, cursor: 'not-allowed' }}
-                      disabled
-                      title="Coming soon"
+                      style={{
+                        justifyContent: 'center',
+                        opacity: enabled ? 1 : 0.4,
+                        cursor: enabled ? 'pointer' : 'not-allowed',
+                      }}
+                      disabled={!enabled}
+                      title={enabled ? '' : 'Coming soon'}
+                      onClick={enabled ? onClick : undefined}
                     >
                       {label}
                     </button>

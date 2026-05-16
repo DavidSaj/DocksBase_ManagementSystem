@@ -364,6 +364,74 @@ class ReviewRequest(models.Model):
         return f'ReviewRequest {self.pk} — {self.platform} ({self.status})'
 
 
+class Broadcast(models.Model):
+    """
+    A manager-initiated one-off blast (SMS or email) to a filtered cohort of
+    members. See docs/superpowers/specs/2026-05-15-broadcast-center-design.md
+    §14 for the locked v1 contract.
+    """
+    class Channel(models.TextChoices):
+        SMS   = 'sms',   'SMS'
+        EMAIL = 'email', 'Email'
+
+    class Status(models.TextChoices):
+        DRAFT     = 'draft',     'Draft'
+        PREVIEWED = 'previewed', 'Previewed'
+        SENDING   = 'sending',   'Sending'
+        SENT      = 'sent',      'Sent'
+        CANCELLED = 'cancelled', 'Cancelled'
+        FAILED    = 'failed',    'Failed'
+
+    marina               = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE, related_name='broadcasts')
+    created_by           = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='broadcasts')
+    title                = models.CharField(max_length=200)
+    channel              = models.CharField(max_length=20, choices=Channel.choices, default=Channel.SMS)
+    subject              = models.CharField(max_length=500, blank=True)
+    body                 = models.TextField()
+    cohort_filter        = models.JSONField(default=dict, blank=True)
+    previewed_count      = models.IntegerField(null=True, blank=True)
+    cost_estimate_cents  = models.IntegerField(null=True, blank=True)
+    status               = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    created_at           = models.DateTimeField(auto_now_add=True)
+    previewed_at         = models.DateTimeField(null=True, blank=True)
+    sent_at              = models.DateTimeField(null=True, blank=True)
+    completed_at         = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Broadcast {self.pk} — {self.title} ({self.status})'
+
+
+class BroadcastRecipient(models.Model):
+    class Status(models.TextChoices):
+        PENDING            = 'pending',            'Pending'
+        SENT               = 'sent',               'Sent'
+        DELIVERED          = 'delivered',          'Delivered'
+        FAILED             = 'failed',             'Failed'
+        BOUNCED            = 'bounced',            'Bounced'
+        OPTED_OUT          = 'opted_out',          'Opted Out'
+        SKIPPED_NO_ADDRESS = 'skipped_no_address', 'Skipped (No Address)'
+
+    broadcast    = models.ForeignKey(Broadcast, on_delete=models.CASCADE, related_name='recipients')
+    member       = models.ForeignKey('members.Member', null=True, blank=True, on_delete=models.SET_NULL, related_name='broadcast_recipients')
+    channel      = models.CharField(max_length=20, choices=Broadcast.Channel.choices)
+    address      = models.CharField(max_length=500)
+    message_log  = models.ForeignKey(MessageLog, null=True, blank=True, on_delete=models.SET_NULL, related_name='broadcast_recipients')
+    status       = models.CharField(max_length=30, choices=Status.choices, default=Status.PENDING)
+    failed_reason = models.TextField(blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['broadcast', 'status'])]
+        ordering = ['id']
+
+    def __str__(self):
+        return f'BroadcastRecipient {self.pk} — b={self.broadcast_id} {self.channel} {self.address} ({self.status})'
+
+
 class ReviewConfig(models.Model):
     class SendChannel(models.TextChoices):
         EMAIL    = 'email',    'Email'

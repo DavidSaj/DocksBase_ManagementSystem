@@ -10,12 +10,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.communications.models import (
-    AlertRoute, DotdigitalConfig, DotdigitalSegmentMapping,
+    AlertRoute, Broadcast, BroadcastRecipient,
+    DotdigitalConfig, DotdigitalSegmentMapping,
     EmailCampaign, Journey, JourneyEnrollment, JourneyStep,
     MessageLog, MessageTemplate, ReviewConfig, ReviewRequest, WhatsAppTemplate,
 )
 from apps.communications.serializers import (
-    AlertRouteSerializer, DotdigitalConfigSerializer,
+    AlertRouteSerializer, BroadcastSerializer, BroadcastRecipientSerializer,
+    DotdigitalConfigSerializer,
     DotdigitalSegmentMappingSerializer, EmailCampaignSerializer,
     JourneyEnrollmentSerializer, JourneySerializer, JourneyStepSerializer,
     MessageLogSerializer, MessageTemplateSerializer,
@@ -266,6 +268,109 @@ class WhatsAppWebhookView(APIView):
 
         from apps.communications.signals import whatsapp_message_received
         whatsapp_message_received.send(sender=self.__class__, payload=request.data)
+        return Response({'status': 'ok'})
+
+
+class BroadcastViewSet(viewsets.ModelViewSet):
+    """
+    Manager-initiated boater broadcasts (SMS or email).
+    See docs/superpowers/specs/2026-05-15-broadcast-center-design.md §14.
+    """
+    serializer_class = BroadcastSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Broadcast.objects.filter(marina=self.request.user.marina)
+
+    def perform_create(self, serializer):
+        serializer.save(marina=self.request.user.marina, created_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def preview(self, request, pk=None):
+        from apps.communications.services.broadcast import preview as preview_service
+        broadcast = self.get_object()
+        result = preview_service(broadcast)
+        broadcast.refresh_from_db()
+        return Response({
+            'count': result['count'],
+            'cost_cents': result['cost_cents'],
+            'previewed_count': broadcast.previewed_count,
+            'cost_estimate_cents': broadcast.cost_estimate_cents,
+        })
+
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        from apps.communications.services.broadcast import (
+            check_and_send, CohortDriftError,
+        )
+        broadcast = self.get_object()
+        try:
+            dispatched = check_and_send(broadcast)
+        except CohortDriftError as e:
+            return Response(
+                {
+                    'detail': (
+                        f'Cohort size has changed from {e.previewed} to {e.new}. '
+                        f'Please refresh your preview to confirm the new cost.'
+                    ),
+                    'previewed_count': e.previewed,
+                    'new_count': e.new,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response({'status': 'sent', 'dispatched': dispatched})
+
+    @action(detail=True, methods=['get'])
+    def deliveries(self, request, pk=None):
+        broadcast = self.get_object()
+        qs = BroadcastRecipient.objects.filter(broadcast=broadcast)
+        return Response(BroadcastRecipientSerializer(qs, many=True).data)
+
+
+class TwilioSmsWebhookView(APIView):
+    """
+    Inbound Twilio SMS webhook (spec §14.B).
+
+    Validates the X-Twilio-Signature header against TWILIO_AUTH_TOKEN, then
+    parses the inbound Body for STOP-family keywords. On match, flips
+    Member.broadcast_opt_in = False for the matching `From` phone.
+    """
+    permission_classes = [AllowAny]
+
+    def _validate_signature(self, request) -> bool:
+        token = getattr(settings, 'TWILIO_AUTH_TOKEN', '') or ''
+        if not token:
+            # No token configured -> skip validation (dev). Production
+            # deployments must set TWILIO_AUTH_TOKEN.
+            return True
+        sig = request.headers.get('X-Twilio-Signature', '')
+        if not sig:
+            return False
+        try:
+            from twilio.request_validator import RequestValidator
+        except ImportError:
+            return False
+        validator = RequestValidator(token)
+        url = request.build_absolute_uri()
+        params = request.POST.dict() if request.POST else (request.data or {})
+        return validator.validate(url, params, sig)
+
+    def post(self, request):
+        from apps.communications.services.broadcast import STOP_KEYWORDS
+        from apps.members.models import Member
+
+        if not self._validate_signature(request):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        data = request.POST if request.POST else (request.data or {})
+        from_number = (data.get('From') or '').strip()
+        body = (data.get('Body') or '').strip()
+        body_upper = body.upper()
+        first_word = body_upper.split()[0] if body_upper else ''
+
+        if first_word in STOP_KEYWORDS and from_number:
+            Member.objects.filter(phone=from_number).update(broadcast_opt_in=False)
+
         return Response({'status': 'ok'})
 
 

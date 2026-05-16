@@ -4,7 +4,7 @@ import { getSignupStrings } from '../../i18n/signup-strings'
 import styles from './StepMarina.module.css'
 
 const Autocomplete = AutocompleteLib.default ?? AutocompleteLib
-const CURRENCIES = ['EUR', 'GBP', 'USD', 'DKK', 'SEK', 'NOK']
+const CURRENCIES = ['EUR', 'GBP', 'USD', 'CHF', 'DKK', 'SEK', 'NOK']
 const GOOGLE_API_KEY = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY
 
 function validate(form, t) {

@@ -45,6 +45,12 @@ class Invoice(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     stripe_checkout_session_id = models.CharField(max_length=200, blank=True)
     stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
+    payment_intent_status = models.CharField(
+        max_length=30, blank=True, default='',
+        help_text="Stripe PaymentIntent status snapshot: '', 'pending', "
+                  "'processing', 'requires_action', 'succeeded', 'canceled'. "
+                  "Quick Charge blocks new lines while in-flight.",
+    )
     billing_period = models.CharField(max_length=7, blank=True, db_index=True)  # "YYYY-MM"
     due_date = models.DateField(null=True, blank=True)
     paid_at = models.DateTimeField(null=True, blank=True)
@@ -104,6 +110,15 @@ class InvoiceLineItem(models.Model):
         null=True, blank=True, related_name='line_items'
     )
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    # ── Quick-Charge audit & undo support ─────────────────────────────────
+    added_by = models.ForeignKey(
+        'staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='added_invoice_lines',
+    )
+    source = models.CharField(max_length=30, blank=True, default='')
+    notes = models.CharField(max_length=255, blank=True, default='')
+    undo_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
         return f'{self.description} × {self.quantity}'
@@ -185,6 +200,15 @@ class ChargeableItem(models.Model):
     )
     is_active                  = models.BooleanField(default=True)
     show_in_pos                = models.BooleanField(default=False)
+    show_in_quick_charge       = models.BooleanField(
+        default=False,
+        help_text='Surfaces this item in the staff Quick Charge PWA grid.',
+    )
+    qty_variable               = models.BooleanField(
+        default=False,
+        help_text='If True, the Quick Charge UI renders a quantity stepper; '
+                  'otherwise the item is single-tap qty=1.',
+    )
     is_mandatory_transient_fee = models.BooleanField(default=False)
     # Coupons/loyalty points must NOT apply to offset certificates or deposit items.
     is_discountable = models.BooleanField(
@@ -350,6 +374,70 @@ class DebtEscalation(models.Model):
 
     def __str__(self):
         return f'DebtEscalation {self.pk} — {self.member} ({self.status})'
+
+
+# ── Quick-Charge idempotency ──────────────────────────────────────────────────
+
+class IdempotencyKey(models.Model):
+    """Globally-unique idempotency key (per platform, not per marina).
+
+    Source-scoped so different feature areas can reuse the table.  The
+    `key` column is UNIQUE across the entire table — Gemini's "cross-marina
+    replay" trap fix from the spec.
+    """
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    source = models.CharField(max_length=30, db_index=True)
+    response_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Idem({self.source}:{self.key})'
+
+
+# ── Refunds ──────────────────────────────────────────────────────────────────
+
+class Refund(models.Model):
+    class Reason(models.TextChoices):
+        DUPLICATE             = 'duplicate',             'Duplicate'
+        FRAUDULENT            = 'fraudulent',            'Fraudulent'
+        REQUESTED_BY_CUSTOMER = 'requested_by_customer', 'Requested by Customer'
+        OTHER                 = 'other',                 'Other'
+
+    class Status(models.TextChoices):
+        PENDING          = 'pending',          'Pending'
+        SUCCEEDED        = 'succeeded',        'Succeeded'
+        FAILED           = 'failed',           'Failed'
+        REQUIRES_ACTION  = 'requires_action',  'Requires Action'
+        MANUAL_REQUIRED  = 'manual_required',  'Manual Required'
+
+    marina = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='refunds'
+    )
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='refunds'
+    )
+    stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
+    stripe_refund_id = models.CharField(max_length=200, blank=True, db_index=True)
+    amount_cents = models.IntegerField()
+    currency = models.CharField(max_length=10, default='eur')
+    reason = models.CharField(max_length=30, choices=Reason.choices, default=Reason.OTHER)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    requested_by = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='requested_refunds',
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Refund {self.pk} — {self.amount_cents}c ({self.status})'
 
 
 # ── Track 7 — Coupon models ───────────────────────────────────────────────────

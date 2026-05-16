@@ -5,7 +5,23 @@ from apps.communications.models import (
     DotdigitalConfig, DotdigitalSegmentMapping,
     EmailCampaign, EmailCampaignVariant, ABTest,
     ReviewRequest, ReviewConfig,
+    Broadcast, BroadcastRecipient,
 )
+
+
+@admin.register(Broadcast)
+class BroadcastAdmin(admin.ModelAdmin):
+    list_display = ['pk', 'marina', 'title', 'channel', 'status', 'previewed_count', 'sent_at']
+    list_filter = ['channel', 'status']
+    search_fields = ['title', 'body']
+    readonly_fields = ['created_at', 'previewed_at', 'sent_at', 'completed_at']
+
+
+@admin.register(BroadcastRecipient)
+class BroadcastRecipientAdmin(admin.ModelAdmin):
+    list_display = ['pk', 'broadcast', 'channel', 'address', 'status', 'delivered_at']
+    list_filter = ['channel', 'status']
+    search_fields = ['address']
 
 
 @admin.register(MessageLog)

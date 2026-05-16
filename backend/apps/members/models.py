@@ -59,6 +59,19 @@ class Member(models.Model):
         default=False,
         help_text='Member has opted in to receive WhatsApp messages.',
     )
+    broadcast_opt_in = models.BooleanField(
+        default=True,
+        help_text=(
+            'Member is opted in to receive operational broadcast SMS/email. '
+            'Flipped to False automatically when an inbound STOP/UNSUBSCRIBE '
+            'keyword arrives on the Twilio inbound SMS webhook.'
+        ),
+    )
+
+    # Accounting & Tax Export — member-level tax exemption (e.g. seasonal lease).
+    tax_exempt = models.BooleanField(default=False)
+    tax_exempt_certificate_no = models.CharField(max_length=100, blank=True)
+    tax_exempt_reason = models.CharField(max_length=200, blank=True)
 
     class Meta:
         ordering = ['name']

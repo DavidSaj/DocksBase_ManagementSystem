@@ -13,6 +13,106 @@ function StatusBadge({ status }) {
   return <span className={`badge ${map[status] || 'badge-gray'}`}>{status}</span>;
 }
 
+const EMPTY_ENTERPRISE = { name: '', slug: '', billing_contact_email: '', max_marinas: 2, base_currency: 'EUR' };
+
+function CreateEnterpriseCard() {
+  const [open, setOpen]       = useState(false);
+  const [form, setForm]       = useState(EMPTY_ENTERPRISE);
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState(null);
+  const [created, setCreated] = useState(null);
+
+  function update(field, value) {
+    setForm(p => ({ ...p, [field]: value }));
+  }
+
+  async function handleCreate() {
+    setErr(null);
+    if (!form.name.trim() || !form.slug.trim()) {
+      setErr('Name and slug are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data } = await api.post('admin/groups/', {
+        ...form,
+        max_marinas: parseInt(form.max_marinas) || 1,
+      });
+      setCreated(data);
+      setForm(EMPTY_ENTERPRISE);
+    } catch (e) {
+      const d = e.response?.data;
+      setErr(typeof d === 'string' ? d : d?.detail || Object.values(d || {}).flat().join(', ') || 'Failed to create enterprise.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20, padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => { setOpen(o => !o); setCreated(null); setErr(null); }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Ic n="layers" s={14} c="rgba(180,140,0,0.9)" />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Create Enterprise account</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>Provision a new enterprise group (multi-marina, custom contract).</div>
+          </div>
+        </div>
+        <button type="button" className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); setOpen(o => !o); setCreated(null); setErr(null); }}>
+          <Ic n="plus" s={12} /> {open ? 'Close' : 'New Enterprise'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+          {created ? (
+            <div style={{ fontSize: 12, color: 'var(--green, #2e7d32)' }}>
+              <Ic n="check" s={12} /> Enterprise <strong>{created.name}</strong> created. Add marinas and assign an admin from the Groups screen.
+              <div style={{ marginTop: 8 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setCreated(null); }}>Create another</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                {[
+                  ['Name',            'name',                  'text',   'Acme Holdings'],
+                  ['Slug',            'slug',                  'text',   'acme'],
+                  ['Billing email',   'billing_contact_email', 'email',  'billing@acme.com'],
+                  ['Marina limit',    'max_marinas',           'number', '2'],
+                  ['Base currency',   'base_currency',         'text',   'EUR'],
+                ].map(([label, field, type, ph]) => (
+                  <label key={field} style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 150 }}>
+                    <span style={{ color: 'rgba(0,0,0,0.55)' }}>{label}</span>
+                    <input
+                      type={type}
+                      placeholder={ph}
+                      value={form[field]}
+                      onChange={e => update(field, e.target.value)}
+                      style={{ fontSize: 12, padding: '4px 6px' }}
+                    />
+                  </label>
+                ))}
+              </div>
+              {err && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{err}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={handleCreate}>
+                  {saving ? 'Creating…' : 'Create enterprise'}
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" disabled={saving} onClick={() => { setForm(EMPTY_ENTERPRISE); setErr(null); }}>
+                  Reset
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Overview() {
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +171,8 @@ export default function Overview() {
           })}
         </div>
       )}
+
+      <CreateEnterpriseCard />
 
       {/* KPI cards */}
       <div className="grid-4" style={{ marginBottom: 20 }}>

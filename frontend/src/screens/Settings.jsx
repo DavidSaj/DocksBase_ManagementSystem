@@ -8,7 +8,6 @@ import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
 import SecurityCard from './Settings/SecurityCard.jsx';
-import BasinPolygonEditor from './BasinPolygonEditor.jsx';
 import ApiDocsModal from './Settings/ApiDocsModal.jsx';
 import DataTab from './settings/DataTab.jsx';
 
@@ -351,12 +350,14 @@ function AccountingIntegrationsCard() {
             </div>
           </div>
         )}
-        {configs !== undefined && ACCOUNTING_PLATFORMS.map(platform => {
+        {configs !== undefined && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 1, background: 'var(--border-color, rgba(0,0,0,0.08))', borderTop: 'var(--border)' }}>
+        {ACCOUNTING_PLATFORMS.map(platform => {
           const config = configs.find(c => c.platform === platform.slug);
           const connected = config && config.is_active;
           const rowBusy = busy[platform.slug] || '';
           return (
-            <div key={platform.slug} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderTop: 'var(--border)' }}>
+            <div key={platform.slug} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', background: '#fff', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{platform.label}</div>
                 {!connected && (
@@ -395,6 +396,8 @@ function AccountingIntegrationsCard() {
             </div>
           );
         })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1423,7 +1426,7 @@ export default function Settings() {
           ['users',         'Users & Roles',    false],
           ['billing',       'Billing',          false],
           ['tax-rates',     'Tax Rates',        false],
-          ['notifications', 'Notifications',    true],
+          ['notifications', 'Notifications',    false],
           ['integrations',  'Integrations',     false],
           ['mobile-app',    'Mobile App',       false],
           ['data',          'Data',             false],
@@ -1508,6 +1511,7 @@ export default function Settings() {
                         <option value="EUR">EUR — Euro (€)</option>
                         <option value="GBP">GBP — British Pound (£)</option>
                         <option value="USD">USD — US Dollar ($)</option>
+                        <option value="CHF">CHF — Swiss Franc</option>
                       </select>
                     </FieldRow>
                     <FieldRow label="Payment Terms" hint="Number of days from invoice issue date">
@@ -1530,25 +1534,6 @@ export default function Settings() {
                 )}
               </div>
             </div>
-
-            {!marinaLoading && fm('lat') && fm('lng') && (
-              <div className="card">
-                <details>
-                  <summary
-                    className="card-header"
-                    style={{ cursor: 'pointer', listStyle: 'none' }}
-                  >
-                    <div className="card-header-title">AIS Basin (advanced)</div>
-                  </summary>
-                  <div className="card-body">
-                    <BasinPolygonEditor
-                      marina={mf}
-                      onSaved={(polygon) => setM('basin_polygon', polygon)}
-                    />
-                  </div>
-                </details>
-              </div>
-            )}
 
           </div>
 
@@ -1887,7 +1872,7 @@ export default function Settings() {
 
       {/* ── NOTIFICATIONS / EMAIL CONFIG ─────────────────────────────── */}
       {tab === 'notifications' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: 16, alignItems: 'start' }}>
 
           {/* SMTP / outgoing email */}
           <div className="card">
@@ -2010,7 +1995,7 @@ export default function Settings() {
           })()}
 
           {/* Automated Notification Rules — functional */}
-          <div className="card">
+          <div className="card" style={{ gridColumn: '1 / -1' }}>
             <div className="card-header">
               <div className="card-header-title">Automated Notification Rules</div>
               <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>
@@ -2122,9 +2107,7 @@ export default function Settings() {
 
       {/* ── MOBILE APP ──────────────────────────────────────────────── */}
       {tab === 'mobile-app' && (
-        <div style={{ maxWidth: 560 }}>
-          <MobileConfigTab marina={marina} />
-        </div>
+        <MobileConfigTab marina={marina} />
       )}
 
       {/* ── DATA ─────────────────────────────────────────────────────── */}
@@ -2132,7 +2115,7 @@ export default function Settings() {
 
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (
-        <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 16, alignItems: 'start' }}>
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Dropbox Sign</div>

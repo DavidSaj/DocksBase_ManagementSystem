@@ -1,0 +1,5 @@
+Hi {{ applicant_name }},
+
+Welcome aboard - your berth at {{ marina_name }} is reserved. Your first
+invoice will follow shortly. The waitlist deposit has been applied as a
+credit to that invoice.

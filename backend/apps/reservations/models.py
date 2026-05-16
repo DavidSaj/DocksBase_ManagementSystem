@@ -79,16 +79,20 @@ class Booking(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     is_hourly = models.BooleanField(default=False)
     dynamic_price_applied = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    # AIS Phase 2 — no-show prediction
-    ais_no_show_predicted = models.BooleanField(
-        default=False,
-        help_text='Set True by AIS Phase 2 when a booking has no AIS contact within 1 h of expected arrival.',
-    )
     # Track 10 — OTA commission
     ota_commission_amount = models.DecimalField(
         max_digits=8, decimal_places=2,
         null=True, blank=True,
         help_text='OTA commission amount retained by the channel.',
+    )
+    # Accounting & Tax Export — per-booking tax-exempt override.
+    # Precedence at invoicing time: Booking.tax_exempt_override → Member.tax_exempt → ChargeableItem.tax_category.
+    tax_exempt_override = models.BooleanField(
+        default=False,
+        help_text=(
+            'When True, all invoice lines generated for this booking are zero-tax, '
+            'overriding the member-level setting and the chargeable item tax category.'
+        ),
     )
 
     class Meta:

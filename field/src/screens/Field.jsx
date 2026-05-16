@@ -11,6 +11,7 @@ import ArrivalsList from './field/ArrivalsList.jsx';
 import FuelDockFlow from './field/FuelDockFlow.jsx';
 import MessageGuestFlow from './field/MessageGuestFlow.jsx';
 import DockwalkFlow from './field/DockwalkFlow.jsx';
+import QuickChargeFlow from './field/QuickChargeFlow.jsx';
 
 const ACTIONS = [
   { id: 'checkin',  label: 'Check In',       icon: 'check-circle' },
@@ -22,6 +23,7 @@ const ACTIONS = [
   { id: 'mytasks',  label: 'My Tasks',       icon: 'clipboard' },
   { id: 'message',  label: 'Message Guest',  icon: 'message-square' },
   { id: 'dockwalk', label: 'Meter Readings', icon: 'zap', sub: 'Enter daily utility readings' },
+  { id: 'quickcharge', label: 'Quick Charge', icon: 'tag', sub: 'Add ice, pump-out, fees' },
 ];
 
 const TABS = [
@@ -93,6 +95,7 @@ export default function Field() {
   if (flow === 'fuel')     return <FuelDockFlow onBack={() => setFlow(null)} />;
   if (flow === 'message')  return <MessageGuestFlow onBack={() => setFlow(null)} />;
   if (flow === 'dockwalk') return <DockwalkFlow onBack={() => setFlow(null)} />;
+  if (flow === 'quickcharge') return <QuickChargeFlow onBack={() => setFlow(null)} />;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f4f3f0', paddingBottom: 60 }}>

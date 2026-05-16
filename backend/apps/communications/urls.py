@@ -10,6 +10,7 @@ router.register(r'whatsapp-templates', views.WhatsAppTemplateViewSet, basename='
 router.register(r'alert-routes', views.AlertRouteViewSet, basename='alertroute')
 router.register(r'journeys', views.JourneyViewSet, basename='journey')
 router.register(r'campaigns', views.EmailCampaignViewSet, basename='emailcampaign')
+router.register(r'broadcasts', views.BroadcastViewSet, basename='broadcast')
 router.register(r'dotdigital/segments', views.DotdigitalSegmentMappingViewSet, basename='dotdigitalsegment')
 
 urlpatterns = [
@@ -23,4 +24,5 @@ urlpatterns = [
     path('dotdigital/sync/', views.DotdigitalSyncView.as_view(), name='dotdigital-sync'),
     path('webhooks/whatsapp/', views.WhatsAppWebhookView.as_view(), name='webhook-whatsapp'),
     path('webhooks/email/', views.EmailWebhookView.as_view(), name='webhook-email'),
+    path('webhooks/twilio-sms/', views.TwilioSmsWebhookView.as_view(), name='webhook-twilio-sms'),
 ]

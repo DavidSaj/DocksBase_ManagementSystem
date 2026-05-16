@@ -61,6 +61,13 @@ class Marina(models.Model):
     fuel_berths = models.JSONField(default=list)
     mrr_override = models.IntegerField(null=True, blank=True)
     max_staff = models.IntegerField(default=10)
+    sms_unit_cost_cents = models.IntegerField(
+        default=250,
+        help_text=(
+            'Per-SMS-segment cost in 1/100 cents (i.e. 250 = $0.025 = 2.5¢). '
+            'Used by Broadcast Center cost previews.'
+        ),
+    )
     slug = models.SlugField(max_length=100, unique=True, blank=True)
     custom_domain = models.CharField(max_length=255, null=True, blank=True, unique=True)
     wallet_wifi_network = models.CharField(max_length=100, null=True, blank=True)
@@ -91,6 +98,14 @@ class Marina(models.Model):
         help_text='Account base URL, e.g. https://demo.docusign.net/restapi or https://na2.docusign.net/restapi',
     )
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
+
+    # Waitlist (apps.waitlist)
+    waitlist_enabled = models.BooleanField(default=False)
+    waitlist_deposit_cents = models.IntegerField(default=7500)
+    max_waitlist_declines = models.IntegerField(
+        default=3,
+        help_text='Number of waitlist offers a boater may decline before being removed.',
+    )
 
     # Security: when True, owners and managers without active MFA are routed
     # to forced enrollment on next login (after the password step).
