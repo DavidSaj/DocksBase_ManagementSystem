@@ -24,7 +24,7 @@ export default function LogTaskFlow({ onBack }) {
     setError('');
     setSub(true);
     try {
-      await api.post('/maintenance/maintenance-tasks/', form);
+      await api.post('/maintenance-tasks/', form);
       setSuccess(true);
       setTimeout(onBack, 1200);
     } catch {
