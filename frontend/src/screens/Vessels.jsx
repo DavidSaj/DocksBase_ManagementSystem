@@ -2,6 +2,8 @@ import { useState } from 'react';
 import useVessels from '../hooks/useVessels.js';
 import useMembers from '../hooks/useMembers.js';
 import Ic from '../components/ui/Icon.jsx';
+import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 function NewVesselModal({ onClose, onCreate }) {
   const { members } = useMembers();
@@ -144,6 +146,10 @@ export default function Vessels() {
 
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Vessels</span>
+        <ScreenInfo title="Vessels" body={SCREEN_INFO.vessels} />
+      </div>
       <div className="tabs">
         {[['registry','Vessel Registry'],['insurance','Insurance Tracker'],['safety','Safety Equipment']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => { setTab(v); setSel(null); }}>{l}</div>

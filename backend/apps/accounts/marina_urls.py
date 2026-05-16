@@ -12,6 +12,7 @@ from .views import (
     OpenWeatherMapSettingsView,
     UserDetailView,
 )
+from .views_data_export import DataExportListCreateView, DataExportDownloadView
 
 urlpatterns = [
     path('profile/', MarinaProfileView.as_view(), name='marina_profile'),
@@ -25,4 +26,8 @@ urlpatterns = [
     path('integrations/openweathermap/', OpenWeatherMapSettingsView.as_view(),name='openweathermap_settings'),
     path('integrations/docusign/',       DocuSignSettingsView.as_view(),      name='docusign_settings'),
     path('weather/',                     MarinaWeatherView.as_view(),         name='marina_weather'),
+
+    # Data export (Settings → Data tab)
+    path('exports/',                   DataExportListCreateView.as_view(), name='marina_data_exports'),
+    path('exports/<int:pk>/download/', DataExportDownloadView.as_view(),   name='marina_data_export_download'),
 ]

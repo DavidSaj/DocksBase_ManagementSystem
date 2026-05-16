@@ -32,6 +32,7 @@ class ScreenErrorBoundary extends Component {
 import Sidebar from './components/layout/Sidebar.jsx';
 import Topbar  from './components/layout/Topbar.jsx';
 import ImpersonationBanner from './components/layout/ImpersonationBanner.jsx';
+import ReverifyEmailBanner from './components/ReverifyEmailBanner.jsx';
 import SetupGuide from './components/onboarding/SetupGuide.jsx';
 
 import Overview     from './screens/Overview.jsx';
@@ -130,6 +131,7 @@ function DesktopApp() {
   return (
     <>
       <ImpersonationBanner />
+      <ReverifyEmailBanner />
       <AnimatePresence>
         {showWelcome && (
           <WelcomeScreen

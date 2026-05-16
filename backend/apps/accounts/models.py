@@ -92,6 +92,10 @@ class Marina(models.Model):
     )
     support_access_granted_until = models.DateTimeField(null=True, blank=True)
 
+    # Security: when True, owners and managers without active MFA are routed
+    # to forced enrollment on next login (after the password step).
+    require_mfa_for_managers = models.BooleanField(default=False)
+
     # Track 2 — Berth Intelligence: approval workflow + non-return alert configuration
     require_manager_approval_loa_m = models.DecimalField(
         max_digits=5, decimal_places=1, null=True, blank=True,
@@ -253,6 +257,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
     )
 
+    # Security T3: periodic email re-verification (180/210-day thresholds).
+    # Null means never explicitly verified via re-verification flow; the
+    # backfill migration sets this to created_at for all pre-existing users so
+    # they don't immediately hit the 210-day hard block.
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
 
@@ -321,3 +331,45 @@ class MarinaGroupUserRole(models.Model):
 
     def __str__(self):
         return f'{self.user} in {self.group.name} ({self.role})'
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Data export — manager-triggered marina-wide CSV/JSON archive.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class DataExport(models.Model):
+    """One marina-wide data-export job.
+
+    The actual file is written to default storage at `file_path`. We never
+    expose the storage path directly; downloads go through a view that
+    returns a short-lived signed URL.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        RUNNING = 'running', 'Running'
+        READY   = 'ready',   'Ready'
+        FAILED  = 'failed',  'Failed'
+
+    marina        = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='data_exports',
+    )
+    requested_by  = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='data_exports_requested',
+    )
+    status        = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    file_path     = models.CharField(max_length=500, blank=True)
+    size_bytes    = models.BigIntegerField(null=True, blank=True)
+    entity_counts = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    ready_at      = models.DateTimeField(null=True, blank=True)
+    expires_at    = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'DataExport(marina={self.marina_id}, status={self.status})'

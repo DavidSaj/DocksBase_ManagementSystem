@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import CanvasCore from '../CanvasCore.jsx'
+import { CW, CH } from '../mapBuilderUtils.js'
 
 // GRID=24, so a shape at absX=5, absY=5 with w=2, h=1:
 //   px=120, py=120, pw=48, ph=24  → rect x=96, y=108
@@ -29,9 +30,9 @@ describe('CanvasCore', () => {
     it('renders an SVG with the correct canvas dimensions', () => {
       const { container } = render(<CanvasCore shapes={[]} />)
       const svg = container.querySelector('svg.canvas-core')
-      // CW = 34*24 = 816, CH = 22*24 = 528
-      expect(svg.getAttribute('width')).toBe('816')
-      expect(svg.getAttribute('height')).toBe('528')
+      // CW = COLS*GRID = 500*32 = 16000, CH = ROWS*GRID = 350*32 = 11200
+      expect(svg.getAttribute('width')).toBe(String(CW))
+      expect(svg.getAttribute('height')).toBe(String(CH))
     })
   })
 
@@ -136,65 +137,10 @@ describe('CanvasCore', () => {
     })
   })
 
-  describe('rotation handles', () => {
-    it('renders rotation handle circle for selected item in builder mode', () => {
-      const { container } = render(
-        <CanvasCore
-          shapes={[makeShape()]}
-          mode="builder"
-          selectedIds={new Set(['shape-1'])}
-        />
-      )
-      // Rotation handle is a circle with fill="#b8965a"
-      const circle = container.querySelector('circle[fill="#b8965a"]')
-      expect(circle).not.toBeNull()
-    })
-
-    it('does NOT render rotation handle in viewer mode', () => {
-      const { container } = render(
-        <CanvasCore
-          shapes={[makeShape()]}
-          mode="viewer"
-          selectedIds={new Set(['shape-1'])}
-        />
-      )
-      const circle = container.querySelector('circle')
-      expect(circle).toBeNull()
-    })
-
-    it('does NOT render rotation handle for non-selected item in builder mode', () => {
-      const { container } = render(
-        <CanvasCore
-          shapes={[makeShape()]}
-          mode="builder"
-          selectedIds={new Set()}
-        />
-      )
-      const circle = container.querySelector('circle')
-      expect(circle).toBeNull()
-    })
-
-    it('calls onRotateHandlePointerDown and stops propagation so onItemPointerDown is NOT called', () => {
-      const onItemPointerDown = vi.fn()
-      const onRotateHandlePointerDown = vi.fn()
-      const shape = makeShape()
-      const { container } = render(
-        <CanvasCore
-          shapes={[shape]}
-          mode="builder"
-          selectedIds={new Set(['shape-1'])}
-          onItemPointerDown={onItemPointerDown}
-          onRotateHandlePointerDown={onRotateHandlePointerDown}
-        />
-      )
-      const circle = container.querySelector('circle[fill="#b8965a"]')
-      expect(circle).not.toBeNull()
-      circle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
-      expect(onRotateHandlePointerDown).toHaveBeenCalledTimes(1)
-      expect(onRotateHandlePointerDown).toHaveBeenCalledWith(expect.any(Object), shape)
-      expect(onItemPointerDown).not.toHaveBeenCalled()
-    })
-  })
+  // Removed: rotation-handle tests. CanvasCore no longer renders a rotation
+  // handle — the `onRotateHandlePointerDown` prop is still accepted for
+  // backwards compatibility but unused. If the rotation handle returns, add
+  // tests back here.
 
   describe('ghost rect', () => {
     const ghost = { absX: 4, absY: 4, w: 2, h: 1, fill: '#8888ff', stroke: '#4444ff' }
