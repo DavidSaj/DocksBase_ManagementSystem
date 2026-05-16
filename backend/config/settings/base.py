@@ -342,6 +342,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'billing.send_overdue_invoice_alerts',
         'schedule': crontab(hour=9, minute=0),           # daily 09:00 UTC
     },
+    'sweep-pending-utility-charges': {
+        'task': 'apps.billing.tasks.sweep_pending_utility_charges',
+        'schedule': crontab(hour=2, minute=30),          # nightly 02:30 UTC
+    },
     # ── Reservations ─────────────────────────────────────────────────────────
     'send-overstay-alerts': {
         'task': 'reservations.send_overstay_alerts',

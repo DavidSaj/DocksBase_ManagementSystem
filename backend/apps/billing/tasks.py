@@ -4,7 +4,8 @@ apps/billing/tasks.py
 Celery tasks for the billing module.
 
 Beat schedule entry (in config/settings/base.py CELERY_BEAT_SCHEDULE):
-  'send-overdue-invoice-alerts': daily at 09:00 UTC
+  'send-overdue-invoice-alerts':       daily at 09:00 UTC
+  'sweep-pending-utility-charges':     nightly at 02:30 UTC
 """
 
 import logging
@@ -144,3 +145,37 @@ def send_overdue_invoice_alerts(self):
                 body=marina.name,
                 link_screen='billing',
             )
+
+
+# ---------------------------------------------------------------------------
+# Task 2: sweep_pending_utility_charges  (nightly, 02:30 UTC)
+# ---------------------------------------------------------------------------
+
+@shared_task(bind=True, name='apps.billing.tasks.sweep_pending_utility_charges')
+def sweep_pending_utility_charges(self, marina_id=None, dry_run=False):
+    """
+    Nightly sweep that attaches `PendingUtilityCharge` rows to draft invoices.
+
+    See `apps.billing.utility_sweep.sweep_pending_utility_charges` for the
+    full algorithm. Idempotent — already-swept rows are excluded by the
+    query filter and each row is locked with `select_for_update()`.
+    """
+    from apps.billing.utility_sweep import (
+        sweep_pending_utility_charges as _sweep,
+    )
+
+    marina_ids = [marina_id] if marina_id else None
+    result = _sweep(marina_ids=marina_ids, dry_run=dry_run)
+    logger.info(
+        'sweep_pending_utility_charges: '
+        'rows_swept=%d lines_added=%d invoices_created=%d invoices_appended=%d',
+        result.rows_swept, result.lines_added,
+        result.invoices_created, result.invoices_appended,
+    )
+    return {
+        'rows_swept': result.rows_swept,
+        'lines_added': result.lines_added,
+        'invoices_created': result.invoices_created,
+        'invoices_appended': result.invoices_appended,
+        'marinas': result.marinas,
+    }
