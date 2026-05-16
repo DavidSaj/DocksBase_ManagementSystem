@@ -3,6 +3,8 @@ import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
 import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
+import AccountingGLMappingCard from './Settings/AccountingGLMappingCard.jsx';
+import AccountingTaxCodesCard from './Settings/AccountingTaxCodesCard.jsx';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1061,6 +1063,8 @@ const TABS = [
   ['payables',     'Payables'],
   ['suppliers',    'Suppliers'],
   ['sync',         'Sync'],
+  ['gl-mapping',   'GL Mapping'],
+  ['tax-codes',    'Tax Codes'],
 ];
 
 export default function Accounting() {
@@ -1093,6 +1097,8 @@ export default function Accounting() {
       {tab === 'payables'      && <PayablesTab />}
       {tab === 'suppliers' && <SuppliersTab />}
       {tab === 'sync'      && <SyncTab />}
+      {tab === 'gl-mapping' && <AccountingGLMappingCard />}
+      {tab === 'tax-codes'  && <AccountingTaxCodesCard />}
     </div>
   );
 }
