@@ -2,12 +2,14 @@ from rest_framework import generics, permissions, status as http_status
 from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from apps.accounts.views import IsMarinaStaff
 from apps.billing.models import Invoice
 from apps.billing import stripe_service as _stripe_svc
+from apps.members.models import Member
 from apps.reservations.models import Booking
 from apps.vessels.models import Vessel
+from .member_auth import PortalMemberAuthentication
 from .models import AbsenceReport, CraneRequest
 from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer, PortalVesselSerializer
 
@@ -49,15 +51,20 @@ class IsBoater(permissions.BasePermission):
 
 
 class PortalInvoiceListView(generics.ListAPIView):
-    permission_classes = [IsBoater]
+    authentication_classes = [PortalMemberAuthentication]
+    permission_classes = [IsAuthenticated]
     serializer_class = PortalInvoiceSerializer
 
     def get_queryset(self):
-        member = self.request.user.member_profile
-        return Invoice.objects.filter(
-            member=member,
-            marina=self.request.user.marina,
-        ).order_by('-issued')
+        member = (
+            Member.objects
+            .filter(id=self.request.user.member_id, marina__slug=self.request.user.marina_slug)
+            .select_related('marina')
+            .first()
+        )
+        if member is None:
+            return Invoice.objects.none()
+        return Invoice.objects.filter(member=member, marina=member.marina).order_by('-created_at')
 
 
 class AbsenceReportCreateView(generics.CreateAPIView):
