@@ -15,9 +15,12 @@ from rest_framework.views import APIView
 
 from . import service as billing_service
 from . import stripe_service as _stripe_svc
-from .models import Invoice, InvoiceLineItem, ChargeableItem, TaxRate
+from .models import Invoice, InvoiceLineItem, ChargeableItem, TaxRate, Refund
 from .pdf_service import _generate_store_and_email_pdf
-from .serializers import InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer, TaxRateSerializer
+from .serializers import (
+    InvoiceSerializer, InvoiceLineItemSerializer, ChargeableItemSerializer,
+    TaxRateSerializer, RefundSerializer,
+)
 from .signals import invoice_paid
 from apps.reservations.emails import send_booking_confirmed_email
 from apps.reservations.models import Booking as BookingModel
@@ -202,6 +205,70 @@ def _handle_connect_account_updated(obj):
         marina.save(update_fields=['onboarding'])
 
 
+def _handle_refund_event(event_type, obj):
+    """
+    Update local Refund rows from Stripe charge.refunded / refund.updated events.
+
+    obj shape varies:
+      - charge.refunded → Charge object with .refunds.data[] (list of Refund objects)
+        and a payment_intent id.
+      - refund.updated  → Refund object with .id, .status, .payment_intent.
+    """
+    if event_type == 'charge.refunded':
+        payment_intent_id = obj.get('payment_intent') or ''
+        refunds = (obj.get('refunds') or {}).get('data') or []
+        for sr in refunds:
+            _apply_stripe_refund_to_local(sr, payment_intent_id_fallback=payment_intent_id)
+    else:
+        # refund.updated / charge.refund.updated → object IS the Stripe Refund.
+        _apply_stripe_refund_to_local(obj, payment_intent_id_fallback=obj.get('payment_intent') or '')
+
+
+def _apply_stripe_refund_to_local(stripe_refund_obj, payment_intent_id_fallback=''):
+    from .models import Refund
+
+    refund_id = stripe_refund_obj.get('id') or ''
+    pi_id = stripe_refund_obj.get('payment_intent') or payment_intent_id_fallback or ''
+    if not refund_id and not pi_id:
+        return
+
+    stripe_status = stripe_refund_obj.get('status') or ''
+    status_map = {
+        'succeeded':       Refund.Status.SUCCEEDED,
+        'pending':         Refund.Status.PENDING,
+        'failed':          Refund.Status.FAILED,
+        'requires_action': Refund.Status.REQUIRES_ACTION,
+        'canceled':        Refund.Status.FAILED,
+    }
+    local_status = status_map.get(stripe_status)
+
+    refund = None
+    if refund_id:
+        refund = Refund.objects.filter(stripe_refund_id=refund_id).first()
+    if refund is None and pi_id:
+        # Pick the most recent pending refund row for that PI (best-effort).
+        refund = (
+            Refund.objects.filter(stripe_payment_intent_id=pi_id, stripe_refund_id='')
+            .order_by('-created_at')
+            .first()
+        )
+    if refund is None:
+        return
+
+    update_fields = []
+    if refund_id and refund.stripe_refund_id != refund_id:
+        refund.stripe_refund_id = refund_id
+        update_fields.append('stripe_refund_id')
+    if local_status and refund.status != local_status:
+        refund.status = local_status
+        update_fields.append('status')
+        if local_status == Refund.Status.SUCCEEDED and refund.completed_at is None:
+            refund.completed_at = timezone.now()
+            update_fields.append('completed_at')
+    if update_fields:
+        refund.save(update_fields=update_fields)
+
+
 def _handle_marina_payment_failed(obj):
     customer_id = obj.get('customer')
     try:
@@ -293,6 +360,10 @@ class StripeWebhookView(APIView):
                 )
             return HttpResponse(status=200)
 
+        if event_type in ('charge.refunded', 'refund.updated', 'charge.refund.updated'):
+            _handle_refund_event(event_type, obj)
+            return HttpResponse(status=200)
+
         invoice_id = obj.get('metadata', {}).get('invoice_id')
         if not invoice_id:
             return HttpResponse(status=200)
@@ -355,6 +426,11 @@ class StripeConnectWebhookView(APIView):
         if event_type in ('payout.created', 'payout.paid', 'payout.updated', 'payout.failed'):
             connect_account = event.get('account')
             _handle_payout_event(event_type, obj, connect_account_id=connect_account)
+            return HttpResponse(status=200)
+
+        # Refund lifecycle from Stripe.
+        if event_type in ('charge.refunded', 'refund.updated', 'charge.refund.updated'):
+            _handle_refund_event(event_type, obj)
             return HttpResponse(status=200)
 
         # Reservation cart flow — PaymentIntent metadata carries reservation_id
@@ -969,3 +1045,159 @@ class ChangePlanView(APIView):
         marina.plan = PRICE_ID_TO_PLAN.get(new_price_id, marina.plan)
         marina.save(update_fields=['plan'])
         return Response({'status': 'ok'})
+
+
+# ── Refund endpoints ─────────────────────────────────────────────────────────
+
+def _refund_audit(actor_user, marina, action, detail):
+    """Best-effort audit-log writer; never blocks the refund flow on failure."""
+    try:
+        from apps.admin_portal.models import AuditLog
+        AuditLog.objects.create(
+            admin_user=actor_user,
+            action=action,
+            target_marina=marina,
+            detail=detail or {},
+        )
+    except Exception:
+        pass
+
+
+def _is_manager(user):
+    return bool(user and user.is_authenticated and getattr(user, 'role', '') in ('owner', 'manager'))
+
+
+def _remaining_refundable_cents(invoice):
+    """Sum of paid amount minus prior refunds, expressed in cents.
+
+    For Stripe-paid invoices this approximates `charge.amount - charge.amount_refunded`
+    by leaning on the invoice total (which equals the captured amount for
+    paid invoices) minus the sum of any prior successful Refund.amount_cents.
+    """
+    total_cents = int(round(float(invoice.total) * 100))
+    prior = (
+        Refund.objects
+        .filter(invoice=invoice)
+        .exclude(status__in=[Refund.Status.FAILED])
+        .aggregate(total=Sum('amount_cents'))
+        .get('total') or 0
+    )
+    return max(total_cents - int(prior), 0)
+
+
+class RefundListCreateView(generics.ListCreateAPIView):
+    serializer_class = RefundSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        return Refund.objects.filter(marina=self.request.user.marina).select_related('invoice')
+
+    def create(self, request, *args, **kwargs):
+        if not _is_manager(request.user):
+            return Response({'detail': 'Manager role required.'}, status=http_status.HTTP_403_FORBIDDEN)
+
+        marina = request.user.marina
+        invoice_id = request.data.get('invoice_id')
+        amount_cents = request.data.get('amount_cents')
+        reason = request.data.get('reason') or Refund.Reason.OTHER
+        notes = request.data.get('notes') or ''
+        offline = bool(request.data.get('offline'))
+
+        if not invoice_id:
+            return Response({'detail': 'invoice_id is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invoice = Invoice.objects.select_related('marina').get(pk=invoice_id, marina=marina)
+        except Invoice.DoesNotExist:
+            return Response({'detail': 'Invoice not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        if invoice.status != 'paid':
+            return Response(
+                {'detail': 'Only paid invoices can be refunded.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        remaining = _remaining_refundable_cents(invoice)
+        if amount_cents is None or amount_cents == '':
+            amount_cents = remaining
+        try:
+            amount_cents = int(amount_cents)
+        except (TypeError, ValueError):
+            return Response({'detail': 'amount_cents must be an integer.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        if amount_cents <= 0:
+            return Response({'detail': 'amount_cents must be positive.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        if amount_cents > remaining:
+            return Response(
+                {'detail': f'amount_cents exceeds remaining refundable ({remaining}c).'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        if reason not in dict(Refund.Reason.choices):
+            return Response({'detail': 'Invalid reason.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        if offline:
+            # Manual / offline refund — no Stripe call.
+            refund = Refund.objects.create(
+                marina=marina,
+                invoice=invoice,
+                stripe_payment_intent_id=invoice.stripe_payment_intent_id or '',
+                stripe_refund_id='',
+                amount_cents=amount_cents,
+                currency=(marina.currency or 'eur').lower(),
+                reason=reason,
+                status=Refund.Status.SUCCEEDED,
+                requested_by=request.user,
+                notes=notes or 'Recorded as offline refund (e.g. cheque, cash).',
+                completed_at=timezone.now(),
+            )
+            _refund_audit(
+                request.user, marina, 'refund.offline_recorded',
+                {'refund_id': refund.id, 'invoice_id': invoice.id, 'amount_cents': amount_cents},
+            )
+            return Response(RefundSerializer(refund).data, status=http_status.HTTP_201_CREATED)
+
+        if not invoice.stripe_payment_intent_id:
+            return Response(
+                {'detail': 'Invoice has no Stripe PaymentIntent — record an offline refund instead.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        _refund_audit(
+            request.user, marina, 'refund.requested',
+            {'invoice_id': invoice.id, 'amount_cents': amount_cents, 'reason': reason},
+        )
+
+        try:
+            refund = _stripe_svc.refund_payment_intent(
+                payment_intent_id=invoice.stripe_payment_intent_id,
+                amount_cents=amount_cents,
+                reason=reason,
+                metadata={'invoice_id': str(invoice.id), 'marina_id': str(marina.id)},
+                requested_by_user_id=request.user.id,
+            )
+        except _stripe_svc.stripe.error.StripeError as err:
+            _refund_audit(
+                request.user, marina, 'refund.stripe_error',
+                {'invoice_id': invoice.id, 'error': str(err)},
+            )
+            return Response({'detail': f'Stripe error: {err}'}, status=http_status.HTTP_502_BAD_GATEWAY)
+
+        if notes:
+            refund.notes = (refund.notes + '\n' if refund.notes else '') + notes
+            refund.save(update_fields=['notes'])
+
+        _refund_audit(
+            request.user, marina, 'refund.completed',
+            {'refund_id': refund.id, 'status': refund.status, 'amount_cents': refund.amount_cents},
+        )
+        return Response(RefundSerializer(refund).data, status=http_status.HTTP_201_CREATED)
+
+
+class RefundDetailView(generics.RetrieveAPIView):
+    serializer_class = RefundSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Refund.objects.filter(marina=self.request.user.marina).select_related('invoice')

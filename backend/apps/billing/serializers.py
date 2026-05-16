@@ -1,5 +1,31 @@
 from rest_framework import serializers
-from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem, TaxRate
+from .models import Invoice, InvoiceLineItem, Payment, ChargeableItem, TaxRate, Refund
+
+
+class RefundSerializer(serializers.ModelSerializer):
+    is_offline = serializers.SerializerMethodField()
+    reason_display = serializers.CharField(source='get_reason_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    requested_by_email = serializers.CharField(
+        source='requested_by.email', read_only=True, default=None,
+    )
+
+    class Meta:
+        model = Refund
+        fields = [
+            'id', 'invoice', 'stripe_payment_intent_id', 'stripe_refund_id',
+            'amount_cents', 'currency', 'reason', 'reason_display',
+            'status', 'status_display', 'requested_by', 'requested_by_email',
+            'notes', 'created_at', 'completed_at', 'is_offline',
+        ]
+        read_only_fields = [
+            'id', 'stripe_payment_intent_id', 'stripe_refund_id',
+            'currency', 'status', 'requested_by', 'created_at', 'completed_at',
+        ]
+
+    def get_is_offline(self, obj):
+        # A successful refund with no Stripe refund id was recorded offline.
+        return obj.status == Refund.Status.SUCCEEDED and not obj.stripe_refund_id
 
 
 class TaxRateSummarySerializer(serializers.ModelSerializer):

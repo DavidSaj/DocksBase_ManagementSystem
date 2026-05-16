@@ -8,6 +8,7 @@ from .views import (
     SubscriptionBillingView, CancelSubscriptionView, ChangePlanView,
     InvoiceCheckoutView,
     TaxRateListCreateView, TaxRateArchiveView, TaxRateDeleteView, TaxRateSetDefaultView,
+    RefundListCreateView, RefundDetailView,
 )
 from .account_views import (
     AccountListView, AccountDetailView, RecordPaymentView, GenerateInviteView,
@@ -39,6 +40,8 @@ urlpatterns = [
     path('tax-rates/<int:pk>/',                    TaxRateDeleteView.as_view(),     name='tax_rate_delete'),
     path('tax-rates/<int:pk>/archive/',            TaxRateArchiveView.as_view(),    name='tax_rate_archive'),
     path('tax-rates/<int:pk>/set-default/',        TaxRateSetDefaultView.as_view(), name='tax_rate_set_default'),
+    path('refunds/',                                  RefundListCreateView.as_view(), name='refund_list_create'),
+    path('refunds/<int:pk>/',                         RefundDetailView.as_view(),     name='refund_detail'),
     path('accounts/',                                 AccountListView.as_view(),    name='account_list'),
     path('accounts/<int:member_id>/',                 AccountDetailView.as_view(),  name='account_detail'),
     path('accounts/<int:member_id>/payments/',        RecordPaymentView.as_view(),  name='account_payments'),
