@@ -5,7 +5,32 @@ from apps.communications.models import (
     DotdigitalConfig, DotdigitalSegmentMapping,
     EmailCampaign, EmailCampaignVariant, ABTest,
     ReviewRequest, ReviewConfig,
+    Broadcast, BroadcastRecipient,
 )
+
+
+class BroadcastSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Broadcast
+        fields = [
+            'id', 'title', 'channel', 'subject', 'body',
+            'cohort_filter', 'previewed_count', 'cost_estimate_cents',
+            'status', 'created_at', 'previewed_at', 'sent_at', 'completed_at',
+        ]
+        read_only_fields = [
+            'id', 'previewed_count', 'cost_estimate_cents', 'status',
+            'created_at', 'previewed_at', 'sent_at', 'completed_at',
+        ]
+
+
+class BroadcastRecipientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BroadcastRecipient
+        fields = [
+            'id', 'broadcast', 'member', 'channel', 'address',
+            'message_log', 'status', 'failed_reason', 'delivered_at', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 class MessageTemplateSerializer(serializers.ModelSerializer):

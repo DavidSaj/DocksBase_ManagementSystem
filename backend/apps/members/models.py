@@ -59,6 +59,14 @@ class Member(models.Model):
         default=False,
         help_text='Member has opted in to receive WhatsApp messages.',
     )
+    broadcast_opt_in = models.BooleanField(
+        default=True,
+        help_text=(
+            'Member is opted in to receive operational broadcast SMS/email. '
+            'Flipped to False automatically when an inbound STOP/UNSUBSCRIBE '
+            'keyword arrives on the Twilio inbound SMS webhook.'
+        ),
+    )
 
     class Meta:
         ordering = ['name']
