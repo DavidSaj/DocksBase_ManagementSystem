@@ -1,11 +1,16 @@
 ---
 import styles from './Stats.module.css'
+import { getStrings, type LangCode } from '../i18n/strings'
+
+interface Props { lang: LangCode }
+const { lang } = Astro.props
+const t = getStrings(lang)
 
 const stats = [
-  { num: '18', suffix: '', desc: 'Operational modules built and ready to use' },
-  { num: '30', suffix: '-day', desc: 'Free trial — get started today' },
-  { num: '99', suffix: '.9%', desc: 'Platform uptime — even in peak season' },
-  { num: '4', suffix: 'hrs', desc: 'Average onboarding time for new harbors' },
+  { num: '20', suffix: '', desc: t.stats.descs[0] },
+  { num: '30', suffix: t.stats.suffixDay, desc: t.stats.descs[1] },
+  { num: '99', suffix: '.9%', desc: t.stats.descs[2] },
+  { num: '4', suffix: t.stats.suffixHrs, desc: t.stats.descs[3] },
 ]
 ---
 <section class={styles.section}>

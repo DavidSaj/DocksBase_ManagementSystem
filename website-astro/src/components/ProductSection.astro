@@ -1,23 +1,26 @@
 ---
 import styles from './ProductSection.module.css'
+import { getStrings, type LangCode } from '../i18n/strings'
+
+interface Props { lang: LangCode }
+const { lang } = Astro.props
+const t = getStrings(lang)
 ---
 <section class={styles.section} id="product">
   <div class={styles.inner}>
     <div class={styles.layout} data-product-layout>
       <div class={styles.text}>
-        <div class={styles.eyebrow}>Live Platform</div>
-        <h2 class={styles.title}>Built for the dock. Ready on day one.</h2>
-        <p class={styles.sub}>
-          No training weeks. No consultants. Onboard your harbor in under 4 hours and have your full operation visible from one screen — berths, arrivals, payments, and alerts, all live.
-        </p>
+        <div class={styles.eyebrow}>{t.product.eyebrow}</div>
+        <h2 class={styles.title}>{t.product.title}</h2>
+        <p class={styles.sub}>{t.product.sub}</p>
         <div style="margin-top:32px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class={styles.demoBtn}>Try the live demo</button>
+          <button class={styles.demoBtn}>{t.product.demo}</button>
         </div>
       </div>
       <div class={styles.screenshot}>
         <img
           src="/images/app-overview.png"
-          alt="DocksBase — Overview dashboard showing berths, arrivals, weather and urgent panel"
+          alt={t.product.alt}
           class={styles.img}
         />
       </div>

@@ -1,6 +1,6 @@
 import styles from './ProgressBar.module.css'
 
-const STEP_LABELS = ['Plan', 'Marina', 'Account', 'Payment']
+const DEFAULT_LABELS = ['Plan', 'Marina', 'Account', 'Payment']
 
 function Check() {
   return (
@@ -10,10 +10,11 @@ function Check() {
   )
 }
 
-export default function ProgressBar({ step }) {
+export default function ProgressBar({ step, t, labels }) {
+  const stepLabels = labels || t?.progress?.steps || DEFAULT_LABELS
   return (
     <div className={styles.bar}>
-      {STEP_LABELS.map((label, i) => {
+      {stepLabels.map((label, i) => {
         const num = i + 1
         const done = step > num
         const active = step === num
@@ -35,7 +36,7 @@ export default function ProgressBar({ step }) {
                 done   ? styles.labelDone   : '',
               ].join(' ')}>{label}</span>
             </div>
-            {i < STEP_LABELS.length - 1 && (
+            {i < stepLabels.length - 1 && (
               <div className={`${styles.connector} ${done ? styles.connectorDone : ''}`} />
             )}
           </div>

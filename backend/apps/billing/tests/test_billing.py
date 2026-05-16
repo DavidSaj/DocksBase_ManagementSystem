@@ -301,6 +301,59 @@ class StripeCheckoutSessionTest(TestCase):
             billing_service.create_stripe_checkout_session(inv)
 
 
+class InvoiceIssuedEmailTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+
+    def _open_invoice(self):
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id='99',
+            due_date=datetime.date(2026, 7, 1),
+        )
+        billing_service.add_line_item(inv, 'Berth A1', Decimal('1'), Decimal('120.00'))
+        billing_service.finalize_invoice(inv)
+        return inv
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_issued_email_contains_stripe_payment_link(self, mock_stripe):
+        from django.core import mail
+        from apps.billing.emails import send_invoice_issued_email
+
+        mock_session = MagicMock()
+        mock_session.id = 'cs_test_pay_link'
+        mock_session.url = 'https://checkout.stripe.com/pay/cs_test_pay_link'
+        mock_stripe.checkout.Session.create.return_value = mock_session
+
+        inv = self._open_invoice()
+        mail.outbox = []
+        send_invoice_issued_email(inv)
+
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, [self.member.email])
+        self.assertIn('https://checkout.stripe.com/pay/cs_test_pay_link', msg.body)
+        inv.refresh_from_db()
+        self.assertEqual(inv.stripe_checkout_session_id, 'cs_test_pay_link')
+
+    def test_issued_email_falls_back_when_marina_not_connected(self):
+        from django.core import mail
+        from apps.billing.emails import send_invoice_issued_email
+
+        self.marina.stripe_account_id = ''
+        self.marina.save(update_fields=['stripe_account_id'])
+
+        inv = self._open_invoice()
+        mail.outbox = []
+        send_invoice_issued_email(inv)
+
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertNotIn('checkout.stripe.com', body)
+        self.assertIn('view and pay the invoice from your account', body)
+
+
 class StripeWebhookViewTest(TestCase):
     def setUp(self):
         self.marina = make_marina()
