@@ -90,7 +90,11 @@ class WaitlistPayDepositView(APIView):
             client_secret = create_payment_intent(
                 entry.marina, entry.deposit_amount_cents,
                 entry.marina.currency,
-                metadata={'kind': 'waitlist_deposit', 'waitlist_entry_id': entry.id},
+                metadata={
+                    'kind': 'waitlist_deposit',
+                    'entry_id': str(entry.id),
+                    'waitlist_entry_id': str(entry.id),  # legacy alias
+                },
             )
         except Exception as exc:
             client_secret = f'stub_pending_{entry.id}'

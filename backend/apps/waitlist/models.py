@@ -125,6 +125,8 @@ class WaitlistOffer(models.Model):
     outcome = models.CharField(max_length=20, choices=OUTCOMES, default='pending')
     responded_at = models.DateTimeField(null=True, blank=True)
     decline_reason = models.CharField(max_length=400, blank=True)
+    reminder_sent_t24h = models.BooleanField(default=False)
+    reminder_sent_t2h = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-offered_at']

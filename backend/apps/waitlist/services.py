@@ -70,6 +70,82 @@ def apply(*, marina, applicant_name, applicant_email, applicant_phone='',
     return entry
 
 
+def mark_deposit_paid_from_webhook(entry_id, *, payment_intent_id: str = '') -> WaitlistEntry | None:
+    """Idempotently flip a waitlist entry's deposit to paid in response to a
+    Stripe ``payment_intent.succeeded`` event.
+
+    Returns ``None`` if the entry no longer exists. If already ``paid`` the
+    call is a silent no-op (still returns the entry).
+    """
+    with transaction.atomic():
+        try:
+            entry = (
+                WaitlistEntry.objects
+                .select_for_update()
+                .get(pk=entry_id)
+            )
+        except WaitlistEntry.DoesNotExist:
+            return None
+        if entry.deposit_state == 'paid':
+            return entry
+        entry.deposit_state = 'paid'
+        if payment_intent_id:
+            entry.deposit_payment_intent_id = payment_intent_id
+        entry.deposit_paid_at = timezone.now()
+        entry.refresh_priority()
+        entry.save(update_fields=[
+            'deposit_state', 'deposit_payment_intent_id',
+            'deposit_paid_at', 'priority_score', 'updated_at',
+        ])
+    _dispatch(
+        entry.marina, entry.applicant_email,
+        'Waitlist deposit received',
+        'Thanks - your deposit has been received and you are now active on the waitlist.',
+    )
+    return entry
+
+
+def expire_offer(offer: WaitlistOffer) -> dict:
+    """Mark a single pending offer as expired and run 3-strikes on its entry.
+
+    Row-locks the offer + its entry. Idempotent: returns ``{'skipped': True}``
+    if the offer is not pending. Caller is expected to invoke this once per
+    overdue offer (e.g. from the periodic sweep task).
+    """
+    with transaction.atomic():
+        try:
+            locked_offer = (
+                WaitlistOffer.objects
+                .select_for_update()
+                .select_related('entry', 'entry__marina')
+                .get(pk=offer.pk)
+            )
+        except WaitlistOffer.DoesNotExist:
+            return {'skipped': True}
+        if locked_offer.outcome != 'pending':
+            return {'skipped': True}
+
+        now = timezone.now()
+        locked_offer.outcome = 'expired'
+        locked_offer.responded_at = now
+        locked_offer.save(update_fields=['outcome', 'responded_at'])
+
+        entry = (
+            WaitlistEntry.objects
+            .select_for_update()
+            .get(pk=locked_offer.entry_id)
+        )
+        removed = _apply_three_strikes(
+            entry, now=now,
+            subject_final='Waitlist offer expired - removed from waitlist',
+            subject_remaining='Waitlist offer expired',
+        )
+        return {
+            'offer_id': locked_offer.id, 'entry_id': entry.id,
+            'removed': removed, 'decline_count': entry.decline_count,
+        }
+
+
 def pay_deposit(entry: WaitlistEntry, *, payment_intent_id: str = '') -> WaitlistEntry:
     """Marks the deposit paid. Called from Stripe webhook OR test."""
     entry.deposit_state = 'paid'
@@ -177,38 +253,50 @@ def respond_to_offer(token, response: str, *, reason: str = '') -> dict:
         offer.decline_reason = reason
         offer.save(update_fields=['outcome', 'responded_at', 'decline_reason'])
 
-        entry.decline_count = (entry.decline_count or 0) + 1
-        max_declines = int(getattr(entry.marina, 'max_waitlist_declines', 3) or 3)
+        removed = _apply_three_strikes(entry, now=now, subject_final='Offer declined - removed from waitlist',
+                                       subject_remaining='Offer declined')
+        return {
+            'outcome': 'declined', 'entry_id': entry.id, 'offer_id': offer.id,
+            'removed': removed, 'decline_count': entry.decline_count,
+        }
 
-        if entry.decline_count >= max_declines:
-            entry.status = 'removed_max_declines'
-            entry.status_changed_at = now
-            entry.save(update_fields=['decline_count', 'status', 'status_changed_at', 'updated_at'])
-            # Send 'final' decline email (still must contain strike-count copy)
-            n = entry.decline_count
-            remaining = 0
-            body = DECLINE_EMAIL_TEMPLATE.format(n=n, max=max_declines, remaining=remaining)
-            body += '\n\nYou have been removed from the waitlist after reaching the maximum decline count.'
-            _dispatch(entry.marina, entry.applicant_email, 'Offer declined - removed from waitlist', body)
-            # Initiate refund
-            refund_deposit(entry, reason='removed_max_declines')
-            return {
-                'outcome': 'declined', 'entry_id': entry.id, 'offer_id': offer.id,
-                'removed': True, 'decline_count': entry.decline_count,
-            }
 
-        # Below the limit -> stay in queue
-        entry.status = 'pending'
+def _apply_three_strikes(entry: WaitlistEntry, *, now=None,
+                         subject_final: str = 'Offer declined - removed from waitlist',
+                         subject_remaining: str = 'Offer declined') -> bool:
+    """Shared 3-strikes logic for both manual-decline and expire-sweep paths.
+
+    Increments ``entry.decline_count``; if at/over the marina cap, flips to
+    ``removed_max_declines`` and initiates a refund. Otherwise returns the
+    entry to ``pending``. Sends the appropriate notification.
+
+    Returns ``True`` if the entry was removed, ``False`` if it stayed in queue.
+    The caller is responsible for transaction management and any prior
+    ``select_for_update`` lock on the entry.
+    """
+    now = now or timezone.now()
+    entry.decline_count = (entry.decline_count or 0) + 1
+    max_declines = int(getattr(entry.marina, 'max_waitlist_declines', 3) or 3)
+
+    if entry.decline_count >= max_declines:
+        entry.status = 'removed_max_declines'
         entry.status_changed_at = now
         entry.save(update_fields=['decline_count', 'status', 'status_changed_at', 'updated_at'])
         n = entry.decline_count
-        remaining = max_declines - n
-        body = DECLINE_EMAIL_TEMPLATE.format(n=n, max=max_declines, remaining=remaining)
-        _dispatch(entry.marina, entry.applicant_email, 'Offer declined', body)
-        return {
-            'outcome': 'declined', 'entry_id': entry.id, 'offer_id': offer.id,
-            'removed': False, 'decline_count': entry.decline_count,
-        }
+        body = DECLINE_EMAIL_TEMPLATE.format(n=n, max=max_declines, remaining=0)
+        body += '\n\nYou have been removed from the waitlist after reaching the maximum decline count.'
+        _dispatch(entry.marina, entry.applicant_email, subject_final, body)
+        refund_deposit(entry, reason='removed_max_declines')
+        return True
+
+    entry.status = 'pending'
+    entry.status_changed_at = now
+    entry.save(update_fields=['decline_count', 'status', 'status_changed_at', 'updated_at'])
+    n = entry.decline_count
+    remaining = max_declines - n
+    body = DECLINE_EMAIL_TEMPLATE.format(n=n, max=max_declines, remaining=remaining)
+    _dispatch(entry.marina, entry.applicant_email, subject_remaining, body)
+    return False
 
 
 # ---------------------------------------------------------------------------

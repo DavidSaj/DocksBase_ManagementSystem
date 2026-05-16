@@ -396,6 +396,19 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'berths.check_non_returns',
         'schedule': 1800,                                # every 30 minutes
     },
+    # ── Waitlist (seasonal slips) ────────────────────────────────────────────
+    'waitlist-reminder-t24h': {
+        'task': 'waitlist.send_offer_reminder_t24h',
+        'schedule': 900,                                 # every 15 minutes
+    },
+    'waitlist-reminder-t2h': {
+        'task': 'waitlist.send_offer_reminder_t2h',
+        'schedule': 300,                                 # every 5 minutes
+    },
+    'waitlist-expire-overdue': {
+        'task': 'waitlist.expire_overdue_offers',
+        'schedule': 600,                                 # every 10 minutes
+    },
 }
 
 CONTENT_SECURITY_POLICY = {

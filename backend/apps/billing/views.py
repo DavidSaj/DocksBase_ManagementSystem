@@ -140,6 +140,22 @@ class StripeWebhookView(APIView):
             _handle_connect_account_updated(obj)
             return HttpResponse(status=200)
 
+        # Waitlist deposit branch — fires on payment_intent.succeeded with
+        # metadata.kind == 'waitlist_deposit'. Idempotent: silently no-ops if
+        # the entry is already paid.
+        metadata = obj.get('metadata') or {}
+        if (
+            event_type == 'payment_intent.succeeded'
+            and metadata.get('kind') == 'waitlist_deposit'
+        ):
+            entry_id = metadata.get('entry_id') or metadata.get('waitlist_entry_id')
+            if entry_id:
+                from apps.waitlist.services import mark_deposit_paid_from_webhook
+                mark_deposit_paid_from_webhook(
+                    entry_id, payment_intent_id=obj.get('id', ''),
+                )
+            return HttpResponse(status=200)
+
         invoice_id = obj.get('metadata', {}).get('invoice_id')
         if not invoice_id:
             return HttpResponse(status=200)
@@ -202,6 +218,20 @@ class StripeConnectWebhookView(APIView):
         reservation_id = obj.get('metadata', {}).get('reservation_id')
         if reservation_id:
             _handle_reservation_payment_succeeded(obj, reservation_id)
+            return HttpResponse(status=200)
+
+        # Waitlist deposit branch — Connect-account PaymentIntent succeeded
+        metadata = obj.get('metadata') or {}
+        if (
+            event_type == 'payment_intent.succeeded'
+            and metadata.get('kind') == 'waitlist_deposit'
+        ):
+            entry_id = metadata.get('entry_id') or metadata.get('waitlist_entry_id')
+            if entry_id:
+                from apps.waitlist.services import mark_deposit_paid_from_webhook
+                mark_deposit_paid_from_webhook(
+                    entry_id, payment_intent_id=obj.get('id', ''),
+                )
             return HttpResponse(status=200)
 
         invoice_id = obj.get('metadata', {}).get('invoice_id')
