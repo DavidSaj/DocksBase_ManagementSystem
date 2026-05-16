@@ -397,6 +397,49 @@ class IdempotencyKey(models.Model):
         return f'Idem({self.source}:{self.key})'
 
 
+# ── Refunds ──────────────────────────────────────────────────────────────────
+
+class Refund(models.Model):
+    class Reason(models.TextChoices):
+        DUPLICATE             = 'duplicate',             'Duplicate'
+        FRAUDULENT            = 'fraudulent',            'Fraudulent'
+        REQUESTED_BY_CUSTOMER = 'requested_by_customer', 'Requested by Customer'
+        OTHER                 = 'other',                 'Other'
+
+    class Status(models.TextChoices):
+        PENDING          = 'pending',          'Pending'
+        SUCCEEDED        = 'succeeded',        'Succeeded'
+        FAILED           = 'failed',           'Failed'
+        REQUIRES_ACTION  = 'requires_action',  'Requires Action'
+        MANUAL_REQUIRED  = 'manual_required',  'Manual Required'
+
+    marina = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='refunds'
+    )
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.SET_NULL, null=True, blank=True, related_name='refunds'
+    )
+    stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
+    stripe_refund_id = models.CharField(max_length=200, blank=True, db_index=True)
+    amount_cents = models.IntegerField()
+    currency = models.CharField(max_length=10, default='eur')
+    reason = models.CharField(max_length=30, choices=Reason.choices, default=Reason.OTHER)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    requested_by = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='requested_refunds',
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Refund {self.pk} — {self.amount_cents}c ({self.status})'
+
+
 # ── Track 7 — Coupon models ───────────────────────────────────────────────────
 # NOTE: CouponCode already exists in apps/loyalty/models.py (added by a previous track).
 # Skipping duplicate definition here — use apps.loyalty.models.CouponCode as the
