@@ -16,7 +16,7 @@ export default function DockwalkFlow({ onBack }) {
 
   useEffect(() => {
     let active = true;
-    api.get('/api/v1/utilities/dockwalk/')
+    api.get('/utilities/dockwalk/')
       .then(r => { if (active) setMeters(r.data.meters); })
       .catch(() => { if (active) setLoadError('Could not load meters. Check connection.'); });
     return () => { active = false; };
@@ -51,7 +51,7 @@ export default function DockwalkFlow({ onBack }) {
         : { reading_m3:  parseFloat(value) }),
     };
     setSubmitting(true);
-    api.post(`/api/v1/utilities/dockwalk/${meter.id}/reading/`, payload)
+    api.post(`/utilities/dockwalk/${meter.id}/reading/`, payload)
       .then(() => {
         setStats(s => ({ ...s, entered: s.entered + 1 }));
         if (index + 1 >= meters.length) { setDone(true); return; }

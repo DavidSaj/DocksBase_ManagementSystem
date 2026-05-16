@@ -10,7 +10,7 @@ export default function useMaintenanceTasks({ assignedTo } = {}) {
     try {
       const params = {};
       if (assignedTo) params.assigned_to = assignedTo;
-      const r = await api.get('/maintenance/maintenance-tasks/', { params });
+      const r = await api.get('/maintenance-tasks/', { params });
       setTasks(r.data.results ?? r.data);
     } finally {
       setLoading(false);
@@ -20,7 +20,7 @@ export default function useMaintenanceTasks({ assignedTo } = {}) {
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   async function updateTask(id, payload) {
-    const { data } = await api.patch(`/maintenance/maintenance-tasks/${id}/`, payload);
+    const { data } = await api.patch(`/maintenance-tasks/${id}/`, payload);
     setTasks(prev => prev.map(t => t.id === id ? data : t));
     return data;
   }
@@ -30,7 +30,7 @@ export default function useMaintenanceTasks({ assignedTo } = {}) {
     form.append('status', 'completed');
     form.append('completion_notes', notes);
     if (photo) form.append('completion_photo', photo);
-    const { data } = await api.patch(`/maintenance/maintenance-tasks/${id}/`, form);
+    const { data } = await api.patch(`/maintenance-tasks/${id}/`, form);
     setTasks(prev => prev.map(t => t.id === id ? data : t));
     return data;
   }
