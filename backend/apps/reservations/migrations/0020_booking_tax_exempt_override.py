@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('reservations', '0019_booking_ais_no_show_predicted'),
+        ('reservations', '0018_reservation_pending_review_unassigned'),
     ]
 
     operations = [
