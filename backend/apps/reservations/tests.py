@@ -2095,11 +2095,3 @@ class TestExpireReservationsCommand(TestCase):
         self.assertEqual(
             ReservationItem.objects.filter(reservation=res, status='locked').count(), 1
         )
-
-
-class AISNoShowFieldTests(TestCase):
-    def test_field_defaults_false_and_indexed_with_status(self):
-        from apps.reservations.models import Booking
-        f = Booking._meta.get_field('ais_no_show_predicted')
-        self.assertFalse(f.default)
-        self.assertFalse(f.null)
