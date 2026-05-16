@@ -783,12 +783,349 @@ function DeliveryLogTab() {
   );
 }
 
+// ── Broadcasts Tab ────────────────────────────────────────────────────────
+
+function BroadcastsTab() {
+  const [view, setView] = useState('list'); // list | compose | detail
+  const [selected, setSelected] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/communications/broadcasts/');
+      setItems(Array.isArray(r.data) ? r.data : (r.data.results || []));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  if (view === 'compose') {
+    return <BroadcastComposer
+      onCancel={() => setView('list')}
+      onSent={(b) => { setSelected(b.id); setView('detail'); refresh(); }}
+    />;
+  }
+  if (view === 'detail' && selected) {
+    return <BroadcastDetail
+      broadcastId={selected}
+      onBack={() => { setView('list'); setSelected(null); refresh(); }}
+    />;
+  }
+
+  return (
+    <div>
+      <SectionHeader
+        title="Broadcasts"
+        action={
+          <button className="btn btn-primary btn-sm" onClick={() => setView('compose')}>
+            <Ic n="plus" s={13}/> New broadcast
+          </button>
+        }
+      />
+      <div className="card">
+        <div style={{ overflowX: 'auto' }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Cohort</th>
+                <th>Sent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <LoadingRow cols={5}/>}
+              {!loading && items.length === 0 && (
+                <tr><td colSpan={5}>
+                  <EmptyState icon="send" title="No broadcasts yet"
+                    subtitle='Click "New broadcast" to compose your first message.'/>
+                </td></tr>
+              )}
+              {!loading && items.map(b => (
+                <tr key={b.id} style={{ cursor: 'pointer' }}
+                    onClick={() => { setSelected(b.id); setView('detail'); }}>
+                  <td>{b.title}</td>
+                  <td><StatusBadge status={b.channel} label={CHANNEL_LABELS[b.channel] || b.channel}/></td>
+                  <td><StatusBadge status={b.status} label={b.status}/></td>
+                  <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+                    {b.previewed_count != null ? `${b.previewed_count} recipients` : '—'}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+                    {b.sent_at ? new Date(b.sent_at).toLocaleString() : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BroadcastComposer({ onCancel, onSent }) {
+  const [title, setTitle] = useState('');
+  const [channel, setChannel] = useState('sms');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  // Cohort builder — v1 supports the locked clauses only.
+  const [cohortKind, setCohortKind] = useState('everyone_active_in_marina'); // | reservation_status | pier_in
+  const [reservationStatuses, setReservationStatuses] = useState(['checked_in']);
+  const [piers, setPiers] = useState(''); // comma separated
+  const [excludeOptedOut, setExcludeOptedOut] = useState(true);
+  const [broadcast, setBroadcast] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [error, setError] = useState('');
+  const [drift, setDrift] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  function buildFilter() {
+    const all_of = [];
+    if (cohortKind === 'everyone_active_in_marina') {
+      all_of.push({ everyone_active_in_marina: true });
+    } else if (cohortKind === 'reservation_status') {
+      all_of.push({ reservation_status: reservationStatuses });
+    } else if (cohortKind === 'pier_in') {
+      const list = piers.split(',').map(s => s.trim()).filter(Boolean);
+      all_of.push({ pier_in: list });
+    }
+    const filter = { all_of };
+    if (excludeOptedOut) filter.exclude = [{ sms_opted_out: true }];
+    return filter;
+  }
+
+  async function runPreview() {
+    setError(''); setBusy(true); setDrift(null);
+    try {
+      const payload = {
+        title: title || '(untitled broadcast)',
+        channel, subject, body,
+        cohort_filter: buildFilter(),
+      };
+      let b = broadcast;
+      if (!b) {
+        const r = await api.post('/communications/broadcasts/', payload);
+        b = r.data;
+        setBroadcast(b);
+      } else {
+        const r = await api.patch(`/communications/broadcasts/${b.id}/`, payload);
+        b = r.data;
+        setBroadcast(b);
+      }
+      const pr = await api.post(`/communications/broadcasts/${b.id}/preview/`);
+      setPreview(pr.data);
+    } catch (e) {
+      setError(e.response?.data?.detail || e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doSend() {
+    setError(''); setDrift(null); setBusy(true);
+    try {
+      const r = await api.post(`/communications/broadcasts/${broadcast.id}/send/`);
+      setConfirmOpen(false);
+      onSent(broadcast);
+    } catch (e) {
+      if (e.response?.status === 409) {
+        setDrift(e.response.data);
+      } else {
+        setError(e.response?.data?.detail || e.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Compose Broadcast" action={
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+      }/>
+      <div className="card" style={{ padding: 16, display: 'grid', gap: 12 }}>
+        <label>Title
+          <input className="form-control" value={title} onChange={e => setTitle(e.target.value)}/>
+        </label>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <label>Channel
+            <select className="form-control" value={channel} onChange={e => setChannel(e.target.value)}>
+              <option value="sms">SMS</option>
+              <option value="email">Email</option>
+            </select>
+          </label>
+          <label style={{ flex: 1 }}>Cohort
+            <select className="form-control" value={cohortKind} onChange={e => setCohortKind(e.target.value)}>
+              <option value="everyone_active_in_marina">Everyone active (≤12 mo)</option>
+              <option value="reservation_status">By reservation status (today)</option>
+              <option value="pier_in">By pier</option>
+            </select>
+          </label>
+        </div>
+        {cohortKind === 'reservation_status' && (
+          <label>Statuses (comma-separated, e.g. checked_in, confirmed)
+            <input className="form-control"
+              value={reservationStatuses.join(',')}
+              onChange={e => setReservationStatuses(e.target.value.split(',').map(s => s.trim()))}/>
+          </label>
+        )}
+        {cohortKind === 'pier_in' && (
+          <label>Pier labels (comma-separated, e.g. C,D)
+            <input className="form-control" value={piers} onChange={e => setPiers(e.target.value)}/>
+          </label>
+        )}
+        <label>
+          <input type="checkbox" checked={excludeOptedOut}
+            onChange={e => setExcludeOptedOut(e.target.checked)}/>
+          {' '}Exclude opted-out members
+        </label>
+        {channel === 'email' && (
+          <label>Subject
+            <input className="form-control" value={subject} onChange={e => setSubject(e.target.value)}/>
+          </label>
+        )}
+        <label>Body
+          <textarea className="form-control" rows={5} value={body} onChange={e => setBody(e.target.value)}/>
+        </label>
+        {channel === 'sms' && (
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+            Outbound bodies are automatically prefixed with <code>[Marina Name] </code>.
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" disabled={busy} onClick={runPreview}>
+            {broadcast ? 'Refresh preview' : 'Preview'}
+          </button>
+          {preview && (
+            <button className="btn btn-primary" disabled={busy}
+              onClick={() => setConfirmOpen(true)}>
+              Send to {preview.count} recipient{preview.count === 1 ? '' : 's'}
+              {preview.cost_cents ? ` ($${(preview.cost_cents / 10000).toFixed(2)})` : ''}
+            </button>
+          )}
+        </div>
+        {error && <div style={{ color: 'crimson' }}>{error}</div>}
+        {preview && (
+          <div className="card" style={{ padding: 12, background: 'rgba(0,0,0,0.02)' }}>
+            <div style={{ fontWeight: 600 }}>Preview</div>
+            <div>Cohort size: {preview.count}</div>
+            <div>Estimated cost: ${(preview.cost_cents / 10000).toFixed(2)}</div>
+          </div>
+        )}
+      </div>
+
+      {confirmOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }}>
+          <div className="card" style={{ padding: 24, maxWidth: 480 }}>
+            <h3>Send broadcast?</h3>
+            <p>This will deliver to <b>{preview.count}</b> recipients
+               (~${(preview.cost_cents / 10000).toFixed(2)}).</p>
+            {drift && (
+              <div style={{ color: 'crimson', marginBottom: 12 }}>
+                {drift.detail}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => { setConfirmOpen(false); setDrift(null); }}>
+                Cancel
+              </button>
+              {drift ? (
+                <button className="btn btn-secondary" disabled={busy} onClick={runPreview}>
+                  Refresh preview
+                </button>
+              ) : (
+                <button className="btn btn-primary" disabled={busy} onClick={doSend}>
+                  Send now
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BroadcastDetail({ broadcastId, onBack }) {
+  const [b, setB] = useState(null);
+  const [deliveries, setDeliveries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await api.get(`/communications/broadcasts/${broadcastId}/`);
+        setB(r.data);
+        const d = await api.get(`/communications/broadcasts/${broadcastId}/deliveries/`);
+        setDeliveries(Array.isArray(d.data) ? d.data : (d.data.results || []));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [broadcastId]);
+
+  if (loading || !b) return <div className="card" style={{ padding: 24 }}>Loading…</div>;
+
+  const counts = deliveries.reduce((acc, r) => {
+    acc[r.status] = (acc[r.status] || 0) + 1; return acc;
+  }, {});
+
+  return (
+    <div>
+      <SectionHeader title={`Broadcast: ${b.title}`} action={
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
+      }/>
+      <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+        <div>Channel: <b>{b.channel}</b> · Status: <b>{b.status}</b></div>
+        <div>Cohort size at preview: {b.previewed_count ?? '—'}</div>
+        <div>Cost estimate: ${((b.cost_estimate_cents ?? 0) / 10000).toFixed(2)}</div>
+        <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: 13 }}>{b.body}</div>
+      </div>
+      <div className="card">
+        <div style={{ padding: '8px 16px', fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>
+          {Object.entries(counts).map(([k, v]) => (
+            <span key={k} style={{ marginRight: 12 }}>{k}: <b>{v}</b></span>
+          ))}
+        </div>
+        <table className="tbl">
+          <thead><tr><th>Address</th><th>Status</th><th>Failed reason</th></tr></thead>
+          <tbody>
+            {deliveries.length === 0 && (
+              <tr><td colSpan={3}>
+                <EmptyState icon="inbox" title="No deliveries yet"/>
+              </td></tr>
+            )}
+            {deliveries.map(r => (
+              <tr key={r.id}>
+                <td>{r.address}</td>
+                <td><StatusBadge status={r.status} label={r.status}/></td>
+                <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>{r.failed_reason || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Screen ────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'templates',    label: 'Templates' },
   { id: 'journeys',     label: 'Journeys' },
   { id: 'segments',     label: 'Segments' },
+  { id: 'broadcasts',   label: 'Broadcasts' },
   { id: 'delivery-log', label: 'Delivery Log' },
 ];
 
@@ -835,6 +1172,7 @@ export default function Communications() {
       {activeTab === 'templates'    && <TemplatesTab />}
       {activeTab === 'journeys'     && <JourneysTab />}
       {activeTab === 'segments'     && <SegmentsTab />}
+      {activeTab === 'broadcasts'   && <BroadcastsTab />}
       {activeTab === 'delivery-log' && <DeliveryLogTab />}
     </div>
   );
