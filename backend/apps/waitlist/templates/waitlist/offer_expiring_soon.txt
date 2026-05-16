@@ -1,0 +1,5 @@
+Hi {{ applicant_name }},
+
+This is a reminder that your berth offer expires at {{ expires_at }}.
+
+Respond here: {{ respond_url }}

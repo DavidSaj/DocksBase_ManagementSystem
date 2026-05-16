@@ -1,0 +1,7 @@
+Hi {{ applicant_name }},
+
+Your deposit of {{ deposit_amount }} has been received. You are now active on
+the waitlist at {{ marina_name }}. We will email you when a suitable berth is
+offered.
+
+You can view your status at: {{ status_url }}

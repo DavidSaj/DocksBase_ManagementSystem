@@ -1,0 +1,5 @@
+Hi {{ applicant_name }},
+
+You have declined {{ decline_count }} of {{ max_declines }} offers, reaching
+the maximum allowed. You have been removed from the waitlist and a refund of
+your deposit has been initiated.

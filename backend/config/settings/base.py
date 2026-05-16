@@ -83,6 +83,7 @@ LOCAL_APPS = [
     'apps.security',
     'apps.ais',
     'apps.api_keys',
+    'apps.waitlist',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

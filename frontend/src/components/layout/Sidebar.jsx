@@ -16,6 +16,7 @@ export const NAV = [
   ]},
   { group: 'Directory', items: [
     { id: 'members',            icon: 'users',        label: 'Members' },
+    { id: 'waitlist',           icon: 'clipboard',    label: 'Waitlist', flag: 'waitlist_enabled' },
     { id: 'vessels',            icon: 'ship',         label: 'Vessels' },
     { id: 'documents',          icon: 'clipboard',    label: 'Documents & eSign' },
   ]},
