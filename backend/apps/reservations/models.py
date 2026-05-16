@@ -85,6 +85,15 @@ class Booking(models.Model):
         null=True, blank=True,
         help_text='OTA commission amount retained by the channel.',
     )
+    # Accounting & Tax Export — per-booking tax-exempt override.
+    # Precedence at invoicing time: Booking.tax_exempt_override → Member.tax_exempt → ChargeableItem.tax_category.
+    tax_exempt_override = models.BooleanField(
+        default=False,
+        help_text=(
+            'When True, all invoice lines generated for this booking are zero-tax, '
+            'overriding the member-level setting and the chargeable item tax category.'
+        ),
+    )
 
     class Meta:
         ordering = ['-created_at']

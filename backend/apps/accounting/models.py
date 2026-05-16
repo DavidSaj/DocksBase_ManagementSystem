@@ -753,3 +753,208 @@ class AccountingSyncRecord(models.Model):
 
     def __str__(self):
         return f'Sync {self.direction} {self.object_type} local={self.local_id} ({self.status})'
+
+
+# ---------------------------------------------------------------------------
+# 13. GLCodeMapping, TaxCode, Payout, PayoutLine, ExportJob
+#     Accounting & Tax Export + Stripe Payout reconciliation
+#     (spec: docs/superpowers/specs/2026-05-15-accounting-tax-export-design.md)
+# ---------------------------------------------------------------------------
+
+class GLCodeMapping(models.Model):
+    """Per-tenant configurable map: ChargeableItem.Category → external GL code."""
+
+    marina               = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='gl_code_mappings'
+    )
+    chargeable_category  = models.CharField(max_length=30)  # ChargeableItem.Category + 'tax_collected'
+    gl_account           = models.ForeignKey(
+        Account, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='gl_code_mappings',
+    )
+    external_gl_code     = models.CharField(max_length=50, blank=True)
+    external_gl_name     = models.CharField(max_length=200, blank=True)
+    cost_centre          = models.ForeignKey(
+        CostCentre, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='gl_code_mappings',
+    )
+    is_active            = models.BooleanField(default=True)
+    created_at           = models.DateTimeField(auto_now_add=True)
+    updated_at           = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('marina', 'chargeable_category')]
+        ordering = ['chargeable_category']
+
+    def __str__(self):
+        return f'{self.chargeable_category} → {self.external_gl_code or "UNMAPPED"}'
+
+
+class TaxCode(models.Model):
+    """Per-marina tax classification carrying jurisdiction + reportable category."""
+
+    class ReportableCategory(models.TextChoices):
+        SALES_TAX     = 'sales_tax',     'Sales Tax'
+        TRANSIENT_TAX = 'transient_tax', 'Transient / Hotel Tax'
+        TOURISM_LEVY  = 'tourism_levy',  'Tourism Levy'
+        FUEL_EXCISE   = 'fuel_excise',   'Fuel Excise'
+        VAT_STANDARD  = 'vat_standard',  'VAT Standard'
+        VAT_REDUCED   = 'vat_reduced',   'VAT Reduced'
+        VAT_ZERO      = 'vat_zero',      'VAT Zero'
+        VAT_EXEMPT    = 'vat_exempt',    'VAT Exempt'
+        GST           = 'gst',           'GST'
+        PST           = 'pst',           'PST'
+        HST           = 'hst',           'HST'
+        NONE          = 'none',          'No Tax / Exempt'
+
+    marina               = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='tax_codes'
+    )
+    name                 = models.CharField(max_length=200)
+    rate                 = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    jurisdiction_country = models.CharField(max_length=2,   blank=True)
+    jurisdiction_state   = models.CharField(max_length=100, blank=True)
+    jurisdiction_county  = models.CharField(max_length=100, blank=True)
+    jurisdiction_city    = models.CharField(max_length=100, blank=True)
+    reportable_category  = models.CharField(
+        max_length=30, choices=ReportableCategory.choices,
+        default=ReportableCategory.SALES_TAX,
+    )
+    tax_rate             = models.OneToOneField(
+        'billing.TaxRate', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='tax_code',
+    )
+    external_qbo_code    = models.CharField(max_length=100, blank=True)
+    external_xero_code   = models.CharField(max_length=100, blank=True)
+    effective_from       = models.DateField(null=True, blank=True)
+    effective_to         = models.DateField(null=True, blank=True)
+    is_active            = models.BooleanField(default=True)
+    created_at           = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('marina', 'name')]
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.reportable_category} @ {self.rate}%)'
+
+
+class Payout(models.Model):
+    """Snapshot of one Stripe payout event."""
+
+    class Status(models.TextChoices):
+        PAID       = 'paid',       'Paid'
+        PENDING    = 'pending',    'Pending'
+        IN_TRANSIT = 'in_transit', 'In Transit'
+        FAILED     = 'failed',     'Failed'
+        CANCELED   = 'canceled',   'Canceled'
+
+    marina              = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='payouts'
+    )
+    stripe_payout_id    = models.CharField(max_length=200)
+    stripe_account_id   = models.CharField(max_length=200, blank=True)
+    amount              = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    currency            = models.CharField(max_length=3, default='EUR')
+    arrival_date        = models.DateField(null=True, blank=True)
+    created_at_stripe   = models.DateTimeField(null=True, blank=True)
+    status              = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    bank_account_last4  = models.CharField(max_length=10, blank=True)
+    gross_amount        = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    fee_amount          = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    raw_payload         = models.JSONField(default=dict, blank=True)
+    journal_entry       = models.OneToOneField(
+        JournalEntry, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='payout',
+    )
+    reconciled          = models.BooleanField(default=False)
+    synced_at           = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('marina', 'stripe_payout_id')]
+        ordering = ['-arrival_date', '-synced_at']
+
+    def __str__(self):
+        return f'Payout {self.stripe_payout_id} {self.amount} {self.currency} ({self.status})'
+
+
+class PayoutLine(models.Model):
+    """One constituent balance-transaction inside a Payout."""
+
+    class Type(models.TextChoices):
+        CHARGE     = 'charge',     'Charge'
+        REFUND     = 'refund',     'Refund'
+        DISPUTE    = 'dispute',    'Dispute / Chargeback'
+        ADJUSTMENT = 'adjustment', 'Adjustment'
+        FEE        = 'fee',        'Fee'
+        OTHER      = 'other',      'Other'
+
+    payout                    = models.ForeignKey(
+        Payout, on_delete=models.CASCADE, related_name='lines'
+    )
+    type                      = models.CharField(
+        max_length=20, choices=Type.choices, default=Type.CHARGE
+    )
+    stripe_balance_txn_id     = models.CharField(max_length=200, blank=True)
+    stripe_charge_id          = models.CharField(max_length=200, blank=True)
+    stripe_payment_intent_id  = models.CharField(max_length=200, blank=True)
+    invoice                   = models.ForeignKey(
+        'billing.Invoice', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='payout_lines',
+    )
+    gross_amount              = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    fee_amount                = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    net_amount                = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    currency                  = models.CharField(max_length=3, default='EUR')
+    description               = models.CharField(max_length=500, blank=True)
+    created_at_stripe         = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['payout', 'id']
+
+    def __str__(self):
+        return f'PayoutLine {self.type} {self.net_amount} ({self.stripe_charge_id or self.stripe_balance_txn_id})'
+
+
+class ExportJob(models.Model):
+    """Async tracking row for an accounting export."""
+
+    class Format(models.TextChoices):
+        GENERIC_CSV     = 'generic_csv',     'Generic CSV'
+        QBO_CSV         = 'qbo_csv',         'QuickBooks Online CSV'
+        XERO_CSV        = 'xero_csv',        'Xero CSV'
+        TAX_SUMMARY_CSV = 'tax_summary_csv', 'Tax Summary CSV'
+
+    class Status(models.TextChoices):
+        QUEUED    = 'queued',    'Queued'
+        RUNNING   = 'running',   'Running'
+        COMPLETED = 'completed', 'Completed'
+        FAILED    = 'failed',    'Failed'
+
+    marina           = models.ForeignKey(
+        'accounts.Marina', on_delete=models.CASCADE, related_name='export_jobs'
+    )
+    requested_by     = models.ForeignKey(
+        'staff.StaffMember', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='export_jobs',
+    )
+    format           = models.CharField(max_length=30, choices=Format.choices)
+    start_date       = models.DateField()
+    end_date         = models.DateField()
+    category_filter  = models.JSONField(default=list, blank=True)
+    status           = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
+    file             = models.FileField(upload_to='exports/', null=True, blank=True)
+    row_count        = models.IntegerField(default=0)
+    total_gross      = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    total_tax        = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    total_net        = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    error_detail     = models.TextField(blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+    started_at       = models.DateTimeField(null=True, blank=True)
+    completed_at     = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'ExportJob {self.pk} {self.format} {self.start_date}..{self.end_date} ({self.status})'
