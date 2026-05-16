@@ -5,12 +5,44 @@
   padding: 64px 24px;
 }
 .inner { width: 100%; max-width: 680px; }
-.header { text-align: center; margin-bottom: 48px; }
+.header { text-align: center; margin-bottom: 48px; position: relative; }
+.headerTop {
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  margin-bottom: 8px;
+}
 .logo {
   font-family: var(--font-serif); font-size: 28px; font-weight: 700;
-  color: var(--navy); letter-spacing: -0.5px; margin-bottom: 8px;
+  color: var(--navy); letter-spacing: -0.5px;
 }
 .sub { font-size: 15px; color: var(--text-sec); }
+
+.langSwitch {
+  position: absolute;
+  right: 0; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid rgba(12, 31, 61, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  color: var(--navy);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.langSwitch:hover { border-color: rgba(12, 31, 61, 0.28); background: #fff; }
+.langIcon { opacity: 0.7; flex-shrink: 0; }
+.langSelect {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding-right: 2px;
+  outline: none;
+}
+.langSelect:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; border-radius: 4px; }
 
 /* Step transition wrapper — clips the sliding content */
 .stepWrap {

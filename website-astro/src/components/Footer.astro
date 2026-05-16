@@ -1,5 +1,10 @@
 ---
 import styles from './Footer.module.css'
+import { getStrings, type LangCode } from '../i18n/strings'
+
+interface Props { lang: LangCode }
+const { lang } = Astro.props
+const t = getStrings(lang)
 ---
 <footer class={styles.footer}>
   <div class={styles.inner}>
@@ -18,33 +23,31 @@ import styles from './Footer.module.css'
             <span style="font-family:'Jost',sans-serif;font-weight:300;font-size:12px;letter-spacing:3px;color:#c9a84c">Base</span>
           </div>
         </div>
-        <p class={styles.tagline}>The complete service management platform for modern harbors and marinas.</p>
+        <p class={styles.tagline}>{t.footer.tagline}</p>
       </div>
       <div>
-        <div class={styles.colTitle}>Product</div>
+        <div class={styles.colTitle}>{t.footer.product}</div>
         <ul class={styles.links}>
-          {['Features','Pricing','Changelog','Roadmap','API Docs'].map(l => <li><a href="#">{l}</a></li>)}
+          {t.footer.productLinks.map(l => <li><a href="#">{l}</a></li>)}
         </ul>
       </div>
       <div>
-        <div class={styles.colTitle}>Company</div>
+        <div class={styles.colTitle}>{t.footer.company}</div>
         <ul class={styles.links}>
-          {['About','Blog','Careers','Press','Contact'].map(l => <li><a href="#">{l}</a></li>)}
+          {t.footer.companyLinks.map(l => <li><a href="#">{l}</a></li>)}
         </ul>
       </div>
       <div>
-        <div class={styles.colTitle}>Support</div>
+        <div class={styles.colTitle}>{t.footer.support}</div>
         <ul class={styles.links}>
-          {['Help Center','Onboarding','Status','Security','GDPR'].map(l => <li><a href="#">{l}</a></li>)}
+          {t.footer.supportLinks.map(l => <li><a href="#">{l}</a></li>)}
         </ul>
       </div>
     </div>
     <div class={styles.bottom}>
-      <span class={styles.copy}>© 2026 DocksBase. All rights reserved.</span>
+      <span class={styles.copy}>{t.footer.copy}</span>
       <div class={styles.legal}>
-        <a href="#">Privacy</a>
-        <a href="#">Terms</a>
-        <a href="#">Cookies</a>
+        {t.footer.legalLinks.map(l => <a href="#">{l}</a>)}
       </div>
     </div>
   </div>

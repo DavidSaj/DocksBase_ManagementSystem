@@ -1,6 +1,8 @@
+import { getSignupStrings } from '../../i18n/signup-strings'
 import styles from './StepConfirmation.module.css'
 
-export default function StepConfirmation() {
+export default function StepConfirmation({ t }) {
+  const tr = t || getSignupStrings('en')
   return (
     <div className={styles.wrap}>
       <div className={styles.icon}>
@@ -9,11 +11,9 @@ export default function StepConfirmation() {
           <polyline points="22,6 12,13 2,6"/>
         </svg>
       </div>
-      <h2 className={styles.title}>Check your inbox</h2>
-      <p className={styles.body}>
-        We've sent a verification email to your address. Click the link inside to activate your account and access DocksBase.
-      </p>
-      <p className={styles.note}>Didn't get it? Check your spam folder. It may take a minute or two.</p>
+      <h2 className={styles.title}>{tr.stepConfirmation.title}</h2>
+      <p className={styles.body}>{tr.stepConfirmation.body}</p>
+      <p className={styles.note}>{tr.stepConfirmation.note}</p>
     </div>
   )
 }

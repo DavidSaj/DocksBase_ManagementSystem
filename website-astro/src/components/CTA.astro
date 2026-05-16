@@ -1,5 +1,10 @@
 ---
 import styles from './CTA.module.css'
+import { getStrings, type LangCode } from '../i18n/strings'
+
+interface Props { lang: LangCode }
+const { lang } = Astro.props
+const t = getStrings(lang)
 ---
 <section class={styles.section}>
   <div class={styles.inner}>
@@ -14,13 +19,13 @@ import styles from './CTA.module.css'
       <div class={styles.line} />
     </div>
     <h2 class={styles.title}>
-      Ready to modernize<br /><em>your harbor?</em>
+      {t.cta.title1}{t.cta.titleEm && <><br /><em>{t.cta.titleEm}</em></>}
     </h2>
-    <p class={styles.sub}>Start free. Get your berths, bookings, and billing running in one afternoon. Upgrade anytime as your operation grows.</p>
+    <p class={styles.sub}>{t.cta.sub}</p>
     <div class={styles.actions}>
-      <a href="#" class={`${styles.btn} ${styles.btnPrimary}`}>Get DocksBase free →</a>
-      <a href="#" class={`${styles.btn} ${styles.btnSecondary}`}>Book a demo</a>
+      <a href="#" class={`${styles.btn} ${styles.btnPrimary}`}>{t.cta.btn1}</a>
+      <a href="#" class={`${styles.btn} ${styles.btnSecondary}`}>{t.cta.btn2}</a>
     </div>
-    <p class={styles.note}>Free for up to 50 berths. Then from €49/month. Cancel anytime.</p>
+    <p class={styles.note}>{t.cta.note}</p>
   </div>
 </section>

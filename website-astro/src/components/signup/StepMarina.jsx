@@ -1,42 +1,44 @@
 import { useState } from 'react'
 import AutocompleteLib from 'react-google-autocomplete'
+import { getSignupStrings } from '../../i18n/signup-strings'
 import styles from './StepMarina.module.css'
 
 const Autocomplete = AutocompleteLib.default ?? AutocompleteLib
 const CURRENCIES = ['EUR', 'GBP', 'USD', 'DKK', 'SEK', 'NOK']
 const GOOGLE_API_KEY = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY
 
-function validate(form) {
+function validate(form, t) {
+  const e = t.stepMarina.errors
   const errors = {}
 
   if (!form.marinaName.trim())
-    errors.marinaName = 'Required'
+    errors.marinaName = e.required
   else if (form.marinaName.trim().length < 2)
-    errors.marinaName = 'Name is too short'
+    errors.marinaName = e.nameTooShort
 
   if (!form.address.trim())
-    errors.address = 'Required'
+    errors.address = e.required
   else if (form.address.trim().length < 5)
-    errors.address = 'Enter a full address'
+    errors.address = e.addressTooShort
 
   if (!form.phone.trim()) {
-    errors.phone = 'Required'
+    errors.phone = e.required
   } else {
-    // strip spaces/dashes/parens, count remaining digits
     const digits = form.phone.replace(/[\s\-().]/g, '')
     if (!/^\+?[\d]{7,15}$/.test(digits))
-      errors.phone = 'Enter a valid phone number (e.g. +44 1326 312345)'
+      errors.phone = e.phoneInvalid
   }
 
   if (!form.contactEmail.trim())
-    errors.contactEmail = 'Required'
+    errors.contactEmail = e.required
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail))
-    errors.contactEmail = 'Enter a valid email'
+    errors.contactEmail = e.emailInvalid
 
   return errors
 }
 
-export default function StepMarina({ form, patch, onBack, onNext }) {
+export default function StepMarina({ form, patch, onBack, onNext, t }) {
+  const tr = t || getSignupStrings('en')
   const [errors, setErrors] = useState({})
 
   function handlePlaceSelected(place) {
@@ -51,7 +53,7 @@ export default function StepMarina({ form, patch, onBack, onNext }) {
   }
 
   function handleNext() {
-    const errs = validate(form)
+    const errs = validate(form, tr)
     if (Object.keys(errs).length) {
       setErrors(errs)
       return
@@ -69,20 +71,23 @@ export default function StepMarina({ form, patch, onBack, onNext }) {
     }
   }
 
+  const L = tr.stepMarina.labels
+  const P = tr.stepMarina.placeholders
+
   return (
     <div>
-      <h2 className={styles.title}>Your marina</h2>
-      <p className={styles.sub}>Tell us about the marina you manage.</p>
+      <h2 className={styles.title}>{tr.stepMarina.title}</h2>
+      <p className={styles.sub}>{tr.stepMarina.sub}</p>
       <div className={styles.form}>
 
         <div>
-          <label className={styles.label}>Marina name *</label>
-          <input {...field('marinaName')} value={form.marinaName} placeholder="Harbour View Marina" />
+          <label className={styles.label}>{L.marinaName}</label>
+          <input {...field('marinaName')} value={form.marinaName} placeholder={P.marinaName} />
           {errors.marinaName && <span className={styles.error}>{errors.marinaName}</span>}
         </div>
 
         <div>
-          <label className={styles.label}>Address *</label>
+          <label className={styles.label}>{L.address}</label>
           {GOOGLE_API_KEY ? (
             <Autocomplete
               apiKey={GOOGLE_API_KEY}
@@ -90,13 +95,13 @@ export default function StepMarina({ form, patch, onBack, onNext }) {
               defaultValue={form.address}
               onPlaceSelected={handlePlaceSelected}
               options={{ types: ['geocode', 'establishment'] }}
-              placeholder="Start typing your marina address…"
+              placeholder={P.address}
             />
           ) : (
             <input
               {...field('address')}
               value={form.address}
-              placeholder="Marina address"
+              placeholder={P.addressFallback}
             />
           )}
           {errors.address && <span className={styles.error}>{errors.address}</span>}
@@ -104,24 +109,24 @@ export default function StepMarina({ form, patch, onBack, onNext }) {
 
         <div className={styles.row}>
           <div>
-            <label className={styles.label}>Phone *</label>
-            <input {...field('phone')} value={form.phone} placeholder="+44 1326 312345" />
+            <label className={styles.label}>{L.phone}</label>
+            <input {...field('phone')} value={form.phone} placeholder={P.phone} />
             {errors.phone && <span className={styles.error}>{errors.phone}</span>}
           </div>
           <div>
-            <label className={styles.label}>Contact email *</label>
-            <input {...field('contactEmail')} type="email" value={form.contactEmail} placeholder="info@yourmarina.com" />
+            <label className={styles.label}>{L.contactEmail}</label>
+            <input {...field('contactEmail')} type="email" value={form.contactEmail} placeholder={P.contactEmail} />
             {errors.contactEmail && <span className={styles.error}>{errors.contactEmail}</span>}
           </div>
         </div>
 
         <div className={styles.row}>
           <div>
-            <label className={styles.label}>VAT number</label>
-            <input className={styles.input} value={form.vatNumber} onChange={e => patch({ vatNumber: e.target.value })} placeholder="GB123456789" />
+            <label className={styles.label}>{L.vatNumber}</label>
+            <input className={styles.input} value={form.vatNumber} onChange={e => patch({ vatNumber: e.target.value })} placeholder={P.vatNumber} />
           </div>
           <div>
-            <label className={styles.label}>Currency *</label>
+            <label className={styles.label}>{L.currency}</label>
             <select className={styles.input} value={form.currency} onChange={e => patch({ currency: e.target.value })}>
               {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -130,8 +135,8 @@ export default function StepMarina({ form, patch, onBack, onNext }) {
 
       </div>
       <div className={styles.actions}>
-        <button className={styles.backBtn} onClick={onBack} type="button">← Back</button>
-        <button className={styles.nextBtn} onClick={handleNext} type="button">Continue →</button>
+        <button className={styles.backBtn} onClick={onBack} type="button">{tr.stepMarina.back}</button>
+        <button className={styles.nextBtn} onClick={handleNext} type="button">{tr.stepMarina.continue}</button>
       </div>
     </div>
   )

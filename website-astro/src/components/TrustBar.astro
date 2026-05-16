@@ -1,10 +1,15 @@
 ---
 import styles from './TrustBar.module.css'
+import { getStrings, type LangCode } from '../i18n/strings'
+
+interface Props { lang: LangCode }
+const { lang } = Astro.props
+const t = getStrings(lang)
 
 const marinas = ['Harwich Marina', 'Port Vauban', 'Gibraltar Yacht Marina', 'Zea Marina', 'Royal Harbour', 'Palma de Mallorca']
 ---
 <div class={styles.bar}>
-  <span class={styles.label}>Trusted by 200+ marinas worldwide</span>
+  <span class={styles.label}>{t.trustLabel}</span>
   <div class={styles.names}>
     {marinas.map((name, i) => (
       <span style="display:flex;align-items:center;gap:36px">

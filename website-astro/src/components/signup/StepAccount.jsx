@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { getSignupStrings } from '../../i18n/signup-strings'
 import styles from './StepAccount.module.css'
 
-function PasswordStrength({ password }) {
+function PasswordStrength({ password, t }) {
   const score = [/.{8,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length
-  const labels = ['', 'Weak', 'Fair', 'Good', 'Strong']
+  const labels = ['', t.strength.weak, t.strength.fair, t.strength.good, t.strength.strong]
   const colors = ['', '#e05555', '#d4b07a', '#2a9d99', '#38a860']
   if (!password) return null
   return (
@@ -18,7 +19,8 @@ function PasswordStrength({ password }) {
   )
 }
 
-export default function StepAccount({ form, patch, onBack, onSubmit, apiError }) {
+export default function StepAccount({ form, patch, onBack, onSubmit, apiError, t }) {
+  const tr = t || getSignupStrings('en')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
 
@@ -34,41 +36,44 @@ export default function StepAccount({ form, patch, onBack, onSubmit, apiError })
     setLoading(false)
   }
 
+  const L = tr.stepAccount.labels
+  const P = tr.stepAccount.placeholders
+
   return (
     <div>
-      <h2 className={styles.title}>Your account</h2>
-      <p className={styles.sub}>This will be the owner account for your marina.</p>
+      <h2 className={styles.title}>{tr.stepAccount.title}</h2>
+      <p className={styles.sub}>{tr.stepAccount.sub}</p>
       <div className={styles.form}>
         <div className={styles.row}>
           <div>
-            <label className={styles.label}>First name *</label>
-            <input className={styles.input} value={form.firstName} onChange={e => patch({ firstName: e.target.value })} placeholder="David" />
+            <label className={styles.label}>{L.firstName}</label>
+            <input className={styles.input} value={form.firstName} onChange={e => patch({ firstName: e.target.value })} placeholder={P.firstName} />
           </div>
           <div>
-            <label className={styles.label}>Last name *</label>
-            <input className={styles.input} value={form.lastName} onChange={e => patch({ lastName: e.target.value })} placeholder="Smith" />
+            <label className={styles.label}>{L.lastName}</label>
+            <input className={styles.input} value={form.lastName} onChange={e => patch({ lastName: e.target.value })} placeholder={P.lastName} />
           </div>
         </div>
         <div>
-          <label className={styles.label}>Email address *</label>
-          <input className={`${styles.input} ${errors.email ? styles.inputError : ''}`} type="email" value={form.email} onChange={e => patch({ email: e.target.value })} placeholder="you@yourmarina.com" />
+          <label className={styles.label}>{L.email}</label>
+          <input className={`${styles.input} ${errors.email ? styles.inputError : ''}`} type="email" value={form.email} onChange={e => patch({ email: e.target.value })} placeholder={P.email} />
           {errors.email && <p className={styles.fieldError}>{Array.isArray(errors.email) ? errors.email[0] : errors.email}</p>}
         </div>
         <div>
-          <label className={styles.label}>Password * (min. 8 characters)</label>
+          <label className={styles.label}>{L.password}</label>
           <input className={`${styles.input} ${errors.password ? styles.inputError : ''}`} type="password" value={form.password} onChange={e => patch({ password: e.target.value })} placeholder="••••••••" />
-          <PasswordStrength password={form.password} />
+          <PasswordStrength password={form.password} t={tr.stepAccount} />
           {errors.password && <p className={styles.fieldError}>{Array.isArray(errors.password) ? errors.password[0] : errors.password}</p>}
         </div>
       </div>
-      {errors.plan_price_id && <p className={styles.apiError}>Plan error: {Array.isArray(errors.plan_price_id) ? errors.plan_price_id[0] : errors.plan_price_id}</p>}
+      {errors.plan_price_id && <p className={styles.apiError}>{tr.stepAccount.planErrorPrefix} {Array.isArray(errors.plan_price_id) ? errors.plan_price_id[0] : errors.plan_price_id}</p>}
       {errors.non_field_errors && <p className={styles.apiError}>{Array.isArray(errors.non_field_errors) ? errors.non_field_errors[0] : errors.non_field_errors}</p>}
       {errors.detail && <p className={styles.apiError}>{errors.detail}</p>}
       {apiError && <p className={styles.apiError}>{apiError}</p>}
       <div className={styles.actions}>
-        <button className={styles.backBtn} onClick={onBack} type="button" disabled={loading}>← Back</button>
+        <button className={styles.backBtn} onClick={onBack} type="button" disabled={loading}>{tr.stepAccount.back}</button>
         <button className={styles.nextBtn} onClick={handleNext} disabled={!valid || loading} type="button">
-          {loading ? 'Setting up…' : 'Continue →'}
+          {loading ? tr.stepAccount.settingUp : tr.stepAccount.continue}
         </button>
       </div>
     </div>
