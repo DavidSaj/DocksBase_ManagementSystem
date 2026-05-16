@@ -1,13 +1,6 @@
 ---
 import styles from './MobileApp.module.css'
 
-const boaterRows = [
-  { label: 'My Berth', value: 'A-14 · Pier 2', dot: 'green' },
-  { label: 'Check-out', value: '16 Aug 2026', dot: 'gold' },
-  { label: 'Outstanding', value: '€320', dot: 'red' },
-  { label: 'Fuel (last fill)', value: '42 L', dot: 'green' },
-]
-
 const boaterFeatures = [
   { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`, label: 'View and manage berth bookings' },
   { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`, label: 'Pay invoices from the phone' },
@@ -15,11 +8,12 @@ const boaterFeatures = [
   { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`, label: 'Download & eSign marina documents' },
 ]
 
-const staffRows = [
-  { label: 'Reservations', value: '12 active', dot: 'green' },
-  { label: 'Pending crane req.', value: '3', dot: 'gold' },
-  { label: 'Maintenance tasks', value: '7 open', dot: 'red' },
-  { label: 'Invoices today', value: '€2,840', dot: 'green' },
+// Boater quick actions (mirrors portal QuickActions: WiFi / Gate / Call HM / VHF)
+const boaterQuick = [
+  { label: 'WiFi', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>` },
+  { label: 'Gate', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>` },
+  { label: 'Call HM', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.68 9.7a19.79 19.79 0 01-3.07-8.67A2 2 0 012.58 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.56a16 16 0 006.29 6.29l1.93-1.92a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>` },
+  { label: 'VHF', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>` },
 ]
 
 const staffFeatures = [
@@ -29,6 +23,16 @@ const staffFeatures = [
   { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`, label: 'Issue invoices from the dock' },
   { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`, label: 'View member & vessel details' },
   { icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`, label: 'Receive push alerts instantly' },
+]
+
+// Staff field-app action grid (mirrors field/Field.jsx ACTIONS)
+const staffActions = [
+  { label: 'Check In',      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
+  { label: 'Check Out',     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>` },
+  { label: 'Log Task',      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>` },
+  { label: 'Crane',         icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5l16 4"/><path d="M4 9h6"/><path d="M10 9v6a2 2 0 0 0 2 2h2"/></svg>` },
+  { label: 'Arrivals',      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M5 20l1-6h12l1 6"/><path d="M8 14V8l4-3 4 3v6"/></svg>` },
+  { label: 'Fuel Dock',     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>` },
 ]
 ---
 
@@ -51,36 +55,58 @@ const staffFeatures = [
       </ul>
     </div>
     <div class={styles.phoneRight}>
-      <!-- Phone mockup: boater -->
+      <!-- Phone mockup: boater (real portal preview) -->
       <div class={styles.phone}>
         <div class={styles.phoneTop}><div class={styles.phoneSpeaker} /></div>
-        <div class={styles.phoneScreen}>
-          <div class={styles.screenHeader}>
-            <div class={styles.screenTitle}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4b07a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
-                <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
-              </svg>
-              <span>DocksBase</span>
-            </div>
-            <div class={styles.screenBadge}>Live</div>
+        <div class={`${styles.phoneScreen} ${styles.phoneScreenLight}`}>
+          <div class={styles.appStatusBar}>
+            <span>9:41</span>
+            <span class={styles.appStatusIcons}>
+              <svg width="11" height="9" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="5" y="5" width="3" height="7" rx="0.5"/><rect x="10" y="2" width="3" height="10" rx="0.5"/><rect x="15" y="0" width="3" height="12" rx="0.5"/></svg>
+              <svg width="14" height="9" viewBox="0 0 22 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="0.5" y="1" width="18" height="10" rx="2"/><rect x="2.5" y="3" width="14" height="6" rx="1" fill="currentColor"/><rect x="19.5" y="4" width="2" height="4" rx="0.5" fill="currentColor"/></svg>
+            </span>
           </div>
-          <div class={styles.screenGreeting}>Welcome back, Marco</div>
-          <div class={styles.screenSub}>Berth A-14 · Harbour View Marina</div>
-          <div class={styles.screenCards}>
-            {boaterRows.map(r => (
-              <div class={styles.screenCard}>
-                <span class={styles.screenCardLabel}>{r.label}</span>
-                <div class={styles.screenCardRight}>
-                  <span class={styles.screenCardValue}>{r.value}</span>
-                  <span class={`${styles.dot} ${styles['dot_' + r.dot]}`} />
-                </div>
+          <div class={styles.portalHeader}>
+            <span class={styles.portalMarina}>Harbour View Marina</span>
+            <span class={styles.portalName}>Marco</span>
+          </div>
+          <div class={styles.portalQuick}>
+            {boaterQuick.map(q => (
+              <div class={styles.quickBtn}>
+                <span class={styles.quickIcon} set:html={q.icon} />
+                <span class={styles.quickLabel}>{q.label}</span>
               </div>
             ))}
           </div>
-          <div class={styles.screenActions}>
-            <button class={styles.screenBtn}>Pay invoice</button>
-            <button class={styles.screenBtnGhost}>Request fuel</button>
+          <div class={styles.feedCard}>
+            <div class={styles.feedAccent} />
+            <p class={styles.feedEyebrow}>Overdue</p>
+            <p class={styles.feedTitle}>Berth fee · August</p>
+            <p class={styles.feedSub}>Due 12 Aug 2026</p>
+            <p class={styles.feedAmount}>€320.00</p>
+            <button class={styles.feedBtn}>Pay now</button>
+          </div>
+          <div class={styles.feedCardSmall}>
+            <p class={styles.feedEyebrowGreen}>Vessel · Sea Breeze</p>
+            <p class={styles.feedTitleSm}>Insurance expires in 14 days</p>
+          </div>
+          <div class={styles.portalTabBar}>
+            <div class={`${styles.portalTab} ${styles.portalTabActive}`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <span>Home</span>
+            </div>
+            <div class={styles.portalTab}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+              <span>Book</span>
+            </div>
+            <div class={styles.portalTab}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              <span>Wallet</span>
+            </div>
+            <div class={styles.portalTab}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></svg>
+              <span>Account</span>
+            </div>
           </div>
         </div>
         <div class={styles.phoneBottom}><div class={styles.phoneBar} /></div>
@@ -93,36 +119,43 @@ const staffFeatures = [
 <section class={styles.sectionLight}>
   <div class={styles.inner}>
     <div class={styles.phoneLeft}>
-      <!-- Phone mockup: staff -->
+      <!-- Phone mockup: staff (real field-app preview) -->
       <div class={styles.phone}>
         <div class={styles.phoneTop}><div class={styles.phoneSpeaker} /></div>
-        <div class={styles.phoneScreen}>
-          <div class={styles.screenHeader}>
-            <div class={styles.screenTitle}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4b07a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/>
-                <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
-              </svg>
-              <span>DocksBase</span>
-            </div>
-            <div class={styles.screenBadge}>Live</div>
+        <div class={`${styles.phoneScreen} ${styles.phoneScreenLight}`}>
+          <div class={styles.appStatusBar}>
+            <span>9:41</span>
+            <span class={styles.appStatusIcons}>
+              <svg width="11" height="9" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="5" y="5" width="3" height="7" rx="0.5"/><rect x="10" y="2" width="3" height="10" rx="0.5"/><rect x="15" y="0" width="3" height="12" rx="0.5"/></svg>
+              <svg width="14" height="9" viewBox="0 0 22 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="0.5" y="1" width="18" height="10" rx="2"/><rect x="2.5" y="3" width="14" height="6" rx="1" fill="currentColor"/><rect x="19.5" y="4" width="2" height="4" rx="0.5" fill="currentColor"/></svg>
+            </span>
           </div>
-          <div class={styles.screenGreeting}>Good morning, David</div>
-          <div class={styles.screenSub}>Harbor Master · Harbour View</div>
-          <div class={styles.screenCards}>
-            {staffRows.map(r => (
-              <div class={styles.screenCard}>
-                <span class={styles.screenCardLabel}>{r.label}</span>
-                <div class={styles.screenCardRight}>
-                  <span class={styles.screenCardValue}>{r.value}</span>
-                  <span class={`${styles.dot} ${styles['dot_' + r.dot]}`} />
-                </div>
+          <div class={styles.fieldHeader}>
+            <div class={styles.fieldBrand}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b8965a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
+              </svg>
+              <span>DocksBase Field</span>
+            </div>
+            <span class={styles.fieldUser}>David · HM</span>
+          </div>
+          <div class={styles.fieldGrid}>
+            {staffActions.map(a => (
+              <div class={styles.fieldTile}>
+                <span class={styles.fieldTileIcon} set:html={a.icon} />
+                <span class={styles.fieldTileLabel}>{a.label}</span>
               </div>
             ))}
           </div>
-          <div class={styles.screenActions}>
-            <button class={styles.screenBtn}>New arrival</button>
-            <button class={styles.screenBtnGhost}>Work orders</button>
+          <div class={styles.fieldTabBar}>
+            <div class={`${styles.fieldTab} ${styles.fieldTabActive}`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span>Actions</span>
+            </div>
+            <div class={styles.fieldTab}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+              <span>Tasks</span>
+            </div>
           </div>
         </div>
         <div class={styles.phoneBottom}><div class={styles.phoneBar} /></div>
