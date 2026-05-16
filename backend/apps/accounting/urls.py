@@ -140,6 +140,20 @@ from apps.accounting.views_intacct_connect import (
 )
 from apps.accounting.views_export import JournalCSVExportView
 from apps.accounting.views_datev_export import DatevCSVExportView
+from apps.accounting.views_accounting_exports import (
+    ExportJobViewSet,
+    PayoutViewSet,
+    GLCodeMappingViewSet,
+    TaxCodeViewSet,
+    TaxSummaryView,
+)
+
+# Accounting & Tax Export endpoints — mounted at /api/v1/accounting/...
+accounting_router = DefaultRouter()
+accounting_router.register(r'exports',      ExportJobViewSet,      basename='accounting-export')
+accounting_router.register(r'payouts',      PayoutViewSet,         basename='accounting-payout')
+accounting_router.register(r'gl-mappings',  GLCodeMappingViewSet,  basename='accounting-gl-mapping')
+accounting_router.register(r'tax-codes',    TaxCodeViewSet,        basename='accounting-tax-code')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -192,6 +206,10 @@ urlpatterns = [
         RedDieselDeclarationView.as_view(),
         name='red-diesel-declaration',
     ),
+
+    # Accounting & Tax Export — exports, payouts, GL mapping, tax codes, tax summary.
+    path('accounting/', include(accounting_router.urls)),
+    path('accounting/tax-summary/', TaxSummaryView.as_view(), name='accounting-tax-summary'),
 
     # Reports
     path('reports/balance-sheet/',   BalanceSheetView.as_view(),         name='report-balance-sheet'),

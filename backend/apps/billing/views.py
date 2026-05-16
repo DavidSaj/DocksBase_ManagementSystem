@@ -55,6 +55,140 @@ def _handle_marina_subscription_event(event_type, obj):
         marina.save(update_fields=['status'])
 
 
+def _handle_payout_event(event_type, obj, connect_account_id=None):
+    """
+    Upsert a Payout row for a Stripe payout.* event and link constituent
+    invoices when the payout is `paid`. Idempotent: safe to replay.
+
+    Spec ref: docs/superpowers/specs/2026-05-15-accounting-tax-export-design.md §8.1
+    """
+    from decimal import Decimal
+    from apps.accounting.models import Payout, PayoutLine
+
+    payout_id = obj.get('id')
+    if not payout_id:
+        return
+
+    account_id = connect_account_id or obj.get('destination') or obj.get('account')
+    marina = None
+    if account_id:
+        marina = _Marina.objects.filter(stripe_account_id=account_id).first()
+    if marina is None:
+        # Without a marina link we cannot file the payout; ack the webhook.
+        return
+
+    status_map = {
+        'paid':       'paid',
+        'pending':    'pending',
+        'in_transit': 'in_transit',
+        'failed':     'failed',
+        'canceled':   'canceled',
+    }
+    status_val = status_map.get(obj.get('status'), obj.get('status') or 'pending')
+
+    amount = Decimal(str(obj.get('amount', 0))) / Decimal('100')
+    arrival_ts = obj.get('arrival_date')
+    created_ts = obj.get('created')
+    arrival_date = _dt.date.fromtimestamp(arrival_ts) if arrival_ts else None
+    created_dt = _dt.datetime.fromtimestamp(created_ts, tz=_dt.timezone.utc) if created_ts else None
+
+    defaults = {
+        'stripe_account_id': account_id or '',
+        'amount': amount,
+        'currency': (obj.get('currency') or 'eur').upper(),
+        'arrival_date': arrival_date,
+        'created_at_stripe': created_dt,
+        'status': status_val,
+        'bank_account_last4': (obj.get('destination_details') or {}).get('last4', '') if isinstance(obj.get('destination_details'), dict) else '',
+        'raw_payload': obj,
+    }
+    payout, _created = Payout.objects.update_or_create(
+        marina=marina, stripe_payout_id=payout_id,
+        defaults=defaults,
+    )
+
+    if event_type != 'payout.paid':
+        return
+
+    # Pull balance transactions and link them to invoices.
+    try:
+        txns = list(_stripe_svc.stripe.BalanceTransaction.list(
+            payout=payout_id, limit=100,
+            stripe_account=account_id,
+        ).auto_paging_iter())
+    except Exception:
+        return
+
+    gross = Decimal('0.00')
+    fees = Decimal('0.00')
+    PayoutLine.objects.filter(payout=payout).delete()  # rebuild — idempotent on replay
+
+    for txn in txns:
+        txn_type = getattr(txn, 'type', None) or txn.get('type', 'other')
+        if txn_type == 'payout':
+            continue
+        line_type_map = {
+            'charge': 'charge', 'refund': 'refund',
+            'adjustment': 'adjustment', 'dispute': 'dispute',
+            'payment': 'charge', 'payment_refund': 'refund',
+            'stripe_fee': 'fee',
+        }
+        line_type = line_type_map.get(txn_type, 'other')
+
+        txn_amount = Decimal(str(getattr(txn, 'amount', 0) or txn.get('amount', 0))) / Decimal('100')
+        txn_fee = Decimal(str(getattr(txn, 'fee', 0) or txn.get('fee', 0))) / Decimal('100')
+        net = Decimal(str(getattr(txn, 'net', 0) or txn.get('net', 0))) / Decimal('100')
+
+        source = getattr(txn, 'source', None) or txn.get('source', '')
+        # Determine charge / payment-intent IDs.
+        stripe_charge_id = ''
+        payment_intent_id = ''
+        if isinstance(source, str) and source.startswith('ch_'):
+            stripe_charge_id = source
+        elif hasattr(source, 'id'):
+            sid = source.id
+            if isinstance(sid, str) and sid.startswith('ch_'):
+                stripe_charge_id = sid
+        # Best-effort: pull payment_intent off the source if expanded.
+        if hasattr(source, 'payment_intent'):
+            pi = source.payment_intent
+            payment_intent_id = pi if isinstance(pi, str) else (pi.id if hasattr(pi, 'id') else '')
+
+        invoice = None
+        if payment_intent_id:
+            invoice = Invoice.objects.filter(
+                marina=marina, stripe_payment_intent_id=payment_intent_id
+            ).first()
+
+        txn_created = getattr(txn, 'created', None) or txn.get('created')
+        line_created = _dt.datetime.fromtimestamp(txn_created, tz=_dt.timezone.utc) if txn_created else None
+
+        PayoutLine.objects.create(
+            payout=payout,
+            type=line_type,
+            stripe_balance_txn_id=getattr(txn, 'id', None) or txn.get('id', ''),
+            stripe_charge_id=stripe_charge_id,
+            stripe_payment_intent_id=payment_intent_id,
+            invoice=invoice,
+            gross_amount=txn_amount,
+            fee_amount=txn_fee,
+            net_amount=net,
+            currency=(getattr(txn, 'currency', None) or txn.get('currency', 'eur')).upper(),
+            description=getattr(txn, 'description', None) or txn.get('description', '') or '',
+            created_at_stripe=line_created,
+        )
+
+        if line_type == 'fee':
+            fees += txn_amount
+        else:
+            gross += txn_amount
+            fees += txn_fee
+
+    payout.gross_amount = gross
+    payout.fee_amount = fees
+    payout.save(update_fields=['gross_amount', 'fee_amount'])
+
+
 def _handle_connect_account_updated(obj):
     account_id = obj.get('id')
     if not account_id:
@@ -139,6 +273,9 @@ class StripeWebhookView(APIView):
         if event_type == 'account.updated':
             _handle_connect_account_updated(obj)
             return HttpResponse(status=200)
+        if event_type in ('payout.created', 'payout.paid', 'payout.updated', 'payout.failed'):
+            _handle_payout_event(event_type, obj, connect_account_id=event.get('account'))
+            return HttpResponse(status=200)
 
         invoice_id = obj.get('metadata', {}).get('invoice_id')
         if not invoice_id:
@@ -197,6 +334,12 @@ class StripeConnectWebhookView(APIView):
 
         event_type = event['type']
         obj = event['data']['object']
+
+        # Stripe Connect payout lifecycle — bookkeeper reconciliation surface.
+        if event_type in ('payout.created', 'payout.paid', 'payout.updated', 'payout.failed'):
+            connect_account = event.get('account')
+            _handle_payout_event(event_type, obj, connect_account_id=connect_account)
+            return HttpResponse(status=200)
 
         # Reservation cart flow — PaymentIntent metadata carries reservation_id
         reservation_id = obj.get('metadata', {}).get('reservation_id')

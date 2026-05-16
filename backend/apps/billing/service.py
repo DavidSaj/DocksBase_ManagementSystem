@@ -74,12 +74,48 @@ def create_invoice(marina, member=None, source_type='', source_id='', due_date=N
         )
 
 
+def resolve_line_tax_rate(invoice, chargeable_item, fallback_rate=None):
+    """
+    Compute the tax-rate snapshot for a new invoice line, honouring the
+    Accounting & Tax Export precedence:
+
+        1. Booking.tax_exempt_override (via invoice.booking) → 0.00
+        2. Member.tax_exempt           (via invoice.member)  → 0.00
+        3. ChargeableItem.tax_category.rate                  → that rate
+        4. fallback_rate (caller-supplied) or 0.00
+    """
+    # 1. Booking-level override has top priority.
+    booking = getattr(invoice, 'booking', None)
+    if booking and getattr(booking, 'tax_exempt_override', False):
+        return Decimal('0.00')
+
+    # 2. Member-level exemption.
+    member = getattr(invoice, 'member', None)
+    if member and getattr(member, 'tax_exempt', False):
+        return Decimal('0.00')
+
+    # 3. ChargeableItem.tax_category.rate.
+    if chargeable_item is not None and getattr(chargeable_item, 'tax_category', None):
+        return Decimal(str(chargeable_item.tax_category.rate))
+
+    # 4. Fallback.
+    return Decimal(str(fallback_rate)) if fallback_rate is not None else Decimal('0.00')
+
+
 def add_line_item(invoice, description, quantity, unit_price, tax_rate=None, chargeable_item=None):
     if invoice.status != 'draft':
         raise ValueError(f'Cannot add line items to a {invoice.status} invoice.')
     q = Decimal(str(quantity))
     p = Decimal(str(unit_price))
-    r = Decimal(str(tax_rate)) if tax_rate is not None else Decimal('0.00')
+    # Apply tax precedence: booking override → member exempt → caller-supplied rate.
+    booking = getattr(invoice, 'booking', None)
+    member = getattr(invoice, 'member', None)
+    if (booking and getattr(booking, 'tax_exempt_override', False)) or (
+        member and getattr(member, 'tax_exempt', False)
+    ):
+        r = Decimal('0.00')
+    else:
+        r = Decimal(str(tax_rate)) if tax_rate is not None else Decimal('0.00')
     total_price = (q * p).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     return InvoiceLineItem.objects.create(
         invoice=invoice,

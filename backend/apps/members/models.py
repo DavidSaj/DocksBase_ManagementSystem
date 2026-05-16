@@ -60,6 +60,11 @@ class Member(models.Model):
         help_text='Member has opted in to receive WhatsApp messages.',
     )
 
+    # Accounting & Tax Export — member-level tax exemption (e.g. seasonal lease).
+    tax_exempt = models.BooleanField(default=False)
+    tax_exempt_certificate_no = models.CharField(max_length=100, blank=True)
+    tax_exempt_reason = models.CharField(max_length=200, blank=True)
+
     class Meta:
         ordering = ['name']
 
