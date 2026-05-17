@@ -65,6 +65,31 @@ function FieldRow({ label, children, hint }) {
   );
 }
 
+// Floating success/error toast. Auto-dismisses after 3s.
+// Used by every save handler in Settings so feedback is consistent across cards.
+function SettingsToast({ toast, onDone }) {
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, [toast, onDone]);
+  if (!toast) return null;
+  const isErr = toast.type === 'error';
+  return (
+    <div style={{
+      position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+      background: isErr ? '#fee2e2' : '#d1fae5',
+      color: isErr ? '#991b1b' : '#065f46',
+      borderRadius: 8, padding: '12px 20px',
+      fontSize: 13, fontWeight: 500, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+      maxWidth: 360,
+    }}>
+      {toast.message}
+    </div>
+  );
+}
+
+// eslint-disable-next-line no-unused-vars -- kept for future "coming soon" cards
 function ComingSoonBanner() {
   return (
     <div style={{
@@ -1070,6 +1095,11 @@ export default function Settings() {
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
 
+  // Global toast for save feedback across every Settings card. Handlers call
+  // `toast('msg')` for success, `toast('msg', 'error')` for failures.
+  const [toastState, setToastState] = useState(null);
+  function toast(message, type = 'success') { setToastState({ message, type }); }
+
   // ── API Docs modal ─────────────────────────────────────────────────────
   const [docsModalOpen, setDocsModalOpen] = useState(false);
 
@@ -1099,8 +1129,9 @@ export default function Settings() {
       await api.post('/billing/subscription/cancel/');
       setBilling(b => ({ ...b, cancel_at_period_end: true }));
       setCancelModal(false);
+      toast('Subscription will cancel at end of billing period.');
     } catch {
-      alert('Could not cancel subscription. Please try again.');
+      toast('Could not cancel subscription. Please try again.', 'error');
     } finally {
       setCancelLoading(false);
     }
@@ -1114,8 +1145,9 @@ export default function Settings() {
       setBilling(b => ({ ...b, plan: changePlanSelected.key, monthly_price: changePlanSelected.monthlyPrice }));
       setChangePlanModal(false);
       setChangePlanSelected(null);
+      toast('Plan changed.');
     } catch {
-      alert('Could not change plan. Please try again.');
+      toast('Could not change plan. Please try again.', 'error');
     } finally {
       setChangePlanLoading(false);
     }
@@ -1142,10 +1174,11 @@ export default function Settings() {
       currency:          marina.currency         ?? 'EUR',
       vat_number:        marina.vat_number       ?? '',
       payment_terms:     String(marina.payment_terms ?? 7),
-      total_berths:      marina.total_berths     ?? '',
-      dry_storage_slots: marina.dry_storage_slots ?? '',
-      max_loa:           marina.max_loa          ?? '',
-      max_draft:         marina.max_draft        ?? '',
+      // Capacity fields removed from this form:
+      //   total_berths is auto-derived from created slips (read-only stat)
+      //   dry_storage_slots belongs in Boatyard / Harbor Infrastructure
+      //   max_loa / max_draft were unnecessary noise
+      // The serializer leaves these optional so omitting them is safe.
       // SMTP / email config
       notification_from_email: marina.notification_from_email ?? '',
       smtp_host:               marina.smtp_host               ?? '',
@@ -1175,11 +1208,17 @@ export default function Settings() {
     if (!mf) return;
     setMarinaSaving(true);
     try {
+      // Capacity fields (total_berths/dry_storage_slots/max_loa/max_draft) are
+      // no longer in `mf`, so we never PATCH them. The model fields stay; the
+      // backend serializer treats them as optional.
       await updateMarina({
         ...mf,
         payment_terms: Number(mf.payment_terms),
         smtp_port: mf.smtp_port !== '' ? Number(mf.smtp_port) : null,
       });
+      toast('Settings saved');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not save settings.', 'error');
     } finally {
       setMarinaSaving(false);
     }
@@ -1201,6 +1240,9 @@ export default function Settings() {
         messagebird_access_key: mf.messagebird_access_key ?? '',
         messagebird_originator: mf.messagebird_originator ?? '',
       });
+      toast('SMS settings saved');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not save SMS settings.', 'error');
     } finally {
       setMarinaSaving(false);
     }
@@ -1211,6 +1253,9 @@ export default function Settings() {
     setMarinaSaving(true);
     try {
       await updateMarina({ notification_rules: mf.notification_rules ?? {} });
+      toast('Notification rules saved');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not save notification rules.', 'error');
     } finally {
       setMarinaSaving(false);
     }
@@ -1237,6 +1282,9 @@ export default function Settings() {
         smtp_password:           mf.smtp_password,
         smtp_use_tls:            mf.smtp_use_tls,
       });
+      toast('Email settings saved');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not save email settings.', 'error');
     } finally {
       setMarinaSaving(false);
     }
@@ -1264,8 +1312,9 @@ export default function Settings() {
       const { data } = await api.post('/marina/users/invite/', form);
       setUsers(prev => [...prev, data]);
       setInviteForm(null);
-    } catch {
-      // error handling — TODO: toast
+      toast('Invitation sent.');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not send invitation.', 'error');
     } finally {
       setInviteSaving(false);
     }
@@ -1276,8 +1325,9 @@ export default function Settings() {
     try {
       const { data } = await api.patch(`/marina/users/${id}/`, { is_active: false });
       setUsers(prev => prev.map(u => u.id === id ? data : u));
-    } catch {
-      // error handling — TODO: toast
+      toast('User deactivated.');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not deactivate user.', 'error');
     }
   }
 
@@ -1291,8 +1341,9 @@ export default function Settings() {
       });
       setUsers(prev => prev.map(u => u.id === permForm.user.id ? data : u));
       setPermForm(null);
-    } catch {
-      alert('Could not save permissions.');
+      toast('Permissions saved');
+    } catch (err) {
+      toast(err?.response?.data?.detail || 'Could not save permissions.', 'error');
     }
   }
 
@@ -1327,8 +1378,10 @@ export default function Settings() {
       setDsSettings(r.data);
       setDsApiKey('');
       setDsMsg({ type: 'ok', text: r.data.connected ? 'Connected.' : 'Settings saved.' });
+      toast(r.data.connected ? 'Dropbox Sign connected.' : 'Dropbox Sign settings saved');
     } catch {
       setDsMsg({ type: 'err', text: 'Save failed. Check credentials and try again.' });
+      toast('Dropbox Sign save failed. Check credentials and try again.', 'error');
     } finally {
       setDsSaving(false);
     }
@@ -1343,6 +1396,9 @@ export default function Settings() {
       setDsClientId('');
       setDsApiKey('');
       setDsMsg({ type: 'ok', text: 'Disconnected.' });
+      toast('Dropbox Sign disconnected.');
+    } catch {
+      toast('Could not disconnect Dropbox Sign.', 'error');
     } finally {
       setDsSaving(false);
     }
@@ -1393,8 +1449,10 @@ export default function Settings() {
         saving: false,
         msg: { type: 'ok', text: data.connected ? `${label} connected.` : `${label} settings saved.` },
       }));
+      toast(data.connected ? `${label} connected.` : `${label} settings saved`);
     } catch {
       setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Save failed. Check the value and try again.' } }));
+      toast(`${label} save failed. Check the value and try again.`, 'error');
     }
   }
 
@@ -1413,8 +1471,10 @@ export default function Settings() {
         saving:     false,
         msg:        { type: 'ok', text: 'Disconnected.' },
       }));
+      toast('Disconnected.');
     } catch {
       setState(s => ({ ...s, saving: false, msg: { type: 'err', text: 'Disconnect failed.' } }));
+      toast('Disconnect failed.', 'error');
     }
   }
 
@@ -1491,6 +1551,14 @@ export default function Settings() {
                         <input type="text" value={fm('lng')} onChange={e => setM('lng', e.target.value)} placeholder="e.g. 1.2829" />
                       </FieldRow>
                     </div>
+                    <button
+                      className="btn btn-primary"
+                      style={{ alignSelf: 'flex-start' }}
+                      disabled={marinaSaving}
+                      onClick={saveMarinaProfile}
+                    >
+                      {marinaSaving ? 'Saving…' : 'Save Changes'}
+                    </button>
                   </>
                 )}
               </div>
@@ -1554,20 +1622,23 @@ export default function Settings() {
                   <div style={{ color: 'rgba(0,0,0,0.35)', fontSize: 12, padding: '8px 0' }}>Loading…</div>
                 ) : (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <FieldRow label="Total Berths">
-                        <input type="number" value={fm('total_berths')} onChange={e => setM('total_berths', e.target.value)} />
-                      </FieldRow>
-                      <FieldRow label="Dry Storage Slots">
-                        <input type="number" value={fm('dry_storage_slots')} onChange={e => setM('dry_storage_slots', e.target.value)} />
-                      </FieldRow>
+                    {/*
+                      Total Berths is auto-derived from slips created in the
+                      Marina Map module — it's not user-editable here. Dry
+                      Storage Slots lives in Harbor Infrastructure / Boatyard.
+                      Max Vessel LOA / Max Draft removed as unnecessary.
+                    */}
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '7px 0', borderBottom: 'var(--border)', fontSize: 13,
+                    }}>
+                      <span style={{ color: 'rgba(0,0,0,0.55)' }}>Total Berths</span>
+                      <span style={{ fontWeight: 600 }}>{marina?.total_berths ?? '—'}</span>
                     </div>
-                    <FieldRow label="Max Vessel LOA" hint="Metres">
-                      <input type="text" value={fm('max_loa')} onChange={e => setM('max_loa', e.target.value)} placeholder="e.g. 30" />
-                    </FieldRow>
-                    <FieldRow label="Max Draft" hint="Metres">
-                      <input type="text" value={fm('max_draft')} onChange={e => setM('max_draft', e.target.value)} placeholder="e.g. 4.5" />
-                    </FieldRow>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', lineHeight: 1.5 }}>
+                      Berth count is calculated automatically from the slips you've
+                      created. Add or remove slips in Marina Map to change this number.
+                    </div>
                   </>
                 )}
               </div>
@@ -2082,29 +2153,11 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Data & Backup — Coming Soon */}
-            <div className="card">
-              <div className="card-header"><div className="card-header-title">Data & Backup</div></div>
-              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <ComingSoonBanner />
-                <div style={{ opacity: 0.5, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {[
-                    ['Last backup',       '—',    null],
-                    ['Backup retention',  '—',    null],
-                    ['Database size',     '—',    null],
-                  ].map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: 'var(--border)', fontSize: 12 }}>
-                      <span style={{ color: 'rgba(0,0,0,0.45)' }}>{k}</span>
-                      <span style={{ fontWeight: 600 }}>{v}</span>
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <button className="btn btn-ghost btn-sm" disabled>Export All Data</button>
-                    <button className="btn btn-ghost btn-sm" disabled>Point-in-time Restore</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/*
+              Data & Backup card removed — moved entirely to the dedicated
+              Settings → Data tab (DataTab.jsx), which exposes real export
+              requests, history, and the Pro-plan placeholders.
+            */}
 
             {/* API Access — owner only */}
             {isOwner && (
@@ -2121,7 +2174,9 @@ export default function Settings() {
       )}
 
       {/* ── DATA ─────────────────────────────────────────────────────── */}
-      {tab === 'data' && <DataTab />}
+      {tab === 'data' && (
+        <DataTab plan={marina?.plan} onUpgrade={() => setTab('billing')} />
+      )}
 
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (
@@ -2194,7 +2249,11 @@ export default function Settings() {
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
-                Connect MarineTraffic to show live vessel positions on the harbor map. Your account is billed directly by MarineTraffic.{' '}
+                AIS vessel tracking is powered by <strong>MarineTraffic</strong>. With a key
+                connected, live vessel positions appear on the Marina Map and arrivals can be
+                auto-matched to bookings. Without a key the map still works — only the live
+                AIS overlay is hidden. Sign up at marinetraffic.com, purchase an AIS API plan,
+                and paste the key below. Your account is billed directly by MarineTraffic.{' '}
                 <a href="https://www.marinetraffic.com/en/ais-api-services" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
                   Get an API key →
                 </a>
@@ -2253,7 +2312,10 @@ export default function Settings() {
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', lineHeight: 1.6 }}>
-                Show live local weather on the dashboard, using your marina's lat/lng from Marina Profile.{' '}
+                <strong>This key is optional.</strong> Weather already works automatically on the
+                dashboard — DocksBase uses the free Open-Meteo service as a fallback when no key
+                is set (see <code>useWeather.js</code>). Add an OpenWeatherMap key only if you
+                want richer forecasts and higher rate limits on a busy account.{' '}
                 <a href="https://openweathermap.org/api" target="_blank" rel="noreferrer" style={{ color: 'var(--navy)' }}>
                   Get a free API key →
                 </a>
@@ -2452,6 +2514,9 @@ export default function Settings() {
 
       {/* ── API Docs modal ─────────────────────────────────────────────── */}
       {docsModalOpen && <ApiDocsModal onClose={() => setDocsModalOpen(false)} />}
+
+      {/* Global save toast — fires from every Settings card's save handler */}
+      <SettingsToast toast={toastState} onDone={() => setToastState(null)} />
     </div>
   );
 }
