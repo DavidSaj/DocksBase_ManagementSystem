@@ -579,7 +579,7 @@ function KebabMenu({ items }) {
 
 // ── OTA Connections card ───────────────────────────────────────────────────
 
-function OTAConnectionsCard() {
+function OTAConnectionsCard({ toast }) {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null); // { name: '', inbound_ical_url: '' } | null
@@ -587,7 +587,10 @@ function OTAConnectionsCard() {
   const [syncing, setSyncing] = useState(null); // connection id being synced
   const [removing, setRemoving] = useState(null); // connection id being removed
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);     // { id, inbound_ical_url } | null
+  // Edit form state. Outbound URL is auto-generated server-side from
+  // `outbound_token` (see backend OTAConnection model) and is read-only —
+  // only the inbound iCal URL is user-editable.
+  const [editing, setEditing] = useState(null);     // { id, inbound_ical_url, outbound_url } | null
   const [syncErrors, setSyncErrors] = useState({}); // { [id]: string }
   const [copied, setCopied] = useState(null);       // id whose URL was just copied
 
@@ -606,8 +609,11 @@ function OTAConnectionsCard() {
       const { data } = await api.post('/ota-connections/', form);
       setConnections(prev => [...prev, data]);
       setForm(null);
-    } catch {
-      setError('Failed to add connection.');
+      toast?.('OTA connection added.');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to add connection.';
+      setError(msg);
+      toast?.(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -620,8 +626,11 @@ function OTAConnectionsCard() {
     try {
       await api.delete(`/ota-connections/${id}/`);
       setConnections(prev => prev.filter(c => c.id !== id));
-    } catch {
-      setError('Failed to remove connection.');
+      toast?.('OTA connection removed.');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to remove connection.';
+      setError(msg);
+      toast?.(msg, 'error');
     } finally {
       setRemoving(null);
     }
@@ -646,13 +655,21 @@ function OTAConnectionsCard() {
   async function saveEdit() {
     if (!editing) return;
     try {
+      // Only `inbound_ical_url` is user-editable. The outbound URL is derived
+      // from `outbound_token` on the server (see backend OTAConnectionSerializer
+      // — outbound_token is read_only), so we don't send it in the PATCH.
       const { data } = await api.patch(`/ota-connections/${editing.id}/`, {
         inbound_ical_url: editing.inbound_ical_url,
       });
       setConnections(prev => prev.map(c => c.id === editing.id ? data : c));
       setEditing(null);
-    } catch {
-      alert('Failed to update URL.');
+      toast?.('Inbound iCal URL updated.');
+    } catch (err) {
+      const msg = err?.response?.data?.inbound_ical_url?.[0]
+               || err?.response?.data?.detail
+               || 'Failed to update URL.';
+      setError(msg);
+      toast?.(msg, 'error');
     }
   }
 
@@ -690,16 +707,37 @@ function OTAConnectionsCard() {
         const isCopied  = copied === conn.id;
 
         if (isEditing) {
+          const outboundUrl = `${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`;
           return (
-            <div key={conn.id} style={{ padding: '12px 14px', background: 'var(--bg)', border: 'var(--border)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div key={conn.id} style={{ padding: '12px 14px', background: 'var(--bg)', border: 'var(--border)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>{conn.name}</div>
-              <input
-                type="url"
-                placeholder="Inbound iCal URL"
-                value={editing.inbound_ical_url}
-                onChange={e => setEditing(s => ({ ...s, inbound_ical_url: e.target.value }))}
-                style={{ fontSize: 13, width: '100%' }}
-              />
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.55)' }}>
+                  Inbound iCal URL <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>— bookings FROM the OTA</span>
+                </span>
+                <input
+                  type="url"
+                  placeholder="https://…"
+                  value={editing.inbound_ical_url}
+                  onChange={e => setEditing(s => ({ ...s, inbound_ical_url: e.target.value }))}
+                  style={{ fontSize: 13, width: '100%' }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.55)' }}>
+                  Outbound iCal URL <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>— availability TO the OTA (read-only, auto-generated)</span>
+                </span>
+                <input
+                  type="url"
+                  readOnly
+                  value={outboundUrl}
+                  style={{ fontSize: 13, width: '100%', background: 'rgba(0,0,0,0.04)', color: 'rgba(0,0,0,0.55)' }}
+                  onFocus={e => e.target.select()}
+                />
+              </label>
+
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>Cancel</button>
                 <button className="btn btn-primary btn-sm" onClick={saveEdit}>Save</button>
@@ -2134,7 +2172,7 @@ export default function Settings() {
                 <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Channel distribution partners</div>
               </div>
               <div className="card-body">
-                <OTAConnectionsCard />
+                <OTAConnectionsCard toast={toast} />
               </div>
             </div>
 

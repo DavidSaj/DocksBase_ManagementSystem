@@ -1,8 +1,44 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext, createContext } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
+
+// ── Toast plumbing ─────────────────────────────────────────────────────────
+// Mirrors the SettingsToast pattern from Settings.jsx so save handlers across
+// every Communications tab surface success/error feedback consistently.
+
+const ToastCtx = createContext(() => {});
+function useToast() { return useContext(ToastCtx); }
+
+function CommsToast({ toast, onDone }) {
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, [toast, onDone]);
+  if (!toast) return null;
+  const isErr = toast.type === 'error';
+  return (
+    <div style={{
+      position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+      background: isErr ? '#fee2e2' : '#d1fae5',
+      color: isErr ? '#991b1b' : '#065f46',
+      borderRadius: 8, padding: '12px 20px',
+      fontSize: 13, fontWeight: 500, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+      maxWidth: 360,
+    }}>
+      {toast.message}
+    </div>
+  );
+}
+
+function errMessage(e, fallback) {
+  return e?.response?.data?.detail
+      || (typeof e?.response?.data === 'string' ? e.response.data : null)
+      || e?.message
+      || fallback;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -68,6 +104,7 @@ function fmtDate(dt) {
 // ── Tab: Templates ─────────────────────────────────────────────────────────
 
 function TemplatesTab() {
+  const toast = useToast();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
@@ -77,8 +114,10 @@ function TemplatesTab() {
   useEffect(() => {
     api.get('/communications/message-templates/')
       .then(r => setTemplates(r.data.results ?? r.data))
-      .catch(() => {})
+      .catch(e => toast(errMessage(e, 'Could not load templates.'), 'error'))
       .finally(() => setLoading(false));
+  // toast identity is stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate(e) {
@@ -89,8 +128,9 @@ function TemplatesTab() {
       setTemplates(prev => [data, ...prev]);
       setShowForm(false);
       setForm({ name: '', channel: 'email', subject: '', body: '' });
-    } catch {
-      // surface error in real app
+      toast('Template saved.');
+    } catch (err) {
+      toast(errMessage(err, 'Could not save template.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -220,6 +260,7 @@ const TRIGGER_LABELS = {
 };
 
 function JourneyStepsPanel({ journeyId, onClose }) {
+  const toast = useToast();
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -227,8 +268,9 @@ function JourneyStepsPanel({ journeyId, onClose }) {
     if (!journeyId) return;
     api.get(`/communications/journeys/${journeyId}/steps/`)
       .then(r => setSteps(r.data.results ?? r.data))
-      .catch(() => {})
+      .catch(e => toast(errMessage(e, 'Could not load journey steps.'), 'error'))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journeyId]);
 
   return (
@@ -300,6 +342,7 @@ function JourneyStepsPanel({ journeyId, onClose }) {
 }
 
 function JourneysTab() {
+  const toast = useToast();
   const [journeys, setJourneys]         = useState([]);
   const [loading, setLoading]           = useState(true);
   const [selectedId, setSelectedId]     = useState(null);
@@ -311,8 +354,9 @@ function JourneysTab() {
   useEffect(() => {
     api.get('/communications/journeys/')
       .then(r => setJourneys(r.data.results ?? r.data))
-      .catch(() => {})
+      .catch(e => toast(errMessage(e, 'Could not load journeys.'), 'error'))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate(e) {
@@ -323,7 +367,9 @@ function JourneysTab() {
       setJourneys(prev => [data, ...prev]);
       setShowForm(false);
       setForm({ name: '', description: '', trigger_event: 'booking_confirmed' });
-    } catch {
+      toast('Journey created.');
+    } catch (err) {
+      toast(errMessage(err, 'Could not create journey.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -339,7 +385,9 @@ function JourneysTab() {
       // Backend returns {status: 'activated'/'deactivated'} — derive is_active from endpoint used
       const nowActive = !journey.is_active;
       setJourneys(prev => prev.map(j => j.id === journey.id ? { ...j, is_active: nowActive } : j));
-    } catch {
+      toast(nowActive ? 'Journey activated.' : 'Journey deactivated.');
+    } catch (err) {
+      toast(errMessage(err, 'Could not toggle journey.'), 'error');
     } finally {
       setToggling(null);
     }
@@ -474,6 +522,7 @@ function JourneysTab() {
 // ── Tab: Segments ──────────────────────────────────────────────────────────
 
 function SegmentsTab() {
+  const toast = useToast();
   const [segments, setSegments] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -484,8 +533,9 @@ function SegmentsTab() {
   useEffect(() => {
     api.get('/segments/')
       .then(r => setSegments(r.data.results ?? r.data))
-      .catch(() => {})
+      .catch(e => toast(errMessage(e, 'Could not load segments.'), 'error'))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function validateJson(val) {
@@ -502,7 +552,9 @@ function SegmentsTab() {
       setSegments(prev => [data, ...prev]);
       setShowForm(false);
       setForm({ name: '', description: '', filter_params: '{}' });
-    } catch {
+      toast('Segment created.');
+    } catch (err) {
+      toast(errMessage(err, 'Could not create segment.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -610,6 +662,7 @@ function SegmentsTab() {
 const DIRECTION_LABELS = { outbound: 'Outbound', inbound: 'Inbound' };
 
 function DeliveryLogTab() {
+  const toast = useToast();
   const [sends, setSends]             = useState([]);
   const [loading, setLoading]         = useState(true);
   const [channelFilter, setChannelFilter] = useState('');
@@ -629,8 +682,9 @@ function DeliveryLogTab() {
         setSends(data.results ?? data);
         setTotalCount(data.count ?? (data.results ?? data).length);
       })
-      .catch(() => {})
+      .catch(e => toast(errMessage(e, 'Could not load delivery log.'), 'error'))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelFilter, statusFilter, page]);
 
   useEffect(() => { fetchSends(); }, [fetchSends]);
@@ -786,6 +840,7 @@ function DeliveryLogTab() {
 // ── Broadcasts Tab ────────────────────────────────────────────────────────
 
 function BroadcastsTab() {
+  const toast = useToast();
   const [view, setView] = useState('list'); // list | compose | detail
   const [selected, setSelected] = useState(null);
   const [items, setItems] = useState([]);
@@ -796,9 +851,12 @@ function BroadcastsTab() {
     try {
       const r = await api.get('/communications/broadcasts/');
       setItems(Array.isArray(r.data) ? r.data : (r.data.results || []));
+    } catch (e) {
+      toast(errMessage(e, 'Could not load broadcasts.'), 'error');
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -1131,33 +1189,43 @@ const TABS = [
 
 export default function Communications() {
   const [activeTab, setActiveTab] = useState('templates');
+  // Global save toast shared with every tab via ToastCtx, mirrors Settings.jsx.
+  const [toastState, setToastState] = useState(null);
+  const toast = useCallback((message, type = 'success') => {
+    setToastState({ message, type });
+  }, []);
 
   return (
-    <div>
-      <PageHeader
-        title="Communications"
-        subtitle="Email templates, automated journeys, segments, and broadcasts for boaters."
-        infoBody={SCREEN_INFO.communications}
-      />
+    <ToastCtx.Provider value={toast}>
+      <div>
+        <PageHeader
+          title="Communications"
+          subtitle="Email templates, automated journeys, segments, and broadcasts for boaters."
+          infoBody={SCREEN_INFO.communications}
+        />
 
-      <div className="tabs">
-        {TABS.map(tab => (
-          <div
-            key={tab.id}
-            className={`tab${activeTab === tab.id ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </div>
-        ))}
+        <div className="tabs">
+          {TABS.map(tab => (
+            <div
+              key={tab.id}
+              className={`tab${activeTab === tab.id ? ' active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </div>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {activeTab === 'templates'    && <TemplatesTab />}
+        {activeTab === 'journeys'     && <JourneysTab />}
+        {activeTab === 'segments'     && <SegmentsTab />}
+        {activeTab === 'broadcasts'   && <BroadcastsTab />}
+        {activeTab === 'delivery-log' && <DeliveryLogTab />}
+
+        {/* Save/error feedback for every tab's handlers */}
+        <CommsToast toast={toastState} onDone={() => setToastState(null)} />
       </div>
-
-      {/* Tab content */}
-      {activeTab === 'templates'    && <TemplatesTab />}
-      {activeTab === 'journeys'     && <JourneysTab />}
-      {activeTab === 'segments'     && <SegmentsTab />}
-      {activeTab === 'broadcasts'   && <BroadcastsTab />}
-      {activeTab === 'delivery-log' && <DeliveryLogTab />}
-    </div>
+    </ToastCtx.Provider>
   );
 }
