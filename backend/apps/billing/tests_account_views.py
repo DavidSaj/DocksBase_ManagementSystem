@@ -82,6 +82,25 @@ class AccountListViewTest(TestCase):
         resp = self.client.get('/api/v1/billing/accounts/')
         self.assertEqual(resp.status_code, 401)
 
+    def test_show_all_lists_members_without_invoices(self):
+        """Regression: members with no invoices were invisible in the Billing UI
+        because the front-end didn't surface the show_all toggle. The endpoint
+        must still return them when show_all=true so the UI fallback works."""
+        make_member(self.marina, 'NoInvoices', 'noinv@test.com')
+        resp = self.client.get('/api/v1/billing/accounts/', {'show_all': 'true'})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertIn('results', body)
+        names = [r['name'] for r in body['results']]
+        self.assertIn('NoInvoices', names)
+
+    def test_show_all_default_false_hides_settled(self):
+        """Confirms current default behaviour so the UI knows to offer Show All."""
+        make_member(self.marina, 'Settled', 'settled@test.com')
+        resp = self.client.get('/api/v1/billing/accounts/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['results'], [])
+
 
 class AccountDetailViewTest(TestCase):
     def setUp(self):

@@ -449,6 +449,20 @@ export default function Members({ setScreen }) {
                   type="button"
                   className="btn btn-ghost"
                   style={{ justifyContent: 'center' }}
+                  onClick={() => {
+                    if (!sel?.id) return;
+                    localStorage.setItem('documents_pending_recipient', String(sel.id));
+                    setScreen?.('documents');
+                  }}
+                  disabled={!sel?.email}
+                  title={sel?.email ? 'Upload a document and send it to this member for e-signature' : 'Member has no email address'}
+                >
+                  Upload &amp; send for signature
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ justifyContent: 'center' }}
                   onClick={handleSendPortalLink}
                   disabled={linkSending || !sel?.email}
                   title={sel?.email ? undefined : 'Member has no email address'}

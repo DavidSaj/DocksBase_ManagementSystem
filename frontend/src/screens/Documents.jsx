@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useDocTemplates from '../hooks/useDocTemplates.js';
 import useEnvelopes from '../hooks/useEnvelopes.js';
 import useMembers from '../hooks/useMembers.js';
@@ -6,7 +6,7 @@ import Ic from '../components/ui/Icon.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
-function UploadTemplateModal({ onClose, onUpload }) {
+function UploadTemplateModal({ onClose, onUpload, onUploaded }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('other');
   const [file, setFile] = useState(null);
@@ -23,7 +23,8 @@ function UploadTemplateModal({ onClose, onUpload }) {
       fd.append('name', name);
       fd.append('category', category);
       fd.append('file', file);
-      await onUpload(fd);
+      const created = await onUpload(fd);
+      onUploaded?.(created);
       onClose();
     } catch (ex) {
       setErr(ex?.response?.data?.detail ?? ex?.message ?? 'Upload failed');
@@ -66,8 +67,8 @@ function UploadTemplateModal({ onClose, onUpload }) {
   );
 }
 
-function SendEnvelopeModal({ template, members, onClose, onSend }) {
-  const [recipientId, setRecipientId] = useState('');
+function SendEnvelopeModal({ template, members, onClose, onSend, defaultRecipient = '' }) {
+  const [recipientId, setRecipientId] = useState(defaultRecipient);
   const [expiresAt, setExpiresAt] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -121,6 +122,155 @@ const stMap = {
   expired:   'badge-red',
 };
 
+function MassSendTab({ templates, members, sendEnvelope }) {
+  const [templateId, setTemplateId] = useState('');
+  const [memberIds, setMemberIds] = useState(() => new Set());
+  const [expiresAt, setExpiresAt] = useState('');
+  const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState({ ok: 0, fail: 0, total: 0 });
+  const [errors, setErrors] = useState([]);
+  const [done, setDone] = useState(false);
+
+  const eligibleMembers = members.filter(m => m.email);
+
+  function toggleAll() {
+    if (memberIds.size === eligibleMembers.length) setMemberIds(new Set());
+    else setMemberIds(new Set(eligibleMembers.map(m => m.id)));
+  }
+
+  function toggleOne(id) {
+    setMemberIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSend() {
+    if (!templateId || memberIds.size === 0) return;
+    const ids = [...memberIds];
+    setSending(true);
+    setDone(false);
+    setErrors([]);
+    setProgress({ ok: 0, fail: 0, total: ids.length });
+    let ok = 0, fail = 0;
+    const failed = [];
+    for (const id of ids) {
+      try {
+        await sendEnvelope({
+          template: Number(templateId),
+          recipient: id,
+          expires_at: expiresAt || null,
+        });
+        ok += 1;
+      } catch (e) {
+        fail += 1;
+        const member = members.find(m => m.id === id);
+        failed.push(`${member?.name || `Member #${id}`}: ${e?.response?.data?.detail || e.message || 'Send failed'}`);
+      }
+      setProgress({ ok, fail, total: ids.length });
+    }
+    setErrors(failed);
+    setSending(false);
+    setDone(true);
+  }
+
+  if (templates.length === 0) {
+    return (
+      <div className="card" style={{ padding: 24, maxWidth: 560 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Mass Send</div>
+        <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.5 }}>
+          No e-sign-ready templates yet. Upload a template in the Templates tab
+          and finish its provider setup before using mass send.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ padding: 24, maxWidth: 720 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Mass Send</div>
+      <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,0.5)', marginBottom: 18, lineHeight: 1.5 }}>
+        Send the same e-sign envelope to multiple members at once. Each member
+        receives their own envelope via the e-sign provider — emails go out
+        using the marina&apos;s configured email settings.
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Template</label>
+          <select value={templateId} onChange={e => setTemplateId(e.target.value)} disabled={sending}>
+            <option value="">Select template…</option>
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Expiry Date (optional)</label>
+          <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} disabled={sending} />
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Recipients ({memberIds.size}/{eligibleMembers.length})
+            </label>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={toggleAll} disabled={sending}>
+              {memberIds.size === eligibleMembers.length && eligibleMembers.length > 0 ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          <div style={{ maxHeight: 240, overflowY: 'auto', border: 'var(--border)', borderRadius: 6 }}>
+            {eligibleMembers.length === 0 ? (
+              <div style={{ padding: 14, fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>No members with an email address on file.</div>
+            ) : eligibleMembers.map(m => (
+              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', fontSize: 12, cursor: 'pointer', borderBottom: 'var(--border)' }}>
+                <input
+                  type="checkbox"
+                  checked={memberIds.has(m.id)}
+                  onChange={() => toggleOne(m.id)}
+                  disabled={sending}
+                />
+                <span style={{ flex: 1 }}>{m.name}</span>
+                <span style={{ color: 'rgba(0,0,0,0.4)' }}>{m.email}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {sending && (
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+            Sending… {progress.ok + progress.fail}/{progress.total}
+          </div>
+        )}
+        {done && (
+          <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: progress.fail === 0 ? '#ecfdf5' : '#fff5f5', border: `1px solid ${progress.fail === 0 ? '#a7f3d0' : 'rgba(220,38,38,0.25)'}`, color: progress.fail === 0 ? '#065f46' : 'var(--red)' }}>
+            <div style={{ fontWeight: 600 }}>
+              Sent {progress.ok} of {progress.total}{progress.fail > 0 ? ` · ${progress.fail} failed` : ''}.
+            </div>
+            {errors.length > 0 && (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSend}
+            disabled={sending || !templateId || memberIds.size === 0}
+          >
+            {sending ? 'Sending…' : `Send to ${memberIds.size} member${memberIds.size === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Documents({ setScreen }) {
   const { templates, loading: tplLoading, uploadTemplate, clearWaiver } = useDocTemplates();
   const { envelopes, loading: envLoading, sendEnvelope, getDownloadUrl } = useEnvelopes();
@@ -131,6 +281,19 @@ export default function Documents({ setScreen }) {
   const [showUpload, setShowUpload] = useState(false);
   const [sendingTemplate, setSendingTemplate] = useState(null);
   const [waiverBusy, setWaiverBusy] = useState(null);
+  const [presetRecipient, setPresetRecipient] = useState(null);
+
+  // Cross-screen handoff: Members screen sets `documents_pending_recipient`
+  // before navigating here — auto-open the Upload modal so the user can
+  // upload + send in one flow.
+  useEffect(() => {
+    const recip = localStorage.getItem('documents_pending_recipient');
+    if (!recip) return;
+    localStorage.removeItem('documents_pending_recipient');
+    setPresetRecipient(recip);
+    setTab('templates');
+    setShowUpload(true);
+  }, []);
 
   const filteredEnv = envFilter === 'all' ? envelopes : envelopes.filter(e => e.status === envFilter);
 
@@ -155,14 +318,23 @@ export default function Documents({ setScreen }) {
         <UploadTemplateModal
           onClose={() => setShowUpload(false)}
           onUpload={uploadTemplate}
+          onUploaded={(tpl) => {
+            // If we arrived here via the Member detail "Upload & send" flow,
+            // chain straight into the SendEnvelope modal with the recipient
+            // pre-selected. Only safe if the template is provider-ready.
+            if (presetRecipient && tpl?.dropboxsign_template_id) {
+              setSendingTemplate(tpl);
+            }
+          }}
         />
       )}
       {sendingTemplate && (
         <SendEnvelopeModal
           template={sendingTemplate}
           members={members}
-          onClose={() => setSendingTemplate(null)}
+          onClose={() => { setSendingTemplate(null); setPresetRecipient(null); }}
           onSend={sendEnvelope}
+          defaultRecipient={presetRecipient ?? ''}
         />
       )}
 
@@ -316,12 +488,11 @@ export default function Documents({ setScreen }) {
       )}
 
       {tab === 'masssend' && (
-        <div className="card" style={{ padding: 24, maxWidth: 500 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Mass Send</div>
-          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
-            Mass send requires email/SMS infrastructure. Scheduled for Phase 3.
-          </div>
-        </div>
+        <MassSendTab
+          templates={templates.filter(t => t.dropboxsign_template_id)}
+          members={members}
+          sendEnvelope={sendEnvelope}
+        />
       )}
     </div>
   );

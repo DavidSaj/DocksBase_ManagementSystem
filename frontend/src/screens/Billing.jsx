@@ -862,7 +862,29 @@ export default function Billing() {
                 {acctLoading ? (
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
                 ) : accounts.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No outstanding balances.</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.45)', padding: '32px 16px', fontSize: 12 }}>
+                    {acctShowAll ? (
+                      <>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>No boater accounts yet.</div>
+                        <div style={{ color: 'rgba(0,0,0,0.4)' }}>Add members in the Members screen to see their accounts here.</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>No outstanding balances.</div>
+                        <div style={{ color: 'rgba(0,0,0,0.4)' }}>
+                          By default this list only shows members who owe money.{' '}
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '0 4px', fontSize: 12, height: 'auto', display: 'inline' }}
+                            onClick={() => setAcctShowAll(true)}
+                          >
+                            Show all boater accounts →
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </td></tr>
                 ) : [...accounts].sort((a, b) => {
                   if (!a.oldest_due_date) return 1;
                   if (!b.oldest_due_date) return -1;

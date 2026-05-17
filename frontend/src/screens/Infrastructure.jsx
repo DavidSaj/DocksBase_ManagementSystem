@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import useLogicalPiers from '../hooks/useLogicalPiers.js';
 import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import MapBuilder from '../components/harbor-map/MapBuilder.jsx';
+import DryStorageSetup from '../components/boatyard/DryStorageSetup.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
@@ -636,9 +637,10 @@ function LogicalPiersTable() {
 }
 
 const TABS = [
-  ['berths', 'Berths'],
-  ['piers',  'Piers'],
-  ['map',    'Map Editor'],
+  ['berths',     'Berths'],
+  ['piers',      'Piers'],
+  ['dry',        'Dry Storage'],
+  ['map',        'Map Editor'],
 ];
 
 export default function Infrastructure() {
@@ -659,6 +661,11 @@ export default function Infrastructure() {
 
       {tab === 'berths' && <BerthsTable />}
       {tab === 'piers'  && <LogicalPiersTable />}
+      {tab === 'dry'    && (
+        <div style={{ maxWidth: 720 }}>
+          <DryStorageSetup />
+        </div>
+      )}
       {tab === 'map'    && (
         <div style={{ flex: 1, minHeight: 0 }}>
           <MapBuilder />
