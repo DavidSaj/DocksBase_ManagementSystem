@@ -263,6 +263,61 @@ class SignalReceiverTest(TestCase):
         billing_service.mark_paid_manual(inv, 'cash')
         booking.refresh_from_db()
         self.assertEqual(booking.status, 'awaiting_payment')
+        self.assertFalse(booking.paid)
+
+    def test_offline_payment_flips_booking_paid_via_signal(self):
+        """mark_paid_manual on a berth-booking invoice sets Booking.paid=True.
+
+        This is the audit's single-source-of-truth invariant: Booking.paid is
+        derived from the linked Invoice, never written directly.
+        """
+        booking = Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 6, 1),
+            check_out=datetime.date(2026, 6, 4),
+            status='awaiting_payment',
+            paid=False,
+        )
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id=str(booking.id),
+        )
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('150.00'))
+        billing_service.finalize_invoice(inv)
+        billing_service.mark_paid_manual(
+            inv, 'bank_transfer', notes='Wire ref #42', send_receipt=False,
+        )
+        booking.refresh_from_db()
+        self.assertTrue(booking.paid)
+        self.assertEqual(booking.status, 'confirmed')
+        # Payment row persisted with notes + method.
+        payment = inv.payments.get()
+        self.assertEqual(payment.method, 'bank_transfer')
+        self.assertEqual(payment.notes, 'Wire ref #42')
+
+    def test_offline_payment_via_booking_fk_flips_paid(self):
+        """Direct Invoice.booking FK linkage also triggers Booking.paid=True."""
+        booking = Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 7, 1),
+            check_out=datetime.date(2026, 7, 4),
+            status='awaiting_payment',
+            paid=False,
+        )
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='', source_id='',
+        )
+        inv.booking = booking
+        inv.save(update_fields=['booking'])
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('150.00'))
+        billing_service.finalize_invoice(inv)
+        billing_service.mark_paid_manual(inv, 'cheque', send_receipt=False)
+        booking.refresh_from_db()
+        self.assertTrue(booking.paid)
+        self.assertEqual(booking.status, 'confirmed')
 
 
 import json
@@ -457,6 +512,22 @@ class BillingAPITest(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'paid')
+
+    def test_mark_paid_requires_billing_role(self):
+        """Authenticated boaters must NOT be able to mark invoices paid."""
+        inv = billing_service.create_invoice(self.marina, source_type='restaurant_order', source_id='52')
+        billing_service.add_line_item(inv, 'Salad', Decimal('1'), Decimal('9.00'))
+        billing_service.finalize_invoice(inv)
+        boater = User.objects.create_user(
+            email='boater@test.com', password='pass', marina=self.marina, role='boater',
+        )
+        client = APIClient()
+        client.force_authenticate(user=boater)
+        resp = client.patch(
+            f'/api/v1/billing/invoices/{inv.id}/mark-paid/',
+            {'method': 'cash'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 403)
 
     def test_mark_paid_invalid_method_returns_400(self):
         inv = billing_service.create_invoice(self.marina, source_type='restaurant_order', source_id='51')

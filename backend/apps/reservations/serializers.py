@@ -7,6 +7,8 @@ class BookingSerializer(serializers.ModelSerializer):
     vessel_name = serializers.CharField(source='vessel.name', read_only=True, default=None)
     berth_code  = serializers.CharField(source='berth.code',  read_only=True, default=None)
     owner_name  = serializers.CharField(source='vessel.owner.name', read_only=True, default=None)
+    invoice_id     = serializers.SerializerMethodField()
+    invoice_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -16,12 +18,42 @@ class BookingSerializer(serializers.ModelSerializer):
             'status', 'paid', 'notes',
             'guest_name', 'guest_email', 'guest_phone',
             'boat_loa', 'boat_beam', 'boat_draft',
+            'invoice_id', 'invoice_status',
             'created_at',
         ]
         read_only_fields = [
             'id', 'vessel_name', 'berth_code', 'owner_name',
-            'nights', 'amount', 'created_at',
+            'nights', 'amount', 'paid',  # paid is now derived from invoice payment
+            'invoice_id', 'invoice_status', 'created_at',
         ]
+
+    def _latest_invoice(self, obj):
+        # Prefer the direct FK link; fall back to source_type lookup.
+        cached = getattr(obj, '_latest_invoice', None)
+        if cached is not None:
+            return cached or None
+        try:
+            inv = obj.invoices.order_by('-created_at').first()
+        except Exception:
+            inv = None
+        if inv is None:
+            from apps.billing.models import Invoice
+            inv = (
+                Invoice.objects
+                .filter(source_type='berth_booking', source_id=str(obj.pk))
+                .order_by('-created_at')
+                .first()
+            )
+        obj._latest_invoice = inv or False
+        return inv
+
+    def get_invoice_id(self, obj):
+        inv = self._latest_invoice(obj)
+        return inv.pk if inv else None
+
+    def get_invoice_status(self, obj):
+        inv = self._latest_invoice(obj)
+        return inv.status if inv else None
 
 
 class BookingEngineRequestSerializer(serializers.Serializer):

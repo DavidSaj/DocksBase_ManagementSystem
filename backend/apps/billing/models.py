@@ -141,11 +141,14 @@ class Payment(models.Model):
     METHOD_CHOICES = [
         ('cash', 'Cash'),
         ('external_card', 'External Card'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('cheque', 'Cheque'),
     ]
 
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')
     method = models.CharField(max_length=20, choices=METHOD_CHOICES)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    notes = models.CharField(max_length=500, blank=True, default='')
     recorded_by = models.ForeignKey(
         'staff.StaffMember', on_delete=models.SET_NULL, null=True, blank=True
     )

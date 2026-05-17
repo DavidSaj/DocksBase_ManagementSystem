@@ -38,6 +38,9 @@ def on_invoice_created(sender, instance, created, **kwargs):
 
 def on_invoice_paid_notify(sender, invoice, **kwargs):
     """Receiver for the ``invoice_paid`` custom signal in apps/billing/signals.py."""
+    # Allow the caller (e.g. offline-payment flow) to suppress receipt email.
+    if kwargs.get('send_receipt', True) is False:
+        return
     if not rule_enabled(invoice.marina, 'payment_received', 'email'):
         return
     transaction.on_commit(lambda: send_payment_received_email(invoice))
