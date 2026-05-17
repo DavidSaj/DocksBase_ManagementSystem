@@ -95,6 +95,7 @@ MIDDLEWARE = [
     'csp.middleware.CSPMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'apps.accounts.middleware.TenantMiddleware',
+    'apps.accounts.middleware.BillingGateMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -349,6 +350,11 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.billing.tasks.sweep_pending_utility_charges',
         'schedule': crontab(hour=2, minute=30),          # nightly 02:30 UTC
     },
+    # ── Platform billing gates (Feature A) ────────────────────────────────────
+    'advance-billing-states': {
+        'task': 'billing.advance_billing_states',
+        'schedule': 3600,                                # hourly
+    },
     # ── Reservations ─────────────────────────────────────────────────────────
     'send-overstay-alerts': {
         'task': 'reservations.send_overstay_alerts',
@@ -427,3 +433,9 @@ CONTENT_SECURITY_POLICY = {
         'connect-src': ("'self'", "https://api.stripe.com", "https://api.resend.com"),
     }
 }
+
+# ── Platform billing gates (Feature A) ───────────────────────────────────────
+# Master kill-switch. When False, BillingGateMiddleware short-circuits and no
+# requests are blocked by billing_state. Data model + audit still recorded.
+# Spec ref: docs/superpowers/specs/2026-05-17-billing-gates-design.md (Rollback)
+BILLING_GATE_ENABLED = True

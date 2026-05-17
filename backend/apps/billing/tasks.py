@@ -179,3 +179,19 @@ def sweep_pending_utility_charges(self, marina_id=None, dry_run=False):
         'invoices_appended': result.invoices_appended,
         'marinas': result.marinas,
     }
+
+
+# ---------------------------------------------------------------------------
+# Task: advance_billing_states (hourly)
+# ---------------------------------------------------------------------------
+@shared_task(bind=True, name='billing.advance_billing_states')
+def advance_billing_states(self):
+    """
+    Hourly tick that advances the platform billing-gate state machine.
+
+    Spec ref: docs/superpowers/specs/2026-05-17-billing-gates-design.md §A.6
+    """
+    from apps.billing.gates import advance_billing_states as _impl
+    results = _impl()
+    logger.info('advance_billing_states: %s', results)
+    return results

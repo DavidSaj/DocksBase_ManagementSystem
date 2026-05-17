@@ -675,3 +675,164 @@ class AdminGroupSetAdminView(APIView):
             'invited': invited,
             'setup_link': setup_link,
         })
+
+
+# ── Platform billing gates (Feature A + B) ──────────────────────────────────
+# Spec ref: docs/superpowers/specs/2026-05-17-billing-gates-design.md
+
+from rest_framework.permissions import BasePermission as _BasePermission
+from .models import BillingStateChange as _BillingStateChange
+from .serializers import (
+    MarinaManualContractSerializer as _MCS,
+    BillingStateChangeSerializer as _BSCS,
+)
+
+
+class IsPlatformAdminFull(_BasePermission):
+    """Like IsPlatformAdmin but rejects platform_role='support' for
+    commercial actions (manual contract flag, override grants)."""
+    def has_permission(self, request, view):
+        u = request.user
+        return bool(
+            u and u.is_authenticated and u.is_platform_admin
+            and getattr(u, 'platform_role', '') != 'support'
+        )
+
+
+class AdminMarinaSetManualContractView(APIView):
+    """
+    POST /api/admin_portal/marinas/<pk>/manual-contract/
+
+    Body matches MarinaManualContractSerializer. On `manual_contract=True`,
+    atomically cancels any live Stripe subscription at period-end (TRAP 2).
+    On `manual_contract=False`, places the marina into a 7-day transition
+    grace window (locked decision B.3).
+    """
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        ser = _MCS(marina, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        # Pull out the flag itself; the rest are contract metadata fields.
+        target_flag = data.pop('manual_contract', marina.manual_contract)
+        fields = {
+            k.replace('manual_contract_', ''): v
+            for k, v in data.items() if k.startswith('manual_contract_')
+        }
+        also_cancel_stripe = bool(request.data.get('cancel_stripe', True))
+
+        try:
+            if target_flag and not marina.manual_contract:
+                marina = _gates.set_manual_contract(
+                    marina, actor=request.user, fields=fields,
+                    also_cancel_stripe=also_cancel_stripe,
+                )
+            elif (not target_flag) and marina.manual_contract:
+                reason = request.data.get('reason', '')
+                marina = _gates.clear_manual_contract(
+                    marina, actor=request.user, reason=reason,
+                )
+            else:
+                # Flag unchanged — just update metadata.
+                for k, v in fields.items():
+                    setattr(marina, f'manual_contract_{k}', v)
+                marina.save()
+        except Exception as e:
+            return Response(
+                {'detail': f'Manual contract flip failed: {e}'},
+                status=http_status.HTTP_502_BAD_GATEWAY,
+            )
+
+        _log(request.user, 'set_manual_contract', marina,
+             enabled=marina.manual_contract,
+             reference=marina.manual_contract_reference)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaBillingOverrideView(APIView):
+    """POST = grant, DELETE = revoke."""
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        import datetime as _dt
+        from django.utils import timezone as _tz
+        from apps.billing import gates as _gates
+        from config.billing_gates import BILLING_OVERRIDE_MAX_DAYS
+
+        marina = get_object_or_404(Marina, pk=pk)
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'detail': 'reason required.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            days = int(request.data.get('days', 7))
+        except (TypeError, ValueError):
+            return Response({'detail': 'days must be an integer.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        if days <= 0 or days > BILLING_OVERRIDE_MAX_DAYS:
+            return Response(
+                {'detail': f'days must be 1..{BILLING_OVERRIDE_MAX_DAYS}.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        expires_at = _tz.now() + _dt.timedelta(days=days)
+        _gates.grant_override(marina, actor=request.user, reason=reason,
+                              expires_at=expires_at)
+        _log(request.user, 'billing_override_grant', marina,
+             reason=reason, days=days)
+        return Response(MarinaDetailSerializer(marina).data)
+
+    def delete(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        _gates.revoke_override(marina, actor=request.user)
+        _log(request.user, 'billing_override_revoke', marina)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaForceRestoreView(APIView):
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'detail': 'reason required.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        _gates.force_restore(marina, actor=request.user, reason=reason)
+        _log(request.user, 'billing_force_restore', marina, reason=reason)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaExtendGraceView(APIView):
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        try:
+            days = int(request.data.get('days', 7))
+        except (TypeError, ValueError):
+            return Response({'detail': 'days must be an integer.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            _gates.extend_grace(marina, actor=request.user, days=days)
+        except ValueError as e:
+            return Response({'detail': str(e)},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        _log(request.user, 'billing_extend_grace', marina, days=days)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaBillingHistoryView(APIView):
+    """List BillingStateChange rows for a marina (immutable audit timeline)."""
+    permission_classes = [IsPlatformAdmin]  # read-only — support can view
+
+    def get(self, request, pk):
+        marina = get_object_or_404(Marina, pk=pk)
+        qs = marina.billing_state_changes.select_related('actor_user')[:200]
+        return Response(_BSCS(qs, many=True).data)
