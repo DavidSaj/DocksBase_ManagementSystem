@@ -70,6 +70,41 @@ class MarinaUpdateSerializer(serializers.ModelSerializer):
                   'features', 'mrr_override', 'max_staff', 'name', 'contact_email']
 
 
+class MarinaManualContractSerializer(serializers.ModelSerializer):
+    """
+    Discrete payload for POST /api/admin_portal/marinas/<pk>/manual-contract/.
+
+    Setting `manual_contract=True` triggers atomic cancellation of any live
+    Stripe subscription (TRAP 2) — see apps.billing.gates.set_manual_contract.
+    """
+    class Meta:
+        model = Marina
+        fields = [
+            'manual_contract',
+            'manual_contract_signed_at',
+            'manual_contract_signed_by',
+            'manual_contract_reference',
+            'manual_contract_po_number',
+            'manual_contract_notes',
+            'manual_contract_invoice_terms',
+            'manual_contract_renewal_date',
+        ]
+
+
+class BillingStateChangeSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    from_state = serializers.CharField()
+    to_state = serializers.CharField()
+    reason = serializers.CharField()
+    stripe_event_id = serializers.CharField()
+    actor_user_email = serializers.SerializerMethodField()
+    detail = serializers.JSONField()
+    created_at = serializers.DateTimeField()
+
+    def get_actor_user_email(self, obj):
+        return obj.actor_user.email if obj.actor_user_id else None
+
+
 class PlatformPaymentSerializer(serializers.ModelSerializer):
     marina_name = serializers.CharField(source='marina.name', read_only=True)
 
