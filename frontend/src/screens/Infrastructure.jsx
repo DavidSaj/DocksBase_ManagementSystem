@@ -3,7 +3,7 @@ import useLogicalPiers from '../hooks/useLogicalPiers.js';
 import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import MapBuilder from '../components/harbor-map/MapBuilder.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import api from '../api.js';
 
@@ -646,10 +646,11 @@ export default function Infrastructure() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Infrastructure</span>
-        <ScreenInfo title="Infrastructure" body={SCREEN_INFO.infrastructure} />
-      </div>
+      <PageHeader
+        title="Infrastructure"
+        subtitle="Berths, piers, and the interactive marina map builder."
+        infoBody={SCREEN_INFO.infrastructure}
+      />
       <div className="tabs" style={{ marginBottom: 20 }}>
         {TABS.map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

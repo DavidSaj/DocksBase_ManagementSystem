@@ -4,7 +4,7 @@ import useMarina from '../hooks/useMarina.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import TaxRatesSettings from './TaxRatesSettings.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import MobileConfigTab from './settings/MobileConfigTab.jsx';
 import SecurityCard from './Settings/SecurityCard.jsx';
@@ -328,7 +328,7 @@ function AccountingIntegrationsCard() {
   }
 
   return (
-    <div className="card">
+    <div className="card" style={{ overflow: 'hidden' }}>
       <div className="card-header">
         <div className="card-header-title">Accounting Integrations</div>
         <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Invoice, payment, and journal sync</div>
@@ -376,7 +376,7 @@ function AccountingIntegrationsCard() {
           </div>
         )}
         {configs !== undefined && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 1, background: 'var(--border-color, rgba(0,0,0,0.08))', borderTop: 'var(--border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 1, background: 'rgba(0,0,0,0.08)', borderTop: 'var(--border)' }}>
         {ACCOUNTING_PLATFORMS.map(platform => {
           const config = configs.find(c => c.platform === platform.slug);
           const connected = config && config.is_active;
@@ -579,7 +579,7 @@ function KebabMenu({ items }) {
 
 // ── OTA Connections card ───────────────────────────────────────────────────
 
-function OTAConnectionsCard() {
+function OTAConnectionsCard({ toast }) {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null); // { name: '', inbound_ical_url: '' } | null
@@ -587,7 +587,10 @@ function OTAConnectionsCard() {
   const [syncing, setSyncing] = useState(null); // connection id being synced
   const [removing, setRemoving] = useState(null); // connection id being removed
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);     // { id, inbound_ical_url } | null
+  // Edit form state. Outbound URL is auto-generated server-side from
+  // `outbound_token` (see backend OTAConnection model) and is read-only —
+  // only the inbound iCal URL is user-editable.
+  const [editing, setEditing] = useState(null);     // { id, inbound_ical_url, outbound_url } | null
   const [syncErrors, setSyncErrors] = useState({}); // { [id]: string }
   const [copied, setCopied] = useState(null);       // id whose URL was just copied
 
@@ -606,8 +609,11 @@ function OTAConnectionsCard() {
       const { data } = await api.post('/ota-connections/', form);
       setConnections(prev => [...prev, data]);
       setForm(null);
-    } catch {
-      setError('Failed to add connection.');
+      toast?.('OTA connection added.');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to add connection.';
+      setError(msg);
+      toast?.(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -620,8 +626,11 @@ function OTAConnectionsCard() {
     try {
       await api.delete(`/ota-connections/${id}/`);
       setConnections(prev => prev.filter(c => c.id !== id));
-    } catch {
-      setError('Failed to remove connection.');
+      toast?.('OTA connection removed.');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to remove connection.';
+      setError(msg);
+      toast?.(msg, 'error');
     } finally {
       setRemoving(null);
     }
@@ -646,13 +655,21 @@ function OTAConnectionsCard() {
   async function saveEdit() {
     if (!editing) return;
     try {
+      // Only `inbound_ical_url` is user-editable. The outbound URL is derived
+      // from `outbound_token` on the server (see backend OTAConnectionSerializer
+      // — outbound_token is read_only), so we don't send it in the PATCH.
       const { data } = await api.patch(`/ota-connections/${editing.id}/`, {
         inbound_ical_url: editing.inbound_ical_url,
       });
       setConnections(prev => prev.map(c => c.id === editing.id ? data : c));
       setEditing(null);
-    } catch {
-      alert('Failed to update URL.');
+      toast?.('Inbound iCal URL updated.');
+    } catch (err) {
+      const msg = err?.response?.data?.inbound_ical_url?.[0]
+               || err?.response?.data?.detail
+               || 'Failed to update URL.';
+      setError(msg);
+      toast?.(msg, 'error');
     }
   }
 
@@ -690,16 +707,37 @@ function OTAConnectionsCard() {
         const isCopied  = copied === conn.id;
 
         if (isEditing) {
+          const outboundUrl = `${window.location.origin}/api/v1/berths/ical/${conn.outbound_token}.ics`;
           return (
-            <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600 }}>{conn.name}</div>
-              <input
-                type="url"
-                placeholder="Inbound iCal URL"
-                value={editing.inbound_ical_url}
-                onChange={e => setEditing(s => ({ ...s, inbound_ical_url: e.target.value }))}
-                style={{ fontSize: 13 }}
-              />
+            <div key={conn.id} style={{ padding: '12px 14px', background: 'var(--bg)', border: 'var(--border)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>{conn.name}</div>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.55)' }}>
+                  Inbound iCal URL <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>— bookings FROM the OTA</span>
+                </span>
+                <input
+                  type="url"
+                  placeholder="https://…"
+                  value={editing.inbound_ical_url}
+                  onChange={e => setEditing(s => ({ ...s, inbound_ical_url: e.target.value }))}
+                  style={{ fontSize: 13, width: '100%' }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.55)' }}>
+                  Outbound iCal URL <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>— availability TO the OTA (read-only, auto-generated)</span>
+                </span>
+                <input
+                  type="url"
+                  readOnly
+                  value={outboundUrl}
+                  style={{ fontSize: 13, width: '100%', background: 'rgba(0,0,0,0.04)', color: 'rgba(0,0,0,0.55)' }}
+                  onFocus={e => e.target.select()}
+                />
+              </label>
+
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>Cancel</button>
                 <button className="btn btn-primary btn-sm" onClick={saveEdit}>Save</button>
@@ -709,9 +747,16 @@ function OTAConnectionsCard() {
         }
 
         return (
-          <div key={conn.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+          <div key={conn.id} style={{ padding: '12px 14px', background: 'var(--bg)', border: 'var(--border)', borderRadius: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{conn.name}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--navy)' }}>{conn.name}</div>
+                {conn.inbound_ical_url && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {conn.inbound_ical_url}
+                  </div>
+                )}
+              </div>
               <span className={`badge badge-${status.tone}`}>{status.label}</span>
               <KebabMenu items={[
                 {
@@ -743,20 +788,20 @@ function OTAConnectionsCard() {
       })}
 
       {form ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 14px', background: 'var(--bg)', borderRadius: 7 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', background: 'var(--bg)', border: 'var(--border)', borderRadius: 8 }}>
           <input
             placeholder="Connection name (e.g. mySea)"
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            style={{ fontSize: 13 }}
+            style={{ fontSize: 13, width: '100%' }}
           />
           <input
             placeholder="Inbound iCal URL (optional)"
             value={form.inbound_ical_url}
             onChange={e => setForm(f => ({ ...f, inbound_ical_url: e.target.value }))}
-            style={{ fontSize: 13 }}
+            style={{ fontSize: 13, width: '100%' }}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setForm(null)}>Cancel</button>
             <button className="btn btn-primary btn-sm" disabled={saving || !form.name.trim()} onClick={addConnection}>
               {saving ? 'Adding…' : 'Add'}
@@ -765,7 +810,7 @@ function OTAConnectionsCard() {
         </div>
       ) : (
         <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setForm({ name: '', inbound_ical_url: '' })}>
-          + Add connection
+          <Ic n="plus" s={12} /> Add connection
         </button>
       )}
     </div>
@@ -1475,10 +1520,11 @@ export default function Settings() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Settings</span>
-        <ScreenInfo title="Settings" body={SCREEN_INFO.settings} />
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Marina profile, users, billing, integrations, and system preferences."
+        infoBody={SCREEN_INFO.settings}
+      />
       {/* Tab bar */}
       <div className="tabs">
         {[
@@ -2125,7 +2171,9 @@ export default function Settings() {
                 <div className="card-header-title">OTA Connections</div>
                 <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Channel distribution partners</div>
               </div>
-              <OTAConnectionsCard />
+              <div className="card-body">
+                <OTAConnectionsCard toast={toast} />
+              </div>
             </div>
 
             {/* Support Access */}

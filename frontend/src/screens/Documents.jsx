@@ -3,7 +3,7 @@ import useDocTemplates from '../hooks/useDocTemplates.js';
 import useEnvelopes from '../hooks/useEnvelopes.js';
 import useMembers from '../hooks/useMembers.js';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 function UploadTemplateModal({ onClose, onUpload }) {
@@ -146,10 +146,11 @@ export default function Documents({ setScreen }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Documents</span>
-        <ScreenInfo title="Documents" body={SCREEN_INFO.documents} />
-      </div>
+      <PageHeader
+        title="Documents"
+        subtitle="Document templates and envelope tracking for e-signatures."
+        infoBody={SCREEN_INFO.documents}
+      />
       {showUpload && (
         <UploadTemplateModal
           onClose={() => setShowUpload(false)}

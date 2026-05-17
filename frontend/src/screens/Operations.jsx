@@ -3,7 +3,7 @@ import useFuelQueue from '../hooks/useFuelQueue.js';
 import useBerths from '../hooks/useBerths.js';
 import useVessels from '../hooks/useVessels.js';
 import useFuelEntries from '../hooks/useFuelEntries.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import usePOSCatalog from '../hooks/usePOSCatalog.js';
 import StatusBadge from '../components/ui/Badge.jsx';
@@ -415,10 +415,11 @@ export default function Operations() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Operations</span>
-        <ScreenInfo title="Operations" body={SCREEN_INFO.operations} />
-      </div>
+      <PageHeader
+        title="Operations"
+        subtitle="Fuel dock management, live queue, and dockside point-of-sale."
+        infoBody={SCREEN_INFO.operations}
+      />
       <div className="tabs">
         {[['fueldock', 'Fuel Dock'], ['pos', 'Fuel Dock POS']].map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

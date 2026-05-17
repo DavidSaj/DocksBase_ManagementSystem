@@ -1,6 +1,6 @@
 import Ic from '../components/ui/Icon.jsx';
 import { useState } from 'react';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import useBerths from '../hooks/useBerths.js';
 import usePiers from '../hooks/usePiers.js';
@@ -61,10 +61,11 @@ export default function Reports() {
           Failed to load reports: {repError}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Reports</span>
-        <ScreenInfo title="Reports" body={SCREEN_INFO.reports} />
-      </div>
+      <PageHeader
+        title="Reports"
+        subtitle="Occupancy, revenue, and berth utilisation for the current period."
+        infoBody={SCREEN_INFO.reports}
+      />
       <div className="tabs">
         {[['occupancy','Occupancy'],['revenue','Revenue'],['berths','Berth Utilisation']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => setTab(v)}>{l}</div>
