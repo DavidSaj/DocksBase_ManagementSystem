@@ -292,17 +292,29 @@ def finalize_invoice(invoice):
     return invoice
 
 
-def mark_paid_manual(invoice, method, recorded_by=None):
+def mark_paid_manual(invoice, method, recorded_by=None, notes='', send_receipt=True, amount=None):
     if invoice.status != 'open':
         raise ValueError(f'Cannot mark a {invoice.status} invoice as paid.')
-    if method not in ('cash', 'external_card'):
-        raise ValueError(f"Invalid payment method '{method}'. Use 'cash' or 'external_card'.")
+    valid_methods = {m[0] for m in Payment.METHOD_CHOICES}
+    if method not in valid_methods:
+        raise ValueError(
+            f"Invalid payment method '{method}'. Use one of: {', '.join(sorted(valid_methods))}."
+        )
+    payment_amount = invoice.total if amount is None else amount
     with transaction.atomic():
-        Payment.objects.create(invoice=invoice, method=method, amount=invoice.total, recorded_by=recorded_by)
+        Payment.objects.create(
+            invoice=invoice,
+            method=method,
+            amount=payment_amount,
+            recorded_by=recorded_by,
+            notes=notes or '',
+        )
         invoice.status = 'paid'
         invoice.paid_at = timezone.now()
         invoice.save(update_fields=['status', 'paid_at'])
-        invoice_paid.send(sender=Invoice, invoice=invoice)
+        # send_receipt: when False, suppress the receipt email by tagging the
+        # signal kwargs. The notification receiver inspects this flag.
+        invoice_paid.send(sender=Invoice, invoice=invoice, send_receipt=bool(send_receipt))
     return invoice
 
 

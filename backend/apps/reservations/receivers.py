@@ -4,8 +4,22 @@ from .models import Booking
 
 
 def on_invoice_paid(sender, invoice, **kwargs):
+    # Single source of truth for Booking.paid: flip on linked-invoice payment.
+    # Supports both the legacy source_type='berth_booking' linkage and the
+    # direct Invoice.booking FK.
+    booking_ids = set()
     if invoice.source_type == 'berth_booking' and invoice.source_id:
-        Booking.objects.filter(pk=invoice.source_id).update(status='confirmed')
+        try:
+            booking_ids.add(int(invoice.source_id))
+        except (TypeError, ValueError):
+            pass
+    if getattr(invoice, 'booking_id', None):
+        booking_ids.add(invoice.booking_id)
+    if not booking_ids:
+        return
+    Booking.objects.filter(pk__in=booking_ids).update(
+        status='confirmed', paid=True,
+    )
 
 
 @receiver(post_save, sender=Booking, dispatch_uid='reservations.on_booking_save')
