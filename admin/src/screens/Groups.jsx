@@ -46,14 +46,28 @@ function GroupDetailPanel({ group, onClose, onUpdate, allMarinas }) {
   }
 
   async function handleSetAdmin() {
-    if (!adminEmail.trim()) return;
+    const email = adminEmail.trim().toLowerCase();
+    if (!email) return;
     setActing(true);
     try {
-      await api.post(`admin/groups/${group.id}/set_admin/`, { email: adminEmail.trim() });
+      const { data } = await api.post(`admin/groups/${group.id}/set_admin/`, { email });
       setAdminEmail('');
-      window.alert('Admin assigned.');
+      window.alert(`Admin assigned to ${email}.`);
     } catch (e) {
-      window.alert(e.response?.data?.detail || 'Failed to set admin');
+      // 404 means the user doesn't exist — offer to invite them
+      if (e.response?.status === 404) {
+        if (window.confirm(`No user with ${email} exists. Send them an invite to become enterprise admin?`)) {
+          try {
+            const { data } = await api.post(`admin/groups/${group.id}/set_admin/`, { email, invite: true });
+            setAdminEmail('');
+            window.alert(`Invite sent to ${email}.`);
+          } catch (e2) {
+            window.alert(e2.response?.data?.detail || 'Failed to invite admin.');
+          }
+        }
+      } else {
+        window.alert(e.response?.data?.detail || 'Failed to set admin');
+      }
     } finally { setActing(false); }
   }
 
@@ -164,13 +178,28 @@ export default function Groups() {
   }
 
   async function handleCreate() {
+    if (!newGroup.name?.trim() || !newGroup.slug?.trim()) {
+      window.alert('Name and slug are required.');
+      return;
+    }
     try {
-      const { data } = await api.post('admin/groups/', newGroup);
+      const payload = {
+        ...newGroup,
+        slug: newGroup.slug.trim().toLowerCase(),
+        max_marinas: parseInt(newGroup.max_marinas) || 1,
+      };
+      const { data } = await api.post('admin/groups/', payload);
       setGroups(prev => [data, ...prev]);
       setCreating(false);
       setNewGroup({ name: '', slug: '', billing_contact_email: '', max_marinas: 1, base_currency: 'EUR' });
     } catch (e) {
-      window.alert(e.response?.data?.detail || 'Failed to create group');
+      const d = e.response?.data;
+      const msg = typeof d === 'string'
+        ? d
+        : d?.detail
+        || Object.entries(d || {}).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ')
+        || 'Failed to create group';
+      window.alert(msg);
     }
   }
 
