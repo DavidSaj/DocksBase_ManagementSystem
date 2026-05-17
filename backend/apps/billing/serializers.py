@@ -119,7 +119,7 @@ class InvoiceLineItemSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ['id', 'method', 'amount', 'paid_at']
+        fields = ['id', 'method', 'amount', 'paid_at', 'notes']
         read_only_fields = ['id', 'paid_at']
 
 

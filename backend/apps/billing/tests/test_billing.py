@@ -681,3 +681,47 @@ class ChargeableItemBerthAssignmentTest(TestCase):
         )
         other_berth.refresh_from_db()
         self.assertNotEqual(other_berth.pricing_tier_id, self.tier_a.id)
+
+
+class PaymentSerializerNotesTest(TestCase):
+    """`Payment.notes` must be exposed via PaymentSerializer / InvoiceSerializer.payments."""
+
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+
+    def test_payment_notes_in_serializer(self):
+        from apps.billing.serializers import PaymentSerializer
+        invoice = Invoice.objects.create(
+            marina=self.marina,
+            invoice_number='INV-2026-9001',
+            status='paid',
+            total=Decimal('100.00'),
+        )
+        payment = Payment.objects.create(
+            invoice=invoice,
+            method='bank_transfer',
+            amount=Decimal('100.00'),
+            notes='Wire ref #42',
+        )
+        data = PaymentSerializer(payment).data
+        self.assertIn('notes', data)
+        self.assertEqual(data['notes'], 'Wire ref #42')
+
+    def test_invoice_serializer_includes_payment_notes(self):
+        from apps.billing.serializers import InvoiceSerializer
+        invoice = Invoice.objects.create(
+            marina=self.marina,
+            invoice_number='INV-2026-9002',
+            status='paid',
+            total=Decimal('50.00'),
+        )
+        Payment.objects.create(
+            invoice=invoice,
+            method='cash',
+            amount=Decimal('50.00'),
+            notes='Counter receipt',
+        )
+        data = InvoiceSerializer(invoice).data
+        self.assertEqual(len(data['payments']), 1)
+        self.assertEqual(data['payments'][0]['notes'], 'Counter receipt')

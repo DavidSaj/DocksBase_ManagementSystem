@@ -927,6 +927,7 @@ function BroadcastsTab() {
 }
 
 function BroadcastComposer({ onCancel, onSent }) {
+  const toast = useToast();
   const [title, setTitle] = useState('');
   const [channel, setChannel] = useState('sms');
   const [subject, setSubject] = useState('');
@@ -939,7 +940,6 @@ function BroadcastComposer({ onCancel, onSent }) {
   const [broadcast, setBroadcast] = useState(null);
   const [preview, setPreview] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [error, setError] = useState('');
   const [drift, setDrift] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -959,7 +959,7 @@ function BroadcastComposer({ onCancel, onSent }) {
   }
 
   async function runPreview() {
-    setError(''); setBusy(true); setDrift(null);
+    setBusy(true); setDrift(null);
     try {
       const payload = {
         title: title || '(untitled broadcast)',
@@ -979,23 +979,24 @@ function BroadcastComposer({ onCancel, onSent }) {
       const pr = await api.post(`/communications/broadcasts/${b.id}/preview/`);
       setPreview(pr.data);
     } catch (e) {
-      setError(e.response?.data?.detail || e.message);
+      toast(errMessage(e, 'Could not build preview.'), 'error');
     } finally {
       setBusy(false);
     }
   }
 
   async function doSend() {
-    setError(''); setDrift(null); setBusy(true);
+    setDrift(null); setBusy(true);
     try {
-      const r = await api.post(`/communications/broadcasts/${broadcast.id}/send/`);
+      await api.post(`/communications/broadcasts/${broadcast.id}/send/`);
       setConfirmOpen(false);
+      toast('Broadcast sent.');
       onSent(broadcast);
     } catch (e) {
       if (e.response?.status === 409) {
         setDrift(e.response.data);
       } else {
-        setError(e.response?.data?.detail || e.message);
+        toast(errMessage(e, 'Could not send broadcast.'), 'error');
       }
     } finally {
       setBusy(false);
@@ -1068,7 +1069,6 @@ function BroadcastComposer({ onCancel, onSent }) {
             </button>
           )}
         </div>
-        {error && <div style={{ color: 'crimson' }}>{error}</div>}
         {preview && (
           <div className="card" style={{ padding: 12, background: 'rgba(0,0,0,0.02)' }}>
             <div style={{ fontWeight: 600 }}>Preview</div>
