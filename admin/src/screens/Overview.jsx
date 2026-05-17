@@ -36,6 +36,9 @@ function CreateEnterpriseCard() {
     try {
       const { data } = await api.post('admin/groups/', {
         ...form,
+        // Django SlugField rejects spaces / mixed case — normalise here so
+        // the form doesn't blow up on a perfectly reasonable user input.
+        slug: form.slug.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, ''),
         max_marinas: parseInt(form.max_marinas) || 1,
       });
       setCreated(data);
