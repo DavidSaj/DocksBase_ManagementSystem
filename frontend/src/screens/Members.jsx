@@ -259,6 +259,7 @@ export default function Members({ setScreen }) {
   const [payLoading, setPayLoading]       = useState(false);
   const [payError, setPayError]           = useState(null);
   const [showContractModal, setShowContractModal] = useState(false);
+  const [filterText, setFilterText] = useState('');
 
   async function handleSendPortalLink() {
     if (!sel?.id) return;
@@ -312,7 +313,15 @@ export default function Members({ setScreen }) {
   }
 
   const { members: raw, loading, createMember } = useMembers();
-  const members = raw.map(fmt);
+  const allMembers = raw.map(fmt);
+  const _q = filterText.trim().toLowerCase();
+  const members = _q
+    ? allMembers.filter(m =>
+        [m.name, m.email, m.vessel, m.phone]
+          .filter(Boolean)
+          .some(v => String(v).toLowerCase().includes(_q)),
+      )
+    : allMembers;
   const { memberDocs, loading: docsLoading, uploadDoc, updateDoc } = useMemberDocuments();
 
   return (
@@ -331,7 +340,12 @@ export default function Members({ setScreen }) {
         <div style={{ display: 'grid', gridTemplateColumns: sel ? '1fr 280px' : '1fr', gap: 16, alignItems: 'start' }}>
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              <div className="search"><Ic n="search" s={13} /><input placeholder="Search owner or vessel…" /></div>
+              <div className="search"><Ic n="search" s={13} /><input
+                aria-label="Search members"
+                placeholder="Search owner or vessel…"
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+              /></div>
               <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic n="plus" s={12} />Add Member</button>
               <button className="btn btn-ghost btn-sm" onClick={() => setScreen('communications')}>Communications →</button>
             </div>
