@@ -1,6 +1,6 @@
 // portal/src/screens/tabs/UtilitiesTab.jsx
 import { useState, useEffect } from 'react';
-import { fetchMemberUtilities } from '../../api';
+import { fetchMemberUtilities } from '@docksbase/portal-ui/api';
 
 function MeterCard({ meter }) {
   const value  = meter.last_reading_value;

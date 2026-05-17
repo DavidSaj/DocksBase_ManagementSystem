@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import QuoteScreen from './QuoteScreen';
-import api from '../api';
+import api from '@docksbase/portal-ui/api';
 
-vi.mock('../api');
+vi.mock('@docksbase/portal-ui/api');
 
 vi.mock('@stripe/react-stripe-js', () => ({
   Elements:       ({ children }) => <div>{children}</div>,

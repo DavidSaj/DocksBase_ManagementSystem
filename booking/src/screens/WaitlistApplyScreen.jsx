@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import api from '../api';
+import api from '@docksbase/portal-ui/api';
 
 export default function WaitlistApplyScreen({ marina }) {
   const [form, setForm] = useState({

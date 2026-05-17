@@ -1,6 +1,6 @@
 // portal/src/screens/ExtendStayScreen.jsx
 import { useState, useEffect } from 'react';
-import api from '../api';
+import api from '@docksbase/portal-ui/api';
 
 function ArrowLeftIcon() {
   return (

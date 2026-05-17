@@ -18,36 +18,28 @@ const ACTIONS = [
   { id: 'checkout', label: 'Check Out',      icon: 'log-out' },
   { id: 'logtask',  label: 'Log Task',       icon: 'wrench' },
   { id: 'crane',    label: 'Approve Crane',  icon: 'crane' },
-  { id: 'arrivals', label: "Arrivals",       icon: 'ship' },
-  { id: 'fuel',     label: 'Fuel Dock',     icon: 'droplet' },
+  { id: 'arrivals', label: 'Arrivals',       icon: 'ship' },
+  { id: 'fuel',     label: 'Fuel Dock',      icon: 'droplet' },
   { id: 'mytasks',  label: 'My Tasks',       icon: 'clipboard' },
   { id: 'message',  label: 'Message Guest',  icon: 'message-square' },
-  { id: 'dockwalk', label: 'Meter Readings', icon: 'zap', sub: 'Enter daily utility readings' },
+  { id: 'dockwalk', label: 'Meter Readings', icon: 'zap',  sub: 'Enter daily utility readings' },
   { id: 'quickcharge', label: 'Quick Charge', icon: 'tag', sub: 'Add ice, pump-out, fees' },
 ];
 
 const TABS = [
-  { id: 'actions', label: 'Actions',  icon: 'zap' },
-  { id: 'tasks',   label: 'Tasks',    icon: 'clipboard' },
+  { id: 'actions', label: 'Actions', icon: 'zap' },
+  { id: 'tasks',   label: 'Tasks',   icon: 'clipboard' },
 ];
 
 function ActionGrid({ onSelect }) {
   return (
-    <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-      {ACTIONS.map(a => (
-        <button key={a.id} onClick={() => onSelect(a.id)} style={{
-          background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: '20px 12px',
-          cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12,
-            background: 'rgba(12,31,61,0.06)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Icon name={a.icon} size={22} color="#0c1f3d" />
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#0c1f3d', textAlign: 'center', lineHeight: 1.3, fontFamily: 'Jost, system-ui, sans-serif' }}>{a.label}</span>
+    <div className="f-action-grid">
+      {ACTIONS.map((a) => (
+        <button key={a.id} onClick={() => onSelect(a.id)} className="f-action-tile">
+          <span className="f-action-tile__icon">
+            <Icon name={a.icon} size={22} color="var(--db-gold-light)" />
+          </span>
+          <span className="f-action-tile__label">{a.label}</span>
         </button>
       ))}
     </div>
@@ -56,24 +48,22 @@ function ActionGrid({ onSelect }) {
 
 function TabBar({ tab, setTab }) {
   return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 -2px 12px rgba(0,0,0,0.06)', display: 'flex', height: 60 }}>
-      {TABS.map(t => {
+    <nav className="f-tabbar" aria-label="Field tabs">
+      {TABS.map((t) => {
         const active = tab === t.id;
         return (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex: 1, border: 'none', background: 'none', cursor: 'pointer',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-            color: active ? '#0c1f3d' : 'rgba(0,0,0,0.35)',
-            fontFamily: 'Jost, system-ui, sans-serif', fontWeight: active ? 700 : 400,
-            fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase',
-            borderTop: active ? '3px solid #b8965a' : '3px solid transparent',
-          }}>
-            <Icon name={t.icon} size={20} color={active ? '#0c1f3d' : 'rgba(0,0,0,0.3)'} />
-            {t.label}
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`f-tab${active ? ' f-tab--active' : ''}`}
+            aria-current={active ? 'page' : undefined}
+          >
+            <Icon name={t.icon} size={20} color={active ? 'var(--db-gold-light)' : 'var(--db-on-dark-muted)'} />
+            <span className="f-tab__label">{t.label}</span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
@@ -87,29 +77,27 @@ export default function Field() {
     setFlow(id);
   }
 
-  if (flow === 'checkin')  return <CheckInFlow onBack={() => setFlow(null)} />;
-  if (flow === 'checkout') return <CheckOutFlow onBack={() => setFlow(null)} />;
-  if (flow === 'logtask')  return <LogTaskFlow onBack={() => setFlow(null)} />;
-  if (flow === 'crane')    return <CraneApprovalFlow onBack={() => setFlow(null)} />;
-  if (flow === 'arrivals') return <ArrivalsList onBack={() => setFlow(null)} />;
-  if (flow === 'fuel')     return <FuelDockFlow onBack={() => setFlow(null)} />;
-  if (flow === 'message')  return <MessageGuestFlow onBack={() => setFlow(null)} />;
-  if (flow === 'dockwalk') return <DockwalkFlow onBack={() => setFlow(null)} />;
+  if (flow === 'checkin')     return <CheckInFlow onBack={() => setFlow(null)} />;
+  if (flow === 'checkout')    return <CheckOutFlow onBack={() => setFlow(null)} />;
+  if (flow === 'logtask')     return <LogTaskFlow onBack={() => setFlow(null)} />;
+  if (flow === 'crane')       return <CraneApprovalFlow onBack={() => setFlow(null)} />;
+  if (flow === 'arrivals')    return <ArrivalsList onBack={() => setFlow(null)} />;
+  if (flow === 'fuel')        return <FuelDockFlow onBack={() => setFlow(null)} />;
+  if (flow === 'message')     return <MessageGuestFlow onBack={() => setFlow(null)} />;
+  if (flow === 'dockwalk')    return <DockwalkFlow onBack={() => setFlow(null)} />;
   if (flow === 'quickcharge') return <QuickChargeFlow onBack={() => setFlow(null)} />;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f3f0', paddingBottom: 60 }}>
-      <div style={{ background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="f-shell">
+      <header className="f-shell__topbar">
         <Brand size={24} />
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, color: 'rgba(245,240,230,0.5)', fontFamily: 'IBM Plex Sans, system-ui, sans-serif' }}>
+        <div className="f-shell__user">
+          <div className="f-shell__greet">
             {user?.first_name ? `Hi, ${user.first_name}` : 'Staff Portal'}
           </div>
-          <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#b8965a', fontSize: 11, cursor: 'pointer', padding: 0, fontFamily: 'Jost, system-ui, sans-serif', fontWeight: 600, letterSpacing: '0.5px', marginTop: 2 }}>
-            Sign out
-          </button>
+          <button onClick={signOut} className="f-shell__signout">Sign out</button>
         </div>
-      </div>
+      </header>
 
       {tab === 'actions' && <ActionGrid onSelect={handleSelect} />}
       {tab === 'tasks'   && <TaskList />}

@@ -1,7 +1,7 @@
 // portal/src/components/shell/BoardingPass.jsx
 import { useState, useEffect } from 'react';
-import { useTenant } from '../../context/TenantContext';
-import api from '../../api';
+import { useTenant } from '@docksbase/portal-ui/context/TenantContext';
+import api from '@docksbase/portal-ui/api';
 
 function CopyBtn({ value }) {
   const [copied, setCopied] = useState(false);

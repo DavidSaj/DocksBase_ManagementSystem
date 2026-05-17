@@ -1,28 +1,32 @@
-/* ── DocksBase Field App — Design Tokens & Base Styles ────────────────── */
+/* DocksBase Field App — restyled to match the Astro mobile-preview language.
+   Consumes shared tokens from @docksbase/portal-ui/styles/tokens.css. */
+
+/* Local aliases for legacy var names used by some field components.
+   These point at the shared --db-* tokens so we stay one source of truth. */
 :root {
-  --navy:       #0c1f3d;
-  --navy2:      #162d52;
-  --gold:       #b8965a;
-  --gold2:      #d4b07a;
-  --cream:      #f5f0e6;
-  --bg:         #f4f3f0;
-  --bg2:        #eceae6;
-  --red:        #c0392b;
+  --navy:       var(--db-navy);
+  --navy2:      var(--db-navy-mid);
+  --gold:       var(--db-gold);
+  --gold2:      var(--db-gold-light);
+  --cream:      var(--db-cream);
+  --bg:         var(--db-screen);
+  --bg2:        var(--db-navy-mid);
+  --red:        var(--db-status-red);
   --orange:     #dd5b00;
-  --green:      #1a8c2e;
-  --border:     rgba(0,0,0,0.08);
-  --shadow:     0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05);
-  --font:       'IBM Plex Sans', system-ui, sans-serif;
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
-  --font-brand: 'Jost', system-ui, sans-serif;
+  --green:      var(--db-status-green);
+  --border:     rgba(255,255,255,0.07);
+  --shadow:     none;
+  --font:       var(--db-font-sans);
+  --font-serif: var(--db-font-serif);
+  --font-brand: var(--db-font-sans);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: #1a1a1a;
+  font-family: var(--db-font-sans);
+  background: var(--db-screen);
+  color: var(--db-on-dark);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
@@ -31,27 +35,404 @@ button { cursor: pointer; font-family: inherit; }
 input, textarea, select { font-family: inherit; }
 a { color: inherit; text-decoration: none; }
 
-/* ── Dockwalk Flow ──────────────────────────────────────────────── */
-.f-dw-root      { min-height: 100vh; background: #f4f6f8; display: flex; flex-direction: column; }
-.f-dw-topbar    { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #1a2d4a; }
-.f-dw-back      { background: none; border: none; color: rgba(255,255,255,0.8); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.f-dw-progress  { color: rgba(255,255,255,0.6); font-size: 14px; }
-.f-dw-card      { background: #fff; margin: 16px; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-.f-dw-berth     { font-size: 22px; font-weight: 800; color: #1a2d4a; margin-bottom: 4px; }
-.f-dw-meter-type { font-size: 13px; color: rgba(0,0,0,0.45); margin-bottom: 12px; }
-.f-dw-last      { font-size: 13px; color: rgba(0,0,0,0.5); margin-bottom: 16px; }
-.f-dw-input     { width: 100%; font-size: 32px; font-weight: 700; border: 2px solid #ddd; border-radius: 6px; padding: 12px; font-family: 'IBM Plex Mono', monospace; color: #1a2d4a; box-sizing: border-box; }
-.f-dw-input:focus { border-color: #1a2d4a; outline: none; }
-.f-dw-unit      { font-size: 14px; color: rgba(0,0,0,0.4); margin-top: 4px; display: block; }
-.f-dw-error-block { margin-top: 12px; padding: 12px; background: #fff3f3; border-radius: 6px; border: 1px solid #f5c6cb; }
-.f-dw-error-msg   { font-size: 14px; color: #c0392b; margin-bottom: 8px; }
-.f-dw-rollover-label { font-size: 14px; color: #1a2d4a; display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.f-dw-actions   { display: flex; gap: 12px; padding: 16px; margin-top: auto; }
-.f-dw-skip      { flex: 1; padding: 14px; background: #f4f6f8; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; color: rgba(0,0,0,0.5); }
-.f-dw-next      { flex: 2; padding: 14px; background: #1a2d4a; border: none; border-radius: 6px; font-size: 16px; font-weight: 700; cursor: pointer; color: #fff; }
+/* ── Dockwalk Flow — restyled to dark theme ────────────────── */
+.f-dw-root {
+  min-height: 100vh;
+  background: var(--db-screen);
+  display: flex;
+  flex-direction: column;
+  color: var(--db-on-dark);
+}
+.f-dw-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--db-bezel);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.f-dw-back {
+  background: none;
+  border: none;
+  color: var(--db-gold-light);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+}
+.f-dw-progress {
+  color: var(--db-on-dark-muted);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.f-dw-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  margin: 16px;
+  border-radius: var(--db-radius-md);
+  padding: 22px;
+  box-shadow: none;
+}
+.f-dw-berth {
+  font-family: var(--db-font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--db-on-dark);
+  margin-bottom: 4px;
+  letter-spacing: -0.3px;
+}
+.f-dw-meter-type {
+  font-size: 12px;
+  color: var(--db-gold-light);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.f-dw-last {
+  font-size: 13px;
+  color: var(--db-on-dark-faint);
+  margin-bottom: 16px;
+}
+.f-dw-input {
+  width: 100%;
+  font-size: 30px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--db-radius-sm);
+  padding: 14px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: var(--db-on-dark);
+  box-sizing: border-box;
+  letter-spacing: 2px;
+}
+.f-dw-input:focus {
+  border-color: var(--db-gold-light);
+  background: rgba(255,255,255,0.07);
+  outline: none;
+}
+.f-dw-unit {
+  font-size: 12px;
+  color: var(--db-on-dark-faint);
+  margin-top: 6px;
+  display: block;
+  letter-spacing: 0.5px;
+}
+.f-dw-error-block {
+  margin-top: 14px;
+  padding: 12px;
+  background: rgba(224,85,85,0.12);
+  border-radius: var(--db-radius-sm);
+  border: 1px solid rgba(224,85,85,0.3);
+}
+.f-dw-error-msg {
+  font-size: 13px;
+  color: var(--db-status-red);
+  margin-bottom: 8px;
+}
+.f-dw-rollover-label {
+  font-size: 13px;
+  color: var(--db-on-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.f-dw-actions {
+  display: flex;
+  gap: 10px;
+  padding: 16px;
+  margin-top: auto;
+}
+.f-dw-skip {
+  flex: 1;
+  padding: 14px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--db-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--db-on-dark-soft);
+}
+.f-dw-next {
+  flex: 2;
+  padding: 14px;
+  background: var(--db-gold-light);
+  border: none;
+  border-radius: var(--db-radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--db-navy);
+  letter-spacing: 0.3px;
+}
+.f-dw-next:hover:not(:disabled) { background: var(--db-gold); color: #fff; }
 .f-dw-next:disabled { opacity: 0.4; cursor: not-allowed; }
-.f-dw-done      { margin: 32px 16px; text-align: center; }
-.f-dw-done-title { font-size: 24px; font-weight: 800; color: #1a2d4a; margin-bottom: 8px; }
-.f-dw-done-stats { font-size: 16px; color: rgba(0,0,0,0.5); }
-.f-dw-error     { padding: 16px; color: #c0392b; font-size: 15px; }
-.f-dw-loading   { padding: 32px 16px; text-align: center; color: rgba(0,0,0,0.4); font-size: 14px; }
+.f-dw-done {
+  margin: 32px 16px;
+  text-align: center;
+}
+.f-dw-done-title {
+  font-family: var(--db-font-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--db-on-dark);
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+.f-dw-done-stats {
+  font-size: 14px;
+  color: var(--db-on-dark-faint);
+}
+.f-dw-error {
+  padding: 16px;
+  color: var(--db-status-red);
+  font-size: 14px;
+}
+.f-dw-loading {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--db-on-dark-faint);
+  font-size: 13px;
+}
+
+/* ── Field generic shell (used by other flows that don't carry their own classes) ── */
+.f-screen {
+  min-height: 100vh;
+  background: var(--db-screen);
+  color: var(--db-on-dark);
+  display: flex;
+  flex-direction: column;
+}
+.f-topbar {
+  background: var(--db-bezel);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.f-title {
+  font-family: var(--db-font-serif);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--db-on-dark);
+  padding: 18px 18px 4px;
+}
+.f-sub {
+  font-size: 12px;
+  color: var(--db-gold-light);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 0 18px 14px;
+  font-weight: 600;
+}
+.f-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-radius: var(--db-radius-md);
+  margin: 8px 16px;
+  padding: 16px;
+}
+.f-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.f-row:last-child { border-bottom: none; }
+.f-row__label { color: var(--db-on-dark-muted); font-size: 13px; }
+.f-row__value { color: var(--db-on-dark); font-weight: 600; font-size: 14px; }
+
+/* ── Shell (Field.jsx) ── */
+.f-shell {
+  min-height: 100vh;
+  background: var(--db-screen);
+  padding-bottom: 76px;
+  color: var(--db-on-dark);
+}
+.f-shell__topbar {
+  background: var(--db-bezel);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.f-shell__user { text-align: right; }
+.f-shell__greet {
+  font-size: 12px;
+  color: var(--db-on-dark-faint);
+}
+.f-shell__signout {
+  background: none;
+  border: none;
+  color: var(--db-gold-light);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--db-font-sans);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Action grid */
+.f-action-grid {
+  padding: 18px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.f-action-tile {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-radius: var(--db-radius-md);
+  padding: 20px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--db-on-dark);
+  transition: background 160ms ease;
+}
+.f-action-tile:hover { background: var(--db-card-hover); }
+.f-action-tile__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--db-radius-md);
+  background: rgba(212,176,122,0.12);
+  border: 1px solid rgba(212,176,122,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--db-gold-light);
+}
+.f-action-tile__label {
+  font-family: var(--db-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.3;
+  color: var(--db-on-dark);
+}
+
+/* Bottom tab bar */
+.f-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--db-bezel);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+  display: flex;
+  height: 64px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.f-tab {
+  flex: 1;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--db-on-dark-muted);
+  font-family: var(--db-font-sans);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-top: 2px solid transparent;
+}
+.f-tab--active {
+  color: var(--db-gold-light);
+  border-top-color: var(--db-gold-light);
+}
+.f-tab__label { font-weight: inherit; }
+
+/* ── Generic dark form / inputs for flow screens ── */
+.f-input,
+.f-textarea,
+.f-select {
+  width: 100%;
+  font-family: var(--db-font-sans);
+  font-size: 15px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--db-radius-sm);
+  color: var(--db-on-dark);
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.f-input:focus,
+.f-textarea:focus,
+.f-select:focus {
+  border-color: var(--db-gold-light);
+  background: rgba(255,255,255,0.07);
+}
+.f-textarea { min-height: 96px; resize: vertical; }
+
+.f-btn-primary {
+  background: var(--db-gold-light);
+  color: var(--db-navy);
+  border: none;
+  border-radius: var(--db-radius-sm);
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--db-font-sans);
+}
+.f-btn-primary:hover:not(:disabled) { background: var(--db-gold); color: #fff; }
+.f-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.f-btn-ghost {
+  background: rgba(255,255,255,0.07);
+  color: var(--db-on-dark-soft);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--db-radius-sm);
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--db-font-sans);
+}
+
+/* Section heading */
+.f-section-title {
+  padding: 14px 18px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--db-gold-light);
+}
+
+/* Status pill */
+.f-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  color: var(--db-on-dark-muted);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.f-pill--green { color: var(--db-status-green); background: rgba(56,168,96,0.15);  border-color: rgba(56,168,96,0.3); }
+.f-pill--gold  { color: var(--db-gold-light);   background: rgba(212,176,122,0.15); border-color: rgba(212,176,122,0.3); }
+.f-pill--red   { color: var(--db-status-red);   background: rgba(224,85,85,0.15);   border-color: rgba(224,85,85,0.3); }

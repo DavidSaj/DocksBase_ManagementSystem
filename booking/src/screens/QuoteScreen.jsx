@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import api, { createReservationIntent, confirmReservation } from '../api';
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import api, { createReservationIntent, confirmReservation } from '@docksbase/portal-ui/api';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 

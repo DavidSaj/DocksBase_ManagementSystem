@@ -1,11 +1,13 @@
 {
-  "name": "Marina Booking",
+  "name": "Marina Portal",
   "short_name": "Marina",
-  "description": "Manage your marina booking and stay.",
+  "description": "Your marina account: bookings, services, documents.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#f4f6f8",
-  "theme_color": "#1a3c5e",
+  "background_color": "#0f172a",
+  "theme_color": "#0c1f3d",
   "orientation": "portrait",
   "icons": [
     {

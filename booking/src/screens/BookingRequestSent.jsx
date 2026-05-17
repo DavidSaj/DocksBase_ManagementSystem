@@ -1,4 +1,4 @@
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 export default function BookingRequestSent({ marina }) {
   return (

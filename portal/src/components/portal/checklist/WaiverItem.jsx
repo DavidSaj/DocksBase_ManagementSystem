@@ -1,6 +1,6 @@
 // portal/src/components/portal/checklist/WaiverItem.jsx
 import { useState, useEffect } from 'react';
-import api from '../../../api';
+import api from '@docksbase/portal-ui/api';
 
 function PdfLink({ url }) {
   if (!url) return null;

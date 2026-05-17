@@ -1,7 +1,7 @@
 // portal/src/screens/tabs/AccountTab.jsx
 import { useState, useEffect, useRef } from 'react';
-import { useTenant } from '../../context/TenantContext';
-import { fetchInvoices, fetchDocuments, uploadDocument, deleteDocument } from '../../api';
+import { useTenant } from '@docksbase/portal-ui/context/TenantContext';
+import { fetchInvoices, fetchDocuments, uploadDocument, deleteDocument } from '@docksbase/portal-ui/api';
 
 const STATUS_BADGE = {
   paid:   { label: 'Paid',   cls: 'badge-green' },

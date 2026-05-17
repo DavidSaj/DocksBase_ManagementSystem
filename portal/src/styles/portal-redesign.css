@@ -1,0 +1,528 @@
+/* portal-redesign.css — Astro mobile-preview visual language for the boater portal.
+   Loaded AFTER portal.css so these rules win.
+   Theme: navy screen bg, gold-light accents, Cormorant serif greetings,
+   Jost sans body, card pattern from MobileApp.module.css. */
+
+/* ── Body / shell ── */
+body {
+  background: var(--db-screen);
+  font-family: var(--db-font-sans);
+  color: var(--db-on-dark);
+}
+
+.p-shell {
+  background: var(--db-screen);
+  min-height: 100vh;
+  padding-bottom: 88px;
+  color: var(--db-on-dark);
+}
+
+/* ── Page top: replaces .p-member-header ── */
+.p-member-header {
+  padding: 28px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  background: transparent;
+}
+.p-member-header__marina {
+  font-family: var(--db-font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.3px;
+  color: var(--db-on-dark);
+  margin: 0;
+}
+.p-member-header__name {
+  font-size: 13px;
+  color: var(--db-on-dark-faint);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+/* ── Home root ── */
+.p-home-root {
+  background: var(--db-screen);
+  min-height: 100vh;
+  padding-bottom: 96px;
+  color: var(--db-on-dark);
+}
+
+/* ── Cards (replaces .p-home-card) ── */
+.p-home-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-radius: var(--db-radius-md);
+  padding: 16px;
+  margin: 12px 16px 0;
+  box-shadow: none;
+  color: var(--db-on-dark);
+}
+.p-home-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--db-gold-light);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+/* Gate codes */
+.p-home-gate-row {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.p-home-gate-label {
+  color: var(--db-on-dark-muted);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.p-home-gate-pin {
+  color: var(--db-on-dark);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  line-height: 1.1;
+}
+.p-home-gate-copy {
+  font-size: 12px;
+  color: var(--db-on-dark-faint);
+}
+
+/* Wifi */
+.p-home-wifi-row {
+  color: var(--db-on-dark-soft);
+  padding: 8px 0;
+}
+.p-home-wifi-label {
+  color: var(--db-on-dark-muted);
+  font-size: 13px;
+}
+.p-home-wifi-value {
+  color: var(--db-on-dark);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.p-home-loading,
+.p-home-empty {
+  color: var(--db-on-dark-faint);
+  font-size: 14px;
+  padding: 12px 0;
+}
+
+/* ── Bottom nav (dark) ── */
+.p-bottom-nav {
+  background: var(--db-bezel);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.p-nav-tab {
+  background: transparent;
+  border: none;
+  color: var(--db-on-dark-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  flex: 1;
+  cursor: pointer;
+  transition: color 140ms ease;
+  position: relative;
+}
+.p-nav-tab svg {
+  width: 22px; height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.p-nav-tab .p-nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.p-nav-tab.active,
+.p-nav-tab.active svg {
+  color: var(--db-gold-light);
+  stroke: var(--db-gold-light);
+}
+.p-nav-tab.active::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  width: 28px;
+  height: 2px;
+  background: var(--db-gold-light);
+  border-radius: 0 0 2px 2px;
+}
+
+/* ── Tab content scroll area ── */
+.p-tab-scroll {
+  padding-bottom: 96px;
+}
+
+/* ── Generic helpers for new redesigned screens ── */
+.p-greet {
+  font-family: var(--db-font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--db-on-dark);
+  margin: 0 0 4px;
+  padding: 28px 20px 0;
+}
+.p-greet-sub {
+  font-size: 13px;
+  color: var(--db-on-dark-faint);
+  padding: 0 20px 18px;
+}
+
+.p-quick-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px;
+  margin-top: 12px;
+}
+.p-quick-actions .db-btn { flex: 1; }
+
+/* ── Account & ServicesTab text overrides ── */
+.p-account-section-title,
+.p-services-section-title {
+  font-size: 11px;
+  color: var(--db-gold-light);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 24px 20px 8px;
+}
+
+/* Quick action card grid pattern */
+.p-action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 16px;
+  margin-top: 12px;
+}
+.p-action-tile {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-radius: var(--db-radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  color: var(--db-on-dark);
+  text-align: left;
+  font-family: var(--db-font-sans);
+  transition: background 160ms ease;
+}
+.p-action-tile:hover { background: var(--db-card-hover); }
+.p-action-tile-icon {
+  width: 36px; height: 36px;
+  background: rgba(212,176,122,0.12);
+  border: 1px solid rgba(212,176,122,0.2);
+  border-radius: var(--db-radius-md);
+  color: var(--db-gold-light);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.p-action-tile-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.p-action-tile-label {
+  font-size: 13px;
+  color: var(--db-on-dark);
+  font-weight: 600;
+}
+.p-action-tile-sub {
+  font-size: 11px;
+  color: var(--db-on-dark-faint);
+}
+
+/* ── Form fields on dark ── */
+.p-form-card label,
+.p-form-card .p-field-label {
+  color: var(--db-on-dark-muted);
+}
+
+/* ── Quick actions row (re-skin) ── */
+.p-quick-actions {
+  background: transparent;
+  padding: 12px 16px 4px;
+  gap: 8px;
+}
+.p-quick-btn {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  box-shadow: none;
+  border-radius: var(--db-radius-md);
+  padding: 14px 6px;
+  transition: background 160ms ease;
+}
+.p-quick-btn:hover { background: var(--db-card-hover); }
+.p-quick-btn svg {
+  stroke: var(--db-gold-light);
+}
+.p-quick-btn__label {
+  font-family: var(--db-font-sans);
+  color: var(--db-on-dark);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+}
+.p-quick-btn--disabled svg { stroke: var(--db-on-dark-faint); }
+.p-quick-btn--disabled .p-quick-btn__label { color: var(--db-on-dark-faint); }
+
+/* ── Feed cards (re-skin) ── */
+.p-feed { padding: 8px 16px 32px; }
+.p-feed-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-left: 4px solid transparent;
+  box-shadow: none;
+  border-radius: var(--db-radius-md);
+  padding: 16px;
+  margin-bottom: 8px;
+  color: var(--db-on-dark);
+}
+.p-feed-card--red    { border-left-color: var(--db-status-red); }
+.p-feed-card--orange { border-left-color: #e0944a; }
+.p-feed-card--navy   { border-left-color: var(--db-teal-light); }
+.p-feed-card--gold   { border-left-color: var(--db-gold-light); }
+.p-feed-card--green  { border-left-color: var(--db-status-green); }
+.p-feed-card__eyebrow {
+  font-family: var(--db-font-sans);
+  color: var(--db-gold-light);
+  letter-spacing: 1.2px;
+}
+.p-feed-card__title { color: var(--db-on-dark); font-family: var(--db-font-sans); font-weight: 600; }
+.p-feed-card__sub   { color: var(--db-on-dark-faint); }
+.p-feed-card__amount {
+  font-family: var(--db-font-serif);
+  color: var(--db-on-dark);
+}
+.p-feed__empty { color: var(--db-on-dark-faint); }
+
+/* ── Toast on dark ── */
+.p-toast {
+  background: var(--db-bezel);
+  color: var(--db-gold-light);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--db-radius-md);
+  font-family: var(--db-font-sans);
+  box-shadow: var(--db-shadow-float);
+}
+
+/* ── Account tab re-skin ── */
+.p-acct-root {
+  background: var(--db-screen);
+  padding-bottom: 96px;
+  min-height: 100vh;
+  color: var(--db-on-dark);
+}
+.p-acct-section-title {
+  font-size: 11px;
+  color: var(--db-gold-light);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 24px 20px 8px;
+}
+.p-acct-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  box-shadow: none;
+  border-radius: var(--db-radius-md);
+  margin: 0 16px 8px;
+  overflow: hidden;
+}
+.p-acct-empty { color: var(--db-on-dark-faint); }
+.p-acct-invoice-row,
+.p-acct-doc-row {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 14px 16px;
+}
+.p-acct-invoice-row:last-child,
+.p-acct-doc-row:last-child { border-bottom: none; }
+.p-acct-invoice-num,
+.p-acct-doc-type {
+  color: var(--db-on-dark);
+  font-weight: 600;
+}
+.p-acct-invoice-date,
+.p-acct-doc-expiry {
+  color: var(--db-on-dark-faint);
+}
+.p-acct-invoice-amount {
+  font-family: var(--db-font-serif);
+  color: var(--db-on-dark);
+  font-weight: 700;
+}
+.p-acct-doc-btn {
+  background: var(--db-gold-light);
+  color: var(--db-navy);
+  border: none;
+  border-radius: var(--db-radius-sm);
+  padding: 8px 14px;
+  font-weight: 600;
+}
+.p-acct-doc-btn:hover { background: var(--db-gold); color: #fff; }
+.p-acct-logout { color: var(--db-status-red); }
+
+/* ── Generic loading inside tabs ── */
+.p-tab-loading { color: var(--db-on-dark-faint); }
+.p-tab-stub    { color: var(--db-on-dark-faint); }
+
+/* ── Badges ── */
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.badge-green {
+  color: var(--db-status-green);
+  background: rgba(56,168,96,0.15);
+  border: 1px solid rgba(56,168,96,0.3);
+}
+.badge-gold {
+  color: var(--db-gold-light);
+  background: rgba(212,176,122,0.15);
+  border: 1px solid rgba(212,176,122,0.3);
+}
+.badge-gray {
+  color: var(--db-on-dark-muted);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ── Services tab re-skin ── */
+.p-service-list {
+  padding: 16px 16px 96px;
+  background: var(--db-screen);
+  min-height: 100vh;
+}
+.p-service-section__header {
+  font-size: 11px;
+  color: var(--db-gold-light);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 12px 4px 10px;
+}
+.p-service-row {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-radius: var(--db-radius-md);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  color: var(--db-on-dark);
+  transition: background 160ms ease;
+}
+.p-service-row:hover { background: var(--db-card-hover); }
+.p-service-row__icon {
+  background: rgba(212,176,122,0.12);
+  border: 1px solid rgba(212,176,122,0.2);
+  color: var(--db-gold-light);
+}
+.p-service-row__icon svg { stroke: var(--db-gold-light); fill: none; }
+.p-service-row__label {
+  color: var(--db-on-dark);
+  font-weight: 600;
+  font-size: 14px;
+}
+.p-service-row__sub {
+  color: var(--db-on-dark-faint);
+  font-size: 12px;
+}
+.p-service-row__chevron {
+  stroke: var(--db-on-dark-muted);
+  fill: none;
+}
+.p-service-row__badge {
+  background: rgba(255,255,255,0.05);
+  color: var(--db-on-dark-muted);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.p-service-row--disabled { opacity: 0.4; }
+
+/* Service request screens (Crane/Extend/Issue/WorkOrder) keep the existing
+   `.p-service-option*` cards — restyle to dark. */
+.p-service-option {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  color: var(--db-on-dark);
+}
+.p-service-option--selected {
+  background: rgba(212,176,122,0.1);
+  border-color: var(--db-gold-light);
+}
+.p-service-option__icon {
+  background: rgba(212,176,122,0.12);
+  color: var(--db-gold-light);
+}
+.p-service-option__icon svg { stroke: var(--db-gold-light); }
+.p-service-option__label { color: var(--db-on-dark); }
+.p-service-option__desc  { color: var(--db-on-dark-faint); }
+
+/* ── Utilities tab re-skin ── */
+.p-util-root {
+  background: var(--db-screen);
+  min-height: 100vh;
+  padding-bottom: 96px;
+  color: var(--db-on-dark);
+}
+.p-util-header {
+  font-family: var(--db-font-serif);
+  color: var(--db-on-dark);
+  font-size: 26px;
+  font-weight: 700;
+  padding: 24px 20px 6px;
+  letter-spacing: -0.3px;
+}
+.p-util-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  box-shadow: none;
+  border-radius: var(--db-radius-md);
+  margin: 0 16px 8px;
+}
+.p-util-type {
+  color: var(--db-on-dark);
+  font-weight: 600;
+  font-size: 14px;
+}
+.p-util-berth { color: var(--db-on-dark-faint); }
+.p-util-icon svg { stroke: var(--db-gold-light); }
+.p-util-reading {
+  color: var(--db-gold-light);
+  font-family: var(--db-font-serif);
+  font-size: 30px;
+  font-weight: 700;
+}
+.p-util-updated { color: var(--db-on-dark-faint); }
+.p-util-note    { color: var(--db-on-dark-faint); }

@@ -1,6 +1,6 @@
 // portal/src/screens/CraneRequestScreen.jsx
 import { useState } from 'react';
-import api from '../api';
+import api from '@docksbase/portal-ui/api';
 
 function ArrowLeftIcon() {
   return (

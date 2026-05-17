@@ -1,4 +1,4 @@
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 function formatDate(iso) {
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });

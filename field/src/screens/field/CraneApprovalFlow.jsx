@@ -2,9 +2,6 @@ import { useState, useEffect } from 'react';
 import api from '../../api.js';
 import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-
 const SERVICE_LABEL = { launch: 'Launch', haul_out: 'Haul-out', both: 'Launch & Haul-out' };
 
 export default function CraneApprovalFlow({ onBack }) {
@@ -29,40 +26,40 @@ export default function CraneApprovalFlow({ onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
-      <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>Crane Requests</span>
-        {requests.length > 0 && (
-          <span style={{ marginLeft: 'auto', background: '#b8965a', color: '#0c1f3d', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
-            {requests.length}
-          </span>
-        )}
+    <div className="f-screen">
+      <div className="f-topbar">
+        <button className="f-dw-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="arrow-left" size={18} color="var(--db-gold-light)" />
+          Back
+        </button>
+        <span style={{ fontFamily: 'var(--db-font-serif)', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)' }}>Crane Requests</span>
+        {requests.length > 0 ? (
+          <span className="f-pill f-pill--gold">{requests.length}</span>
+        ) : <span style={{ width: 50 }} />}
       </div>
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
+        <div className="f-dw-loading">Loading…</div>
       ) : requests.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
+        <div className="f-dw-loading" style={{ padding: 40 }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-            <Icon name="crane" size={36} color="rgba(0,0,0,0.25)" />
+            <Icon name="crane" size={36} color="var(--db-on-dark-faint)" />
           </div>
           <div style={{ fontSize: 15 }}>No pending crane requests.</div>
         </div>
       ) : (
-        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column' }}>
           {requests.map(r => (
-            <div key={r.id} style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 2 }}>{r.member_name}</div>
-              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 2 }}>{SERVICE_LABEL[r.service_type] || r.service_type}</div>
-              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: r.notes ? 8 : 12 }}>{r.requested_date}</div>
-              {r.notes && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 12 }}>{r.notes}</div>}
+            <div key={r.id} className="f-card">
+              <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 2 }}>{r.member_name}</div>
+              <div style={{ fontSize: 13, color: 'var(--db-gold-light)', marginBottom: 2, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{SERVICE_LABEL[r.service_type] || r.service_type}</div>
+              <div style={{ fontSize: 13, color: 'var(--db-on-dark-muted)', marginBottom: r.notes ? 8 : 12 }}>{r.requested_date}</div>
+              {r.notes && <div style={{ fontSize: 13, color: 'var(--db-on-dark-soft)', marginBottom: 12 }}>{r.notes}</div>}
               <div style={{ display: 'flex', gap: 10 }}>
-                <button disabled={acting === r.id} onClick={() => handleAction(r.id, 'approved')}
-                  style={{ flex: 1, height: 44, borderRadius: 10, background: '#0c1f3d', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' }}>
+                <button disabled={acting === r.id} onClick={() => handleAction(r.id, 'approved')} className="f-btn-primary" style={{ flex: 1 }}>
                   Approve
                 </button>
                 <button disabled={acting === r.id} onClick={() => handleAction(r.id, 'rejected')}
-                  style={{ flex: 1, height: 44, borderRadius: 10, background: '#f4f3f0', color: '#c0392b', border: '1.5px solid rgba(192,57,43,0.3)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' }}>
+                  style={{ flex: 1, height: 48, borderRadius: 'var(--db-radius-sm)', background: 'rgba(224,85,85,0.12)', color: 'var(--db-status-red)', border: '1px solid rgba(224,85,85,0.3)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--db-font-sans)' }}>
                   Reject
                 </button>
               </div>

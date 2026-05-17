@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useTenant } from '../../context/TenantContext';
-import api from '../../api';
+import { useTenant } from '@docksbase/portal-ui/context/TenantContext';
+import api from '@docksbase/portal-ui/api';
 import AppShell from './AppShell';
-import LoginScreen from '../../screens/LoginScreen';
+import LoginScreen from '@docksbase/portal-ui/screens/LoginScreen';
 
 export default function PortalGate() {
   const { marina, isLoading } = useTenant();

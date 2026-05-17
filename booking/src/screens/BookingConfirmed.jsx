@@ -1,4 +1,4 @@
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 export default function BookingConfirmed({ marina, bookingId, cancelled }) {
   const slug = window.location.pathname.split('/').filter(Boolean)[0] ?? '';

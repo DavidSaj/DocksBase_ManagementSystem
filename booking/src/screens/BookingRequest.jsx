@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import api from '../api.js';
+import api from '@docksbase/portal-ui/api';
 
 export default function BookingRequest({ marina, onSubmitted }) {
   const today = new Date().toISOString().split('T')[0];

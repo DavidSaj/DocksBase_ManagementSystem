@@ -3,19 +3,17 @@ import api, { storeUser } from '../api.js';
 import Brand from '../components/Brand.jsx';
 
 const S = {
-  page:  { minHeight: '100vh', background: '#0c1f3d', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' },
-  brand: { marginBottom: 36 },
-  sub:   { fontFamily: 'IBM Plex Sans, system-ui, sans-serif', fontSize: 12, color: 'rgba(245,240,230,0.45)', marginTop: 10, letterSpacing: '1.5px', textTransform: 'uppercase' },
-  card:  { width: '100%', maxWidth: 360, background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.25)' },
-  h2:    { fontFamily: 'Jost, system-ui, sans-serif', fontSize: 16, fontWeight: 700, color: '#0c1f3d', marginBottom: 4 },
-  p:     { fontFamily: 'IBM Plex Sans, system-ui, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.45)', marginBottom: 20, lineHeight: 1.5 },
-  label: { display: 'block', fontFamily: 'Jost, system-ui, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(0,0,0,0.4)', marginBottom: 6 },
-  input: { width: '100%', padding: '11px 13px', fontFamily: 'IBM Plex Sans, system-ui, sans-serif', fontSize: 15, border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 8, outline: 'none', boxSizing: 'border-box', color: '#1a1a1a', background: '#fff' },
+  page:  { minHeight: '100vh', background: 'var(--db-screen)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' },
+  brand: { marginBottom: 36, textAlign: 'center' },
+  sub:   { fontFamily: 'var(--db-font-sans)', fontSize: 12, color: 'var(--db-gold-light)', marginTop: 10, letterSpacing: 3, textTransform: 'uppercase', fontWeight: 600 },
+  card:  { width: '100%', maxWidth: 360, background: 'var(--db-card-bg)', border: 'var(--db-card-border)', borderRadius: 'var(--db-radius-md)', padding: '28px 24px' },
+  h2:    { fontFamily: 'var(--db-font-serif)', fontSize: 24, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 4 },
+  p:     { fontFamily: 'var(--db-font-sans)', fontSize: 13, color: 'var(--db-on-dark-muted)', marginBottom: 20, lineHeight: 1.5 },
+  label: { display: 'block', fontFamily: 'var(--db-font-sans)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: 'var(--db-gold-light)', marginBottom: 6 },
   field: { marginBottom: 16 },
-  btn:   { width: '100%', padding: '14px 0', borderRadius: 8, background: '#0c1f3d', color: '#fff', border: 'none', fontFamily: 'Jost, system-ui, sans-serif', fontSize: 14, fontWeight: 700, letterSpacing: '0.3px', cursor: 'pointer', marginTop: 4 },
-  err:   { fontFamily: 'IBM Plex Sans, system-ui, sans-serif', fontSize: 13, color: '#c0392b', background: 'rgba(192,57,43,0.07)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 },
-  expiredCard: { width: '100%', maxWidth: 360, background: '#fff', borderRadius: 16, padding: '36px 28px', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', textAlign: 'center' },
-  anchor: { width: 52, height: 52, borderRadius: '50%', background: 'rgba(12,31,61,0.06)', border: '1.5px solid rgba(12,31,61,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 22 },
+  err:   { fontFamily: 'var(--db-font-sans)', fontSize: 13, color: 'var(--db-status-red)', background: 'rgba(224,85,85,0.12)', border: '1px solid rgba(224,85,85,0.3)', borderRadius: 'var(--db-radius-sm)', padding: '8px 12px', marginBottom: 12 },
+  expiredCard: { width: '100%', maxWidth: 360, background: 'var(--db-card-bg)', border: 'var(--db-card-border)', borderRadius: 'var(--db-radius-md)', padding: '36px 28px', textAlign: 'center' },
+  anchor: { width: 52, height: 52, borderRadius: '50%', background: 'rgba(212,176,122,0.12)', border: '1px solid rgba(212,176,122,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 22 },
 };
 
 export default function Setup({ uidb64, token, onComplete }) {
@@ -63,7 +61,7 @@ export default function Setup({ uidb64, token, onComplete }) {
     return (
       <div style={S.page}>
         <BrandBlock />
-        <div style={{ color: 'rgba(245,240,230,0.4)', fontFamily: 'IBM Plex Sans, system-ui, sans-serif', fontSize: 14 }}>Checking link…</div>
+        <div style={{ color: 'var(--db-on-dark-muted)', fontFamily: 'var(--db-font-sans)', fontSize: 14 }}>Checking link…</div>
       </div>
     );
   }
@@ -74,8 +72,8 @@ export default function Setup({ uidb64, token, onComplete }) {
         <BrandBlock />
         <div style={S.expiredCard}>
           <div style={S.anchor}>⚓</div>
-          <div style={{ fontFamily: 'Jost, system-ui, sans-serif', fontSize: 17, fontWeight: 700, color: '#0c1f3d', marginBottom: 10 }}>Link expired</div>
-          <div style={{ fontFamily: 'IBM Plex Sans, system-ui, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.45)', lineHeight: 1.6 }}>
+          <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 22, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 10 }}>Link expired</div>
+          <div style={{ fontFamily: 'var(--db-font-sans)', fontSize: 14, color: 'var(--db-on-dark-muted)', lineHeight: 1.6 }}>
             Setup links are single-use and expire after a few days. Ask your marina manager to send a new invite.
           </div>
         </div>
@@ -93,17 +91,17 @@ export default function Setup({ uidb64, token, onComplete }) {
         <form onSubmit={handleSubmit}>
           <div style={S.field}>
             <label style={S.label}>Email</label>
-            <input style={{ ...S.input, background: '#f4f3f0', color: 'rgba(0,0,0,0.45)', cursor: 'not-allowed' }} type="email" value={email} readOnly />
+            <input className="f-input" type="email" value={email} readOnly style={{ opacity: 0.6, cursor: 'not-allowed' }} />
           </div>
           <div style={S.field}>
             <label style={S.label}>Password</label>
-            <input style={S.input} type="password" placeholder="At least 8 characters" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required />
+            <input className="f-input" type="password" placeholder="At least 8 characters" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <div style={S.field}>
             <label style={S.label}>Confirm Password</label>
-            <input style={S.input} type="password" placeholder="Repeat your password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
+            <input className="f-input" type="password" placeholder="Repeat your password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
           </div>
-          <button style={{ ...S.btn, opacity: submitting ? 0.6 : 1 }} type="submit" disabled={submitting}>
+          <button className="f-btn-primary" style={{ width: '100%', marginTop: 4, opacity: submitting ? 0.6 : 1 }} type="submit" disabled={submitting}>
             {submitting ? 'Setting up…' : 'Create Account'}
           </button>
         </form>
