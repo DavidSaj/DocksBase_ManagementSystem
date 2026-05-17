@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -883,20 +883,11 @@ export default function Loyalty() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Page header */}
-      <div className="page-header">
-        <div className="container-xl">
-          <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              style={{ color: 'var(--teal, #2da39a)', flexShrink: 0 }}>
-              <polyline points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            Loyalty Programme
-            <ScreenInfo title="Loyalty Programme" body={SCREEN_INFO.loyalty} />
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Loyalty Programme"
+        subtitle="Points tiers, earning rules, redemptions, and member status tracking."
+        infoBody={SCREEN_INFO.loyalty}
+      />
 
       {/* Tab bar */}
       <div style={{ borderBottom: '1px solid rgba(0,0,0,0.1)' }}>

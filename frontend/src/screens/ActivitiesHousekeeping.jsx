@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -1713,10 +1713,11 @@ export default function ActivitiesHousekeeping() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Activities & Housekeeping</span>
-        <ScreenInfo title="Activities & Housekeeping" body={SCREEN_INFO.activities} />
-      </div>
+      <PageHeader
+        title="Activities & Housekeeping"
+        subtitle="Bookable boater activities — paddleboard rentals, lessons, guided trips — plus the cleaning side: housekeeping tasks, schedules, and the staff board."
+        infoBody={SCREEN_INFO.activities}
+      />
       {/* Top-level tab bar */}
       <div className="tabs">
         {TOP_TABS.map(t => (

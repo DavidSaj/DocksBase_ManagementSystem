@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { REST_TABLES, REST_BOOKINGS, MENU, REST_ORDERS } from '../data/mock.js';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 const SECTIONS = ['Main', 'Terrace', 'Bar'];
@@ -16,10 +16,11 @@ export default function Restaurant() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Restaurant</span>
-        <ScreenInfo title="Restaurant" body={SCREEN_INFO.restaurant} />
-      </div>
+      <PageHeader
+        title="Restaurant"
+        subtitle="Point-of-sale and floor management for the marina restaurant."
+        infoBody={SCREEN_INFO.restaurant}
+      />
       <div className="tabs">
         {[['floor','Floor Plan'],['reservations','Reservations'],['menu','Menu'],['orders','Live Orders'],['pos','POS / Bills']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => { setTab(v); setSelTable(null); }}>{l}</div>

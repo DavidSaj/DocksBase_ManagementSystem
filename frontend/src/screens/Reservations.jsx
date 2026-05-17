@@ -8,7 +8,7 @@ import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
 import PendingRequestsTab from '../components/reservations/PendingRequestsTab.jsx';
 import BerthCalendar from '../components/harbor-map/BerthCalendar.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 const filterMap = {
@@ -817,13 +817,14 @@ export default function Reservations() {
           onAssign={assignBerth}
         />
       )}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginRight: 2 }}>Reservations</span>
-        <ScreenInfo title="Reservations" body={SCREEN_INFO.reservations} />
-        <div style={{ flex: 1 }} />
+      <PageHeader
+        title="Reservations"
+        subtitle="All bookings in one place — transient, seasonal, and pending requests."
+        infoBody={SCREEN_INFO.reservations}
+      >
         <div className="search"><Ic n="search" s={13} /><input placeholder="Search vessel, owner, booking…" /></div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}><Ic n="plus" s={12} />New Booking</button>
-      </div>
+      </PageHeader>
       <div className="tabs">
         {[['all','All'],['transient','Transient'],['seasonal','Seasonal'],['pending_approval','Pending Approval'],['pending_requests','Pending Requests'],['pending','Pending'],['overdue','Overdue'],['waitlist','Wait List']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => { setTab(v); setSel(null); setSelReq(null); }}>

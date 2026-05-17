@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 import useMarina from '../hooks/useMarina.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1164,13 +1164,11 @@ export default function Sustainability() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {/* Page header */}
-      <div className="page-header" style={{ marginBottom: 20 }}>
-        <div className="page-title" style={{ display: 'flex', alignItems: 'center' }}>
-          Sustainability &amp; ESG
-          <ScreenInfo title="Sustainability & ESG" body={SCREEN_INFO.sustainability} />
-        </div>
-      </div>
+      <PageHeader
+        title="Sustainability & ESG"
+        subtitle="Carbon footprint tracking and ESG reporting across Scopes 1–3."
+        infoBody={SCREEN_INFO.sustainability}
+      />
 
       {/* Tab bar */}
       <div style={{
