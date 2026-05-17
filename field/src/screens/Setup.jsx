@@ -52,7 +52,7 @@ export default function Setup({ uidb64, token, onComplete }) {
 
   const BrandBlock = () => (
     <div style={S.brand}>
-      <BrandBlock />
+      <Brand size={28} />
       <div style={S.sub}>Staff Portal</div>
     </div>
   );
