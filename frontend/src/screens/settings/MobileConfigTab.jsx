@@ -101,32 +101,22 @@ export default function MobileConfigTab({ marina }) {
           }}>{patchError}</div>
         )}
 
-        {/* Brand */}
+        {/* Brand — mobile/portal color is locked to the DocksBase navy so the
+            boater experience stays consistent across marinas. Editing was
+            removed at user request; we display the fixed color for reference. */}
         <div className="card">
           <div className="card-header">
             <div className="card-header-title">Brand</div>
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Color applied to the member portal</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Mobile portal color</div>
           </div>
           <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <input
-              type="color"
-              value={config.brand_color || '#0c1f3d'}
-              onChange={e => setConfig(c => ({ ...c, brand_color: e.target.value }))}
-              onBlur={e => patch({ brand_color: e.target.value })}
-              style={{ width: 44, height: 36, padding: 2, border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer' }}
-              aria-label="Primary brand color"
+            <div
+              aria-label="Mobile portal color (fixed)"
+              style={{ width: 44, height: 36, border: '1px solid #ddd', borderRadius: 4, background: '#0c1f3d' }}
             />
-            <input
-              type="text"
-              className="input"
-              value={config.brand_color || '#0c1f3d'}
-              onChange={e => setConfig(c => ({ ...c, brand_color: e.target.value }))}
-              onBlur={e => /^#[0-9a-fA-F]{6}$/.test(e.target.value) && patch({ brand_color: e.target.value })}
-              maxLength={7}
-              style={{ width: 110, fontFamily: 'monospace' }}
-            />
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginLeft: 'auto' }}>
-              {savingFlag ? 'Saving…' : 'Saves automatically'}
+            <div style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>#0c1f3d</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginLeft: 'auto', maxWidth: 260, lineHeight: 1.4, textAlign: 'right' }}>
+              Mobile colors are fixed to ensure a consistent boater experience across marinas.
             </div>
           </div>
         </div>
@@ -232,6 +222,17 @@ export default function MobileConfigTab({ marina }) {
           <PortalIframePreview config={config} marinaName={marina?.name || 'Your Marina'} />
           <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 10, textAlign: 'center', lineHeight: 1.5 }}>
             Live preview from the real portal. Edits show instantly.
+          </div>
+          <div style={{
+            marginTop: 12, padding: '10px 12px',
+            background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)',
+            borderRadius: 6, fontSize: 11, color: 'rgba(0,0,0,0.55)', lineHeight: 1.5,
+          }}>
+            <strong>About the gate PIN in the preview.</strong> Boaters see their
+            marina's gate PINs on the member portal home screen, pulled from each
+            member's wallet (<code>wallet.gate_codes</code>). Set or edit PINs per
+            zone under <strong>Access Control → Zones</strong> — there is no
+            separate gate-PIN field on this Settings screen.
           </div>
         </div>
       </div>

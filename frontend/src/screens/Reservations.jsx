@@ -763,6 +763,21 @@ export default function Reservations() {
   const [showModal, setShowModal] = useState(false);
   const [assignModal, setAssignModal] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  // Offline-payment modal for the right-side card.
+  const [payModal, setPayModal] = useState(null); // booking object when open
+  const [payMethod, setPayMethod] = useState('cash');
+  const [payAmount, setPayAmount] = useState('');
+  const [payNotes, setPayNotes] = useState('');
+  const [paySendReceipt, setPaySendReceipt] = useState(true);
+  const [payLoading, setPayLoading] = useState(false);
+  // Inline edit state for the right-side card.
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({ check_in: '', check_out: '', notes: '' });
+  const [editLoading, setEditLoading] = useState(false);
+  // Cancel-confirmation state.
+  const [cancelModal, setCancelModal] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelAcknowledgeRefund, setCancelAcknowledgeRefund] = useState(false);
 
   useEffect(() => {
     api.get('/bookings/', { params: { status: 'pending_approval' } })
@@ -783,14 +798,93 @@ export default function Reservations() {
 
   const rows = bookings.map(fmt);
 
-  async function markPaid(b) {
-    await updateBooking(b.id, { paid: true, status: 'checked_in' });
-    setSel(prev => prev?.id === b.id ? { ...prev, paid: true, status: 'checked_in' } : prev);
-  }
-
   async function manualCheckIn(b) {
     await updateBooking(b.id, { status: 'checked_in' });
     setSel(prev => prev?.id === b.id ? { ...prev, status: 'checked_in' } : prev);
+  }
+
+  // ── Offline payment flow ──────────────────────────────────────────────────
+  // Routes through the Invoice (mark-paid endpoint) so the booking.paid flag
+  // is set via the invoice_paid signal — single source of truth.
+  function openPayModal(b) {
+    setPayMethod('cash');
+    setPayAmount(b.amount != null ? Number(b.amount).toFixed(2) : '');
+    setPayNotes('');
+    setPaySendReceipt(true);
+    setPayModal(b);
+  }
+
+  async function submitOfflinePayment() {
+    if (!payModal?.invoice_id || !payAmount) return;
+    setPayLoading(true);
+    try {
+      await api.patch(`/billing/invoices/${payModal.invoice_id}/mark-paid/`, {
+        method: payMethod,
+        amount: payAmount,
+        notes: payNotes,
+        send_receipt: paySendReceipt,
+      });
+      // Refresh booking from API so paid/status reflect signal-driven state.
+      const { data: refreshed } = await api.get(`/bookings/${payModal.id}/`);
+      setSel(prev => prev?.id === refreshed.id ? refreshed : prev);
+      await refetch();
+      setPayModal(null);
+      alert(`Payment recorded. Booking ${refreshed.id} marked as paid.`);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Could not record payment.');
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  // ── Inline edit (check-in/check-out/notes) ────────────────────────────────
+  function startEdit(b) {
+    setEditForm({
+      check_in: b.check_in ?? '',
+      check_out: b.check_out ?? '',
+      notes: b.notes ?? '',
+    });
+    setEditMode(true);
+  }
+
+  async function saveEdit() {
+    if (!sel) return;
+    setEditLoading(true);
+    try {
+      const patch = {
+        check_in: editForm.check_in,
+        check_out: editForm.check_out,
+        notes: editForm.notes,
+      };
+      const updated = await updateBooking(sel.id, patch);
+      setSel(prev => prev?.id === updated.id ? updated : prev);
+      setEditMode(false);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Could not update booking.');
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  // ── Cancel booking ────────────────────────────────────────────────────────
+  function openCancelModal(b) {
+    setCancelAcknowledgeRefund(false);
+    setCancelModal(b);
+  }
+
+  async function confirmCancel() {
+    if (!cancelModal) return;
+    if (cancelModal.paid && !cancelAcknowledgeRefund) return;
+    setCancelLoading(true);
+    try {
+      const updated = await updateBooking(cancelModal.id, { status: 'cancelled' });
+      setSel(prev => prev?.id === updated.id ? updated : prev);
+      setCancelModal(null);
+    } catch (e) {
+      alert(e?.response?.data?.detail ?? 'Could not cancel booking.');
+    } finally {
+      setCancelLoading(false);
+    }
   }
 
   async function handleConvert(id) {
@@ -816,6 +910,101 @@ export default function Reservations() {
           onClose={() => setAssignModal(null)}
           onAssign={assignBerth}
         />
+      )}
+      {payModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && !payLoading && setPayModal(null)}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Record Offline Payment</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 20 }}>
+              Booking {payModal.id} · Invoice #{payModal.invoice_id} · Outstanding €{Number(payModal.amount ?? 0).toFixed(2)}
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 6 }}>PAYMENT METHOD</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[['cash', 'Cash'], ['external_card', 'External Card'], ['bank_transfer', 'Bank Transfer'], ['cheque', 'Cheque']].map(([v, l]) => (
+                  <button key={v} type="button" onClick={() => setPayMethod(v)} style={{
+                    padding: '10px 4px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    border: payMethod === v ? '2px solid var(--navy)' : '1px solid rgba(0,0,0,0.15)',
+                    background: payMethod === v ? 'var(--navy)' : '#fff',
+                    color: payMethod === v ? '#fff' : 'rgba(0,0,0,0.6)',
+                  }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>AMOUNT RECEIVED (€)</div>
+              <input type="number" step="0.01" min="0.01" value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }} />
+              <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>
+                Defaults to invoice total. Partial payments will mark the invoice as fully paid (v1 limitation).
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>NOTES (optional)</div>
+              <input placeholder="e.g. reference number, who handed over cash"
+                value={payNotes} onChange={e => setPayNotes(e.target.value)}
+                style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input id="pay-send-receipt" type="checkbox" checked={paySendReceipt}
+                onChange={e => setPaySendReceipt(e.target.checked)} />
+              <label htmlFor="pay-send-receipt" style={{ fontSize: 12, color: 'rgba(0,0,0,0.7)', cursor: 'pointer' }}>
+                Send receipt email to boater
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => setPayModal(null)} disabled={payLoading}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center', fontSize: 13 }}
+                disabled={!payAmount || parseFloat(payAmount) <= 0 || payLoading}
+                onClick={submitOfflinePayment}>
+                {payLoading ? 'Recording…' : `Record Payment — €${Number(payAmount || 0).toFixed(2)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cancelModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && !cancelLoading && setCancelModal(null)}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Cancel Booking {cancelModal.id}?</div>
+            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 20 }}>
+              This will set the booking status to <strong>cancelled</strong>. The action cannot be undone from this screen.
+            </div>
+            {cancelModal.paid && (
+              <div style={{ background: '#fff3cd', border: '1px solid #f0c674', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#7a5d00', marginBottom: 6 }}>
+                  This booking has already been paid.
+                </div>
+                <div style={{ fontSize: 11, color: '#7a5d00', marginBottom: 8 }}>
+                  Cancelling here will NOT trigger a refund. Issue any refund manually in
+                  Billing → Invoices after cancelling.
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#7a5d00', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={cancelAcknowledgeRefund}
+                    onChange={e => setCancelAcknowledgeRefund(e.target.checked)} />
+                  I understand — I will issue any refund later in Billing.
+                </label>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => setCancelModal(null)} disabled={cancelLoading}>Keep Booking</button>
+              <button className="btn btn-danger" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={confirmCancel}
+                disabled={cancelLoading || (cancelModal.paid && !cancelAcknowledgeRefund)}>
+                {cancelLoading ? 'Cancelling…' : 'Cancel Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       <PageHeader
         title="Reservations"
@@ -880,24 +1069,76 @@ export default function Reservations() {
             <div className="detail">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <div className="detail-title">{sel.id}</div>
-                <button className="btn btn-ghost btn-sm" onClick={() => setSel(null)} style={{ padding: '3px 7px' }}><Ic n="x" s={12} /></button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setSel(null); setEditMode(false); }} style={{ padding: '3px 7px' }}><Ic n="x" s={12} /></button>
               </div>
               <StatusBadge s={sel.status} />
-              <div style={{ marginTop: 14 }}>
-                {[['Vessel',sel.vessel],['Owner',sel.owner],['Slip',sel.berth],['Check-in',sel.checkin],['Check-out',sel.checkout],['Duration',`${sel.nights} nights`],['Type',sel.type],['Amount',sel.amount],['Payment',sel.paid?'Paid':'Outstanding']].map(([k,v]) => (
-                  <div key={k} className="detail-row">
-                    <div className="detail-key">{k}</div>
-                    <div className="detail-val" style={{ color: k==='Payment' && !sel.paid ? 'var(--orange)' : k==='Payment' ? 'var(--green)' : undefined }}>{v}</div>
+              {!editMode ? (
+                <div style={{ marginTop: 14 }}>
+                  {[['Vessel',sel.vessel],['Owner',sel.owner],['Slip',sel.berth],['Check-in',sel.checkin],['Check-out',sel.checkout],['Duration',`${sel.nights} nights`],['Type',sel.type],['Amount',sel.amount],['Payment',sel.paid?'Paid':'Outstanding']].map(([k,v]) => (
+                    <div key={k} className="detail-row">
+                      <div className="detail-key">{k}</div>
+                      <div className="detail-val" style={{ color: k==='Payment' && !sel.paid ? 'var(--orange)' : k==='Payment' ? 'var(--green)' : undefined }}>{v}</div>
+                    </div>
+                  ))}
+                  {sel.notes && (
+                    <div className="detail-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                      <div className="detail-key">Notes</div>
+                      <div className="detail-val" style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{sel.notes}</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <div style={{ ...LABEL, marginBottom: 4 }}>Check-in</div>
+                    <input type="date" value={editForm.check_in}
+                      onChange={e => setEditForm(f => ({ ...f, check_in: e.target.value }))}
+                      style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12, boxSizing: 'border-box' }} />
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <div style={{ ...LABEL, marginBottom: 4 }}>Check-out</div>
+                    <input type="date" value={editForm.check_out}
+                      onChange={e => setEditForm(f => ({ ...f, check_out: e.target.value }))}
+                      style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ ...LABEL, marginBottom: 4 }}>Notes</div>
+                    <textarea value={editForm.notes} rows={3}
+                      onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                      style={{ width: '100%', border: 'var(--border)', borderRadius: 5, padding: '6px 8px', fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
+                  </div>
+                </div>
+              )}
               <div className="detail-actions">
-                {!sel.paid && <button className="btn btn-primary" style={{ justifyContent: 'center' }} onClick={() => markPaid(sel)}>Mark as Paid</button>}
-                {sel.paid && sel.status === 'confirmed' && (
+                {!editMode && !sel.paid && sel.invoice_id && ['open', 'overdue', 'unpaid'].includes(sel.invoice_status) && (
+                  <button className="btn btn-primary" style={{ justifyContent: 'center' }} onClick={() => openPayModal(sel)}>Mark as Paid</button>
+                )}
+                {!editMode && !sel.paid && !sel.invoice_id && (
+                  <button className="btn btn-ghost" style={{ justifyContent: 'center', fontSize: 11 }} disabled title="No linked invoice — create one in Billing first">
+                    No invoice — cannot record payment
+                  </button>
+                )}
+                {!editMode && sel.paid && sel.status === 'confirmed' && (
                   <button className="btn btn-primary" style={{ justifyContent: 'center' }} onClick={() => manualCheckIn(sel)}>Check In</button>
                 )}
-                <button className="btn btn-ghost" style={{ justifyContent: 'center' }}>Edit Booking</button>
-                <button className="btn btn-danger" style={{ justifyContent: 'center' }}>Cancel</button>
+                {!editMode && (
+                  <>
+                    <button className="btn btn-ghost" style={{ justifyContent: 'center' }} onClick={() => startEdit(sel)}>Edit Booking</button>
+                    {sel.status !== 'cancelled' && (
+                      <button className="btn btn-danger" style={{ justifyContent: 'center' }} onClick={() => openCancelModal(sel)}>Cancel</button>
+                    )}
+                  </>
+                )}
+                {editMode && (
+                  <>
+                    <button className="btn btn-primary" style={{ justifyContent: 'center' }} onClick={saveEdit} disabled={editLoading}>
+                      {editLoading ? 'Saving…' : 'Save Changes'}
+                    </button>
+                    <button className="btn btn-ghost" style={{ justifyContent: 'center' }} onClick={() => setEditMode(false)} disabled={editLoading}>
+                      Discard
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}

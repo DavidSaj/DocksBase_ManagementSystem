@@ -59,7 +59,8 @@ import MagicLink    from './screens/MagicLink.jsx';
 import Signup      from './screens/Signup.jsx';
 import VerifyEmail from './screens/VerifyEmail.jsx';
 import Channels from './screens/Channels.jsx';
-import ActivitiesHousekeeping from './screens/ActivitiesHousekeeping/index.jsx';
+import Activities    from './screens/Activities.jsx';
+import Housekeeping  from './screens/Housekeeping.jsx';
 import RevenueIntelligence from './screens/RevenueIntelligence.jsx';
 import BerthIntelligence from './screens/BerthIntelligence.jsx';
 import Loyalty from './screens/Loyalty.jsx';
@@ -82,7 +83,8 @@ const SCREEN_MAP = {
   infrastructure: Infrastructure,
   'service-catalog': ServiceCatalogScreen,
   channels: Channels,
-  activities: ActivitiesHousekeeping,
+  activities: Activities,
+  housekeeping: Housekeeping,
   'revenue-intelligence': RevenueIntelligence,
   'berth-intelligence': BerthIntelligence,
   loyalty: Loyalty,

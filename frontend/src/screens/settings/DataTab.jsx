@@ -43,7 +43,12 @@ function StatusBadge({ status }) {
   return <span className={`badge ${cls}`}>{label}</span>;
 }
 
-export default function DataTab() {
+// Plans that unlock Pro-only data features (scheduled exports, point-in-time
+// restore). Matches PLAN_OPTIONS in Settings.jsx.
+const PRO_PLANS = new Set(['professional', 'enterprise']);
+
+export default function DataTab({ plan, onUpgrade }) {
+  const isPro = PRO_PLANS.has((plan || '').toLowerCase());
   const [exports, setExports] = useState(null); // null = loading
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
@@ -150,29 +155,61 @@ export default function DataTab() {
           </div>
         </div>
 
-        {/* Scheduled exports — Pro plan placeholder */}
-        <div className="card" style={{ opacity: 0.65 }}>
-          <div className="card-header">
-            <div className="card-header-title">Scheduled Exports</div>
-            <span className="badge badge-gold" style={{ fontSize: 10 }}>Pro plan</span>
+        {/*
+          Scheduled Exports + Point-in-time Restore are Pro/Enterprise only.
+          On non-Pro plans we render a single locked upsell card so the Data
+          tab doesn't look like it's "only Pro stuff" for Starter customers.
+          On Pro plans we render both cards (still placeholders, but no lock).
+        */}
+        {!isPro ? (
+          <div className="card" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
+            <div className="card-header">
+              <div className="card-header-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span aria-hidden="true">🔒</span> Scheduled Exports & Restore
+              </div>
+              <span className="badge badge-gold" style={{ fontSize: 10 }}>Pro plan</span>
+            </div>
+            <div className="card-body" style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                Two features live behind the Professional plan:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(0,0,0,0.55)' }}>
+                <li><strong>Scheduled Exports</strong> — weekly/monthly export to S3, Dropbox, or email.</li>
+                <li><strong>Point-in-time Restore</strong> — roll the marina back to a previous moment (e.g. after an accidental bulk update).</li>
+              </ul>
+              {onUpgrade && (
+                <div>
+                  <button className="btn btn-primary btn-sm" onClick={onUpgrade}>
+                    Upgrade to unlock
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="card-body" style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', lineHeight: 1.5 }}>
-            Send a weekly or monthly export automatically to S3, Dropbox, or email.
-            Available on Professional and Enterprise plans.
-          </div>
-        </div>
-
-        {/* Restore — Pro plan placeholder */}
-        <div className="card" style={{ opacity: 0.65 }}>
-          <div className="card-header">
-            <div className="card-header-title">Point-in-time Restore</div>
-            <span className="badge badge-gold" style={{ fontSize: 10 }}>Pro plan</span>
-          </div>
-          <div className="card-body" style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', lineHeight: 1.5 }}>
-            Roll back your marina to a previous moment (e.g. before an accidental
-            bulk update). Requests are reviewed by support to prevent data loss.
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="card">
+              <div className="card-header">
+                <div className="card-header-title">Scheduled Exports</div>
+                <span className="badge badge-gold" style={{ fontSize: 10 }}>Pro plan</span>
+              </div>
+              <div className="card-body" style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', lineHeight: 1.5 }}>
+                Send a weekly or monthly export automatically to S3, Dropbox, or email.
+                Setup UI is rolling out soon — contact support to configure today.
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-header">
+                <div className="card-header-title">Point-in-time Restore</div>
+                <span className="badge badge-gold" style={{ fontSize: 10 }}>Pro plan</span>
+              </div>
+              <div className="card-body" style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', lineHeight: 1.5 }}>
+                Roll back your marina to a previous moment (e.g. before an accidental
+                bulk update). Requests are reviewed by support to prevent data loss.
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Export history */}

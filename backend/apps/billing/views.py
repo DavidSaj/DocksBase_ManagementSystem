@@ -531,15 +531,67 @@ class MarkPaidView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        # Only marina admin/billing staff may record offline payments.
+        # Mirrors the manager-only gate used by RefundListCreateView at
+        # views.py:1097 — anyone with `role in ('owner', 'manager')`, plus
+        # `staff` users whose module_permissions allow billing.
+        if not _is_billing_authorised(request.user):
+            return Response(
+                {'detail': 'Billing role required to record manual payments.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
         try:
             invoice = Invoice.objects.get(pk=pk, marina=request.user.marina)
         except Invoice.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        method = request.data.get('method')
+        notes = request.data.get('notes', '') or ''
+        send_receipt = request.data.get('send_receipt', True)
+        # Accept JSON booleans, "true"/"false" strings, and 1/0.
+        if isinstance(send_receipt, str):
+            send_receipt = send_receipt.lower() not in ('false', '0', 'no', '')
+        amount_raw = request.data.get('amount', None)
+        amount = None
+        if amount_raw not in (None, ''):
+            try:
+                from decimal import Decimal
+                amount = Decimal(str(amount_raw))
+            except Exception:
+                return Response({'detail': 'Invalid amount.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        # Resolve the StaffMember audit row for the acting user, when available.
+        recorded_by = None
         try:
-            billing_service.mark_paid_manual(invoice, request.data.get('method'))
+            from apps.staff.models import StaffMember
+            recorded_by = StaffMember.objects.filter(user=request.user).first()
+        except Exception:
+            recorded_by = None
+
+        try:
+            billing_service.mark_paid_manual(
+                invoice, method,
+                recorded_by=recorded_by,
+                notes=notes,
+                send_receipt=bool(send_receipt),
+                amount=amount,
+            )
         except ValueError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
         return Response(InvoiceSerializer(invoice).data)
+
+
+def _is_billing_authorised(user) -> bool:
+    """Owner/manager always; staff if their module_permissions allow billing."""
+    if not user or not user.is_authenticated:
+        return False
+    role = getattr(user, 'role', '')
+    if role in ('owner', 'manager'):
+        return True
+    if role == 'staff':
+        perms = getattr(user, 'module_permissions', None) or {}
+        return perms.get('billing', True) is not False
+    return False
 
 
 class FromOrderView(APIView):
