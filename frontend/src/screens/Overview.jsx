@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import useBerths from '../hooks/useBerths.js';
 import useBookings from '../hooks/useBookings.js';
 import useOverview from '../hooks/useOverview.js';
@@ -6,6 +7,7 @@ import useMarina from '../hooks/useMarina.js';
 import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import InboundETACard from '../components/InboundETACard.jsx';
+import AuditLogModal from './Settings/AuditLogModal.jsx';
 
 function relativeTime(isoStr) {
   const diff = Date.now() - new Date(isoStr).getTime();
@@ -22,6 +24,7 @@ function fmt(amount, currency = 'EUR') {
 }
 
 export default function Overview({ setScreen }) {
+  const [showAuditLog, setShowAuditLog] = useState(false);
   const { counts, loading: bLoading } = useBerths();
   const { bookings: pending, loading: pkLoading, updateBooking } = useBookings({ status: 'pending' });
   const { bookings: checkedIn, loading: coLoading } = useBookings({ status: 'checked_in' });
@@ -42,6 +45,7 @@ export default function Overview({ setScreen }) {
       sub:   bLoading ? '' : `${counts.maintenance} in maintenance`,
       trend: bLoading || !counts.total ? '' : `${Math.round((counts.occupied / counts.total) * 100)}% full`,
       up:    counts.occupied > 0,
+      goto:  'map',
     },
     {
       label: 'Arrivals Today',
@@ -49,6 +53,7 @@ export default function Overview({ setScreen }) {
       sub:   'Confirmed check-ins',
       trend: '',
       up:    true,
+      goto:  'reservations',
     },
     {
       label: 'Available Slips',
@@ -56,6 +61,7 @@ export default function Overview({ setScreen }) {
       sub:   'Across all piers',
       trend: '',
       up:    counts.available > 0,
+      goto:  'map',
     },
     {
       label: 'Pending Payments',
@@ -63,6 +69,7 @@ export default function Overview({ setScreen }) {
       sub:   ovLoading ? '' : (ov.pending_payments_amount > 0 ? `${fmt(ov.pending_payments_amount, currency)} outstanding` : 'All clear'),
       trend: ovLoading ? '' : (ov.overdue_count > 0 ? `Overdue: ${ov.overdue_count}` : ''),
       up:    false,
+      goto:  'billing',
     },
     {
       label: 'Open Tasks',
@@ -70,6 +77,7 @@ export default function Overview({ setScreen }) {
       sub:   ovLoading ? '' : (ov.high_priority_count > 0 ? `${ov.high_priority_count} high priority` : 'No urgent tasks'),
       trend: ovLoading ? '' : (ov.unassigned_count > 0 ? `${ov.unassigned_count} unassigned` : ''),
       up:    false,
+      goto:  'maintenance',
     },
   ];
 
@@ -82,13 +90,23 @@ export default function Overview({ setScreen }) {
 
   return (
     <div>
+      {showAuditLog && <AuditLogModal onClose={() => setShowAuditLog(false)} />}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>Overview</span>
         <ScreenInfo title="Overview" body={SCREEN_INFO.overview} />
       </div>
       <div className="stat-row">
         {stats.map(s => (
-          <div key={s.label} className="card stat-card">
+          <div
+            key={s.label}
+            className="card stat-card"
+            role={s.goto ? 'button' : undefined}
+            tabIndex={s.goto ? 0 : undefined}
+            onClick={s.goto ? () => setScreen(s.goto) : undefined}
+            onKeyDown={s.goto ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScreen(s.goto); } } : undefined}
+            style={s.goto ? { cursor: 'pointer' } : undefined}
+            title={s.goto ? `Open ${s.goto}` : undefined}
+          >
             <div className="stat-label">{s.label}</div>
             <div className="stat-val">{s.val}</div>
             <div className="stat-sub">{s.sub}</div>
@@ -102,7 +120,7 @@ export default function Overview({ setScreen }) {
         <div className="card">
           <div className="card-header">
             <div className="card-header-title">Activity Log</div>
-            <button className="btn btn-ghost btn-sm">View all</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowAuditLog(true)}>View all</button>
           </div>
           <div className="card-body">
             {ovLoading ? (

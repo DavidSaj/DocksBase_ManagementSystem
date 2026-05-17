@@ -13,6 +13,7 @@ import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
 import ScreenInfo from '../components/ui/ScreenInfo.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
+import DryStorageSetup from '../components/boatyard/DryStorageSetup.jsx';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 
@@ -826,7 +827,17 @@ export default function Boatyard() {
                   </div>
                 ))}
               </div>
-              {slots.length === 0 && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>No storage slots configured. Add slots via the admin panel or API.</div>}
+              {slots.length === 0 && (
+                <div style={{ padding: '12px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.65)' }}>No storage slots configured yet.</div>
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', maxWidth: 480, lineHeight: 1.5 }}>
+                    Set up dry-storage capacity directly from here, or manage it
+                    centrally on the Infrastructure screen alongside your berths
+                    and piers.
+                  </div>
+                  <DryStorageSetup compact />
+                </div>
+              )}
             </div>
           )}
         </div>

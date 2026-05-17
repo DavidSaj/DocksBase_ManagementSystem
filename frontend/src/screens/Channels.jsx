@@ -253,6 +253,7 @@ function berthDisplayType(berth) {
 
 function BerthGrid({ berths, setBerths, connections, categories }) {
   const [savingBerthId, setSavingBerthId] = useState(null);
+  const [savingGroup, setSavingGroup] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
 
   function toggle(typeKey) {
@@ -271,6 +272,28 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
       setBerths(prev => prev.map(b => b.id === berthId ? { ...b, ota_connection: connId } : b));
     } finally {
       setSavingBerthId(null);
+    }
+  }
+
+  // Bulk-update every berth in a group to the chosen channel (or Direct).
+  async function handleGroupChange(typeKey, typeBerths, connId) {
+    if (!window.confirm(
+      `Change channel for all ${typeBerths.length} berth${typeBerths.length === 1 ? '' : 's'} in "${typeKey}"?`
+    )) return;
+    setSavingGroup(typeKey);
+    const updatedIds = new Set();
+    try {
+      // Sequential to keep the API gentle and roll back on first failure.
+      for (const b of typeBerths) {
+        await api.patch(`/berths/${b.id}/`, { ota_connection: connId });
+        updatedIds.add(b.id);
+      }
+      setBerths(prev => prev.map(b => updatedIds.has(b.id) ? { ...b, ota_connection: connId } : b));
+    } catch {
+      // Partial: still apply what landed so the UI stays consistent.
+      setBerths(prev => prev.map(b => updatedIds.has(b.id) ? { ...b, ota_connection: connId } : b));
+    } finally {
+      setSavingGroup(null);
     }
   }
 
@@ -316,22 +339,48 @@ function BerthGrid({ berths, setBerths, connections, categories }) {
           const isOpen = expanded.has(type);
           return (
             <div key={type} style={{ border: 'var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-              <button
-                type="button"
-                onClick={() => toggle(type)}
+              <div
                 style={{
-                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
-                  textAlign: 'left',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 12px', background: 'transparent', gap: 8,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, opacity: 0.6, width: 10 }}>{isOpen ? '▾' : '▸'}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{type}</span>
-                  <span style={{ fontSize: 11, opacity: 0.6 }}>({typeBerths.length})</span>
-                </div>
-                <div style={{ fontSize: 11, opacity: 0.7 }}>{summary(typeBerths)}</div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggle(type)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    textAlign: 'left', padding: 0,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, opacity: 0.6, width: 10 }}>{isOpen ? '▾' : '▸'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{type}</span>
+                    <span style={{ fontSize: 11, opacity: 0.6 }}>({typeBerths.length})</span>
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.7 }}>{summary(typeBerths)}</div>
+                </button>
+                <select
+                  title={`Change channel for all ${typeBerths.length} berths in "${type}"`}
+                  value=""
+                  disabled={savingGroup === type}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => {
+                    const v = e.target.value;
+                    e.target.value = '';
+                    if (v === '__direct') handleGroupChange(type, typeBerths, null);
+                    else if (v) handleGroupChange(type, typeBerths, Number(v));
+                  }}
+                  style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: 'var(--border)', flexShrink: 0 }}
+                >
+                  <option value="">{savingGroup === type ? 'Saving…' : 'Set all to…'}</option>
+                  <option value="__direct">Direct</option>
+                  {connections.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
               {isOpen && (
                 <div style={{ display: 'flex', flexDirection: 'column', borderTop: 'var(--border)' }}>
                   {typeBerths.map(b => {

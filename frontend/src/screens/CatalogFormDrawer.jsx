@@ -370,15 +370,22 @@ export default function CatalogFormDrawer({ open, onClose, item, category, creat
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={form.qty_variable}
                 onChange={setCheck('qty_variable')}
-                style={{ width: 16, height: 16, cursor: 'pointer' }}
+                style={{ width: 16, height: 16, cursor: 'pointer', marginTop: 2 }}
               />
-              <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(0,0,0,0.75)' }}>
-                Quantity Variable
+              <span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(0,0,0,0.75)' }}>
+                  Quantity Variable
+                </span>
+                <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,0.45)', marginTop: 3, lineHeight: 1.45, maxWidth: 420 }}>
+                  Enable for items where the amount sold changes per transaction
+                  (e.g. fuel litres, electricity kWh, pump-out volume). Leave off
+                  for fixed-price items like a haul-out fee or day-pass.
+                </div>
               </span>
             </label>
           </div>

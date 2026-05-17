@@ -1,7 +1,7 @@
 export const SCREEN_INFO = {
   overview: `Today at your marina. Arrivals and departures for the day, current occupancy, pending payments, and open tasks across booking, maintenance, and housekeeping.
 
-Use this as your daily starting point — most cards link directly to the screen where you can act. Pending booking requests appear here so you can confirm or reject them without navigating away.`,
+Use this as your daily starting point. Click any stat card or activity item to jump to the relevant screen. Pending booking requests appear here so you can confirm or reject them without navigating away.`,
 
   map: `Visual and calendar views of your berths. The Berth Calendar tab shows a timeline of which vessel occupies each berth and when — good for spotting gaps and planning moves. The Map tab shows real-time status with colour-coded availability.
 
