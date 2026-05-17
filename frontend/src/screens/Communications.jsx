@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1133,38 +1133,22 @@ export default function Communications() {
   const [activeTab, setActiveTab] = useState('templates');
 
   return (
-    <div className="container-xl" style={{ paddingTop: 24, paddingBottom: 48 }}>
-      {/* Page header */}
-      <div className="page-header" style={{ marginBottom: 24 }}>
-        <div className="row align-items-center">
-          <div className="col-auto">
-            <div className="page-title" style={{ display: 'flex', alignItems: 'center' }}>
-              Communications
-              <ScreenInfo title="Communications" body={SCREEN_INFO.communications} />
-            </div>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Communications"
+        subtitle="Email templates, automated journeys, segments, and broadcasts for boaters."
+        infoBody={SCREEN_INFO.communications}
+      />
 
-      {/* Tab bar */}
-      <div style={{
-        display: 'flex', gap: 0, borderBottom: '2px solid rgba(0,0,0,0.08)',
-        marginBottom: 24, overflowX: 'auto',
-      }}>
+      <div className="tabs">
         {TABS.map(tab => (
-          <button
+          <div
             key={tab.id}
+            className={`tab${activeTab === tab.id ? ' active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '10px 20px', fontSize: 13, fontWeight: 600,
-              color: activeTab === tab.id ? 'var(--navy, #1a2d4a)' : 'rgba(0,0,0,0.45)',
-              borderBottom: activeTab === tab.id ? '2px solid var(--navy, #1a2d4a)' : '2px solid transparent',
-              marginBottom: -2, whiteSpace: 'nowrap', transition: 'color 0.12s',
-            }}
           >
             {tab.label}
-          </button>
+          </div>
         ))}
       </div>
 

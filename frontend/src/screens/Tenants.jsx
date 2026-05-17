@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1266,18 +1266,11 @@ export default function Tenants() {
 
   return (
     <div>
-      {/* Page header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--navy, #1a2d4a)', marginBottom: 2 }}>
-            Tenants &amp; Marketplace
-          </div>
-          <ScreenInfo title="Tenants & Marketplace" body={SCREEN_INFO.tenants} />
-        </div>
-        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
-          Manage commercial lettings, rent schedules, and berth marketplace listings
-        </div>
-      </div>
+      <PageHeader
+        title="Tenants & Marketplace"
+        subtitle="Commercial lettings, rent schedules, and the member berth sublease marketplace."
+        infoBody={SCREEN_INFO.tenants}
+      />
 
       {/* Tab bar */}
       <div style={{

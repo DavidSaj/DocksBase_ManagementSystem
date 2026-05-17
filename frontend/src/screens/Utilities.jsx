@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 import MetersTab from './utilities/MetersTab.jsx';
 import { Badge, Spinner, EmptyState, ErrorMsg, SuccessMsg } from './utilities/_shared.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Bollard status helpers ─────────────────────────────────────────────────
@@ -727,18 +727,11 @@ export default function Utilities() {
 
   return (
     <div>
-      {/* Page header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--navy)' }}>
-            Utilities &amp; Drystack
-          </h2>
-          <ScreenInfo title="Utilities & Drystack" body={SCREEN_INFO.utilities} />
-        </div>
-        <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginTop: 3 }}>
-          Service bollards, wash tokens, and OFGEM compliance reporting
-        </div>
-      </div>
+      <PageHeader
+        title="Utilities & Drystack"
+        subtitle="Service bollards, wash-token dispensers, and OFGEM compliance reporting."
+        infoBody={SCREEN_INFO.utilities}
+      />
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid rgba(0,0,0,0.08)', marginBottom: 20 }}>

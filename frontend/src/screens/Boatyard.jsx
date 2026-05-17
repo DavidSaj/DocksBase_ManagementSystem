@@ -11,7 +11,7 @@ import useAssets from '../hooks/useAssets.js';
 import useVessels from '../hooks/useVessels.js';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
@@ -679,10 +679,11 @@ export default function Boatyard() {
       {showAddClaim   && <WarrantyClaimModal onClose={() => setShowAddClaim(false)} onCreate={createClaim} />}
       {showAddSubcon  && <SubcontractorModal onClose={() => setShowAddSubcon(false)} onCreate={createSubcon} />}
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Boatyard</span>
-        <ScreenInfo title="Boatyard" body={SCREEN_INFO.boatyard} />
-      </div>
+      <PageHeader
+        title="Boatyard"
+        subtitle="Haul-out scheduling, dry storage, work orders, parts, and lift operations."
+        infoBody={SCREEN_INFO.boatyard}
+      />
       <div className="tabs">
         {[
           ['schedule','Haul-out Schedule'],['launch','Launch Queue'],['storage','Dry Storage Map'],

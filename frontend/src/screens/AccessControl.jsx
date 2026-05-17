@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1744,13 +1744,11 @@ export default function AccessControl() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {/* Page header */}
-      <div className="page-header" style={{ marginBottom: 0, paddingBottom: 0 }}>
-        <div className="page-title" style={{ display: 'flex', alignItems: 'center' }}>
-          Security &amp; Access Control
-          <ScreenInfo title="Security & Access Control" body={SCREEN_INFO.accessControl} />
-        </div>
-      </div>
+      <PageHeader
+        title="Security & Access Control"
+        subtitle="Zones, key cards, readers, ANPR, CCTV, and spend authorisation."
+        infoBody={SCREEN_INFO.accessControl}
+      />
 
       {/* Tab bar */}
       <div style={{

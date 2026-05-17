@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import useStaff from '../hooks/useStaff.js';
 import useShifts from '../hooks/useShifts.js';
@@ -322,10 +322,11 @@ export default function Staff() {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Staff</span>
-        <ScreenInfo title="Staff" body={SCREEN_INFO.staff} />
-      </div>
+      <PageHeader
+        title="Staff"
+        subtitle="Directory of marina staff with roles, contracts, certifications, and the weekly rota."
+        infoBody={SCREEN_INFO.staff}
+      />
       <div className="tabs">
         {[['directory','Directory'],['rota','Weekly Rota'],['certifications','Certifications']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => { setTab(v); setSel(null); }}>{l}</div>

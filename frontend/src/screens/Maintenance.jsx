@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import useTasks from '../hooks/useTasks.js';
 import useIncidents from '../hooks/useIncidents.js';
@@ -143,10 +143,11 @@ export default function Maintenance() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Maintenance</span>
-        <ScreenInfo title="Maintenance" body={SCREEN_INFO.maintenance} />
-      </div>
+      <PageHeader
+        title="Maintenance"
+        subtitle="Staff tasks, work orders, incident reports, asset register, and defect log."
+        infoBody={SCREEN_INFO.maintenance}
+      />
       <div className="tabs">
         {TABS.map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
