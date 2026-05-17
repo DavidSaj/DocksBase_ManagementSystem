@@ -203,6 +203,18 @@ class Marina(models.Model):
         help_text='GL account for COGS offset on warranty repairs.',
     )
 
+    # Seasonal-berth tenancy (spec 2026-05-17, locked decision §9.6):
+    # if True, mid-season starts are billed at the full season_total
+    # instead of being pro-rated by remaining calendar days.
+    charge_full_season_on_mid_start = models.BooleanField(
+        default=False,
+        help_text=(
+            'When True, a lease that starts mid-season is billed at the '
+            'full season_total instead of being pro-rated by remaining '
+            'calendar days (spec §6.1).'
+        ),
+    )
+
     def save(self, *args, **kwargs):
         if not self.slug:
             base = slugify(self.name)[:96] or _uuid.uuid4().hex[:8]

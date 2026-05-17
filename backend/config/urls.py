@@ -54,6 +54,7 @@ urlpatterns = [
         path('', include('apps.api_keys.urls')),
         path('ais/', include('apps.ais.urls')),
         path('', include('apps.waitlist.urls')),
+        path('', include('apps.seasons.urls')),
     ])),
 ]
 

@@ -84,6 +84,8 @@ LOCAL_APPS = [
     'apps.ais',
     'apps.api_keys',
     'apps.waitlist',
+    # Seasonal-berth tenancy (spec 2026-05-17-seasonal-berths-design.md, Phase 1+2)
+    'apps.seasons',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
