@@ -281,6 +281,7 @@ REST_FRAMEWORK = {
         'user': '200/min',
         'api_key': '1000/hour',
         'public_activity_request': '10/hour',
+        'public_insurance_upload': '20/hour',
     },
 }
 
@@ -371,6 +372,10 @@ CELERY_BEAT_SCHEDULE = {
     'auto-no-show': {
         'task': 'reservations.auto_no_show',
         'schedule': crontab(hour=22, minute=0),          # daily 22:00 UTC
+    },
+    'purge-expired-insurance-uploads': {
+        'task': 'reservations.purge_expired_insurance_uploads',
+        'schedule': 3600,
     },
     # ── Accounting (Track 4) ─────────────────────────────────────────────────
     'instalment-processor': {

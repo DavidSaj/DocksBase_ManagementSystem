@@ -405,3 +405,45 @@ def auto_no_show(self):
         logger.info('auto_no_show: marked %d booking(s) as no_show for date %s', updated, today)
     else:
         logger.info('auto_no_show: no confirmed transient arrivals to mark for %s', today)
+
+
+# ---------------------------------------------------------------------------
+# Task 5: purge_expired_insurance_uploads  (hourly)
+# ---------------------------------------------------------------------------
+
+from django.core.files.storage import default_storage
+from .models import InsuranceUploadToken
+
+
+@shared_task(bind=True, name='reservations.purge_expired_insurance_uploads')
+def purge_expired_insurance_uploads(self=None):
+    """
+    Hourly defensive backstop for the insurance-upload temp directory:
+      - Unconsumed tokens older than 24h: delete the tmp file and the row.
+      - Consumed tokens older than 30d: delete the row.
+      - For any consumed token, if the tmp file still exists, delete it.
+    """
+    now = timezone.now()
+    unconsumed_cutoff = now - timedelta(hours=24)
+    consumed_cutoff   = now - timedelta(days=30)
+
+    for tok in InsuranceUploadToken.objects.filter(
+        consumed_at__isnull=True, created_at__lt=unconsumed_cutoff,
+    ):
+        try:
+            if default_storage.exists(tok.file_path):
+                default_storage.delete(tok.file_path)
+        except Exception:
+            logger.exception('Failed to delete expired insurance tmp file: %s', tok.file_path)
+        tok.delete()
+
+    InsuranceUploadToken.objects.filter(
+        consumed_at__isnull=False, consumed_at__lt=consumed_cutoff,
+    ).delete()
+
+    for tok in InsuranceUploadToken.objects.filter(consumed_at__isnull=False):
+        try:
+            if default_storage.exists(tok.file_path):
+                default_storage.delete(tok.file_path)
+        except Exception:
+            logger.exception('Failed to delete leftover consumed insurance tmp file: %s', tok.file_path)

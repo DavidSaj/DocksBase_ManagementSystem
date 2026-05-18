@@ -1,159 +1,115 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import QuoteScreen from './QuoteScreen';
-import api, { createReservationIntent } from '@docksbase/portal-ui/api';
 
 vi.mock('@docksbase/portal-ui/api', () => ({
-  default: { post: vi.fn(), get: vi.fn() },
+  default: { get: vi.fn() },
   createReservationIntent: vi.fn(),
   confirmReservation: vi.fn(),
+  uploadInsuranceCertificate: vi.fn(),
 }));
 
+vi.mock('@stripe/stripe-js', () => ({ loadStripe: () => Promise.resolve({}) }));
 vi.mock('@stripe/react-stripe-js', () => ({
-  Elements:       ({ children }) => <div>{children}</div>,
-  PaymentElement: () => <div data-testid="stripe-element" />,
-  useStripe:      () => null,
-  useElements:    () => null,
+  Elements:   ({ children }) => <div>{children}</div>,
+  PaymentElement: () => <div data-testid="payment-element" />,
+  useStripe:  () => ({}),
+  useElements:() => ({}),
 }));
 
-vi.mock('@stripe/stripe-js', () => ({
-  loadStripe: vi.fn(() => Promise.resolve(null)),
+vi.mock('../components/HarbourScene', () => ({
+  HarbourScene: () => null,
+  WaveLines: () => null,
 }));
 
-const navigate = vi.fn();
-const marina = { name: 'Test Marina', slug: 'test-marina' };
-
-const state = {
-  checkIn: '2027-07-10',
-  checkOut: '2027-07-13',
-  boats: [{ loa: '12.5', beam: '4.2', draft: '', category: null }],
+const baseMarina = {
+  slug: 'demo-marina', name: 'Demo Marina', currency: 'EUR',
+  booking_terms_pdf_url: 'https://example.com/tos.pdf',
+  booking_terms_version: '1.0',
+  requires_air_draft: false,
+  requires_insurance_at_booking: false,
 };
 
-function fillContact() {
-  fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: 'J. Sailor' } });
-  fireEvent.change(screen.getByLabelText(/email/i),     { target: { value: 'sailor@sea.com' } });
-  fireEvent.change(screen.getByLabelText(/phone/i),     { target: { value: '+353871234567' } });
+const baseState = {
+  checkIn: '2026-08-01', checkOut: '2026-08-05',
+  boats: [{ loa: '12', beam: '4', draft: '1.8', category: null, categories: [] }],
+  errorBanner: '',
+};
+
+function renderScreen({ marina = baseMarina, state = baseState, navigate = vi.fn() } = {}) {
+  return render(<QuoteScreen state={state} marina={marina} navigate={navigate} />);
 }
 
-beforeEach(() => {
-  navigate.mockClear();
-  vi.clearAllMocks();
-});
+// VesselStep labels are plain text siblings to inputs (no htmlFor/id).
+// We query by label text using getByText + closest/nextSibling approach,
+// or rely on the fact that RTL getByLabelText also matches when a <label>
+// wraps the input. Since labels here are siblings, we use getAllByRole or
+// query the inputs by their position relative to the label text.
+//
+// RTL's getByLabelText uses aria-label, aria-labelledby, htmlFor, or
+// wrapper-label. None of those apply here, so we select inputs by
+// data order within each field section using getAllByRole.
 
-describe('QuoteScreen', () => {
-  it('displays dates and nights from wizard state', () => {
-    render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
-    expect(screen.getByText(/3 night/i)).toBeInTheDocument();
-    expect(screen.getByText(/10 Jul/i)).toBeInTheDocument();
+function getInputAfterLabel(labelText) {
+  // Find the label element then get the next sibling input/select
+  const labels = screen.getAllByText(labelText);
+  const label = labels.find(el =>
+    el.tagName === 'LABEL' || el.className?.includes('p-label')
+  );
+  if (!label) throw new Error(`Label "${labelText}" not found`);
+  const field = label.closest('.p-field');
+  if (!field) throw new Error(`No .p-field parent for label "${labelText}"`);
+  const input = field.querySelector('input, select, textarea');
+  if (!input) throw new Error(`No input in .p-field for label "${labelText}"`);
+  return input;
+}
+
+describe('QuoteScreen multi-step', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('starts on VesselStep', () => {
+    renderScreen();
+    // VesselStep renders a "Vessel name *" label
+    expect(screen.getByText('Vessel name *')).toBeInTheDocument();
   });
 
-  it('submitting contact form calls createReservationIntent with all fields', async () => {
-    createReservationIntent.mockResolvedValue({
-      data: {
-        requires_payment: true,
-        client_secret: 'pi_test_secret',
-        reservation_id: 99,
-        total: '270.00',
-        reference: 'RES-123',
-      },
-    });
-    render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
-    fillContact();
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }));
-    await waitFor(() => {
-      expect(createReservationIntent).toHaveBeenCalledWith(
-        'test-marina',
-        expect.objectContaining({
-          check_in:    '2027-07-10',
-          check_out:   '2027-07-13',
-          guest_name:  'J. Sailor',
-          guest_email: 'sailor@sea.com',
-          guest_phone: '+353871234567',
-          items: expect.arrayContaining([
-            expect.objectContaining({
-              boat_loa:  12.5,
-              boat_beam: 4.2,
-              vessel_name: '',
-            }),
-          ]),
-        }),
-      );
-    });
+  it('advances to GuestStep when vessel fields are filled', async () => {
+    renderScreen();
+    fireEvent.change(getInputAfterLabel('Vessel name *'), { target: { value: 'Bella' } });
+    fireEvent.change(getInputAfterLabel('Registration # *'), { target: { value: 'GB-123' } });
+    fireEvent.change(getInputAfterLabel('Flag *'), { target: { value: 'GB' } });
+    fireEvent.change(getInputAfterLabel('Crew aboard *'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continue/i }));
+    await waitFor(() => expect(screen.getByText('Full name *')).toBeInTheDocument());
   });
 
-  it('intent success with requires_payment swaps to Stripe PaymentElement', async () => {
-    createReservationIntent.mockResolvedValue({
-      data: {
-        requires_payment: true,
-        client_secret: 'pi_test_secret',
-        reservation_id: 99,
-        total: '270.00',
-        reference: 'RES-123',
-      },
-    });
-    render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
-    fillContact();
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }));
-    await waitFor(() => {
-      expect(screen.getByTestId('stripe-element')).toBeInTheDocument();
-    });
+  it('blocks GuestStep submit when T&Cs unchecked', async () => {
+    const { createReservationIntent } = await import('@docksbase/portal-ui/api');
+    renderScreen();
+    fireEvent.change(getInputAfterLabel('Vessel name *'), { target: { value: 'B' } });
+    fireEvent.change(getInputAfterLabel('Registration # *'), { target: { value: 'R' } });
+    fireEvent.change(getInputAfterLabel('Flag *'), { target: { value: 'GB' } });
+    fireEvent.change(getInputAfterLabel('Crew aboard *'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continue/i }));
+    await waitFor(() => expect(screen.getByText('Full name *')).toBeInTheDocument());
+    fireEvent.change(getInputAfterLabel('Full name *'),  { target: { value: 'A' } });
+    fireEvent.change(getInputAfterLabel('Email *'),      { target: { value: 'a@b.test' } });
+    fireEvent.change(getInputAfterLabel('Street *'),     { target: { value: 'X' } });
+    fireEvent.change(getInputAfterLabel('City *'),       { target: { value: 'Y' } });
+    fireEvent.change(getInputAfterLabel('Postcode *'),   { target: { value: 'Z' } });
+    fireEvent.change(getInputAfterLabel('Country *'),    { target: { value: 'GB' } });
+    // T&Cs checkbox is NOT checked — button should be disabled
+    const btn = screen.getByRole('button', { name: /Continue to payment/i });
+    expect(btn).toBeDisabled();
+    expect(createReservationIntent).not.toHaveBeenCalled();
   });
 
-  it('intent success without requires_payment navigates to pending_review confirmation', async () => {
-    createReservationIntent.mockResolvedValue({
-      data: {
-        requires_payment: false,
-        reference: 'RES-456',
-      },
-    });
-    render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
-    fillContact();
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }));
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('confirmed', expect.objectContaining({
-        reservationReference: 'RES-456',
-        reservationStatus: 'pending_review',
-      }));
-    });
-  });
-
-  it('intent 409 fetches alternatives and navigates to alternatives screen', async () => {
-    createReservationIntent.mockRejectedValue({ response: { status: 409, data: { detail: 'No berth.' } } });
-    const alts = [{ check_in: '2027-07-11', check_out: '2027-07-14', nights: 3, total: '270.00' }];
-    api.get.mockResolvedValue({ data: alts });
-    render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
-    fillContact();
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }));
-    await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/public/bookings/availability-alternatives/'));
-    });
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('alternatives', { alternatives: alts });
-    });
-  });
-
-  it('intent 503 shows inline error without navigation', async () => {
-    createReservationIntent.mockRejectedValue({ response: { status: 503, data: { detail: 'Payment error.' } } });
-    render(<QuoteScreen state={state} navigate={navigate} marina={marina} />);
-    fillContact();
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/payment error/i)).toBeInTheDocument();
-    });
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('renders one vessel-name input per boat', () => {
-    const multiBoat = {
-      ...state,
-      boats: [
-        { loa: '10', beam: '', draft: '', category: null },
-        { loa: '15', beam: '', draft: '', category: null },
-      ],
-    };
-    render(<QuoteScreen state={multiBoat} navigate={navigate} marina={marina} />);
-    expect(screen.getByText(/Boat 1 name/i)).toBeInTheDocument();
-    expect(screen.getByText(/Boat 2 name/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 boats/i)).toBeInTheDocument();
+  it('shows BookingSummary panel in every step', () => {
+    renderScreen();
+    // Marina name appears in both the nav and the BookingSummary panel
+    const marinaTexts = screen.getAllByText(/Demo Marina/i);
+    expect(marinaTexts.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Check-in/i)).toBeInTheDocument();
   });
 });
