@@ -106,7 +106,7 @@ def transition_lease(lease: BerthLease, new_status: str, *, by=None,
         if new_status == 'deposit_paid':
             generate_instalments(lease)
 
-        # Berth.owner / Berth.lease_expiry projection (spec §4.4).
+        # Berth.current_lease_holder / Berth.lease_expiry projection (spec §4.4).
         _project_to_berth(lease)
 
         # Signals — emit on_commit so rollback can't fire phantom revokes.
@@ -125,21 +125,23 @@ def transition_lease(lease: BerthLease, new_status: str, *, by=None,
 
 
 def _project_to_berth(lease: BerthLease) -> None:
-    """Maintain the denormalised ``Berth.owner`` / ``Berth.lease_expiry``
-    fields (spec §4.4).  Phase 6 renames ``owner`` → ``current_lease_holder``
-    — keep this confined here so the future rename touches one helper.
+    """Maintain the denormalised ``Berth.current_lease_holder`` /
+    ``Berth.lease_expiry`` fields (spec §4.4).  The lease is the source of
+    truth; this projection exists so queries that need ``who currently holds
+    this berth?`` can avoid joining through BerthLease.
     """
     berth = lease.berth
     if lease.status == 'active':
-        berth.owner = lease.member
+        berth.current_lease_holder = lease.member
         berth.lease_expiry = lease.end_date
-        berth.save(update_fields=['owner', 'lease_expiry'])
+        berth.save(update_fields=['current_lease_holder', 'lease_expiry'])
     elif lease.status in ('cancelled', 'defaulted', 'ended'):
         # Only clear if THIS lease is the currently projected one.
-        if berth.owner_id == lease.member_id and berth.lease_expiry == lease.end_date:
-            berth.owner = None
+        if (berth.current_lease_holder_id == lease.member_id
+                and berth.lease_expiry == lease.end_date):
+            berth.current_lease_holder = None
             berth.lease_expiry = None
-            berth.save(update_fields=['owner', 'lease_expiry'])
+            berth.save(update_fields=['current_lease_holder', 'lease_expiry'])
 
 
 # ---------------------------------------------------------------------------
