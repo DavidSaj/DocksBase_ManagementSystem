@@ -491,7 +491,10 @@ class OTAConnectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def sync(self, request, pk=None):
+        from apps.accounts.features import is_feature_enabled
         conn = self.get_object()
+        if not is_feature_enabled(conn.marina, 'ota_sync'):
+            return Response({'detail': 'OTA sync is disabled for this marina.'}, status=status.HTTP_400_BAD_REQUEST)
         if not conn.inbound_ical_url:
             return Response({'detail': 'No inbound iCal URL configured.'}, status=status.HTTP_400_BAD_REQUEST)
         try:

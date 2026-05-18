@@ -10,6 +10,7 @@ import MobileConfigTab from './settings/MobileConfigTab.jsx';
 import SecurityCard from './Settings/SecurityCard.jsx';
 import ApiDocsModal from './Settings/ApiDocsModal.jsx';
 import DataTab from './settings/DataTab.jsx';
+import { isFeatureEnabled } from '../components/layout/Sidebar.jsx';
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -2219,6 +2220,7 @@ export default function Settings() {
       {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
       {tab === 'integrations' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 16, alignItems: 'start' }}>
+          {isFeatureEnabled(marina?.features, 'esign') && (
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">Dropbox Sign</div>
@@ -2276,6 +2278,7 @@ export default function Settings() {
               )}
             </div>
           </div>
+          )}
 
           {/* ── AIS Vessel Tracking — MarineTraffic ───────────────────── */}
           <div className="card">
@@ -2403,6 +2406,7 @@ export default function Settings() {
           </div>
 
           {/* ── DocuSign ──────────────────────────────────────────────── */}
+          {isFeatureEnabled(marina?.features, 'esign') && (
           <div className="card">
             <div className="card-header">
               <div className="card-header-title">DocuSign</div>
@@ -2504,6 +2508,7 @@ export default function Settings() {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
 

@@ -35,6 +35,8 @@ class MarinaPublicView(APIView):
             'vat_rate': str(marina.vat_rate),
             'logo_url': cfg.logo_url if cfg else '',
             'app_config': marina.app_config or {},
+            'features': marina.features or {},
+            'waitlist_enabled': marina.waitlist_enabled,
         })
 
 

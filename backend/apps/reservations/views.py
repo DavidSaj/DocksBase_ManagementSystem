@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.accounts.models import Marina
+from apps.accounts.features import is_feature_enabled
 from apps.berths.models import Berth
 from apps.billing import service as billing_service
 from apps.billing.models import ChargeableItem, Invoice as InvoiceModel
@@ -275,11 +276,12 @@ class AssignBerthView(APIView):
         except Berth.DoesNotExist:
             return Response({'detail': 'Berth not found.'}, status=http_status.HTTP_404_NOT_FOUND)
 
-        # Validate physical compatibility
-        if booking.boat_loa and berth.length_m and berth.length_m < booking.boat_loa:
-            return Response({'detail': 'Berth is too short for this boat.'}, status=http_status.HTTP_400_BAD_REQUEST)
-        if booking.boat_beam and berth.max_beam_m and berth.max_beam_m < booking.boat_beam:
-            return Response({'detail': 'Berth beam limit too narrow for this boat.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        # Validate physical compatibility (gated by marina feature flag)
+        if is_feature_enabled(request.user.marina, 'loa_enforcement'):
+            if booking.boat_loa and berth.length_m and berth.length_m < booking.boat_loa:
+                return Response({'detail': 'Berth is too short for this boat.'}, status=http_status.HTTP_400_BAD_REQUEST)
+            if booking.boat_beam and berth.max_beam_m and berth.max_beam_m < booking.boat_beam:
+                return Response({'detail': 'Berth beam limit too narrow for this boat.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
         from apps.billing.models import Invoice as InvoiceModel
         existing_invoice = InvoiceModel.objects.filter(
@@ -509,7 +511,7 @@ class ClearDocumentGateView(APIView):
             return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
 
         marina = request.user.marina
-        if not marina.document_gate_enabled:
+        if not (marina.document_gate_enabled or is_feature_enabled(marina, 'document_gate')):
             return Response(
                 {'detail': 'Document gate is not enabled for this marina.'},
                 status=http_status.HTTP_400_BAD_REQUEST,
