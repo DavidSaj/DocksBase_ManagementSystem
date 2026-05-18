@@ -281,6 +281,7 @@ REST_FRAMEWORK = {
         'user': '200/min',
         'api_key': '1000/hour',
         'public_activity_request': '10/hour',
+        'public_insurance_upload': '20/hour',
     },
 }
 

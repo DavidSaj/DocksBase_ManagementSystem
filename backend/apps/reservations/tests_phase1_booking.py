@@ -94,3 +94,132 @@ class AllowedCountriesTest(TestCase):
         from apps.reservations.constants import ALLOWED_COUNTRIES
         self.assertNotIn('ZZ', ALLOWED_COUNTRIES)
         self.assertNotIn('', ALLOWED_COUNTRIES)
+
+
+from rest_framework.test import APIClient
+from django.core.files.uploadedfile import SimpleUploadedFile
+from apps.reservations.models import InsuranceUploadToken
+
+
+class InsuranceUploadEndpointTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina(slug='insurance-test-marina')
+        self.client = APIClient()
+        self.url = '/api/v1/public/reservations/insurance-upload/'
+        self.headers = {'HTTP_X_MARINA_SLUG': self.marina.slug}
+
+    def _pdf(self, name='cert.pdf', size=1024):
+        return SimpleUploadedFile(name, b'%PDF-1.4\n' + b'x' * (size - 9), content_type='application/pdf')
+
+    def test_happy_path_returns_token(self):
+        r = self.client.post(self.url, {'file': self._pdf()}, format='multipart', **self.headers)
+        self.assertEqual(r.status_code, 201, r.content)
+        body = r.json()
+        self.assertIn('token', body)
+        self.assertIn('expires_at', body)
+        self.assertTrue(InsuranceUploadToken.objects.filter(token=body['token']).exists())
+
+    def test_rejects_non_pdf_non_image(self):
+        bad = SimpleUploadedFile('cert.exe', b'MZ\x90\x00', content_type='application/x-msdownload')
+        r = self.client.post(self.url, {'file': bad}, format='multipart', **self.headers)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('mime', r.json().get('detail', '').lower())
+
+    def test_rejects_oversize(self):
+        big = SimpleUploadedFile('big.pdf', b'%PDF-1.4\n' + b'x' * (6 * 1024 * 1024), content_type='application/pdf')
+        r = self.client.post(self.url, {'file': big}, format='multipart', **self.headers)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('size', r.json().get('detail', '').lower())
+
+    def test_rejects_missing_marina(self):
+        r = self.client.post(self.url, {'file': self._pdf()}, format='multipart')
+        self.assertEqual(r.status_code, 404)
+
+
+from apps.reservations.public_reservation_views import (
+    CartItemSerializer, ReservationIntentSerializer,
+)
+
+
+class SerializerExtensionsTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+
+    def _future(self, days=30):
+        from datetime import date, timedelta
+        return date.today() + timedelta(days=days)
+
+    def test_cart_item_accepts_new_optional_fields(self):
+        data = {
+            'boat_loa': '12.5',
+            'boat_air_draft': '4.2',
+            'vessel_registration': 'GB-123-XYZ',
+            'vessel_flag': 'GB',
+            'crew_count': 3,
+            'insurance_upload_token': 'tk_abc',
+            'vessel_name': 'Bella',
+        }
+        ser = CartItemSerializer(data=data)
+        self.assertTrue(ser.is_valid(), ser.errors)
+        self.assertEqual(ser.validated_data['vessel_flag'], 'GB')
+        self.assertEqual(ser.validated_data['crew_count'], 3)
+        self.assertEqual(ser.validated_data['insurance_upload_token'], 'tk_abc')
+
+    def test_cart_item_omitting_new_fields_is_valid(self):
+        ser = CartItemSerializer(data={'boat_loa': '10.0'})
+        self.assertTrue(ser.is_valid(), ser.errors)
+
+    def test_intent_accepts_new_booking_fields(self):
+        from datetime import timedelta
+        ci = self._future()
+        data = {
+            'check_in':  ci.isoformat(),
+            'check_out': (ci + timedelta(days=4)).isoformat(),
+            'guest_name':  'Alice',
+            'guest_email': 'a@b.test',
+            'guest_phone': '+44 7000 000000',
+            'estimated_arrival_time': '14:30',
+            'special_requests': 'arriving on engine',
+            'shore_power_amperage': '32A',
+            'billing_street':   '1 Quay St',
+            'billing_city':     'Plymouth',
+            'billing_postcode': 'PL1 1AB',
+            'billing_country':  'GB',
+            'company_name': 'Acme Charter Ltd',
+            'vat_number':   'GB123456789',
+            'promo_code':   'WELCOME10',
+            'terms_accepted': True,
+            'items': [{'boat_loa': '12.5'}],
+        }
+        ser = ReservationIntentSerializer(data=data)
+        self.assertTrue(ser.is_valid(), ser.errors)
+        self.assertEqual(ser.validated_data['billing_country'], 'GB')
+        self.assertTrue(ser.validated_data['terms_accepted'])
+
+    def test_intent_rejects_unknown_country(self):
+        from datetime import timedelta
+        ci = self._future()
+        data = {
+            'check_in':  ci.isoformat(),
+            'check_out': (ci + timedelta(days=4)).isoformat(),
+            'guest_name': 'A', 'guest_email': 'a@b.test',
+            'billing_country': 'ZZ',
+            'items': [{'boat_loa': '10.0'}],
+        }
+        ser = ReservationIntentSerializer(data=data)
+        self.assertFalse(ser.is_valid())
+        self.assertIn('billing_country', ser.errors)
+
+    def test_intent_rejects_bad_vat_format(self):
+        from datetime import timedelta
+        ci = self._future()
+        data = {
+            'check_in':  ci.isoformat(),
+            'check_out': (ci + timedelta(days=4)).isoformat(),
+            'guest_name': 'A', 'guest_email': 'a@b.test',
+            'vat_number': '!!',
+            'items': [{'boat_loa': '10.0'}],
+        }
+        ser = ReservationIntentSerializer(data=data)
+        self.assertFalse(ser.is_valid())
+        self.assertIn('vat_number', ser.errors)

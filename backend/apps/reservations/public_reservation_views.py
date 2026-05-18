@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re as _re
 from decimal import Decimal
 
 from django.conf import settings
@@ -15,18 +16,29 @@ import stripe
 from apps.billing import service as billing_service
 from apps.berths.models import BerthCategory
 from .booking_engine import assign_berth, NoAvailableBerthError
+from .constants import ALLOWED_COUNTRIES
 from .emails import send_reservation_confirmed_email
 from .models import Reservation, ReservationItem
 
 logger = logging.getLogger(__name__)
 
+# Permissive VAT format validation only — VIES check is Phase 2.
+VAT_REGEX = _re.compile(r'^[A-Z0-9 .\-]{4,30}$')
+
 
 class CartItemSerializer(serializers.Serializer):
-    berth_category_id = serializers.IntegerField(allow_null=True, required=False)
-    boat_loa          = serializers.DecimalField(max_digits=6, decimal_places=2)
-    boat_beam         = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
-    boat_draft        = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
-    vessel_name       = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+    berth_category_id      = serializers.IntegerField(allow_null=True, required=False)
+    boat_loa               = serializers.DecimalField(max_digits=6, decimal_places=2)
+    boat_beam              = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    boat_draft             = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    boat_air_draft         = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    vessel_name            = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+    vessel_registration    = serializers.CharField(max_length=50,  required=False, allow_blank=True, default='')
+    vessel_flag            = serializers.CharField(max_length=2,   required=False, allow_blank=True, default='')
+    crew_count             = serializers.IntegerField(min_value=1, required=False, allow_null=True)
+    insurance_upload_token = serializers.CharField(
+        max_length=64, required=False, allow_blank=True, default='', write_only=True,
+    )
 
 
 class ReservationIntentSerializer(serializers.Serializer):
@@ -35,13 +47,46 @@ class ReservationIntentSerializer(serializers.Serializer):
     guest_name  = serializers.CharField(max_length=200)
     guest_email = serializers.EmailField()
     guest_phone = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
-    items       = CartItemSerializer(many=True, min_length=1)
+
+    estimated_arrival_time = serializers.TimeField(required=False, allow_null=True)
+    special_requests       = serializers.CharField(required=False, allow_blank=True, default='')
+    shore_power_amperage   = serializers.ChoiceField(
+        choices=['16A', '32A', '63A', 'none'],
+        required=False, allow_null=True,
+    )
+
+    billing_street   = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+    billing_city     = serializers.CharField(max_length=100, required=False, allow_blank=True, default='')
+    billing_postcode = serializers.CharField(max_length=20,  required=False, allow_blank=True, default='')
+    billing_country  = serializers.CharField(max_length=2,   required=False, allow_blank=True, default='')
+
+    company_name = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+    vat_number   = serializers.CharField(max_length=50,  required=False, allow_blank=True, default='')
+    promo_code   = serializers.CharField(max_length=50,  required=False, allow_blank=True, default='')
+
+    terms_accepted = serializers.BooleanField(required=False, default=False)
+
+    items = CartItemSerializer(many=True, min_length=1)
+
+    def validate_billing_country(self, value):
+        if value and value.upper() not in ALLOWED_COUNTRIES:
+            raise serializers.ValidationError(f'Unsupported country code: {value}.')
+        return value.upper() if value else value
+
+    def validate_vat_number(self, value):
+        if value and not VAT_REGEX.match(value):
+            raise serializers.ValidationError('VAT number format is invalid.')
+        return value
 
     def validate(self, data):
         if data['check_in'] >= data['check_out']:
             raise serializers.ValidationError({'check_out': 'check_out must be after check_in.'})
         if data['check_in'] < datetime.date.today():
             raise serializers.ValidationError({'check_in': 'check_in cannot be in the past.'})
+        for item in data['items']:
+            flag = item.get('vessel_flag', '')
+            if flag and flag.upper() not in ALLOWED_COUNTRIES:
+                raise serializers.ValidationError({'items': f'Unsupported vessel_flag: {flag}.'})
         return data
 
 
@@ -319,3 +364,76 @@ class ReservationConfirmView(APIView):
             'check_in': str(first_item.check_in) if first_item else None,
             'check_out': str(first_item.check_out) if first_item else None,
         })
+
+
+# ---------------------------------------------------------------------------
+# Insurance upload — Phase 1 booking checkout (spec §2)
+# ---------------------------------------------------------------------------
+
+import os
+import secrets as _secrets
+from django.core.files.storage import default_storage
+
+from .models import InsuranceUploadToken
+
+
+ALLOWED_INSURANCE_MIME = {'application/pdf', 'image/jpeg', 'image/png'}
+MAX_INSURANCE_BYTES = 5 * 1024 * 1024  # 5 MB
+INSURANCE_TOKEN_TTL = datetime.timedelta(hours=24)
+
+
+class InsuranceUploadView(APIView):
+    """POST /api/v1/public/reservations/insurance-upload/
+
+    Boater uploads an insurance certificate (PDF / JPG / PNG, <= 5 MB) before
+    the reservation is created. Returns an opaque token the booking flow
+    attaches to one or more ReservationItems at intent-creation time.
+
+    Files are stored under ``MEDIA_ROOT/reservations/insurance/tmp/<token>.<ext>``.
+    A Celery beat task purges expired tokens + files after ``INSURANCE_TOKEN_TTL``.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = 'public_insurance_upload'
+
+    def post(self, request):
+        if getattr(request, 'tenant', None) is None:
+            return Response({'detail': 'Marina not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        f = request.FILES.get('file')
+        if f is None:
+            return Response({'detail': 'file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if f.content_type not in ALLOWED_INSURANCE_MIME:
+            return Response(
+                {'detail': f'Unsupported mime type: {f.content_type}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if f.size > MAX_INSURANCE_BYTES:
+            return Response(
+                {'detail': 'File size exceeds 5 MB limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token = _secrets.token_urlsafe(32)
+        ext = {
+            'application/pdf': 'pdf',
+            'image/jpeg':      'jpg',
+            'image/png':       'png',
+        }[f.content_type]
+        tmp_path = f'reservations/insurance/tmp/{token}.{ext}'
+        saved_path = default_storage.save(tmp_path, f)
+
+        record = InsuranceUploadToken.objects.create(
+            token=token,
+            marina=request.tenant,
+            file_path=saved_path,
+            mime_type=f.content_type,
+            size_bytes=f.size,
+        )
+        return Response(
+            {
+                'token': token,
+                'expires_at': (record.created_at + INSURANCE_TOKEN_TTL).isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )

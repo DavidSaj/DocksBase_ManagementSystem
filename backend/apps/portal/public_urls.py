@@ -11,6 +11,7 @@ from apps.portal.public_booking_views import (
 from apps.reservations.public_reservation_views import (
     ReservationIntentView,
     ReservationConfirmView,
+    InsuranceUploadView,
 )
 
 urlpatterns = [
@@ -23,5 +24,6 @@ urlpatterns = [
     path('bookings/engine-request/',            PublicEngineRequestView.as_view(),             name='public-engine-request'),
     path('reservations/intent/',                ReservationIntentView.as_view(),               name='public-reservation-intent'),
     path('reservations/confirm/',               ReservationConfirmView.as_view(),              name='public-reservation-confirm'),
+    path('reservations/insurance-upload/',      InsuranceUploadView.as_view(),                 name='public-reservation-insurance-upload'),
     path('', include('apps.activities.public_urls')),
 ]
