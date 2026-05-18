@@ -373,6 +373,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reservations.auto_no_show',
         'schedule': crontab(hour=22, minute=0),          # daily 22:00 UTC
     },
+    'purge-expired-insurance-uploads': {
+        'task': 'reservations.purge_expired_insurance_uploads',
+        'schedule': 3600,
+    },
     # ── Accounting (Track 4) ─────────────────────────────────────────────────
     'instalment-processor': {
         'task': 'apps.accounting.tasks.instalment_processor',

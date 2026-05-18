@@ -344,3 +344,59 @@ class InsuranceTokenRedemptionTest(TestCase):
         r = self.client.post(self.intent_url, payload, format='json', **self.headers)
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.json().get('detail'), 'insurance_token_consumed')
+
+
+from datetime import timedelta
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.utils import timezone
+
+
+class InsurancePurgeTaskTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina(slug='purge-marina')
+
+    def _make_tmp_file(self, name):
+        return default_storage.save(f'reservations/insurance/tmp/{name}', ContentFile(b'%PDF-test'))
+
+    def test_purges_expired_unconsumed_tokens(self):
+        from apps.reservations.tasks import purge_expired_insurance_uploads
+
+        path = self._make_tmp_file('old.pdf')
+        tok = InsuranceUploadToken.objects.create(
+            token='old_tok', marina=self.marina,
+            file_path=path, mime_type='application/pdf', size_bytes=10,
+        )
+        InsuranceUploadToken.objects.filter(pk=tok.pk).update(
+            created_at=timezone.now() - timedelta(hours=25),
+        )
+        purge_expired_insurance_uploads()
+        self.assertFalse(InsuranceUploadToken.objects.filter(pk=tok.pk).exists())
+        self.assertFalse(default_storage.exists(path))
+
+    def test_keeps_fresh_unconsumed_tokens(self):
+        from apps.reservations.tasks import purge_expired_insurance_uploads
+
+        path = self._make_tmp_file('fresh.pdf')
+        tok = InsuranceUploadToken.objects.create(
+            token='fresh_tok', marina=self.marina,
+            file_path=path, mime_type='application/pdf', size_bytes=10,
+        )
+        purge_expired_insurance_uploads()
+        self.assertTrue(InsuranceUploadToken.objects.filter(pk=tok.pk).exists())
+        self.assertTrue(default_storage.exists(path))
+
+    def test_consumed_old_token_row_purged_file_already_gone(self):
+        from apps.reservations.tasks import purge_expired_insurance_uploads
+
+        tok = InsuranceUploadToken.objects.create(
+            token='consumed_old', marina=self.marina,
+            file_path='reservations/insurance/tmp/already_gone.pdf',
+            mime_type='application/pdf', size_bytes=10,
+            consumed_at=timezone.now() - timedelta(days=31),
+        )
+        InsuranceUploadToken.objects.filter(pk=tok.pk).update(
+            created_at=timezone.now() - timedelta(days=32),
+        )
+        purge_expired_insurance_uploads()
+        self.assertFalse(InsuranceUploadToken.objects.filter(pk=tok.pk).exists())
