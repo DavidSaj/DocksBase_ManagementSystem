@@ -170,6 +170,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from apps.berths.models import OTAConnection
+        from apps.accounts.features import is_feature_enabled
 
         dry = options['dry_run']
         slug = options['marina_slug']
@@ -180,6 +181,9 @@ class Command(BaseCommand):
 
         total = 0
         for conn in qs:
+            if not is_feature_enabled(conn.marina, 'ota_sync'):
+                self.stdout.write(f'Skipping {conn.marina.slug} / {conn.slug} (ota_sync disabled).')
+                continue
             prefix = '[DRY] ' if dry else ''
             self.stdout.write(f'{prefix}Syncing {conn.marina.slug} / {conn.slug}…')
             count = sync_connection(conn, dry=dry, stdout=self.stdout)

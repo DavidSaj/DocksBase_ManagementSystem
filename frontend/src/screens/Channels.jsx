@@ -4,6 +4,7 @@ import useMarina from '../hooks/useMarina.js';
 import useOTAConnections from '../hooks/useOTAConnections.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
+import { isFeatureEnabled } from '../components/layout/Sidebar.jsx';
 
 function Toggle({ on, onChange }) {
   return (
@@ -26,6 +27,8 @@ function Toggle({ on, onChange }) {
 function BookingPipelineCard({ marina, updateMarina }) {
   const isAuto = marina?.booking_mode === 'auto_tetris';
   const [saving, setSaving] = useState(false);
+  const autoTetrisAvailable = isFeatureEnabled(marina?.features, 'booking_auto_tetris');
+  const modes = autoTetrisAvailable ? ['manual_approval', 'auto_tetris'] : ['manual_approval'];
 
   async function toggle() {
     setSaving(true);
@@ -43,7 +46,7 @@ function BookingPipelineCard({ marina, updateMarina }) {
         <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>How incoming booking requests are handled</div>
       </div>
       <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {['manual_approval', 'auto_tetris'].map(mode => {
+        {modes.map(mode => {
           const active = marina?.booking_mode === mode;
           const label = mode === 'manual_approval' ? 'Manual approval' : 'Auto-confirm';
           const desc = mode === 'manual_approval'
@@ -468,7 +471,7 @@ export default function Channels() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <BookingPipelineCard marina={marina} updateMarina={updateMarina} />
-        <BookingPortalCard marina={marina} />
+        {isFeatureEnabled(marina?.features, 'guest_booking') && <BookingPortalCard marina={marina} />}
         {connections.length === 0 && (
           <div className="card">
             <div className="card-body" style={{ color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>

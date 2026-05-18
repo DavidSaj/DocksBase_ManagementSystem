@@ -8,6 +8,7 @@
     ".": "./src/index.js",
     "./api": "./src/api.js",
     "./context/TenantContext": "./src/context/TenantContext.jsx",
+    "./features": "./src/features.js",
     "./context/UserContext": "./src/context/UserContext.jsx",
     "./components/Turnstile": "./src/components/Turnstile.jsx",
     "./components/primitives": "./src/components/primitives.jsx",

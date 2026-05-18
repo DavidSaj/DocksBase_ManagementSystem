@@ -5,3 +5,4 @@ export { UserContextProvider, useUserContext } from './context/UserContext.jsx';
 export { default as Turnstile } from './components/Turnstile.jsx';
 export { default as LoginScreen } from './screens/LoginScreen.jsx';
 export * from './components/primitives.jsx';
+export { isFeatureEnabled, FEATURE_DEFAULT_OFF } from './features.js';

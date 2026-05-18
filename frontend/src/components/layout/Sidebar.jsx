@@ -4,45 +4,67 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import useMarina from '../../hooks/useMarina.js';
 import useSidebarCounts from '../../hooks/useSidebarCounts.js';
 
-// Items with a `flag` key are hidden unless marina.features[flag] is true.
+// Feature keys that default to OFF (opt-in add-ons). Everything else defaults to ON.
+// Keep in sync with admin/src/screens/MarinaDetail.jsx (FEATURE_DEFAULT_OFF).
+export const FEATURE_DEFAULT_OFF = new Set([
+  'utilities', 'charter', 'restaurant', 'events', 'fuel_dock',
+  'revenue_intelligence', 'loyalty', 'tenants', 'access_control', 'esg_enabled',
+  'mod_berth_sale', 'revenue_share',
+  'waiting_list',
+  'booking_auto_tetris', 'guest_booking', 'booking_search', 'document_gate',
+  'seasonal_approval', 'booking_cancellation',
+  'esign', 'digital_wallet',
+]);
+
+export function isFeatureEnabled(features, key) {
+  const v = features?.[key];
+  if (v === true) return true;
+  if (v === false) return false;
+  return !FEATURE_DEFAULT_OFF.has(key);
+}
+
+// Items with a `flag` key are gated by marina.features. Default ON unless the key
+// is listed in FEATURE_DEFAULT_OFF above.
 export const NAV = [
   { group: 'Daily Operations', items: [
-    { id: 'overview',           icon: 'grid',         label: 'Overview' },
-    { id: 'map',                icon: 'map',          label: 'Harbour' },
-    { id: 'reservations',       icon: 'calendar',     label: 'Reservations' },
-    { id: 'billing',            icon: 'dollar',       label: 'Billing & POS', alert: true },
-    { id: 'operations',         icon: 'zap',          label: 'Operations' },
-    { id: 'berth-intelligence', icon: 'grid',         label: 'Berth Intelligence' },
+    { id: 'overview',           icon: 'grid',         label: 'Overview',           flag: 'mod_overview' },
+    { id: 'map',                icon: 'map',          label: 'Harbour',            flag: 'mod_map' },
+    { id: 'reservations',       icon: 'calendar',     label: 'Reservations',       flag: 'mod_reservations' },
+    { id: 'billing',            icon: 'dollar',       label: 'Billing & POS', alert: true, flag: 'mod_billing' },
+    { id: 'operations',         icon: 'zap',          label: 'Operations',         flag: 'mod_operations' },
+    { id: 'berth-intelligence', icon: 'grid',         label: 'Berth Intelligence', flag: 'mod_berth_intelligence' },
   ]},
   { group: 'Directory', items: [
-    { id: 'members',            icon: 'users',        label: 'Members' },
-    { id: 'waitlist',           icon: 'clipboard',    label: 'Waitlist', flag: 'waitlist_enabled' },
-    { id: 'vessels',            icon: 'ship',         label: 'Vessels' },
-    { id: 'documents',          icon: 'clipboard',    label: 'Documents & eSign' },
+    { id: 'members',            icon: 'users',        label: 'Members',             flag: 'mod_members' },
+    { id: 'waitlist',           icon: 'clipboard',    label: 'Waitlist',            flag: 'waiting_list' },
+    { id: 'vessels',            icon: 'ship',         label: 'Vessels',             flag: 'mod_vessels' },
+    { id: 'documents',          icon: 'clipboard',    label: 'Documents & eSign',   flag: 'mod_documents' },
   ]},
   { group: 'Yard & Services', items: [
-    { id: 'boatyard',           icon: 'crane',        label: 'Boatyard' },
-    { id: 'maintenance',        icon: 'wrench',       label: 'Maintenance' },
-    { id: 'activities',         icon: 'clipboard',    label: 'Activities' },
-    { id: 'housekeeping',       icon: 'clipboard',    label: 'Housekeeping' },
+    { id: 'boatyard',           icon: 'crane',        label: 'Boatyard',                flag: 'mod_boatyard' },
+    { id: 'maintenance',        icon: 'wrench',       label: 'Maintenance',             flag: 'mod_maintenance' },
+    { id: 'activities',         icon: 'clipboard',    label: 'Activities',              flag: 'mod_activities' },
+    { id: 'housekeeping',       icon: 'clipboard',    label: 'Housekeeping',            flag: 'mod_activities' },
+    { id: 'restaurant',         icon: 'tag',          label: 'Restaurant',              flag: 'restaurant' },
+    { id: 'events',             icon: 'calendar',     label: 'Events',                  flag: 'events' },
     { id: 'utilities',          icon: 'activity',     label: 'Utilities & Drystack',    flag: 'utilities' },
     { id: 'charter',            icon: 'anchor',       label: 'Charter & Harbour',       flag: 'charter' },
   ]},
   { group: 'Management & Data', items: [
-    { id: 'infrastructure',     icon: 'layers',       label: 'Harbor Infrastructure' },
-    { id: 'channels',           icon: 'share-2',      label: 'Channels' },
-    { id: 'staff',              icon: 'user-check',   label: 'Staff' },
-    { id: 'reports',            icon: 'chart',        label: 'Reports' },
-    { id: 'revenue-intelligence', icon: 'trending-up', label: 'Revenue Intelligence',   flag: 'revenue_intelligence' },
-    { id: 'communications',     icon: 'mail',         label: 'Communications' },
-    { id: 'loyalty',            icon: 'award',        label: 'Loyalty Programme',       flag: 'loyalty' },
-    { id: 'accounting',         icon: 'book',         label: 'Accounting' },
-    { id: 'tenants',            icon: 'home',         label: 'Tenants & Marketplace',   flag: 'tenants' },
-    { id: 'access-control',     icon: 'shield',       label: 'Security & Access',       flag: 'access_control' },
-    { id: 'sustainability',     icon: 'leaf',         label: 'Sustainability',           flag: 'esg_enabled' },
+    { id: 'infrastructure',     icon: 'layers',       label: 'Harbor Infrastructure',  flag: 'mod_infrastructure' },
+    { id: 'channels',           icon: 'share-2',      label: 'Channels',               flag: 'mod_channels' },
+    { id: 'staff',              icon: 'user-check',   label: 'Staff',                  flag: 'mod_staff' },
+    { id: 'reports',            icon: 'chart',        label: 'Reports',                flag: 'mod_reports' },
+    { id: 'revenue-intelligence', icon: 'trending-up', label: 'Revenue Intelligence',  flag: 'revenue_intelligence' },
+    { id: 'communications',     icon: 'mail',         label: 'Communications',         flag: 'mod_communications' },
+    { id: 'loyalty',            icon: 'award',        label: 'Loyalty Programme',      flag: 'loyalty' },
+    { id: 'accounting',         icon: 'book',         label: 'Accounting',             flag: 'mod_accounting' },
+    { id: 'tenants',            icon: 'home',         label: 'Tenants & Marketplace',  flag: 'tenants' },
+    { id: 'access-control',     icon: 'shield',       label: 'Security & Access',      flag: 'access_control' },
+    { id: 'sustainability',     icon: 'leaf',         label: 'Sustainability',         flag: 'esg_enabled' },
   ]},
   { group: 'Master Data', items: [
-    { id: 'service-catalog',    icon: 'tag',          label: 'Service Catalog' },
+    { id: 'service-catalog',    icon: 'tag',          label: 'Service Catalog',        flag: 'mod_service_catalog' },
   ]},
   { group: 'System', items: [
     { id: 'settings',           icon: 'settings',     label: 'Settings' },
@@ -147,7 +169,7 @@ export default function Sidebar({ screen, setScreen }) {
       <div className="sb-nav">
         {NAV.map(group => {
           const visibleItems = group.items.filter(item =>
-            (!item.flag || features[item.flag]) && canAccess(user, item.id)
+            (!item.flag || isFeatureEnabled(features, item.flag)) && canAccess(user, item.id)
           );
           if (visibleItems.length === 0) return null;
           return (

@@ -10,6 +10,8 @@ import PendingRequestsTab from '../components/reservations/PendingRequestsTab.js
 import BerthCalendar from '../components/harbor-map/BerthCalendar.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
+import useMarina from '../hooks/useMarina.js';
+import { isFeatureEnabled } from '../components/layout/Sidebar.jsx';
 
 const filterMap = {
   all:       {},
@@ -757,6 +759,7 @@ function AssignBerthModal({ booking, berths, onClose, onAssign }) {
 // Reservations screen
 // ---------------------------------------------------------------------------
 export default function Reservations() {
+  const { marina } = useMarina();
   const [tab, setTab] = useState('all');
   const [sel, setSel] = useState(null);
   const [selReq, setSelReq] = useState(null);
@@ -1011,7 +1014,9 @@ export default function Reservations() {
         subtitle="All bookings in one place — transient, seasonal, and pending requests."
         infoBody={SCREEN_INFO.reservations}
       >
-        <div className="search"><Ic n="search" s={13} /><input placeholder="Search vessel, owner, booking…" /></div>
+        {isFeatureEnabled(marina?.features, 'booking_search') && (
+          <div className="search"><Ic n="search" s={13} /><input placeholder="Search vessel, owner, booking…" /></div>
+        )}
         <button className="btn btn-primary" onClick={() => setShowModal(true)}><Ic n="plus" s={12} />New Booking</button>
       </PageHeader>
       <div className="tabs">
