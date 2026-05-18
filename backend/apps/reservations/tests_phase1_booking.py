@@ -82,3 +82,15 @@ class InsuranceUploadTokenTest(TestCase):
         )
         self.assertIsNotNone(t.created_at)
         self.assertIsNone(t.consumed_at)
+
+
+class AllowedCountriesTest(TestCase):
+    def test_constant_contains_eu_uk_us(self):
+        from apps.reservations.constants import ALLOWED_COUNTRIES
+        for code in ('FR', 'DE', 'GB', 'US'):
+            self.assertIn(code, ALLOWED_COUNTRIES)
+
+    def test_constant_excludes_garbage(self):
+        from apps.reservations.constants import ALLOWED_COUNTRIES
+        self.assertNotIn('ZZ', ALLOWED_COUNTRIES)
+        self.assertNotIn('', ALLOWED_COUNTRIES)
