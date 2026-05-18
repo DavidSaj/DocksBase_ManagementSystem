@@ -400,3 +400,22 @@ class InsurancePurgeTaskTest(TestCase):
         )
         purge_expired_insurance_uploads()
         self.assertFalse(InsuranceUploadToken.objects.filter(pk=tok.pk).exists())
+
+
+class MarinaPublicViewPhase1Test(TestCase):
+    def test_response_includes_phase1_fields(self):
+        marina = make_marina(
+            slug='public-test',
+            booking_terms_pdf_url='https://example.com/tos.pdf',
+            booking_terms_version='3.2',
+            requires_air_draft=True,
+            requires_insurance_at_booking=True,
+        )
+        client = APIClient()
+        r = client.get('/api/v1/public/marina/', HTTP_X_MARINA_SLUG=marina.slug)
+        self.assertEqual(r.status_code, 200, r.content)
+        body = r.json()
+        self.assertEqual(body.get('booking_terms_pdf_url'), 'https://example.com/tos.pdf')
+        self.assertEqual(body.get('booking_terms_version'), '3.2')
+        self.assertTrue(body.get('requires_air_draft'))
+        self.assertTrue(body.get('requires_insurance_at_booking'))

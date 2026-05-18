@@ -35,6 +35,11 @@ class MarinaPublicView(APIView):
             'vat_rate': str(marina.vat_rate),
             'logo_url': cfg.logo_url if cfg else '',
             'app_config': marina.app_config or {},
+            # Phase 1 booking-flow additions
+            'booking_terms_pdf_url':         marina.booking_terms_pdf_url,
+            'booking_terms_version':         marina.booking_terms_version,
+            'requires_air_draft':            marina.requires_air_draft,
+            'requires_insurance_at_booking': marina.requires_insurance_at_booking,
         })
 
 
