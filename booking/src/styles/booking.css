@@ -39,6 +39,80 @@ a { color: inherit; text-decoration: none; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; color: inherit; }
 input, select, textarea { font-family: inherit; }
 
+/* ── Phase 1 checkout layout ────────────────────────────────────────────── */
+
+.q-checkout-grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  align-items: start;
+}
+
+.q-checkout-form {
+  min-width: 0;
+}
+
+.q-summary {
+  position: sticky;
+  top: 24px;
+  background: #ede7d8;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  padding: 20px;
+  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: 13px;
+}
+
+.q-summary-header { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
+.q-summary-marina-name { font-family: var(--font-brand); font-size: 16px; font-weight: 700; color: #0c1f3d; }
+.q-summary-marina-address { font-size: 12px; color: rgba(0, 0, 0, 0.55); margin-top: 2px; }
+.q-summary-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
+.q-summary-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.q-summary-boat { margin-bottom: 12px; }
+.q-summary-boat-name { font-weight: 600; }
+.q-summary-boat-dims { font-size: 12px; color: rgba(0, 0, 0, 0.5); }
+.q-summary-boat-price { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; }
+.q-summary-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; padding-top: 8px; }
+.q-summary-countdown { font-size: 12px; color: #b8965a; margin-top: 8px; }
+.q-summary-expired { font-size: 13px; color: #dc2626; margin-top: 8px; }
+.q-summary-tos { font-size: 11px; color: rgba(0, 0, 0, 0.5); margin-top: 12px; }
+.q-summary-tos a { color: inherit; text-decoration: underline; }
+
+/* Step components shared */
+.q-step h3 { font-family: var(--font-brand); font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 12px; color: #0c1f3d; }
+.q-step h3:first-child { margin-top: 0; }
+.q-step-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 24px; }
+.q-step-footer .p-btn-gold,
+.q-step-footer .p-btn-outline { flex: 1; }
+.q-boat-card { padding: 16px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 6px; margin-bottom: 16px; }
+.q-boat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.q-boat-header h3 { margin: 0; }
+.q-link-danger { background: none; border: none; color: #dc2626; font-size: 12px; cursor: pointer; }
+.q-link-add { background: none; border: none; color: var(--gold); font-size: 12px; cursor: pointer; padding: 0 0 16px; display: block; }
+
+.p-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+.p-insurance-uploaded { font-size: 13px; color: #0c1f3d; }
+
+/* Mobile: collapse to single column, sticky bottom bar for the summary */
+@media (max-width: 880px) {
+  .q-checkout-grid { grid-template-columns: 1fr; padding: 0 20px; }
+  .q-summary {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    top: auto;
+    border-radius: 6px 6px 0 0;
+    border-bottom: none;
+    z-index: 50;
+    max-height: 40vh;
+    overflow: auto;
+  }
+  .q-checkout-form { padding-bottom: 200px; }
+}
+
 /* ── Loading / error states ──────────────────────────────────────────── */
 .p-center {
   min-height: 100vh;
