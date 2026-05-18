@@ -44,6 +44,25 @@ class TestGenerateKey:
         _, prefix2, _ = generate_key()
         assert prefix1 != prefix2
 
+    def test_random_segment_never_contains_underscore_or_hyphen(self):
+        """
+        Regression: secrets.token_urlsafe() emits '_' and '-', which collide
+        with the 'db_live_<pre>_<tail>' separator structure and used to break
+        bearer-token parsing in ~12% of keys. Run a large batch to make any
+        regression deterministically catchable.
+        """
+        for _ in range(2000):
+            full, prefix, last_four = generate_key()
+            # The random 8 chars after 'db_live_' must be alphanumeric only.
+            random_segment = prefix[len('db_live_'):]
+            assert len(random_segment) == 8
+            assert '_' not in random_segment
+            assert '-' not in random_segment
+            # The tail must also avoid '_' / '-' so the parsed token round-trips.
+            tail = full[len(prefix) + 1:]  # skip prefix + the '_' separator
+            assert '_' not in tail
+            assert '-' not in tail
+
 
 class TestAPIKeyStatus:
     def test_active_key(self, owner_user, marina, db):

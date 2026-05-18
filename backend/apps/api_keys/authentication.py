@@ -4,7 +4,7 @@ import hmac
 from django.utils import timezone
 from rest_framework import authentication, exceptions
 
-from .models import APIKey
+from .models import APIKey, KEY_PREFIX_LEN
 
 
 class APIKeyAuthentication(authentication.BaseAuthentication):
@@ -16,8 +16,13 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
             return None  # not our scheme — let JWT auth try next
 
         token = header[len('Bearer '):].strip()
-        # prefix = 'db_live_' + 8-char-random = first 3 underscore-separated parts
-        prefix = '_'.join(token.split('_')[:3])  # 'db_live_xxxxxxxx'
+        # The prefix is a fixed-length slice ('db_live_' + 8 random url-safe chars =
+        # KEY_PREFIX_LEN chars). DO NOT parse on underscores: secrets.token_urlsafe()
+        # can emit '_' inside the 8-char random segment, which would break a split-based
+        # parser and surface as a spurious 'Invalid API key.' on ~12% of keys.
+        if len(token) < KEY_PREFIX_LEN:
+            raise exceptions.AuthenticationFailed('Invalid API key.')
+        prefix = token[:KEY_PREFIX_LEN]
 
         try:
             key = APIKey.objects.select_related('marina', 'created_by').get(key_prefix=prefix)

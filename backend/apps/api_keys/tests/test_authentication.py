@@ -120,3 +120,37 @@ class TestAPIKeyAuthentication:
         assert key_obj.last_used_at is not None
         diff = abs((timezone.now() - key_obj.last_used_at).total_seconds())
         assert diff < 5
+
+    def test_authenticate_with_underscore_in_random_prefix_segment(
+        self, auth, factory, owner_user, marina, db
+    ):
+        """
+        Regression: the old parser split the bearer token by '_' and took the
+        first three parts as the prefix. If the random 8-char prefix segment
+        produced by secrets.token_urlsafe() happened to contain an underscore
+        (~12% of keys), the parsed prefix was truncated and lookup failed with
+        a spurious 'Invalid API key.'. This is a deterministic re-creation of
+        that exact pathological key shape — it would have failed under the
+        old slice-by-underscore parser every time.
+        """
+        from apps.api_keys.models import APIKey
+        # Manually craft a key whose random prefix segment contains an underscore.
+        pathological_pre = 'aB_xK9pQ'  # 8 chars, contains '_'
+        prefix = f'db_live_{pathological_pre}'  # 16 chars
+        tail = 'a' * 32
+        full = f'{prefix}_{tail}'
+        key_hash = hashlib.sha256(full.encode()).hexdigest()
+        APIKey.objects.create(
+            marina=marina,
+            created_by=owner_user,
+            name='Pathological',
+            key_prefix=prefix,
+            key_hash=key_hash,
+            last_four=tail[-4:],
+        )
+        request = factory.get('/', HTTP_AUTHORIZATION=f'Bearer {full}')
+        result = auth.authenticate(request)
+        assert result is not None, 'fixed-length prefix slice must handle "_" in random segment'
+        user, key = result
+        assert user == owner_user
+        assert key.key_prefix == prefix

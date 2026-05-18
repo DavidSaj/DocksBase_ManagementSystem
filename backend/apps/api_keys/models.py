@@ -6,6 +6,21 @@ from django.db import models
 from django.utils import timezone
 
 
+# Fixed-length prefix layout: 'db_live_' (8 chars) + 8 random chars = 16 chars.
+# The auth class slices the bearer token by this length to recover the prefix, so
+# this MUST stay constant and the random segment MUST contain no '_' or '-' so
+# that it's safe to embed in a split-by-underscore key string elsewhere.
+KEY_PREFIX_LEN = 16
+_KEY_RANDOM_LEN = KEY_PREFIX_LEN - len('db_live_')  # 8
+# Alphabet without '_' or '-' so the random segment never collides with the
+# 'db_live_<pre>_<tail>' separator structure.
+_KEY_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+
+
+def _random_segment(length: int) -> str:
+    return ''.join(secrets.choice(_KEY_ALPHABET) for _ in range(length))
+
+
 def generate_key():
     """
     Generate a new API key.
@@ -13,11 +28,11 @@ def generate_key():
     Returns:
         (full, prefix, last_four)
         - full: the complete key string e.g. 'db_live_aB3xK9pQ_<32-char-tail>'
-        - prefix: 'db_live_<8-char-random>' (16 chars total)
+        - prefix: 'db_live_<8-char-random>' (16 chars total, no '_' / '-' in the random part)
         - last_four: the last 4 characters of the full key
     """
-    pre = secrets.token_urlsafe(6)[:8]    # 8 URL-safe chars
-    tail = secrets.token_urlsafe(24)[:32]  # 32 URL-safe chars
+    pre = _random_segment(_KEY_RANDOM_LEN)
+    tail = _random_segment(32)
     full = f'db_live_{pre}_{tail}'
     return full, f'db_live_{pre}', tail[-4:]
 
