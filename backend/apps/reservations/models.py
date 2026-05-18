@@ -239,6 +239,32 @@ class Reservation(models.Model):
     )
     created_at      = models.DateTimeField(auto_now_add=True)
 
+    # Phase 1 booking-flow additions (spec 2026-05-18)
+    estimated_arrival_time = models.TimeField(null=True, blank=True)
+    special_requests = models.TextField(blank=True, default='')
+
+    SHORE_POWER_CHOICES = [
+        ('16A',  '16A'),
+        ('32A',  '32A'),
+        ('63A',  '63A'),
+        ('none', 'None'),
+    ]
+    shore_power_amperage = models.CharField(
+        max_length=8, choices=SHORE_POWER_CHOICES, null=True, blank=True,
+    )
+
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
+    terms_version = models.CharField(max_length=32, blank=True, default='')
+
+    billing_street = models.CharField(max_length=200, blank=True, default='')
+    billing_city = models.CharField(max_length=100, blank=True, default='')
+    billing_postcode = models.CharField(max_length=20, blank=True, default='')
+    billing_country = models.CharField(max_length=2, blank=True, default='')
+
+    company_name = models.CharField(max_length=200, blank=True, default='')
+    vat_number = models.CharField(max_length=50, blank=True, default='')
+    promo_code = models.CharField(max_length=50, blank=True, default='')
+
     class Meta:
         ordering = ['-created_at']
 
@@ -296,9 +322,43 @@ class ReservationItem(models.Model):
         default='confirmed',
     )
 
+    # Phase 1 vessel-detail additions (spec 2026-05-18)
+    boat_air_draft = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    vessel_registration = models.CharField(max_length=50, blank=True, default='')
+    vessel_flag = models.CharField(max_length=2, blank=True, default='')
+    crew_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    insurance_certificate = models.FileField(
+        upload_to='reservations/insurance/%Y/%m/',
+        null=True, blank=True,
+    )
+
     class Meta:
         ordering = ['check_in']
 
     def __str__(self):
         berth_code = self.berth.code if self.berth_id else 'unassigned'
         return f'ITEM-{self.pk} @ {berth_code} ({self.check_in} → {self.check_out})'
+
+
+class InsuranceUploadToken(models.Model):
+    """
+    Short-lived token issued by POST /public/reservations/insurance-upload/
+    so the booking flow can upload an insurance PDF before the reservation
+    record exists. The token is redeemed atomically inside the intent view,
+    which copies the file into the corresponding ReservationItem.insurance_certificate.
+    The tmp file is deleted via transaction.on_commit; a defensive Celery task
+    purges any stragglers + rows past TTL.
+    """
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    marina = models.ForeignKey('accounts.Marina', on_delete=models.CASCADE)
+    file_path = models.CharField(max_length=500)   # MEDIA_ROOT-relative
+    mime_type = models.CharField(max_length=64)
+    size_bytes = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['created_at'])]
+
+    def __str__(self):
+        return f'InsuranceUploadToken({self.token[:8]}, marina={self.marina_id})'
