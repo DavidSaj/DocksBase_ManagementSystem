@@ -10,11 +10,12 @@ export default function GuestStep({ state, updateGuest, marina, onNext, onBack, 
   const [showCompany, setShowCompany] = useState(!!state.guest.company_name);
   const termsRequired = !!marina?.booking_terms_pdf_url;
 
+  const billingComplete =
+    state.guest.billing_street && state.guest.billing_city &&
+    state.guest.billing_postcode && state.guest.billing_country;
   const canContinue =
     state.guest.name && state.guest.email &&
-    state.guest.billing_street && state.guest.billing_city &&
-    state.guest.billing_postcode && state.guest.billing_country &&
-    (!termsRequired || state.guest.terms_accepted);
+    (!termsRequired || (billingComplete && state.guest.terms_accepted));
 
   return (
     <form
@@ -42,24 +43,24 @@ export default function GuestStep({ state, updateGuest, marina, onNext, onBack, 
 
       <h3>Billing address</h3>
       <div className="p-field">
-        <label className="p-label">Street *</label>
-        <input className="p-input" required value={state.guest.billing_street}
+        <label className="p-label">Street{termsRequired ? ' *' : ''}</label>
+        <input className="p-input" required={termsRequired} value={state.guest.billing_street}
           onChange={e => updateGuest('billing_street', e.target.value)} />
       </div>
       <div className="p-grid-3">
         <div className="p-field">
-          <label className="p-label">City *</label>
-          <input className="p-input" required value={state.guest.billing_city}
+          <label className="p-label">City{termsRequired ? ' *' : ''}</label>
+          <input className="p-input" required={termsRequired} value={state.guest.billing_city}
             onChange={e => updateGuest('billing_city', e.target.value)} />
         </div>
         <div className="p-field">
-          <label className="p-label">Postcode *</label>
-          <input className="p-input" required value={state.guest.billing_postcode}
+          <label className="p-label">Postcode{termsRequired ? ' *' : ''}</label>
+          <input className="p-input" required={termsRequired} value={state.guest.billing_postcode}
             onChange={e => updateGuest('billing_postcode', e.target.value)} />
         </div>
         <div className="p-field">
-          <label className="p-label">Country *</label>
-          <select className="p-input" required value={state.guest.billing_country}
+          <label className="p-label">Country{termsRequired ? ' *' : ''}</label>
+          <select className="p-input" required={termsRequired} value={state.guest.billing_country}
             onChange={e => updateGuest('billing_country', e.target.value)}>
             <option value="">—</option>
             {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
