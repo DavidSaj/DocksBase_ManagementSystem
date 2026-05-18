@@ -220,3 +220,80 @@ class RecalculateLeadScoresLOATest(TestCase):
         call_command('recalculate_lead_scores', stdout=StringIO())
         self.assertFalse(self._vessel_loa_match_for(member))
         self.assertEqual(LeadScore.objects.get(member=member).score, 0)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# recalculate_lead_scores — "never-booked" gate.  TD5 (2026-05-18 backlog):
+# previously referenced Booking.member_id, which doesn't exist; the AttributeError
+# was swallowed and every member was treated as never-booked.  The fix derives
+# the booked cohort via Booking.vessel.owner and Reservation.member.
+# ──────────────────────────────────────────────────────────────────────────────
+import datetime
+from apps.reservations.models import Booking, Reservation
+
+
+class RecalculateLeadScoresNeverBookedTest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='Never-Booked Test')
+
+    def _make_member(self, name):
+        return Member.objects.create(marina=self.marina, name=name)
+
+    def _make_berth(self, code, length=12.0):
+        return Berth.objects.create(
+            marina=self.marina, code=code, length_m=Decimal(str(length)),
+        )
+
+    def test_member_with_booking_via_vessel_is_excluded(self):
+        """A member whose vessel has any Booking row counts as 'booked' and
+        must not get a LeadScore — they are no longer a lead."""
+        booked = self._make_member('booked')
+        vessel = Vessel.objects.create(
+            marina=self.marina, name='Booked Boat', owner=booked,
+            loa=Decimal('10'),
+        )
+        berth = self._make_berth('A1', 12.0)
+        Booking.objects.create(
+            marina=self.marina, vessel=vessel, berth=berth,
+            check_in=datetime.date(2024, 6, 1),
+            check_out=datetime.date(2024, 6, 5),
+            status='checked_out',
+        )
+
+        # A fresh never-booked member for contrast.
+        fresh = self._make_member('fresh')
+
+        call_command('recalculate_lead_scores', stdout=StringIO())
+
+        assert not LeadScore.objects.filter(member=booked).exists()
+        assert LeadScore.objects.filter(member=fresh).exists()
+
+    def test_member_with_reservation_is_excluded(self):
+        """Same gate for Reservation, which carries a direct `member` FK."""
+        booked = self._make_member('reservation-booked')
+        Reservation.objects.create(
+            marina=self.marina, member=booked, status='confirmed',
+        )
+
+        fresh = self._make_member('reservation-fresh')
+
+        call_command('recalculate_lead_scores', stdout=StringIO())
+
+        assert not LeadScore.objects.filter(member=booked).exists()
+        assert LeadScore.objects.filter(member=fresh).exists()
+
+    def test_guest_only_booking_does_not_taint_unrelated_members(self):
+        """A Booking with no vessel (and therefore no owner) is a guest
+        booking; it must not exclude any Member from the never-booked gate."""
+        berth = self._make_berth('B1', 12.0)
+        Booking.objects.create(
+            marina=self.marina, berth=berth,
+            check_in=datetime.date(2024, 6, 1),
+            check_out=datetime.date(2024, 6, 5),
+            status='checked_out',
+            guest_name='Walk-in', guest_email='walkin@example.com',
+        )
+
+        fresh = self._make_member('fresh-after-guest')
+        call_command('recalculate_lead_scores', stdout=StringIO())
+        assert LeadScore.objects.filter(member=fresh).exists()

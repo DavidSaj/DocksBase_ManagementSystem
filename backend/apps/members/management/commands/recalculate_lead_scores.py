@@ -53,17 +53,23 @@ class Command(BaseCommand):
         if options['marina_id']:
             member_qs = member_qs.filter(marina_id=options['marina_id'])
 
-        # Limit to never-booked members. Booking may not expose `member_id`
-        # directly (it currently links vessels → owner); fall back to an empty
-        # set so the command still produces scores rather than crashing.
-        booked_member_ids = set()
-        try:
-            from apps.reservations.models import Booking
-            booked_member_ids = set(
-                Booking.objects.values_list('member_id', flat=True).distinct()
-            )
-        except (ImportError, Exception):
-            booked_member_ids = set()
+        # Limit to never-booked members. `Booking` has no direct `member` FK
+        # — it links to the boater via `vessel.owner`. `Reservation` does
+        # carry a direct `member` FK. Union both so a member with a stay on
+        # either model is correctly excluded from the never-booked cohort.
+        from apps.reservations.models import Booking, Reservation
+        booked_member_ids = set(
+            Booking.objects
+            .filter(vessel__owner__isnull=False)
+            .values_list('vessel__owner_id', flat=True)
+            .distinct()
+        )
+        booked_member_ids |= set(
+            Reservation.objects
+            .filter(member__isnull=False)
+            .values_list('member_id', flat=True)
+            .distinct()
+        )
 
         updated = 0
 
