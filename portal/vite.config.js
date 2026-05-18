@@ -5,8 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 5176,
-    allowedHosts: ['.lvh.me', 'localhost', 'booking.docksbase.com'],
+    port: 5178,
+    allowedHosts: ['.lvh.me', 'localhost', 'portal.docksbase.com'],
   },
   test: {
     environment: 'jsdom',

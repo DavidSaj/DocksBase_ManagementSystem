@@ -296,6 +296,17 @@ SIMPLE_JWT = {
 }
 
 # ---------------------------------------------------------------------------
+# Cache (Redis) — used by the boater portal access resolver and any future
+# rate-limit / hot-read caches. Tests override to LocMemCache in test.py.
+# ---------------------------------------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://localhost:6379/1'),
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Celery
 # ---------------------------------------------------------------------------
 CELERY_BROKER_URL        = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')

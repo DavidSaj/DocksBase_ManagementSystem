@@ -9,22 +9,24 @@ from apps.members.models import Member
 from apps.reservations.models import Booking
 from apps.boatyard.models import WorkOrder
 
+from .boater_auth import BoaterTokenAuthentication
+from .boater_context import resolve_portal_member
 from .member_auth import PortalMemberAuthentication
 from .models import CraneRequest
 
 
 def _get_member(request):
-    """Return Member for the authenticated PortalMemberUser, scoped to marina."""
-    return (
-        Member.objects
-        .filter(id=request.user.member_id, marina__slug=request.user.marina_slug)
-        .select_related('marina')
-        .first()
-    )
+    """Return Member for the authenticated user, scoped to the active marina.
+
+    Handles both legacy `PortalMemberUser` (marina_slug claim on token) and
+    new `BoaterUser` (marina_slug from `X-Marina-Slug` header, gated by
+    `resolve_marina_for_boater`).
+    """
+    return resolve_portal_member(request)
 
 
 class PortalMemberCraneRequestView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     VALID_SERVICE_TYPES = {'launch', 'haul_out', 'both'}
@@ -71,7 +73,7 @@ class PortalMemberCraneRequestView(APIView):
 
 
 class PortalMemberBookingView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -103,7 +105,7 @@ class PortalMemberBookingView(APIView):
 
 
 class PortalMemberExtendStayView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def _active_booking(self, member):
@@ -196,7 +198,7 @@ class PortalMemberExtendStayView(APIView):
 
 
 class PortalMemberIssueView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     VALID_CATEGORIES = {'berth', 'facility', 'vessel', 'other'}

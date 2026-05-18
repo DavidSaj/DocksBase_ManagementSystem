@@ -6,10 +6,15 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(cfg => {
+  // Prefer the cross-marina boater token when available; fall back to the
+  // legacy marina-scoped tokens during the deprecation window.
+  const boaterToken  = localStorage.getItem('portal_boater_session_token');
   const sessionToken = localStorage.getItem('portal_session_token');
   const tokenType    = localStorage.getItem('portal_token_type'); // 'guest' | 'member'
 
-  if (sessionToken) {
+  if (boaterToken) {
+    cfg.headers['Authorization'] = `BoaterBearer ${boaterToken}`;
+  } else if (sessionToken) {
     cfg.headers['Authorization'] =
       tokenType === 'member'
         ? `MemberBearer ${sessionToken}`
@@ -31,31 +36,59 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
-// Token refresh interceptor — fires on 401 for member sessions only
+// Token refresh interceptor. Two paths:
+//  1) Boater session expired → call /portal/auth/boater/refresh/.
+//  2) Legacy member session expired → call /portal/auth/member-magic/refresh/
+//     (kept for the deprecation window).
 api.interceptors.response.use(
   res => res,
   async err => {
     const original = err.config;
+    if (!original || err.response?.status !== 401 || original._retried) {
+      return Promise.reject(err);
+    }
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+    const boaterRefresh = localStorage.getItem('portal_boater_refresh_token');
+    if (boaterRefresh) {
+      original._retried = true;
+      try {
+        const { data } = await axios.post(
+          `${apiBase}/portal/auth/boater/refresh/`,
+          { refresh_token: boaterRefresh },
+        );
+        localStorage.setItem('portal_boater_session_token', data.boater_session_token);
+        localStorage.setItem('portal_boater_refresh_token', data.boater_refresh_token);
+        original.headers['Authorization'] = `BoaterBearer ${data.boater_session_token}`;
+        return api(original);
+      } catch {
+        localStorage.removeItem('portal_boater_session_token');
+        localStorage.removeItem('portal_boater_refresh_token');
+        // Don't clear legacy tokens — the request may still succeed via them
+        // until they too expire.
+        return Promise.reject(err);
+      }
+    }
+
     const tokenType = localStorage.getItem('portal_token_type');
-    if (
-      err.response?.status === 401 &&
-      tokenType === 'member' &&
-      !original._retried
-    ) {
+    if (tokenType === 'member') {
       original._retried = true;
       const refreshToken = localStorage.getItem('portal_refresh_token');
       if (!refreshToken) return Promise.reject(err);
       try {
         const { data } = await axios.post(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/portal/auth/member-magic/refresh/`,
+          `${apiBase}/portal/auth/member-magic/refresh/`,
           { refresh_token: refreshToken },
         );
         localStorage.setItem('portal_session_token', data.session_token);
         localStorage.setItem('portal_refresh_token', data.refresh_token);
+        if (data.boater_session_token) {
+          localStorage.setItem('portal_boater_session_token', data.boater_session_token);
+          localStorage.setItem('portal_boater_refresh_token', data.boater_refresh_token);
+        }
         original.headers['Authorization'] = `MemberBearer ${data.session_token}`;
         return api(original);
       } catch {
-        // Refresh failed — clear session, caller will redirect to login
         localStorage.removeItem('portal_session_token');
         localStorage.removeItem('portal_refresh_token');
         localStorage.removeItem('portal_token_type');
