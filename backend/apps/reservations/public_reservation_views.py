@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 VAT_REGEX = _re.compile(r'^[A-Z0-9 .\-]{4,30}$')
 
 
+def _enforce_terms_and_persist(reservation, marina, terms_accepted: bool):
+    """Return a Response if terms required but missing; otherwise stamp the
+    acceptance metadata onto the Reservation in-memory. Caller is responsible
+    for saving the Reservation and is assumed to be inside an atomic block."""
+    if marina.booking_terms_pdf_url:
+        if not terms_accepted:
+            return Response({'detail': 'terms_not_accepted'}, status=status.HTTP_400_BAD_REQUEST)
+        reservation.terms_accepted_at = timezone.now()
+        reservation.terms_version = marina.booking_terms_version or ''
+    return None
+
+
 class CartItemSerializer(serializers.Serializer):
     berth_category_id      = serializers.IntegerField(allow_null=True, required=False)
     boat_loa               = serializers.DecimalField(max_digits=6, decimal_places=2)
@@ -122,7 +134,22 @@ class ReservationIntentView(APIView):
                 guest_phone=d.get('guest_phone', ''),
                 status='pending_review',
                 booking_source='portal',
+                estimated_arrival_time=d.get('estimated_arrival_time'),
+                special_requests=d.get('special_requests', ''),
+                shore_power_amperage=d.get('shore_power_amperage'),
+                billing_street=d.get('billing_street', ''),
+                billing_city=d.get('billing_city', ''),
+                billing_postcode=d.get('billing_postcode', ''),
+                billing_country=d.get('billing_country', ''),
+                company_name=d.get('company_name', ''),
+                vat_number=d.get('vat_number', ''),
+                promo_code=d.get('promo_code', ''),
             )
+            err = _enforce_terms_and_persist(reservation, marina, d.get('terms_accepted', False))
+            if err is not None:
+                transaction.set_rollback(True)
+                return err
+            reservation.save()
             for item in d['items']:
                 ReservationItem.objects.create(
                     reservation=reservation,
@@ -187,7 +214,22 @@ class ReservationIntentView(APIView):
                     status='pending_checkout',
                     locked_until=timezone.now() + datetime.timedelta(minutes=15),
                     booking_source='portal',
+                    estimated_arrival_time=d.get('estimated_arrival_time'),
+                    special_requests=d.get('special_requests', ''),
+                    shore_power_amperage=d.get('shore_power_amperage'),
+                    billing_street=d.get('billing_street', ''),
+                    billing_city=d.get('billing_city', ''),
+                    billing_postcode=d.get('billing_postcode', ''),
+                    billing_country=d.get('billing_country', ''),
+                    company_name=d.get('company_name', ''),
+                    vat_number=d.get('vat_number', ''),
+                    promo_code=d.get('promo_code', ''),
                 )
+                err = _enforce_terms_and_persist(reservation, marina, d.get('terms_accepted', False))
+                if err is not None:
+                    transaction.set_rollback(True)
+                    return err
+                reservation.save()
 
                 item_records = []
                 for item in d['items']:

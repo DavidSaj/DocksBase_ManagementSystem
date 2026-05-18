@@ -223,3 +223,49 @@ class SerializerExtensionsTest(TestCase):
         ser = ReservationIntentSerializer(data=data)
         self.assertFalse(ser.is_valid())
         self.assertIn('vat_number', ser.errors)
+
+
+from django.utils import timezone
+
+
+class TermsAcceptanceTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina(
+            slug='terms-marina',
+            booking_terms_pdf_url='https://example.com/tos.pdf',
+            booking_terms_version='2.0',
+            booking_mode='manual',
+        )
+        self.client = APIClient()
+        self.url = '/api/v1/public/reservations/intent/'
+        self.headers = {'HTTP_X_MARINA_SLUG': self.marina.slug}
+
+    def _payload(self, **overrides):
+        base = {
+            'check_in':  '2999-08-01',
+            'check_out': '2999-08-05',
+            'guest_name':  'Alice',
+            'guest_email': 'a@b.test',
+            'items': [{'boat_loa': '10.0'}],
+        }
+        base.update(overrides)
+        return base
+
+    def test_marina_with_terms_blocks_when_not_accepted(self):
+        r = self.client.post(self.url, self._payload(terms_accepted=False), format='json', **self.headers)
+        self.assertEqual(r.status_code, 400, r.content)
+        self.assertEqual(r.json().get('detail'), 'terms_not_accepted')
+
+    def test_marina_with_terms_passes_when_accepted(self):
+        r = self.client.post(self.url, self._payload(terms_accepted=True), format='json', **self.headers)
+        self.assertIn(r.status_code, (200, 201), r.content)
+        from apps.reservations.models import Reservation
+        res = Reservation.objects.get(pk=r.json()['reservation_id'])
+        self.assertIsNotNone(res.terms_accepted_at)
+        self.assertEqual(res.terms_version, '2.0')
+
+    def test_marina_without_terms_skips_check(self):
+        m2 = make_marina(slug='no-tos-marina', booking_mode='manual')  # empty booking_terms_pdf_url default
+        headers = {'HTTP_X_MARINA_SLUG': m2.slug}
+        r = self.client.post(self.url, self._payload(), format='json', **headers)
+        self.assertEqual(r.status_code, 201, r.content)
