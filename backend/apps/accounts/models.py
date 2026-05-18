@@ -31,8 +31,6 @@ class Marina(models.Model):
     payment_terms = models.IntegerField(default=7)
     total_berths = models.IntegerField(default=0)
     dry_storage_slots = models.IntegerField(default=0)
-    max_loa = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
-    max_draft = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     operations_paused = models.BooleanField(default=False)
     BOOKING_MODE_CHOICES = [

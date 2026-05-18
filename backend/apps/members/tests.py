@@ -162,3 +162,61 @@ class SegmentTest(TestCase):
         data = resp.json().get('results', resp.json())
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]['name'], 'Insider')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# recalculate_lead_scores — vessel_loa_match rule now sources its cap from the
+# marina's longest berth (was Marina.max_loa, which was dropped).
+# ──────────────────────────────────────────────────────────────────────────────
+from decimal import Decimal
+from io import StringIO
+from django.core.management import call_command
+from apps.berths.models import Berth
+from apps.vessels.models import Vessel
+from apps.members.models import LeadScore
+
+
+class RecalculateLeadScoresLOATest(TestCase):
+    def setUp(self):
+        self.marina = Marina.objects.create(name='LOA Test Marina')
+
+    def _make_member_with_vessel(self, vessel_loa, name='M'):
+        member = Member.objects.create(marina=self.marina, name=name)
+        if vessel_loa is not None:
+            Vessel.objects.create(
+                marina=self.marina, name=f'{name}-boat', owner=member,
+                loa=Decimal(str(vessel_loa)),
+            )
+        return member
+
+    def _make_berth(self, code, length_m):
+        return Berth.objects.create(
+            marina=self.marina, code=code, length_m=Decimal(str(length_m)),
+        )
+
+    def _vessel_loa_match_for(self, member):
+        return LeadScore.objects.get(member=member).vessel_loa_match
+
+    def test_vessel_loa_match_uses_longest_berth(self):
+        # Two berths; the longest is 15.0 m.
+        self._make_berth('A1', 10.0)
+        self._make_berth('A2', 15.0)
+        fits   = self._make_member_with_vessel(12.0, name='fits')
+        toobig = self._make_member_with_vessel(20.0, name='toobig')
+
+        call_command('recalculate_lead_scores', stdout=StringIO())
+
+        self.assertTrue(self._vessel_loa_match_for(fits))
+        self.assertFalse(self._vessel_loa_match_for(toobig))
+        self.assertEqual(
+            LeadScore.objects.get(member=fits).score, 15,
+        )
+        self.assertEqual(
+            LeadScore.objects.get(member=toobig).score, 0,
+        )
+
+    def test_no_berths_means_no_loa_match(self):
+        member = self._make_member_with_vessel(8.0, name='nomarinaberth')
+        call_command('recalculate_lead_scores', stdout=StringIO())
+        self.assertFalse(self._vessel_loa_match_for(member))
+        self.assertEqual(LeadScore.objects.get(member=member).score, 0)
