@@ -269,3 +269,78 @@ class TermsAcceptanceTest(TestCase):
         headers = {'HTTP_X_MARINA_SLUG': m2.slug}
         r = self.client.post(self.url, self._payload(), format='json', **headers)
         self.assertEqual(r.status_code, 201, r.content)
+
+
+from django.core.files.base import ContentFile
+
+
+class InsuranceTokenRedemptionTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina(slug='tok-marina', booking_mode='manual')
+        self.client = APIClient()
+        self.intent_url = '/api/v1/public/reservations/intent/'
+        self.upload_url = '/api/v1/public/reservations/insurance-upload/'
+        self.headers = {'HTTP_X_MARINA_SLUG': self.marina.slug}
+
+    def _upload(self):
+        f = SimpleUploadedFile('cert.pdf', b'%PDF-1.4\n' + b'x' * 100, content_type='application/pdf')
+        r = self.client.post(self.upload_url, {'file': f}, format='multipart', **self.headers)
+        self.assertEqual(r.status_code, 201, r.content)
+        return r.json()['token']
+
+    def test_token_redemption_attaches_file_and_marks_consumed(self):
+        token = self._upload()
+        payload = {
+            'check_in': '2999-08-01', 'check_out': '2999-08-05',
+            'guest_name': 'A', 'guest_email': 'a@b.test',
+            'items': [{'boat_loa': '10.0', 'insurance_upload_token': token}],
+        }
+        r = self.client.post(self.intent_url, payload, format='json', **self.headers)
+        self.assertEqual(r.status_code, 201, r.content)
+        from apps.reservations.models import Reservation, InsuranceUploadToken
+        res = Reservation.objects.get(pk=r.json()['reservation_id'])
+        item = res.items.first()
+        self.assertTrue(item.insurance_certificate, 'FileField should be populated')
+        tok = InsuranceUploadToken.objects.get(token=token)
+        self.assertIsNotNone(tok.consumed_at)
+
+    def test_shared_token_across_multiple_items(self):
+        token = self._upload()
+        payload = {
+            'check_in': '2999-08-01', 'check_out': '2999-08-05',
+            'guest_name': 'A', 'guest_email': 'a@b.test',
+            'items': [
+                {'boat_loa': '12.0', 'insurance_upload_token': token},
+                {'boat_loa': '4.5',  'insurance_upload_token': token},
+            ],
+        }
+        r = self.client.post(self.intent_url, payload, format='json', **self.headers)
+        self.assertEqual(r.status_code, 201, r.content)
+        from apps.reservations.models import Reservation
+        res = Reservation.objects.get(pk=r.json()['reservation_id'])
+        items = list(res.items.all())
+        self.assertEqual(len(items), 2)
+        for item in items:
+            self.assertTrue(item.insurance_certificate)
+
+    def test_unknown_token_rejected(self):
+        payload = {
+            'check_in': '2999-08-01', 'check_out': '2999-08-05',
+            'guest_name': 'A', 'guest_email': 'a@b.test',
+            'items': [{'boat_loa': '10.0', 'insurance_upload_token': 'tk_does_not_exist'}],
+        }
+        r = self.client.post(self.intent_url, payload, format='json', **self.headers)
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json().get('detail'), 'insurance_token_invalid')
+
+    def test_previously_consumed_token_rejected(self):
+        token = self._upload()
+        payload = {
+            'check_in': '2999-08-01', 'check_out': '2999-08-05',
+            'guest_name': 'A', 'guest_email': 'a@b.test',
+            'items': [{'boat_loa': '10.0', 'insurance_upload_token': token}],
+        }
+        self.client.post(self.intent_url, payload, format='json', **self.headers)
+        r = self.client.post(self.intent_url, payload, format='json', **self.headers)
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json().get('detail'), 'insurance_token_consumed')

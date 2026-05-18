@@ -150,8 +150,9 @@ class ReservationIntentView(APIView):
                 transaction.set_rollback(True)
                 return err
             reservation.save()
-            for item in d['items']:
-                ReservationItem.objects.create(
+            items_map = {}
+            for idx, item in enumerate(d['items']):
+                items_map[idx] = ReservationItem.objects.create(
                     reservation=reservation,
                     berth=None,
                     check_in=check_in,
@@ -161,8 +162,18 @@ class ReservationIntentView(APIView):
                     boat_loa=item.get('boat_loa'),
                     boat_beam=item.get('boat_beam'),
                     boat_draft=item.get('boat_draft'),
+                    boat_air_draft=item.get('boat_air_draft'),
+                    vessel_registration=item.get('vessel_registration', ''),
+                    vessel_flag=(item.get('vessel_flag') or '').upper(),
+                    crew_count=item.get('crew_count'),
                     status='unassigned',
                 )
+            err, on_commit_cb = _redeem_insurance_tokens(d['items'], marina, items_map)
+            if err is not None:
+                transaction.set_rollback(True)
+                return err
+            if on_commit_cb is not None:
+                transaction.on_commit(on_commit_cb)
         return Response({
             'reservation_id': reservation.pk,
             'reference': f'RES-{reservation.pk}',
@@ -266,6 +277,28 @@ class ReservationIntentView(APIView):
                     ))
 
                 ReservationItem.objects.bulk_create(item_records)
+
+                created_items = list(reservation.items.order_by('pk'))
+                items_map = {idx: created_items[idx] for idx in range(len(created_items))}
+                err, on_commit_cb = _redeem_insurance_tokens(d['items'], marina, items_map)
+                if err is not None:
+                    transaction.set_rollback(True)
+                    return err
+                if on_commit_cb is not None:
+                    transaction.on_commit(on_commit_cb)
+
+                # Apply new vessel fields onto items via update (item_records
+                # was an in-memory list; we re-fetched after bulk_create).
+                for idx, item_data in enumerate(d['items']):
+                    flat = {
+                        'boat_air_draft':       item_data.get('boat_air_draft'),
+                        'vessel_registration':  item_data.get('vessel_registration', ''),
+                        'vessel_flag':          (item_data.get('vessel_flag') or '').upper(),
+                        'crew_count':           item_data.get('crew_count'),
+                    }
+                    update_kwargs = {k: v for k, v in flat.items() if v not in (None, '')}
+                    if update_kwargs:
+                        ReservationItem.objects.filter(pk=items_map[idx].pk).update(**update_kwargs)
 
                 total = sum(r.item_price for r in item_records)
                 reservation.total_price = total
@@ -414,6 +447,7 @@ class ReservationConfirmView(APIView):
 
 import os
 import secrets as _secrets
+from django.core.files import File as _DjangoFile
 from django.core.files.storage import default_storage
 
 from .models import InsuranceUploadToken
@@ -422,6 +456,74 @@ from .models import InsuranceUploadToken
 ALLOWED_INSURANCE_MIME = {'application/pdf', 'image/jpeg', 'image/png'}
 MAX_INSURANCE_BYTES = 5 * 1024 * 1024  # 5 MB
 INSURANCE_TOKEN_TTL = datetime.timedelta(hours=24)
+
+
+def _redeem_insurance_tokens(items_data, marina, reservation_items_map):
+    """
+    items_data: the validated 'items' list from the serializer.
+    reservation_items_map: dict { items_data_index → ReservationItem instance }.
+
+    Returns (error_response_or_None, on_commit_callable_or_None).
+
+    Validates every insurance_upload_token referenced in items_data:
+      - exists, belongs to this marina, within TTL, not consumed by a prior request
+
+    Copies the file into each referenced ReservationItem.insurance_certificate
+    (FileField.save() generates an upload_to path and writes a copy).
+    Marks every distinct token consumed_at = now() once per token.
+    Returns an on_commit callable that deletes the /tmp/ source file(s) — caller
+    should pass it to `transaction.on_commit` if non-None.
+    """
+    tmp_paths_to_delete = []
+    now = timezone.now()
+    seen_tokens = {}  # token_str -> InsuranceUploadToken instance
+
+    for idx, item in enumerate(items_data):
+        tok_str = item.get('insurance_upload_token') or ''
+        if not tok_str:
+            continue
+        if tok_str not in seen_tokens:
+            try:
+                tok = InsuranceUploadToken.objects.select_for_update().get(token=tok_str)
+            except InsuranceUploadToken.DoesNotExist:
+                return Response({'detail': 'insurance_token_invalid'},
+                                status=status.HTTP_400_BAD_REQUEST), None
+            if tok.marina_id != marina.id:
+                return Response({'detail': 'insurance_token_invalid'},
+                                status=status.HTTP_400_BAD_REQUEST), None
+            if tok.consumed_at is not None:
+                return Response({'detail': 'insurance_token_consumed'},
+                                status=status.HTTP_400_BAD_REQUEST), None
+            if (now - tok.created_at) > INSURANCE_TOKEN_TTL:
+                return Response({'detail': 'insurance_token_expired'},
+                                status=status.HTTP_400_BAD_REQUEST), None
+            seen_tokens[tok_str] = tok
+
+        tok = seen_tokens[tok_str]
+        item_instance = reservation_items_map[idx]
+        # Copy: open the tmp file, save through the FileField (which generates
+        # an upload_to path) — that physically copies it.
+        with default_storage.open(tok.file_path, 'rb') as src:
+            filename = os.path.basename(tok.file_path)
+            item_instance.insurance_certificate.save(filename, _DjangoFile(src), save=True)
+        if tok.file_path not in tmp_paths_to_delete:
+            tmp_paths_to_delete.append(tok.file_path)
+
+    for tok in seen_tokens.values():
+        tok.consumed_at = now
+        tok.save(update_fields=['consumed_at'])
+
+    if not tmp_paths_to_delete:
+        return None, None
+
+    def _delete_tmp_files():
+        for p in tmp_paths_to_delete:
+            try:
+                default_storage.delete(p)
+            except Exception:
+                logger.exception('Failed to delete consumed insurance tmp file: %s', p)
+
+    return None, _delete_tmp_files
 
 
 class InsuranceUploadView(APIView):
