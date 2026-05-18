@@ -120,3 +120,14 @@ export function confirmReservation(marinaSlug, reservationId, paymentIntentId) {
     headers: { 'X-Marina-Slug': marinaSlug },
   });
 }
+
+export function uploadInsuranceCertificate(marinaSlug, file) {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post('/public/reservations/insurance-upload/', form, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      'X-Marina-Slug': marinaSlug,
+    },
+  });
+}
