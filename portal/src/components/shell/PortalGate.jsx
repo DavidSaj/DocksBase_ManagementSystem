@@ -49,6 +49,12 @@ export default function PortalGate() {
           localStorage.setItem('portal_booking_id',    String(data.booking_id));
           localStorage.setItem('portal_marina_slug',   data.marina_slug);
         }
+        // Boater (cross-marina) tokens are issued alongside the legacy ones
+        // during the deprecation window. Store them when present.
+        if (data.boater_session_token) {
+          localStorage.setItem('portal_boater_session_token', data.boater_session_token);
+          localStorage.setItem('portal_boater_refresh_token', data.boater_refresh_token);
+        }
         window.location.replace(`/${data.marina_slug}/`);
       })
       .catch(() => {

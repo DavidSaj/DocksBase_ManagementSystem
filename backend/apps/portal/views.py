@@ -9,6 +9,8 @@ from apps.billing import stripe_service as _stripe_svc
 from apps.members.models import Member
 from apps.reservations.models import Booking
 from apps.vessels.models import Vessel
+from .boater_auth import BoaterTokenAuthentication
+from .boater_context import resolve_portal_member
 from .member_auth import PortalMemberAuthentication
 from .models import AbsenceReport, CraneRequest
 from .serializers import PortalInvoiceSerializer, AbsenceReportSerializer, CraneRequestSerializer, CraneRequestStaffSerializer, PortalBerthSerializer, PortalVesselSerializer
@@ -51,17 +53,12 @@ class IsBoater(permissions.BasePermission):
 
 
 class PortalInvoiceListView(generics.ListAPIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
     serializer_class = PortalInvoiceSerializer
 
     def get_queryset(self):
-        member = (
-            Member.objects
-            .filter(id=self.request.user.member_id, marina__slug=self.request.user.marina_slug)
-            .select_related('marina')
-            .first()
-        )
+        member = resolve_portal_member(self.request)
         if member is None:
             return Invoice.objects.none()
         return Invoice.objects.filter(member=member, marina=member.marina).order_by('-created_at')

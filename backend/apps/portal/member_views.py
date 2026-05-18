@@ -8,22 +8,19 @@ from apps.boatyard.models import WorkOrder
 from apps.documents.models import MemberDocument
 from apps.utilities.models import SmartMeter
 
+from .boater_auth import BoaterTokenAuthentication
+from .boater_context import resolve_portal_member
 from .member_auth import PortalMemberAuthentication
 from .permissions import require_feature
 from .member_serializers import PortalMeterSerializer, PortalDocumentSerializer
 
 
 def _get_member(request):
-    return (
-        Member.objects
-        .filter(id=request.user.member_id, marina__slug=request.user.marina_slug)
-        .select_related('marina')
-        .first()
-    )
+    return resolve_portal_member(request)
 
 
 class PortalGateView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -40,7 +37,7 @@ class PortalGateView(APIView):
 
 
 class PortalUtilitiesView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -62,7 +59,7 @@ URGENCY_TO_PRIORITY = {'routine': 'low', 'urgent': 'high', 'emergency': 'urgent'
 
 
 class PortalWorkOrderView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -108,7 +105,7 @@ class PortalWorkOrderView(APIView):
 
 
 class PortalDocumentListView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -150,7 +147,7 @@ class PortalDocumentListView(APIView):
 
 
 class PortalDocumentDetailView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):

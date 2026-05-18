@@ -12,6 +12,11 @@ from rest_framework.views import APIView
 from apps.members.models import Member
 from apps.reservations.models import Booking
 
+from .boater_session import (
+    decode_boater_refresh_token,
+    make_boater_refresh_token,
+    make_boater_session_token,
+)
 from .checkin_utils import make_portal_token, make_magic_token, make_reservation_portal_token
 from .member_auth_utils import (
     decode_member_magic_token,
@@ -61,6 +66,8 @@ class MemberMagicVerifyView(APIView):
             'refresh_token': refresh_token,
             'member_id': member.id,
             'marina_slug': member.marina.slug,
+            'boater_session_token': make_boater_session_token(member.email),
+            'boater_refresh_token': make_boater_refresh_token(member.email),
         })
 
 
@@ -99,6 +106,32 @@ class MemberMagicRefreshView(APIView):
         return Response({
             'session_token': session_token,
             'refresh_token': new_refresh,
+            'boater_session_token': make_boater_session_token(member.email),
+            'boater_refresh_token': make_boater_refresh_token(member.email),
+        })
+
+
+class BoaterRefreshView(APIView):
+    """Exchange a long-lived boater refresh token for a fresh session token.
+
+    Frontend calls this when its 1-hour boater session token expires, before
+    falling back to the legacy member-refresh flow.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get('refresh_token', '')
+        if not token:
+            return Response({'detail': 'refresh_token required.'}, status=400)
+        try:
+            payload = decode_boater_refresh_token(token)
+        except signing.BadSignature:
+            return Response({'detail': 'Refresh token invalid or expired.'}, status=401)
+        email = payload['email']
+        return Response({
+            'boater_session_token': make_boater_session_token(email),
+            'boater_refresh_token': make_boater_refresh_token(email),
         })
 
 
@@ -141,6 +174,8 @@ class GuestInstantLoginView(APIView):
                 'token': session_token,
                 'reservation_id': reservation.pk,
                 'marina_slug': reservation.marina.slug,
+                'boater_session_token': make_boater_session_token(reservation.guest_email),
+                'boater_refresh_token': make_boater_refresh_token(reservation.guest_email),
             })
 
         # Legacy BK- reference (existing Booking)
@@ -169,6 +204,8 @@ class GuestInstantLoginView(APIView):
             'token': session_token,
             'booking_id': booking.id,
             'marina_slug': booking.marina.slug,
+            'boater_session_token': make_boater_session_token(booking.guest_email),
+            'boater_refresh_token': make_boater_refresh_token(booking.guest_email),
         })
 
 
@@ -184,7 +221,7 @@ class UnifiedRequestLinkView(APIView):
         if not email or not marina_slug:
             return Response({'detail': 'email and X-Marina-Slug required.'}, status=400)
 
-        base  = getattr(settings, 'PORTAL_BASE_URL', 'https://book.docksbase.com')
+        base  = getattr(settings, 'PORTAL_BASE_URL', 'https://portal.docksbase.com')
         today = _dt.date.today()
 
         members = list(

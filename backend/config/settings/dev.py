@@ -30,8 +30,10 @@ else:
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',  # management frontend
     'http://localhost:5174',  # website
-    'http://localhost:5176',  # portal
+    'http://localhost:5175',  # admin
+    'http://localhost:5176',  # booking (stateless storefront)
     'http://localhost:5177',  # field app
+    'http://localhost:5178',  # portal (boater PWA)
     'http://localhost:4321',  # website-astro
 ]
 
@@ -41,7 +43,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-PORTAL_BASE_URL = 'http://localhost:5176'
+PORTAL_BASE_URL = 'http://localhost:5178'
 
 STRIPE_SECRET_KEY = _os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = _os.environ.get('STRIPE_WEBHOOK_SECRET', '')

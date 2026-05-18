@@ -2,6 +2,7 @@ from django.urls import path
 
 from .feed_views import FeedView
 from .member_auth_urls import urlpatterns as member_auth_urls
+from .my_trips_views import MyTripsView
 from .member_views import (
     PortalGateView,
     PortalUtilitiesView,
@@ -23,6 +24,7 @@ from .views import (
 from .admin_views import AppConfigUpdateView
 
 urlpatterns = member_auth_urls + [
+    path('portal/my-trips/',                              MyTripsView.as_view(),                name='portal_my_trips'),
     path('portal/feed/',                                   FeedView.as_view(),                   name='portal_feed'),
     path('portal/invoices/',                              PortalInvoiceListView.as_view(),      name='portal_invoices'),
     path('portal/invoices/<int:pk>/pay/',                 PortalInvoicePayView.as_view(),        name='portal_invoice_pay'),

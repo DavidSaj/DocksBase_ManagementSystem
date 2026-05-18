@@ -19,6 +19,8 @@ from apps.berths.models import Amenity
 from apps.reservations.models import Booking
 from apps.documents.models import DocTemplate
 from apps.documents.services import create_embedded_sign_url, get_existing_embedded_sign_url
+from .boater_auth import BoaterTokenAuthentication
+from .boater_session import make_boater_refresh_token, make_boater_session_token
 from .checkin_auth import PortalTokenAuthentication
 from .checkin_serializers import PortalBookingSerializer
 from .checkin_utils import (
@@ -70,6 +72,8 @@ class MagicAuthView(APIView):
                 'token': session_token,
                 'reservation_id': reservation.pk,
                 'marina_slug': reservation.marina.slug,
+                'boater_session_token': make_boater_session_token(reservation.guest_email),
+                'boater_refresh_token': make_boater_refresh_token(reservation.guest_email),
             })
 
         # Legacy: booking_id in payload
@@ -92,20 +96,21 @@ class MagicAuthView(APIView):
             'token': session_token,
             'booking_id': booking.id,
             'marina_slug': booking.marina.slug,
+            'boater_session_token': make_boater_session_token(booking.guest_email),
+            'boater_refresh_token': make_boater_refresh_token(booking.guest_email),
         })
 
 
 class PortalBookingMixin:
-    authentication_classes = [PortalTokenAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get_booking(self, request, pk):
-        if request.user.booking_id != pk:
+        from .boater_context import resolve_portal_booking
+        booking = resolve_portal_booking(request, pk)
+        if booking is None:
             return None, Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            return Booking.objects.select_related('marina', 'berth', 'berth__pier').get(pk=pk), None
-        except Booking.DoesNotExist:
-            return None, Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Booking.objects.select_related('marina', 'berth', 'berth__pier').get(pk=booking.pk), None
 
 
 class PortalBookingView(PortalBookingMixin, APIView):

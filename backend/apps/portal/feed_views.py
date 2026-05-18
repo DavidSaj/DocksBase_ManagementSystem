@@ -9,6 +9,8 @@ from rest_framework.views import APIView
 from apps.billing.models import Invoice
 from apps.members.models import Member
 from apps.vessels.models import Vessel
+from .boater_auth import BoaterTokenAuthentication
+from .boater_context import resolve_portal_member
 from .member_auth import PortalMemberAuthentication
 
 _log = logging.getLogger(__name__)
@@ -65,16 +67,12 @@ def _build_items(member):
 
 
 class FeedView(APIView):
-    authentication_classes = [PortalMemberAuthentication]
+    authentication_classes = [BoaterTokenAuthentication, PortalMemberAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        try:
-            member = Member.objects.select_related('marina').get(
-                pk=request.user.member_id,
-                marina__slug=request.user.marina_slug,
-            )
-        except Member.DoesNotExist:
+        member = resolve_portal_member(request)
+        if member is None:
             return Response({'detail': 'Member not found.'}, status=404)
 
         items = _build_items(member)
