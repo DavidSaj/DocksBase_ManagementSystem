@@ -2,9 +2,18 @@ import { useState, useEffect } from 'react';
 import api from '../../api.js';
 import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const ACTION_BTN = { width: '100%', height: 60, borderRadius: 12, background: '#0c1f3d', color: '#fff', border: 'none', fontSize: 17, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' };
+function Topbar({ onBack, title }) {
+  return (
+    <div className="f-topbar">
+      <button className="f-dw-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon name="arrow-left" size={18} color="var(--db-gold-light)" />
+        Back
+      </button>
+      <span style={{ fontFamily: 'var(--db-font-serif)', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)' }}>{title}</span>
+      <span style={{ width: 50 }} />
+    </div>
+  );
+}
 
 const ACTIVE_STATUSES = ['checked_in', 'confirmed', 'pending'];
 
@@ -68,20 +77,17 @@ export default function MessageGuestFlow({ onBack }) {
 
   if (sentTo) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
-        <div style={HDR}>
-          <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>Message Guest</span>
-        </div>
+      <div className="f-screen">
+        <Topbar onBack={onBack} title="Message Guest" />
         <div style={{ padding: 40, textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-            <Icon name="send" size={48} color="#0c1f3d" strokeWidth={1.5} />
+            <Icon name="send" size={48} color="var(--db-gold-light)" strokeWidth={1.5} />
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Message sent</div>
-          <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.5)', marginBottom: 28 }}>
+          <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 24, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 8 }}>Message sent</div>
+          <div style={{ fontSize: 14, color: 'var(--db-on-dark-muted)', marginBottom: 28 }}>
             Message sent to {sentTo}
           </div>
-          <button style={ACTION_BTN} onClick={onBack}>Back to Actions</button>
+          <button className="f-btn-primary" style={{ width: '100%' }} onClick={onBack}>Back to Actions</button>
         </div>
       </div>
     );
@@ -90,21 +96,18 @@ export default function MessageGuestFlow({ onBack }) {
   if (selected) {
     const berth = berthCode(selected);
     return (
-      <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
-        <div style={HDR}>
-          <button style={BACK_BTN} onClick={() => { setSelected(null); setMessage(''); setError(null); }}><Icon name="arrow-left" size={22} color="#fff" /></button>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>Message Guest</span>
-        </div>
+      <div className="f-screen">
+        <Topbar onBack={() => { setSelected(null); setMessage(''); setError(null); }} title="Message Guest" />
         <div style={{ padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 18, marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{vesselLabel(selected)}</div>
-            {berth && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginBottom: 2 }}>Berth {berth}</div>}
+          <div className="f-card" style={{ margin: '0 0 20px' }}>
+            <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 22, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 4 }}>{vesselLabel(selected)}</div>
+            {berth && <div style={{ fontSize: 13, color: 'var(--db-on-dark-muted)', marginBottom: 2 }}>Berth {berth}</div>}
             {selected.guest_email && (
-              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)' }}>{selected.guest_email}</div>
+              <div style={{ fontSize: 13, color: 'var(--db-on-dark-faint)' }}>{selected.guest_email}</div>
             )}
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--db-gold-light)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>
             Message
           </div>
           <textarea
@@ -112,17 +115,15 @@ export default function MessageGuestFlow({ onBack }) {
             onChange={e => setMessage(e.target.value)}
             placeholder="Type your message to the guest…"
             rows={5}
-            style={{
-              width: '100%', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.15)',
-              padding: '12px 14px', fontSize: 15, resize: 'vertical',
-              fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 16,
-            }}
+            className="f-textarea"
+            style={{ marginBottom: 16 }}
           />
 
-          {error && <div style={{ color: '#c0392b', fontSize: 13, marginBottom: 10, textAlign: 'center' }}>{error}</div>}
+          {error && <div style={{ color: 'var(--db-status-red)', fontSize: 13, marginBottom: 10, textAlign: 'center' }}>{error}</div>}
 
           <button
-            style={{ ...ACTION_BTN, opacity: message.trim() ? 1 : 0.4, cursor: message.trim() ? 'pointer' : 'default' }}
+            className="f-btn-primary"
+            style={{ width: '100%' }}
             disabled={!message.trim() || sending}
             onClick={handleSend}
           >
@@ -134,42 +135,38 @@ export default function MessageGuestFlow({ onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
-      <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>Message Guest</span>
-      </div>
-      <div style={{ position: 'sticky', top: 0, background: '#fff', padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.08)', zIndex: 10 }}>
+    <div className="f-screen">
+      <Topbar onBack={onBack} title="Message Guest" />
+      <div style={{ position: 'sticky', top: 0, background: 'var(--db-bezel)', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', zIndex: 10 }}>
         <input
           type="search"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search vessel, berth or guest…"
-          style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.15)', fontSize: 15, boxSizing: 'border-box' }}
+          className="f-input"
         />
       </div>
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
+        <div className="f-dw-loading">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
+        <div className="f-dw-loading" style={{ padding: 40 }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-            <Icon name="message-square" size={36} color="rgba(0,0,0,0.25)" />
+            <Icon name="message-square" size={36} color="var(--db-on-dark-faint)" />
           </div>
           <div style={{ fontSize: 15 }}>{search ? 'No matches.' : 'No active bookings.'}</div>
         </div>
       ) : (
-        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column' }}>
           {filtered.map(b => {
             const berth = berthCode(b);
             return (
-              <div key={b.id} onClick={() => setSelected(b)}
-                style={{ background: '#fff', borderRadius: 14, padding: 18, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{vesselLabel(b)}</div>
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+              <div key={b.id} onClick={() => setSelected(b)} className="f-card" style={{ cursor: 'pointer' }}>
+                <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 4 }}>{vesselLabel(b)}</div>
+                <div style={{ fontSize: 12, color: 'var(--db-on-dark-muted)' }}>
                   {[berth ? `Berth ${berth}` : null, b.guest_email || null].filter(Boolean).join(' · ')}
                 </div>
                 {b.status && (
-                  <div style={{ fontSize: 11, marginTop: 4, color: 'rgba(0,0,0,0.35)', textTransform: 'capitalize' }}>
+                  <div style={{ fontSize: 11, marginTop: 4, color: 'var(--db-on-dark-faint)', textTransform: 'capitalize' }}>
                     {b.status.replace('_', ' ')}
                   </div>
                 )}

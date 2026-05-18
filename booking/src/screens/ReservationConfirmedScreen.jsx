@@ -1,4 +1,4 @@
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 export default function ReservationConfirmedScreen({ state, marina }) {
   const isPending = state.reservationStatus === 'pending_review';

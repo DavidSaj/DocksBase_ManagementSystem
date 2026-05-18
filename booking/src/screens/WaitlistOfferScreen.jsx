@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../api';
+import api from '@docksbase/portal-ui/api';
 
 export default function WaitlistOfferScreen() {
   const { token } = useParams();

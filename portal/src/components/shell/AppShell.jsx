@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useUserContext } from '../../context/UserContext';
-import { useTenant } from '../../context/TenantContext';
+import { useUserContext } from '@docksbase/portal-ui/context/UserContext';
+import { useTenant } from '@docksbase/portal-ui/context/TenantContext';
 import BottomNav    from './BottomNav';
 import BoardingPass from './BoardingPass';
 import MemberShell  from './MemberShell';
@@ -9,7 +9,7 @@ import ServicesTab from '../../screens/tabs/ServicesTab';
 import BookTab     from '../../screens/tabs/BookTab';
 import WalletTab   from '../../screens/tabs/WalletTab';
 import AccountTab  from '../../screens/tabs/AccountTab';
-import api from '../../api';
+import api from '@docksbase/portal-ui/api';
 
 const TAB_COMPONENTS = {
   home:     HomeTab,

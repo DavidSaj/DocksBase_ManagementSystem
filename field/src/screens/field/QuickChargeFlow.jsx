@@ -13,9 +13,21 @@ function uuidv4() {
   });
 }
 
-const HDR    = { background: '#0c1f3d', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff', minHeight: 56 };
-const BACK   = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const BTN    = { width: '100%', height: 56, borderRadius: 12, background: '#0c1f3d', color: '#fff', border: 'none', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'Jost, system-ui, sans-serif' };
+function Topbar({ onBack, title, sub }) {
+  return (
+    <div className="f-topbar">
+      <button className="f-dw-back" onClick={onBack} aria-label="Back" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon name="chevron-left" size={18} color="var(--db-gold-light)" />
+        Back
+      </button>
+      <div style={{ textAlign: 'center' }}>
+        {sub && <div style={{ fontSize: 10, color: 'var(--db-gold-light)', textTransform: 'uppercase', letterSpacing: 2, fontWeight: 600 }}>{sub}</div>}
+        <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)' }}>{title}</div>
+      </div>
+      <span style={{ width: 50 }} />
+    </div>
+  );
+}
 
 // ── Screen 1: pick a boat ───────────────────────────────────────────────────
 
@@ -39,45 +51,37 @@ function PickBoat({ onPick, onBack }) {
   ) : rows;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f3f0', paddingBottom: 80 }}>
-      <div style={HDR}>
-        <button style={BACK} onClick={onBack} aria-label="Back">
-          <Icon name="chevron-left" size={22} color="#fff" />
-        </button>
-        <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'Jost, system-ui, sans-serif' }}>Quick Charge</div>
-      </div>
+    <div className="f-screen" style={{ paddingBottom: 80 }}>
+      <Topbar onBack={onBack} title="Quick Charge" />
       <div style={{ padding: 16 }}>
         <input
           autoFocus
           placeholder="Name, berth, RES-…"
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          style={{
-            width: '100%', height: 48, borderRadius: 10, border: '1px solid rgba(0,0,0,0.12)',
-            padding: '0 14px', fontSize: 15, boxSizing: 'border-box',
-          }}
+          className="f-input"
         />
-        {err && <div style={{ color: '#dc2626', marginTop: 12 }}>{err}</div>}
+        {err && <div style={{ color: 'var(--db-status-red)', marginTop: 12 }}>{err}</div>}
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(r => (
             <button key={r.reservation_id} onClick={() => onPick(r)} style={{
-              textAlign: 'left', background: '#fff', border: '1px solid rgba(0,0,0,0.06)',
-              borderRadius: 12, padding: '14px 16px', cursor: 'pointer', minHeight: 56,
+              textAlign: 'left', background: 'var(--db-card-bg)', border: 'var(--db-card-border)',
+              borderRadius: 'var(--db-radius-md)', padding: '14px 16px', cursor: 'pointer', minHeight: 56,
               display: 'flex', alignItems: 'center', gap: 12,
             }}>
               <div style={{
-                width: 38, height: 38, borderRadius: 10, background: '#b8965a',
-                color: '#0c1f3d', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 38, height: 38, borderRadius: 'var(--db-radius-sm)', background: 'var(--db-gold-light)',
+                color: 'var(--db-navy)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13,
               }}>{r.berth_code || '?'}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#0c1f3d' }}>{r.boat_name || '—'}</div>
-                <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{r.member_name}</div>
+                <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 17, fontWeight: 700, color: 'var(--db-on-dark)' }}>{r.boat_name || '—'}</div>
+                <div style={{ fontSize: 13, color: 'var(--db-on-dark-muted)' }}>{r.member_name}</div>
               </div>
             </button>
           ))}
           {filtered.length === 0 && !err && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>No active boats.</div>
+            <div className="f-dw-loading">No active boats.</div>
           )}
         </div>
       </div>
@@ -111,35 +115,27 @@ function PickItem({ boat, onCommit, onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f3f0', paddingBottom: 80 }}>
-      <div style={HDR}>
-        <button style={BACK} onClick={onBack} aria-label="Back">
-          <Icon name="chevron-left" size={22} color="#fff" />
-        </button>
-        <div>
-          <div style={{ fontSize: 11, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1 }}>Charging</div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{boat.boat_name || boat.member_name || '—'} · {boat.berth_code}</div>
-        </div>
-      </div>
+    <div className="f-screen" style={{ paddingBottom: 80 }}>
+      <Topbar onBack={onBack} title={`${boat.boat_name || boat.member_name || '—'} · ${boat.berth_code}`} sub="Charging" />
       <div style={{ padding: 16 }}>
-        {err && <div style={{ color: '#dc2626', marginBottom: 12 }}>{err}</div>}
+        {err && <div style={{ color: 'var(--db-status-red)', marginBottom: 12 }}>{err}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {items.map(item => (
             <div key={item.id} style={{
-              background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.06)',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.05)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
+              background: 'var(--db-card-bg)', borderRadius: 'var(--db-radius-md)', border: 'var(--db-card-border)',
+              padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
               minHeight: 130,
             }}>
               <button onClick={() => commit(item)} style={{
                 background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', flex: 1,
               }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0c1f3d', lineHeight: 1.2 }}>{item.name}</div>
-                <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginTop: 4 }}>€{Number(item.unit_price).toFixed(2)}</div>
+                <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 16, fontWeight: 700, color: 'var(--db-on-dark)', lineHeight: 1.2 }}>{item.name}</div>
+                <div style={{ fontSize: 13, color: 'var(--db-gold-light)', marginTop: 4, fontWeight: 600 }}>€{Number(item.unit_price).toFixed(2)}</div>
               </button>
               {item.qty_variable && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
                   <button onClick={() => bump(item.id, -1)} style={stepBtn}>−</button>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#0c1f3d', minWidth: 24, textAlign: 'center' }}>{getQty(item.id)}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--db-on-dark)', minWidth: 24, textAlign: 'center' }}>{getQty(item.id)}</div>
                   <button onClick={() => bump(item.id, 1)} style={stepBtn}>+</button>
                 </div>
               )}
@@ -147,7 +143,7 @@ function PickItem({ boat, onCommit, onBack }) {
           ))}
         </div>
         {items.length === 0 && !err && (
-          <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>No quick-charge items configured.</div>
+          <div className="f-dw-loading">No quick-charge items configured.</div>
         )}
       </div>
     </div>
@@ -155,8 +151,8 @@ function PickItem({ boat, onCommit, onBack }) {
 }
 
 const stepBtn = {
-  width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(0,0,0,0.1)',
-  background: '#f4f3f0', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: '#0c1f3d',
+  width: 36, height: 36, borderRadius: 'var(--db-radius-sm)', border: '1px solid rgba(255,255,255,0.12)',
+  background: 'rgba(255,255,255,0.05)', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)',
 };
 
 // ── Undo toast ──────────────────────────────────────────────────────────────
@@ -178,18 +174,16 @@ function UndoToast({ toast, onUndo, onDismiss }) {
   if (!toast) return null;
   return (
     <div style={{
-      position: 'fixed', left: 12, right: 12, bottom: 16, background: '#0c1f3d', color: '#fff',
-      borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.25)', zIndex: 50,
+      position: 'fixed', left: 12, right: 12, bottom: 16, background: 'var(--db-bezel)', color: 'var(--db-on-dark)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 'var(--db-radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 50,
     }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>€{toast.total} added</div>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>{toast.description}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--db-gold-light)' }}>€{toast.total} added</div>
+        <div style={{ fontSize: 12, color: 'var(--db-on-dark-muted)' }}>{toast.description}</div>
       </div>
-      <button onClick={onUndo} style={{
-        background: '#b8965a', color: '#0c1f3d', border: 'none', borderRadius: 10,
-        padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: 13,
-      }}>
+      <button onClick={onUndo} className="f-btn-primary" style={{ padding: '10px 16px', fontSize: 13 }}>
         Undo {secondsLeft}s
       </button>
     </div>
@@ -251,7 +245,7 @@ export default function QuickChargeFlow({ onBack }) {
   }
 
   if (busy && !boat) {
-    return <div style={{ padding: 24 }}>Submitting…</div>;
+    return <div className="f-dw-loading" style={{ padding: 24 }}>Submitting…</div>;
   }
 
   return (
@@ -260,8 +254,9 @@ export default function QuickChargeFlow({ onBack }) {
       {boat && <PickItem boat={boat} onCommit={(item, qty) => post(boat, item, qty)} onBack={() => setBoat(null)} />}
       {err && (
         <div style={{
-          position: 'fixed', left: 12, right: 12, bottom: 80, background: '#dc2626', color: '#fff',
-          padding: '10px 14px', borderRadius: 10, zIndex: 60,
+          position: 'fixed', left: 12, right: 12, bottom: 80, background: 'rgba(224,85,85,0.15)', color: 'var(--db-status-red)',
+          border: '1px solid rgba(224,85,85,0.3)',
+          padding: '10px 14px', borderRadius: 'var(--db-radius-sm)', zIndex: 60,
         }}>{err}</div>
       )}
       <UndoToast toast={toast} onUndo={handleUndo} onDismiss={() => setToast(null)} />

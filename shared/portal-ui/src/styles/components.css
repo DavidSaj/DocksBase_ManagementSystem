@@ -1,0 +1,258 @@
+/* Component primitives in the Astro phone-preview visual language.
+   Two themes: dark surface (.db-surface-dark) and light cream (.db-surface-light).
+   Scaled up from the 260px mockup to full-screen typography. */
+
+/* ── Layout surfaces ── */
+.db-surface-dark {
+  background: var(--db-screen);
+  color: var(--db-on-dark);
+  font-family: var(--db-font-sans);
+  min-height: 100vh;
+}
+.db-surface-navy {
+  background: var(--db-navy);
+  color: var(--db-on-dark);
+  font-family: var(--db-font-sans);
+  min-height: 100vh;
+}
+.db-surface-light {
+  background: var(--db-cream);
+  color: var(--db-text);
+  font-family: var(--db-font-sans);
+  min-height: 100vh;
+}
+
+/* ── Typography ── */
+.db-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+  color: var(--db-gold-light);
+}
+.db-eyebrow-teal { color: var(--db-teal); }
+
+.db-greeting {
+  font-family: var(--db-font-serif);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.3px;
+  color: var(--db-on-dark);
+}
+.db-greeting-light { color: var(--db-navy); }
+
+.db-title {
+  font-family: var(--db-font-serif);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+  color: var(--db-on-dark);
+}
+.db-title-light { color: var(--db-navy); }
+
+.db-sub {
+  font-size: 14px;
+  color: var(--db-on-dark-faint);
+}
+.db-sub-light { color: var(--db-text-muted); }
+
+.db-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--db-on-dark-soft);
+}
+.db-body-light { color: var(--db-text-sec); }
+
+.db-label {
+  font-size: 13px;
+  color: var(--db-on-dark-muted);
+  font-weight: 500;
+}
+.db-label-light { color: var(--db-text-muted); }
+
+.db-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--db-on-dark);
+}
+.db-value-light { color: var(--db-navy); }
+
+/* ── Cards ── */
+.db-card {
+  background: var(--db-card-bg);
+  border: var(--db-card-border);
+  border-radius: var(--db-radius-md);
+  padding: var(--db-space-4);
+  transition: background 160ms ease;
+}
+.db-card:hover { background: var(--db-card-hover); }
+
+.db-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--db-space-3);
+}
+
+.db-card-light {
+  background: var(--db-card-bg-light);
+  border: var(--db-card-border-light);
+  border-radius: var(--db-radius-md);
+  padding: var(--db-space-4);
+  box-shadow: var(--db-shadow-card);
+}
+
+.db-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--db-space-2);
+}
+
+/* ── Status dots ── */
+.db-dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.db-dot-green { background: var(--db-status-green); }
+.db-dot-gold  { background: var(--db-status-gold); }
+.db-dot-red   { background: var(--db-status-red); }
+
+/* ── Buttons ── */
+.db-btn {
+  font-family: var(--db-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 18px;
+  border-radius: var(--db-radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: opacity 140ms ease, transform 80ms ease;
+  letter-spacing: 0.2px;
+}
+.db-btn:active { transform: scale(0.98); }
+.db-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.db-btn-primary {
+  background: var(--db-gold-light);
+  color: var(--db-navy);
+}
+.db-btn-primary:hover:not(:disabled) { background: var(--db-gold); color: #fff; }
+
+.db-btn-ghost {
+  background: rgba(255,255,255,0.07);
+  color: var(--db-on-dark-soft);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.db-btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: #fff; }
+
+.db-btn-ghost-light {
+  background: transparent;
+  color: var(--db-navy);
+  border: 1px solid rgba(12,31,61,0.18);
+}
+.db-btn-ghost-light:hover:not(:disabled) { background: rgba(12,31,61,0.04); }
+
+.db-btn-block { width: 100%; display: block; }
+.db-btn-row { display: flex; gap: var(--db-space-2); }
+.db-btn-row > .db-btn { flex: 1; }
+
+/* ── Badge ── */
+.db-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.db-badge-live {
+  color: var(--db-status-green);
+  background: rgba(56,168,96,0.15);
+  border: 1px solid rgba(56,168,96,0.3);
+}
+
+/* ── Brand mark ── */
+.db-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--db-font-sans);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--db-on-dark);
+}
+.db-brand-light { color: var(--db-navy); }
+.db-brand-mark {
+  color: var(--db-gold-light);
+  display: inline-flex;
+}
+
+/* ── Page header ── */
+.db-page-header {
+  padding: var(--db-space-6) var(--db-space-5) var(--db-space-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ── Feature icon tile (from MobileApp.astro) ── */
+.db-feature-icon {
+  width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(212,176,122,0.12);
+  border: 1px solid rgba(212,176,122,0.2);
+  border-radius: var(--db-radius-md);
+  color: var(--db-gold-light);
+  flex-shrink: 0;
+}
+.db-feature-icon-light {
+  background: rgba(12,31,61,0.06);
+  border-color: rgba(12,31,61,0.1);
+  color: var(--db-teal);
+}
+
+/* ── Form fields ── */
+.db-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--db-space-4);
+}
+.db-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--db-on-dark-muted);
+}
+.db-field-label-light { color: var(--db-text-muted); }
+.db-input {
+  font-family: var(--db-font-sans);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: var(--db-radius-sm);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--db-on-dark);
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.db-input:focus {
+  border-color: var(--db-gold-light);
+  background: rgba(255,255,255,0.07);
+}
+.db-input-light {
+  background: #fff;
+  border: 1px solid rgba(12,31,61,0.14);
+  color: var(--db-navy);
+}
+.db-input-light:focus {
+  border-color: var(--db-teal);
+  background: #fff;
+}

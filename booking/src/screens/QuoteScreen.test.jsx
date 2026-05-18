@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import QuoteScreen from './QuoteScreen';
-import api, { createReservationIntent } from '../api';
+import api, { createReservationIntent } from '@docksbase/portal-ui/api';
 
-vi.mock('../api', () => ({
+vi.mock('@docksbase/portal-ui/api', () => ({
   default: { post: vi.fn(), get: vi.fn() },
   createReservationIntent: vi.fn(),
   confirmReservation: vi.fn(),

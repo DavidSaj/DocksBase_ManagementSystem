@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import api from '../../../api';
+import api from '@docksbase/portal-ui/api';
 
 const INPUT = {
   width: '100%', padding: '12px 14px', fontSize: 16, borderRadius: 10,

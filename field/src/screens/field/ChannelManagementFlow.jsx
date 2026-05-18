@@ -2,14 +2,6 @@ import { useState, useEffect } from 'react';
 import api from '../../api.js';
 import Icon from '../../components/Icon.jsx';
 
-const HDR = { background: '#0c1f3d', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, color: '#fff' };
-const BACK_BTN = { background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const CARD = { background: '#fff', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
-
-const DIRECT_BADGE = { background: '#e8f4ea', color: '#1a6b2e', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none' };
-const OTA_BADGE   = { background: '#e8eef9', color: '#1a3c7e', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none' };
-const LOCKED_BADGE = { background: '#f0e8f4', color: '#6b2e8a', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none' };
-
 export default function ChannelManagementFlow({ onBack }) {
   const [berths, setBerths] = useState([]);
   const [connections, setConnections] = useState([]);
@@ -70,55 +62,64 @@ export default function ChannelManagementFlow({ onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f3f0' }}>
-      <div style={HDR}>
-        <button style={BACK_BTN} onClick={onBack}><Icon name="arrow-left" size={22} color="#fff" /></button>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>Channel Management</span>
+    <div className="f-screen">
+      <div className="f-topbar">
+        <button className="f-dw-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="arrow-left" size={18} color="var(--db-gold-light)" />
+          Back
+        </button>
+        <span style={{ fontFamily: 'var(--db-font-serif)', fontSize: 18, fontWeight: 700, color: 'var(--db-on-dark)' }}>Channel Management</span>
+        <span style={{ width: 50 }} />
       </div>
 
       {confirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 24, maxWidth: 340, width: '100%' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Move Berth {confirm.berth.code}?</div>
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 20 }}>
-              Moving to <strong>{connName(confirm.newConnId)}</strong>. This berth will be locked to this channel until manually unlocked.
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+          <div style={{ background: 'var(--db-bezel)', border: 'var(--db-card-border)', borderRadius: 'var(--db-radius-md)', padding: 24, maxWidth: 340, width: '100%' }}>
+            <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 20, fontWeight: 700, color: 'var(--db-on-dark)', marginBottom: 10 }}>Move Berth {confirm.berth.code}?</div>
+            <div style={{ fontSize: 13, color: 'var(--db-on-dark-muted)', marginBottom: 20 }}>
+              Moving to <strong style={{ color: 'var(--db-gold-light)' }}>{connName(confirm.newConnId)}</strong>. This berth will be locked to this channel until manually unlocked.
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirm(null)} style={{ flex: 1, height: 44, borderRadius: 10, border: '1.5px solid #ddd', background: '#fff', fontSize: 14, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleConfirm} style={{ flex: 1, height: 44, borderRadius: 10, border: 'none', background: '#0c1f3d', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Confirm</button>
+              <button onClick={() => setConfirm(null)} className="f-btn-ghost" style={{ flex: 1 }}>Cancel</button>
+              <button onClick={handleConfirm} className="f-btn-primary" style={{ flex: 1 }}>Confirm</button>
             </div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>Loading…</div>
+        <div className="f-dw-loading">Loading…</div>
       ) : error ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#c0392b', fontSize: 14 }}>{error}</div>
+        <div className="f-dw-error">{error}</div>
       ) : (
-        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column' }}>
           {saveError && (
-            <div style={{ background: '#fdedec', color: '#c0392b', padding: '10px 14px', borderRadius: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ margin: '0 16px 8px', background: 'rgba(224,85,85,0.12)', color: 'var(--db-status-red)', padding: '10px 14px', borderRadius: 'var(--db-radius-sm)', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(224,85,85,0.3)' }}>
               {saveError}
-              <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#c0392b', padding: '0 4px' }}>×</button>
+              <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--db-status-red)', padding: '0 4px' }}>×</button>
             </div>
           )}
           {berths.map(b => {
-            const badge = b.channel_locked
-              ? { style: LOCKED_BADGE, label: `Locked · ${connName(b.ota_connection)}` }
+            const pillClass = b.channel_locked
+              ? 'f-pill f-pill--gold'
               : b.ota_connection
-                ? { style: OTA_BADGE, label: connName(b.ota_connection) }
-                : { style: DIRECT_BADGE, label: 'Direct' };
+                ? 'f-pill f-pill--gold'
+                : 'f-pill f-pill--green';
+            const pillLabel = b.channel_locked
+              ? `Locked · ${connName(b.ota_connection)}`
+              : b.ota_connection
+                ? connName(b.ota_connection)
+                : 'Direct';
             return (
-              <div key={b.id} style={CARD}>
+              <div key={b.id} className="f-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>Berth {b.code}</div>
-                  {b.pier_code && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>Pier {b.pier_code}</div>}
+                  <div style={{ fontFamily: 'var(--db-font-serif)', fontSize: 17, fontWeight: 700, color: 'var(--db-on-dark)' }}>Berth {b.code}</div>
+                  {b.pier_code && <div style={{ fontSize: 12, color: 'var(--db-on-dark-muted)' }}>Pier {b.pier_code}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   {b.channel_locked && (
                     <button
-                      style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 5, cursor: 'pointer' }}
+                      style={{ fontSize: 11, padding: '4px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--db-on-dark-soft)', borderRadius: 5, cursor: 'pointer' }}
                       disabled={saving === b.id}
                       onClick={() => handleUnlock(b)}
                     >
@@ -126,11 +127,12 @@ export default function ChannelManagementFlow({ onBack }) {
                     </button>
                   )}
                   <button
-                    style={{ ...badge.style, opacity: saving === b.id ? 0.5 : 1 }}
+                    className={pillClass}
+                    style={{ opacity: saving === b.id ? 0.5 : 1, cursor: 'pointer' }}
                     disabled={saving === b.id || connections.length === 0}
                     onClick={() => !b.channel_locked && setConfirm({ berth: b, newConnId: nextConnId(b) })}
                   >
-                    {saving === b.id ? '…' : badge.label}
+                    {saving === b.id ? '…' : pillLabel}
                   </button>
                 </div>
               </div>

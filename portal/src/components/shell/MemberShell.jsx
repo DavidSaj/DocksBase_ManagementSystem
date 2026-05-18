@@ -1,6 +1,6 @@
 // portal/src/components/shell/MemberShell.jsx
 import { useState, useEffect } from 'react';
-import { useTenant } from '../../context/TenantContext';
+import { useTenant } from '@docksbase/portal-ui/context/TenantContext';
 import BottomNav from './BottomNav';
 import MemberHomeTab from '../../screens/tabs/MemberHomeTab';
 import UtilitiesTab  from '../../screens/tabs/UtilitiesTab';

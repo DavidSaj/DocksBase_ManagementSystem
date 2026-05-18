@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../api.js';
-import Turnstile from '../../components/Turnstile.jsx';
-import { useUserContext } from '../../context/UserContext.jsx';
+import api from '@docksbase/portal-ui/api';
+import Turnstile from '@docksbase/portal-ui/components/Turnstile';
+import { useUserContext } from '@docksbase/portal-ui/context/UserContext';
 
 function fmtSlot(iso) {
   const d = new Date(iso);

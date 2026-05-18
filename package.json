@@ -1,0 +1,20 @@
+{
+  "name": "docksbase",
+  "private": true,
+  "workspaces": [
+    "shared/portal-ui",
+    "booking",
+    "portal",
+    "field"
+  ],
+  "scripts": {
+    "dev:booking": "npm run dev -w booking",
+    "dev:portal": "npm run dev -w portal",
+    "dev:field": "npm run dev -w field",
+    "build:booking": "npm run build -w booking",
+    "build:portal": "npm run build -w portal",
+    "build:field": "npm run build -w field",
+    "test:booking": "npm run test -w booking",
+    "test:portal": "npm run test -w portal"
+  }
+}

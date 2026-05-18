@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 const AMENITY_LABELS = {
   power_30a: '30A Power', power_50a: '50A Power', water: 'Water',

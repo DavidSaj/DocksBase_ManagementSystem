@@ -1,6 +1,6 @@
 // portal/src/screens/WorkOrderScreen.jsx
 import { useState } from 'react';
-import { submitWorkOrder } from '../api';
+import { submitWorkOrder } from '@docksbase/portal-ui/api';
 
 export default function WorkOrderScreen({ onBack }) {
   const [description, setDescription] = useState('');

@@ -1,3 +1,5 @@
+import '@docksbase/portal-ui/styles/tokens.css';
+import '@docksbase/portal-ui/styles/components.css';
 import './styles/field.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

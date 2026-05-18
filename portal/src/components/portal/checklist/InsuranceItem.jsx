@@ -1,6 +1,6 @@
 // portal/src/components/portal/checklist/InsuranceItem.jsx
 import { useState } from 'react';
-import api from '../../../api';
+import api from '@docksbase/portal-ui/api';
 
 export default function InsuranceItem({ booking, onUpdate }) {
   const [uploading, setUploading] = useState(false);

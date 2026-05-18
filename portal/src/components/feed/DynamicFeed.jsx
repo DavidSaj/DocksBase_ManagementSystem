@@ -1,6 +1,6 @@
 // portal/src/components/feed/DynamicFeed.jsx
 import { useState, useEffect } from 'react';
-import api from '../../api';
+import api from '@docksbase/portal-ui/api';
 import InvoiceCard      from './cards/InvoiceCard';
 import VesselStatusCard from './cards/VesselStatusCard';
 import InsuranceCard    from './cards/InsuranceCard';

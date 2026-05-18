@@ -1,7 +1,7 @@
 // portal/src/screens/tabs/HomeTab.jsx
 import { useState, useEffect } from 'react';
-import api from '../../api';
-import { useUserContext } from '../../context/UserContext';
+import api from '@docksbase/portal-ui/api';
+import { useUserContext } from '@docksbase/portal-ui/context/UserContext';
 import { deriveState } from '../../utils/deriveState';
 import ChecklistView from '../../components/portal/ChecklistView';
 import CountdownView from '../../components/portal/CountdownView';

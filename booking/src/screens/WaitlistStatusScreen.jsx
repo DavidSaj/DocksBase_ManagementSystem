@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api';
+import api from '@docksbase/portal-ui/api';
 
 export default function WaitlistStatusScreen({ entryId }) {
   const [entry, setEntry] = useState(null);

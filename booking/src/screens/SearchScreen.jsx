@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import api from '../api';
-import DateRangePicker from '../components/portal/DateRangePicker';
-import { HarbourScene, WaveLines } from '../components/portal/HarbourScene';
+import api from '@docksbase/portal-ui/api';
+import DateRangePicker from '../components/DateRangePicker';
+import { HarbourScene, WaveLines } from '../components/HarbourScene';
 
 const EMPTY_BOAT = { loa: '', beam: '', draft: '', category: null, categories: [] };
 
