@@ -500,13 +500,16 @@ def change_lease_vessel(lease: BerthLease, *, new_vessel,
 # ---------------------------------------------------------------------------
 
 def berth_lease_inventory_filter(qs, ci, co):
-    """TODO Phase 3 — exclude berths with overlapping live leases from
-    ``qs``, then add back sublet-open windows.  See spec §4.2.
-    Until Phase 3 lands, callers of ``compatible_available_berths`` are
-    unaware of leases (no behavioural change for transient flow — Phase 1
-    promise).
+    """Phase 3 — delegates to :func:`apps.berths.availability.berth_lease_inventory_filter`.
+
+    The real implementation lives next to the other availability helpers in
+    ``apps/berths/availability.py`` (spec §4.2 — single source of truth so
+    the legacy allocator and the smart scorer cannot drift). This shim is
+    kept so any external caller importing from ``apps.seasons.services``
+    continues to work.
     """
-    return qs
+    from apps.berths.availability import berth_lease_inventory_filter as _impl
+    return _impl(qs, ci, co)
 
 
 def compute_sublet_split(member, marina, departure):
