@@ -407,9 +407,9 @@ def convert(entry: WaitlistEntry, berth) -> dict:
                 member.member_type = 'seasonal'
                 member.save(update_fields=['member_type'])
 
-        # Assign the berth
-        berth.owner = member
-        update_fields = ['owner']
+        # Assign the berth — projection of the new lease.
+        berth.current_lease_holder = member
+        update_fields = ['current_lease_holder']
         # lease_expiry default = +1 year
         try:
             berth.lease_expiry = (timezone.now() + timedelta(days=365)).date()

@@ -178,9 +178,9 @@ def test_convert_sets_berth_owner_and_member_seasonal(marina, berth, make_entry,
     berth.refresh_from_db()
 
     assert entry.status == 'converted'
-    assert berth.owner_id is not None
-    assert berth.owner.member_type == 'seasonal'
-    assert berth.owner.email == 'convert@example.com'
+    assert berth.current_lease_holder_id is not None
+    assert berth.current_lease_holder.member_type == 'seasonal'
+    assert berth.current_lease_holder.email == 'convert@example.com'
     assert entry.deposit_state == 'applied_to_lease'
     # Invoice created with deposit-credit line
     inv = result['invoice']

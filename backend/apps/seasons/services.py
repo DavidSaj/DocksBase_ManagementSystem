@@ -106,7 +106,7 @@ def transition_lease(lease: BerthLease, new_status: str, *, by=None,
         if new_status == 'deposit_paid':
             generate_instalments(lease)
 
-        # Berth.owner / Berth.lease_expiry projection (spec §4.4).
+        # Berth.current_lease_holder / Berth.lease_expiry projection (spec §4.4).
         _project_to_berth(lease)
 
         # Signals — emit on_commit so rollback can't fire phantom revokes.
@@ -125,21 +125,23 @@ def transition_lease(lease: BerthLease, new_status: str, *, by=None,
 
 
 def _project_to_berth(lease: BerthLease) -> None:
-    """Maintain the denormalised ``Berth.owner`` / ``Berth.lease_expiry``
-    fields (spec §4.4).  Phase 6 renames ``owner`` → ``current_lease_holder``
-    — keep this confined here so the future rename touches one helper.
+    """Maintain the denormalised ``Berth.current_lease_holder`` /
+    ``Berth.lease_expiry`` fields (spec §4.4).  The lease is the source of
+    truth; this projection exists so queries that need ``who currently holds
+    this berth?`` can avoid joining through BerthLease.
     """
     berth = lease.berth
     if lease.status == 'active':
-        berth.owner = lease.member
+        berth.current_lease_holder = lease.member
         berth.lease_expiry = lease.end_date
-        berth.save(update_fields=['owner', 'lease_expiry'])
+        berth.save(update_fields=['current_lease_holder', 'lease_expiry'])
     elif lease.status in ('cancelled', 'defaulted', 'ended'):
         # Only clear if THIS lease is the currently projected one.
-        if berth.owner_id == lease.member_id and berth.lease_expiry == lease.end_date:
-            berth.owner = None
+        if (berth.current_lease_holder_id == lease.member_id
+                and berth.lease_expiry == lease.end_date):
+            berth.current_lease_holder = None
             berth.lease_expiry = None
-            berth.save(update_fields=['owner', 'lease_expiry'])
+            berth.save(update_fields=['current_lease_holder', 'lease_expiry'])
 
 
 # ---------------------------------------------------------------------------
@@ -500,13 +502,16 @@ def change_lease_vessel(lease: BerthLease, *, new_vessel,
 # ---------------------------------------------------------------------------
 
 def berth_lease_inventory_filter(qs, ci, co):
-    """TODO Phase 3 — exclude berths with overlapping live leases from
-    ``qs``, then add back sublet-open windows.  See spec §4.2.
-    Until Phase 3 lands, callers of ``compatible_available_berths`` are
-    unaware of leases (no behavioural change for transient flow — Phase 1
-    promise).
+    """Phase 3 — delegates to :func:`apps.berths.availability.berth_lease_inventory_filter`.
+
+    The real implementation lives next to the other availability helpers in
+    ``apps/berths/availability.py`` (spec §4.2 — single source of truth so
+    the legacy allocator and the smart scorer cannot drift). This shim is
+    kept so any external caller importing from ``apps.seasons.services``
+    continues to work.
     """
-    return qs
+    from apps.berths.availability import berth_lease_inventory_filter as _impl
+    return _impl(qs, ci, co)
 
 
 def compute_sublet_split(member, marina, departure):

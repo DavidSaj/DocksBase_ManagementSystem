@@ -79,3 +79,63 @@ def berth_is_available(berth, check_in: datetime.date, check_out: datetime.date)
         check_in__lt=check_out,
         check_out__gt=check_in,
     ).exists()
+
+
+def berth_lease_inventory_filter(qs, check_in: datetime.date, check_out: datetime.date):
+    """Exclude berths held by an active seasonal lease, except those whose
+    holder has opened a sublet window that fully contains the requested
+    [check_in, check_out) interval.
+
+    Spec: ``2026-05-17-seasonal-berths-design.md`` §4.2. This filter is the
+    single source of truth for "is a leased berth available for transient
+    booking?" and is called by both the legacy allocator
+    (``compatible_available_berths``) and the smart scorer
+    (``SmartBerthScorer.get_available_berths``) so the two cannot drift.
+
+    Predicate (per spec):
+        available IF
+            no active lease overlaps [ci, co)
+          OR
+            active lease overlaps AND a sublet-enabled TemporaryDeparture
+            (status in {scheduled, active}, depart_date <= ci, expected_return >= co)
+            fully contains [ci, co)
+
+    Notes
+    -----
+    * "Active lease" means ``BerthLease.status`` in
+      ``apps.seasons.models.LEASE_LIVE_STATUSES`` — i.e. anything not
+      ``ended``/``renewed``/``cancelled``/``defaulted``. The lease window is
+      ``[start_date, end_date]`` inclusive on both ends; the request window
+      is ``[ci, co)`` half-open, matching the Tetris convention.
+    * Half-open overlap with the inclusive lease window:
+      ``lease.start_date < co AND lease.end_date >= ci``.
+    """
+    # Late imports avoid app-loading order issues and keep `apps.berths` free
+    # of a hard dependency on `apps.seasons` at module import time.
+    from apps.berths.models import TemporaryDeparture
+    from apps.seasons.models import BerthLease, LEASE_LIVE_STATUSES
+
+    leased_berth_ids = set(
+        BerthLease.objects.filter(
+            status__in=LEASE_LIVE_STATUSES,
+            start_date__lt=check_out,
+            end_date__gte=check_in,
+        ).values_list('berth_id', flat=True)
+    )
+    if not leased_berth_ids:
+        return qs
+
+    sublet_open_berth_ids = set(
+        TemporaryDeparture.objects.filter(
+            berth_id__in=leased_berth_ids,
+            sublet_enabled=True,
+            status__in=('scheduled', 'active'),
+            depart_date__lte=check_in,
+            expected_return__gte=check_out,
+        ).values_list('berth_id', flat=True)
+    )
+
+    blocked = leased_berth_ids - sublet_open_berth_ids
+    if not blocked:
+        return qs
+    return qs.exclude(id__in=blocked)

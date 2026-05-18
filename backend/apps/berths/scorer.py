@@ -255,6 +255,12 @@ class SmartBerthScorer:
             id__in=conflicting_berth_ids,
         ).select_related('pier__logical_pier', 'category', 'pricing_tier')
 
+        # Phase 3: drop berths held by an active seasonal lease, except those
+        # whose holder has opened a sublet window covering our dates. Shared
+        # filter so scorer + legacy allocator cannot drift. Spec §4.2.
+        from .availability import berth_lease_inventory_filter
+        base_qs = berth_lease_inventory_filter(base_qs, self.check_in, self.check_out)
+
         # Also include berths that are normally occupied by a seasonal holder
         # but have a TemporaryDeparture with sublet_enabled covering our window.
         sublet_berth_ids = (

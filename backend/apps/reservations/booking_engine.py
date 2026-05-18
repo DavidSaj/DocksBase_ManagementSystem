@@ -52,7 +52,13 @@ def compatible_available_berths(
         .values_list('berth_id', flat=True)
         .distinct()
     )
-    return qs.exclude(id__in=blocked_ids)
+    qs = qs.exclude(id__in=blocked_ids)
+
+    # Phase 3: exclude berths under an active seasonal lease unless the holder
+    # has opened a sublet window covering the requested dates. Shared filter
+    # so smart scorer + legacy allocator cannot drift. Spec §4.2.
+    from apps.berths.availability import berth_lease_inventory_filter
+    return berth_lease_inventory_filter(qs, check_in, check_out)
 
 
 def _score_berths(available_berths, check_in, check_out):

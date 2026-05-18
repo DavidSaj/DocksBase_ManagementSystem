@@ -7,6 +7,7 @@ import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
 import PendingRequestsTab from '../components/reservations/PendingRequestsTab.jsx';
+import EditBookingModal from '../components/reservations/EditBookingModal.jsx';
 import BerthCalendar from '../components/harbor-map/BerthCalendar.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
@@ -778,6 +779,8 @@ export default function Reservations() {
   const [cancelModal, setCancelModal] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelAcknowledgeRefund, setCancelAcknowledgeRefund] = useState(false);
+  // Deep-edit modal for vessel / berth / type / guest fields (F8).
+  const [editDetailsModal, setEditDetailsModal] = useState(null);
 
   useEffect(() => {
     api.get('/bookings/', { params: { status: 'pending_approval' } })
@@ -968,6 +971,16 @@ export default function Reservations() {
           </div>
         </div>
       )}
+      {editDetailsModal && (
+        <EditBookingModal
+          booking={editDetailsModal}
+          onClose={() => setEditDetailsModal(null)}
+          onSaved={async (updated) => {
+            setSel(prev => prev?.id === updated.id ? updated : prev);
+            await refetch();
+          }}
+        />
+      )}
       {cancelModal && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1124,6 +1137,7 @@ export default function Reservations() {
                 {!editMode && (
                   <>
                     <button className="btn btn-ghost" style={{ justifyContent: 'center' }} onClick={() => startEdit(sel)}>Edit Booking</button>
+                    <button className="btn btn-ghost" style={{ justifyContent: 'center' }} onClick={() => setEditDetailsModal(sel)}>Edit Details…</button>
                     {sel.status !== 'cancelled' && (
                       <button className="btn btn-danger" style={{ justifyContent: 'center' }} onClick={() => openCancelModal(sel)}>Cancel</button>
                     )}

@@ -216,12 +216,17 @@ class Berth(models.Model):
         null=True, blank=True,
         related_name='berths',
     )
-    # Track 10 — berth ownership / marketplace
-    owner = models.ForeignKey(
+    # Denormalised projection of the currently-active BerthLease holder.
+    # Maintained by apps/seasons/services.py::_project_to_berth on every
+    # lease state transition. Spec §4.4 explicitly notes this is a *projection*
+    # of the lease, not a stand-alone ownership concept — the lease is the
+    # source of truth. The field was originally named ``owner`` which was
+    # misleading (no actual ownership relationship existed); renamed in F5.
+    current_lease_holder = models.ForeignKey(
         'members.Member',
         on_delete=models.SET_NULL,
         null=True, blank=True,
-        related_name='owned_berths',
+        related_name='held_berths',
     )
     lease_expiry = models.DateField(null=True, blank=True)
 

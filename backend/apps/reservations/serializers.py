@@ -1,5 +1,12 @@
 # backend/apps/reservations/serializers.py
 from rest_framework import serializers
+
+from apps.accounts.billing_gates import (
+    ACTION_CREATE_BOOKING,
+    ACTION_MUTATE_BOOKING,
+    assert_marina_can,
+)
+
 from .models import Booking, BookingRequest, Reservation, ReservationItem
 
 
@@ -26,6 +33,22 @@ class BookingSerializer(serializers.ModelSerializer):
             'nights', 'amount', 'paid',  # paid is now derived from invoice payment
             'invoice_id', 'invoice_status', 'created_at',
         ]
+
+    def validate(self, data):
+        """Billing-state gate (TD4).
+
+        Layered above the BillingGateMiddleware 402 so the API returns a
+        specific 400 with a UX-grade message ("subscription is restricted —
+        new bookings cannot be created") instead of the middleware's generic
+        ``marina_billing_blocked`` payload. The middleware remains the
+        defence-in-depth catch-all for paths without a serializer.
+        """
+        request = self.context.get('request')
+        marina = getattr(getattr(request, 'user', None), 'marina', None)
+        if marina is not None:
+            action = ACTION_CREATE_BOOKING if self.instance is None else ACTION_MUTATE_BOOKING
+            assert_marina_can(marina, action)
+        return data
 
     def _latest_invoice(self, obj):
         # Prefer the direct FK link; fall back to source_type lookup.
@@ -127,3 +150,17 @@ class ReservationSerializer(serializers.ModelSerializer):
             'items',
         ]
         read_only_fields = ['id', 'member_name', 'self_checked_in_at', 'created_at']
+
+    def validate(self, data):
+        """Billing-state gate (TD4) — see BookingSerializer.validate."""
+        from apps.accounts.billing_gates import (
+            ACTION_CREATE_RESERVATION,
+            ACTION_MUTATE_BOOKING,
+            assert_marina_can,
+        )
+        request = self.context.get('request')
+        marina = getattr(getattr(request, 'user', None), 'marina', None)
+        if marina is not None:
+            action = ACTION_CREATE_RESERVATION if self.instance is None else ACTION_MUTATE_BOOKING
+            assert_marina_can(marina, action)
+        return data
