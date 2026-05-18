@@ -1,8 +1,14 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
 from django.db import connection
 from .models import GlobalSearchIndex
+
+
+# Postgres trigram similarity threshold for inclusion. Tuned up from the old
+# 0.1 which produced noisy results. Override via settings.SEARCH_TRIGRAM_THRESHOLD.
+DEFAULT_TRIGRAM_THRESHOLD = 0.2
 
 
 class SearchView(APIView):
@@ -17,13 +23,15 @@ class SearchView(APIView):
         if not marina:
             return Response([])
 
+        threshold = getattr(settings, 'SEARCH_TRIGRAM_THRESHOLD', DEFAULT_TRIGRAM_THRESHOLD)
+
         if connection.vendor == 'postgresql':
             from django.contrib.postgres.search import TrigramSimilarity
             qs = (
                 GlobalSearchIndex.objects
                 .filter(marina=marina)
                 .annotate(sim=TrigramSimilarity('search_text', q))
-                .filter(sim__gte=0.1)
+                .filter(sim__gte=threshold)
                 .order_by('-sim')[:20]
             )
         else:

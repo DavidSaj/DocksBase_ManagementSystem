@@ -164,6 +164,13 @@ export default function MarinaDetail({ marinaId, onBack }) {
   const [acting, setActing] = useState(false);
   const [bypassReason, setBypassReason] = useState('');
   const [flagSaving, setFlagSaving] = useState({});
+  const [auditLog, setAuditLog] = useState([]);
+
+  function reloadAuditLog() {
+    api.get('admin/audit-logs/', { params: { marina: marinaId } })
+      .then(r => setAuditLog(r.data))
+      .catch(() => {});
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -171,6 +178,7 @@ export default function MarinaDetail({ marinaId, onBack }) {
       .then(r => setMarina(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    reloadAuditLog();
   }, [marinaId]);
 
   async function handleSuspend() {
@@ -209,11 +217,32 @@ export default function MarinaDetail({ marinaId, onBack }) {
     setActing(true);
     try {
       const { data } = await api.post(`admin/marinas/${marina.id}/impersonate/`, body);
-      const adminUrl = import.meta.env.VITE_MARINA_URL || 'http://localhost:5173';
-      const params = new URLSearchParams({ impersonate_token: data.access, marina: marina.slug || marina.id });
-      window.open(`${adminUrl}?${params.toString()}`, '_blank');
+      const marinaUrl = import.meta.env.VITE_MARINA_URL || 'http://localhost:5173';
+      window.open(`${marinaUrl}?sso_token=${data.access}`, '_blank');
     } catch (e) {
       window.alert(e.response?.data?.detail || 'Impersonation failed.');
+    } finally { setActing(false); }
+  }
+
+  async function handleInviteStaff() {
+    const email = window.prompt('Email address of the new user:');
+    if (!email) return;
+    const name = window.prompt('Name (optional):') || '';
+    const role = window.prompt('Role (owner / manager / staff):', 'owner') || 'owner';
+    setActing(true);
+    try {
+      await api.post(`admin/marinas/${marina.id}/invite-staff/`, {
+        email: email.trim().toLowerCase(),
+        name: name.trim(),
+        role: role.trim().toLowerCase(),
+      });
+      // Reload marina to pull updated staff list
+      const { data } = await api.get(`admin/marinas/${marina.id}/`);
+      setMarina(data);
+      reloadAuditLog();
+      window.alert(`Invite sent to ${email}.`);
+    } catch (e) {
+      window.alert(e.response?.data?.detail || 'Failed to invite user.');
     } finally { setActing(false); }
   }
 
@@ -233,6 +262,7 @@ export default function MarinaDetail({ marinaId, onBack }) {
     try {
       const { data } = await api.patch(`admin/marinas/${marina.id}/`, { features: newFeatures });
       setMarina(data);
+      reloadAuditLog();
     } catch { /* ignore */ } finally {
       setFlagSaving(s => ({ ...s, [key]: false }));
     }
@@ -247,6 +277,7 @@ export default function MarinaDetail({ marinaId, onBack }) {
     try {
       const { data } = await api.patch(`admin/marinas/${marina.id}/`, { features: newFeatures });
       setMarina(data);
+      reloadAuditLog();
     } catch { /* ignore */ } finally {
       const done = {};
       groupFeatures.forEach(f => { done[f.key] = false; });
@@ -442,11 +473,24 @@ export default function MarinaDetail({ marinaId, onBack }) {
       </div>
 
       {/* Staff users */}
-      {m.staff && m.staff.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <div className="card-header-title">Staff Users</div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card-header-title">Staff Users</div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={acting}
+            onClick={handleInviteStaff}
+            style={{ gap: 6 }}
+          >
+            <Ic n="plus" s={11} /> Invite user
+          </button>
+        </div>
+        {(!m.staff || m.staff.length === 0) ? (
+          <div style={{ padding: '16px 20px', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+            No staff yet — invite the first owner using the button above.
           </div>
+        ) : (
           <div style={{ padding: 0 }}>
             <table className="tbl">
               <thead>
@@ -483,8 +527,55 @@ export default function MarinaDetail({ marinaId, onBack }) {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Recent changes (audit log) */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card-header-title">Recent Changes</div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={reloadAuditLog} style={{ fontSize: 11, padding: '3px 9px' }}>
+            Refresh
+          </button>
         </div>
-      )}
+        {auditLog.length === 0 ? (
+          <div style={{ padding: '16px 20px', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+            No recorded changes for this marina yet.
+          </div>
+        ) : (
+          <div style={{ padding: '6px 0', maxHeight: 320, overflowY: 'auto' }}>
+            {auditLog.slice(0, 50).map(log => (
+              <div key={log.id} style={{ padding: '8px 18px', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: 'rgba(0,0,0,0.85)' }}>
+                    <strong>{log.admin_user_email || 'system'}</strong>
+                    {' '}
+                    <span style={{ color: 'rgba(0,0,0,0.55)' }}>{log.action}</span>
+                    {log.action === 'toggle_feature_flag' && log.detail?.flag && (
+                      <span>
+                        {' — '}
+                        <code style={{ background: 'rgba(0,0,0,0.04)', padding: '1px 4px', borderRadius: 3 }}>{log.detail.flag}</code>
+                        {': '}
+                        <span style={{ color: 'rgba(0,0,0,0.5)' }}>{String(log.detail.before)}</span>
+                        {' → '}
+                        <span style={{ fontWeight: 600 }}>{String(log.detail.after)}</span>
+                      </span>
+                    )}
+                    {log.detail?.reason && (
+                      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                        Reason: {log.detail.reason}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+                  {new Date(log.created_at).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Support access */}
       <div className="card" style={{ marginBottom: 32 }}>

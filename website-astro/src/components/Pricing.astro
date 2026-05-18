@@ -60,6 +60,7 @@ const plans = [
       'SLA & uptime guarantee',
     ],
     cta: 'Contact sales',
+    href: 'mailto:sales@docksbase.com?subject=DocksBase%20Enterprise%20enquiry',
     featured: false,
   },
 ]
@@ -94,7 +95,7 @@ const plans = [
               </li>
             ))}
           </ul>
-          <a href="/signup" class={`${styles.btn} ${plan.featured ? styles.btnFeatured : styles.btnOutline}`}>
+          <a href={plan.href || '/signup'} class={`${styles.btn} ${plan.featured ? styles.btnFeatured : styles.btnOutline}`}>
             {plan.cta}
           </a>
         </div>

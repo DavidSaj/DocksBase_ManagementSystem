@@ -1,16 +1,3 @@
 ---
-import SignupPage from '../../components/signup/SignupPage'
-import '../../styles/global.css'
+return Astro.redirect('/en/signup/resume/', 301)
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Resume signup — DocksBase</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  </head>
-  <body>
-    <SignupPage resume={true} client:only="react" />
-  </body>
-</html>

@@ -55,7 +55,18 @@ export default function PendingRequestsTab({ onApproved, onRejected }) {
     return <div style={{ padding: 32, color: 'rgba(0,0,0,0.4)', textAlign: 'center' }}>Loading…</div>;
   }
   if (bookings.length === 0) {
-    return <div style={{ padding: 32, color: 'rgba(0,0,0,0.4)', textAlign: 'center' }}>No pending requests.</div>;
+    return (
+      <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.55 }}>✓</div>
+        <div style={{ fontWeight: 600, fontSize: 15, color: 'rgba(0,0,0,0.65)', marginBottom: 6 }}>
+          No pending approvals
+        </div>
+        <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.4)', maxWidth: 360, margin: '0 auto', lineHeight: 1.5 }}>
+          All requests have been processed. New booking requests from boaters
+          will appear here for you to approve or reject.
+        </div>
+      </div>
+    );
   }
 
   return (

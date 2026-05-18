@@ -263,6 +263,61 @@ class SignalReceiverTest(TestCase):
         billing_service.mark_paid_manual(inv, 'cash')
         booking.refresh_from_db()
         self.assertEqual(booking.status, 'awaiting_payment')
+        self.assertFalse(booking.paid)
+
+    def test_offline_payment_flips_booking_paid_via_signal(self):
+        """mark_paid_manual on a berth-booking invoice sets Booking.paid=True.
+
+        This is the audit's single-source-of-truth invariant: Booking.paid is
+        derived from the linked Invoice, never written directly.
+        """
+        booking = Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 6, 1),
+            check_out=datetime.date(2026, 6, 4),
+            status='awaiting_payment',
+            paid=False,
+        )
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id=str(booking.id),
+        )
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('150.00'))
+        billing_service.finalize_invoice(inv)
+        billing_service.mark_paid_manual(
+            inv, 'bank_transfer', notes='Wire ref #42', send_receipt=False,
+        )
+        booking.refresh_from_db()
+        self.assertTrue(booking.paid)
+        self.assertEqual(booking.status, 'confirmed')
+        # Payment row persisted with notes + method.
+        payment = inv.payments.get()
+        self.assertEqual(payment.method, 'bank_transfer')
+        self.assertEqual(payment.notes, 'Wire ref #42')
+
+    def test_offline_payment_via_booking_fk_flips_paid(self):
+        """Direct Invoice.booking FK linkage also triggers Booking.paid=True."""
+        booking = Booking.objects.create(
+            marina=self.marina,
+            berth=self.berth,
+            check_in=datetime.date(2026, 7, 1),
+            check_out=datetime.date(2026, 7, 4),
+            status='awaiting_payment',
+            paid=False,
+        )
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='', source_id='',
+        )
+        inv.booking = booking
+        inv.save(update_fields=['booking'])
+        billing_service.add_line_item(inv, 'Berth', Decimal('1'), Decimal('150.00'))
+        billing_service.finalize_invoice(inv)
+        billing_service.mark_paid_manual(inv, 'cheque', send_receipt=False)
+        booking.refresh_from_db()
+        self.assertTrue(booking.paid)
+        self.assertEqual(booking.status, 'confirmed')
 
 
 import json
@@ -299,6 +354,59 @@ class StripeCheckoutSessionTest(TestCase):
         )
         with self.assertRaises(ValueError):
             billing_service.create_stripe_checkout_session(inv)
+
+
+class InvoiceIssuedEmailTest(TestCase):
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+
+    def _open_invoice(self):
+        inv = billing_service.create_invoice(
+            self.marina, member=self.member,
+            source_type='berth_booking', source_id='99',
+            due_date=datetime.date(2026, 7, 1),
+        )
+        billing_service.add_line_item(inv, 'Berth A1', Decimal('1'), Decimal('120.00'))
+        billing_service.finalize_invoice(inv)
+        return inv
+
+    @patch('apps.billing.stripe_service.stripe')
+    def test_issued_email_contains_stripe_payment_link(self, mock_stripe):
+        from django.core import mail
+        from apps.billing.emails import send_invoice_issued_email
+
+        mock_session = MagicMock()
+        mock_session.id = 'cs_test_pay_link'
+        mock_session.url = 'https://checkout.stripe.com/pay/cs_test_pay_link'
+        mock_stripe.checkout.Session.create.return_value = mock_session
+
+        inv = self._open_invoice()
+        mail.outbox = []
+        send_invoice_issued_email(inv)
+
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, [self.member.email])
+        self.assertIn('https://checkout.stripe.com/pay/cs_test_pay_link', msg.body)
+        inv.refresh_from_db()
+        self.assertEqual(inv.stripe_checkout_session_id, 'cs_test_pay_link')
+
+    def test_issued_email_falls_back_when_marina_not_connected(self):
+        from django.core import mail
+        from apps.billing.emails import send_invoice_issued_email
+
+        self.marina.stripe_account_id = ''
+        self.marina.save(update_fields=['stripe_account_id'])
+
+        inv = self._open_invoice()
+        mail.outbox = []
+        send_invoice_issued_email(inv)
+
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertNotIn('checkout.stripe.com', body)
+        self.assertIn('view and pay the invoice from your account', body)
 
 
 class StripeWebhookViewTest(TestCase):
@@ -404,6 +512,22 @@ class BillingAPITest(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'paid')
+
+    def test_mark_paid_requires_billing_role(self):
+        """Authenticated boaters must NOT be able to mark invoices paid."""
+        inv = billing_service.create_invoice(self.marina, source_type='restaurant_order', source_id='52')
+        billing_service.add_line_item(inv, 'Salad', Decimal('1'), Decimal('9.00'))
+        billing_service.finalize_invoice(inv)
+        boater = User.objects.create_user(
+            email='boater@test.com', password='pass', marina=self.marina, role='boater',
+        )
+        client = APIClient()
+        client.force_authenticate(user=boater)
+        resp = client.patch(
+            f'/api/v1/billing/invoices/{inv.id}/mark-paid/',
+            {'method': 'cash'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 403)
 
     def test_mark_paid_invalid_method_returns_400(self):
         inv = billing_service.create_invoice(self.marina, source_type='restaurant_order', source_id='51')
@@ -557,3 +681,47 @@ class ChargeableItemBerthAssignmentTest(TestCase):
         )
         other_berth.refresh_from_db()
         self.assertNotEqual(other_berth.pricing_tier_id, self.tier_a.id)
+
+
+class PaymentSerializerNotesTest(TestCase):
+    """`Payment.notes` must be exposed via PaymentSerializer / InvoiceSerializer.payments."""
+
+    def setUp(self):
+        self.marina = make_marina()
+        self.member = make_member(self.marina)
+
+    def test_payment_notes_in_serializer(self):
+        from apps.billing.serializers import PaymentSerializer
+        invoice = Invoice.objects.create(
+            marina=self.marina,
+            invoice_number='INV-2026-9001',
+            status='paid',
+            total=Decimal('100.00'),
+        )
+        payment = Payment.objects.create(
+            invoice=invoice,
+            method='bank_transfer',
+            amount=Decimal('100.00'),
+            notes='Wire ref #42',
+        )
+        data = PaymentSerializer(payment).data
+        self.assertIn('notes', data)
+        self.assertEqual(data['notes'], 'Wire ref #42')
+
+    def test_invoice_serializer_includes_payment_notes(self):
+        from apps.billing.serializers import InvoiceSerializer
+        invoice = Invoice.objects.create(
+            marina=self.marina,
+            invoice_number='INV-2026-9002',
+            status='paid',
+            total=Decimal('50.00'),
+        )
+        Payment.objects.create(
+            invoice=invoice,
+            method='cash',
+            amount=Decimal('50.00'),
+            notes='Counter receipt',
+        )
+        data = InvoiceSerializer(invoice).data
+        self.assertEqual(len(data['payments']), 1)
+        self.assertEqual(data['payments'][0]['notes'], 'Counter receipt')

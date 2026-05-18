@@ -6,7 +6,8 @@ Score components (configurable via LEAD_SCORE_WEIGHTS in settings):
   - portal_login_30d:   30 pts  (member has a boater_user who logged in within 30 days)
   - email_opens_30d:    5 pts per open, capped at 50 pts
   - booking_widget_14d: 20 pts  (stub — integration with booking widget analytics TBD)
-  - vessel_loa_match:   15 pts  (member has a vessel whose LOA fits marina max_loa)
+  - vessel_loa_match:   15 pts  (member has a vessel whose LOA fits the marina's
+                                 longest berth; marinas with no berths contribute 0)
 
 Usage:
     python manage.py recalculate_lead_scores [--marina-id=<id>]
@@ -52,16 +53,35 @@ class Command(BaseCommand):
         if options['marina_id']:
             member_qs = member_qs.filter(marina_id=options['marina_id'])
 
-        # Limit to never-booked members
+        # Limit to never-booked members. Booking may not expose `member_id`
+        # directly (it currently links vessels → owner); fall back to an empty
+        # set so the command still produces scores rather than crashing.
+        booked_member_ids = set()
         try:
             from apps.reservations.models import Booking
             booked_member_ids = set(
                 Booking.objects.values_list('member_id', flat=True).distinct()
             )
-        except ImportError:
+        except (ImportError, Exception):
             booked_member_ids = set()
 
         updated = 0
+
+        # Cache per-marina effective max LOA (= length of the marina's longest
+        # berth). Computing this per-vessel would be N×M queries; here it's
+        # one aggregate query per marina, computed lazily on first use.
+        marina_max_loa_cache = {}
+
+        def _effective_max_loa(marina):
+            if marina.pk in marina_max_loa_cache:
+                return marina_max_loa_cache[marina.pk]
+            try:
+                from django.db.models import Max
+                value = marina.berths.aggregate(v=Max('length_m'))['v']
+            except Exception:
+                value = None
+            marina_max_loa_cache[marina.pk] = value
+            return value
 
         for member in member_qs:
             if member.pk in booked_member_ids:
@@ -91,13 +111,25 @@ class Command(BaseCommand):
             if booking_widget_14d:
                 score += weights.get('booking_widget_14d', DEFAULT_WEIGHTS['booking_widget_14d'])
 
-            # Vessel LOA match
+            # Vessel LOA match — uses the marina's effective max LOA, derived
+            # from the longest berth at that marina. If the marina has no
+            # berths, the rule contributes 0.
             marina = member.marina
-            if marina.max_loa:
+            effective_max_loa = _effective_max_loa(marina)
+            if effective_max_loa:
                 try:
-                    vessels = member.vessels.filter(is_archived=False) if hasattr(member, 'vessels') else []
+                    if hasattr(member, 'vessels'):
+                        # Vessel doesn't currently have an is_archived field;
+                        # try the filtered form first, fall back to .all() if
+                        # the field is missing on this schema.
+                        try:
+                            vessels = list(member.vessels.filter(is_archived=False))
+                        except Exception:
+                            vessels = list(member.vessels.all())
+                    else:
+                        vessels = []
                     for vessel in vessels:
-                        if hasattr(vessel, 'loa') and vessel.loa and vessel.loa <= marina.max_loa:
+                        if hasattr(vessel, 'loa') and vessel.loa and vessel.loa <= effective_max_loa:
                             vessel_loa_match = True
                             score += weights.get('vessel_loa_match', DEFAULT_WEIGHTS['vessel_loa_match'])
                             break

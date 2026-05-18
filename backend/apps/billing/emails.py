@@ -29,8 +29,27 @@ def _invoice_recipient(invoice):
 
 def _amount_str(invoice):
     currency = getattr(invoice.marina, 'currency', 'EUR') or 'EUR'
-    symbol = {'EUR': '€', 'GBP': '£', 'USD': '$'}.get(currency, currency + ' ')
+    symbol = {'EUR': '€', 'GBP': '£', 'USD': '$', 'CHF': 'CHF '}.get(currency, currency + ' ')
     return f'{symbol}{invoice.total:.2f}'
+
+
+def _stripe_pay_url(invoice):
+    """
+    Return a Stripe checkout URL for `invoice`, or None if one can't be created
+    (marina not connected, invoice not in a payable state, or Stripe error).
+
+    Imported lazily so module load doesn't pull stripe into every code path.
+    """
+    if invoice.status != 'open':
+        return None
+    if not getattr(invoice.marina, 'stripe_account_id', None):
+        return None
+    try:
+        from .service import create_stripe_checkout_session
+        return create_stripe_checkout_session(invoice)
+    except Exception as exc:
+        logger.warning('invoice_issued: stripe checkout session failed for %s: %s', invoice.pk, exc)
+        return None
 
 
 def send_invoice_issued_email(invoice):
@@ -45,13 +64,19 @@ def send_invoice_issued_email(invoice):
     amount = _amount_str(invoice)
     greeting = name.split()[0] if name else 'there'
 
+    pay_url = _stripe_pay_url(invoice)
+    if pay_url:
+        pay_line = f"Pay securely with card: {pay_url}\n\n"
+    else:
+        pay_line = "You can view and pay the invoice from your account.\n\n"
+
     body = (
         f"Hi {greeting},\n\n"
         f"A new invoice has been issued for your account at {marina.name}.\n\n"
         f"Invoice: {invoice.invoice_number}\n"
         f"Amount due: {amount}\n"
         f"Due date: {due}\n\n"
-        f"You can view and pay the invoice from your account.\n\n"
+        f"{pay_line}"
         f"Thanks,\n"
         f"— {marina.name}"
     )

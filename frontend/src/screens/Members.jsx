@@ -4,7 +4,7 @@ import useMemberDocuments from '../hooks/useMemberDocuments.js';
 import StatusBadge from '../components/ui/Badge.jsx';
 import Ic from '../components/ui/Icon.jsx';
 import api, { sendMagicLink } from '../api.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 function NewMemberModal({ onClose, onCreate }) {
@@ -259,6 +259,7 @@ export default function Members({ setScreen }) {
   const [payLoading, setPayLoading]       = useState(false);
   const [payError, setPayError]           = useState(null);
   const [showContractModal, setShowContractModal] = useState(false);
+  const [filterText, setFilterText] = useState('');
 
   async function handleSendPortalLink() {
     if (!sel?.id) return;
@@ -312,15 +313,24 @@ export default function Members({ setScreen }) {
   }
 
   const { members: raw, loading, createMember } = useMembers();
-  const members = raw.map(fmt);
+  const allMembers = raw.map(fmt);
+  const _q = filterText.trim().toLowerCase();
+  const members = _q
+    ? allMembers.filter(m =>
+        [m.name, m.email, m.vessel, m.phone]
+          .filter(Boolean)
+          .some(v => String(v).toLowerCase().includes(_q)),
+      )
+    : allMembers;
   const { memberDocs, loading: docsLoading, uploadDoc, updateDoc } = useMemberDocuments();
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Members</span>
-        <ScreenInfo title="Members" body={SCREEN_INFO.members} />
-      </div>
+      <PageHeader
+        title="Members"
+        subtitle="Your marina's members, owners, and document vault."
+        infoBody={SCREEN_INFO.members}
+      />
       <div className="tabs">
         {[['members','Members & Owners'],['docs','Document Vault'],['compliance','Compliance']].map(([v,l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
@@ -331,7 +341,12 @@ export default function Members({ setScreen }) {
         <div style={{ display: 'grid', gridTemplateColumns: sel ? '1fr 280px' : '1fr', gap: 16, alignItems: 'start' }}>
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              <div className="search"><Ic n="search" s={13} /><input placeholder="Search owner or vessel…" /></div>
+              <div className="search"><Ic n="search" s={13} /><input
+                aria-label="Search members"
+                placeholder="Search owner or vessel…"
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+              /></div>
               <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic n="plus" s={12} />Add Member</button>
               <button className="btn btn-ghost btn-sm" onClick={() => setScreen('communications')}>Communications →</button>
             </div>
@@ -443,6 +458,20 @@ export default function Members({ setScreen }) {
                   onClick={() => setShowContractModal(true)}
                 >
                   Download Contract
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ justifyContent: 'center' }}
+                  onClick={() => {
+                    if (!sel?.id) return;
+                    localStorage.setItem('documents_pending_recipient', String(sel.id));
+                    setScreen?.('documents');
+                  }}
+                  disabled={!sel?.email}
+                  title={sel?.email ? 'Upload a document and send it to this member for e-signature' : 'Member has no email address'}
+                >
+                  Upload &amp; send for signature
                 </button>
                 <button
                   type="button"

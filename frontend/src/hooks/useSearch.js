@@ -30,39 +30,55 @@ export default function useSearch(query) {
       return;
     }
 
-    let aborted = false;
+    const controller = new AbortController();
+    let cancelled = false;
+
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const r = await api.get('/search/', { params: { q: query.trim() } });
-        if (!aborted) {
-          const apiResults = r.data;
-          const q = query.trim().toLowerCase();
-          const navItems = Object.entries(TITLE_MAP)
-            .filter(([, title]) => title.toLowerCase().includes(q))
-            .map(([key, title]) => ({
-              type: 'nav',
-              id: key,
-              label: title,
-              sub: 'Navigation',
-              screen: key,
-              link_id: null,
-            }));
-          setResults([...apiResults, ...navItems]);
-        }
+        const r = await api.get('/search/', {
+          params: { q: query.trim() },
+          signal: controller.signal,
+        });
+        if (cancelled) return;
+        const apiResults = r.data;
+        const q = query.trim().toLowerCase();
+        const navItems = Object.entries(TITLE_MAP)
+          .filter(([, title]) => title.toLowerCase().includes(q))
+          .map(([key, title]) => ({
+            type: 'nav',
+            id: key,
+            label: title,
+            sub: 'Navigation',
+            screen: key,
+            link_id: null,
+          }));
+        // Result groups are produced downstream by SearchDropdown (per
+        // target_model). We append nav items at the end so the dropdown
+        // renders Boaters / Vessels / Bookings / … then Navigation.
+        setResults([...apiResults, ...navItems]);
       } catch (err) {
-        if (!aborted) {
-          console.error('[useSearch] search failed', err);
-          setResults([]);
+        if (cancelled) return;
+        // Axios marks aborted requests with err.name === 'CanceledError'
+        // or err.code === 'ERR_CANCELED'.
+        if (
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED' ||
+          controller.signal.aborted
+        ) {
+          return;
         }
+        console.error('[useSearch] search failed', err);
+        setResults([]);
       } finally {
-        if (!aborted) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }, 300);
 
     return () => {
-      aborted = true;
+      cancelled = true;
       clearTimeout(timer);
+      controller.abort();
     };
   }, [query]);
 

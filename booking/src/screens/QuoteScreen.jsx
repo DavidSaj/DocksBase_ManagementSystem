@@ -80,17 +80,17 @@ function GuestDetailsForm({ state, marina, onIntentCreated, onNavigateConfirmed,
       <div className="p-section-title">Your details</div>
       <div className="p-grid-2">
         <div className="p-field">
-          <label className="p-label">Full name *</label>
-          <input className="p-input" required value={name} onChange={e => setName(e.target.value)} />
+          <label className="p-label" htmlFor="guest-name">Full name *</label>
+          <input id="guest-name" className="p-input" required value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div className="p-field">
-          <label className="p-label">Email *</label>
-          <input className="p-input" type="email" required value={email} onChange={e => setEmail(e.target.value)} />
+          <label className="p-label" htmlFor="guest-email">Email *</label>
+          <input id="guest-email" className="p-input" type="email" required value={email} onChange={e => setEmail(e.target.value)} />
         </div>
       </div>
       <div className="p-field" style={{ maxWidth: 220 }}>
-        <label className="p-label">Phone</label>
-        <input className="p-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+        <label className="p-label" htmlFor="guest-phone">Phone</label>
+        <input id="guest-phone" className="p-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
       </div>
 
       <div className="p-section-title" style={{ marginTop: 16 }}>Vessel{state.boats.length > 1 ? 's' : ''}</div>

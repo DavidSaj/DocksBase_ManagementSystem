@@ -159,10 +159,36 @@ class AdminMarinaDetailView(APIView):
 
     def patch(self, request, pk):
         marina = get_object_or_404(Marina, pk=pk)
+
+        # Capture feature-flag diff BEFORE saving so we can audit each flip.
+        old_features = dict(marina.features or {})
+        incoming_features = request.data.get('features')
+        reason = (request.data.get('reason') or '').strip()
+
         ser = MarinaUpdateSerializer(marina, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         marina = ser.save()
-        _log(request.user, 'update_marina', marina, changes=list(request.data.keys()))
+
+        if isinstance(incoming_features, dict):
+            new_features = marina.features or {}
+            changed_keys = set(old_features.keys()) | set(new_features.keys())
+            for key in changed_keys:
+                before = old_features.get(key)
+                after = new_features.get(key)
+                if bool(before) == bool(after):
+                    continue
+                _log(
+                    request.user,
+                    'toggle_feature_flag',
+                    marina,
+                    flag=key,
+                    before=bool(before),
+                    after=bool(after),
+                    reason=reason or None,
+                )
+        else:
+            _log(request.user, 'update_marina', marina, changes=list(request.data.keys()))
+
         return Response(MarinaDetailSerializer(marina).data)
 
 
@@ -281,6 +307,88 @@ class AdminMarinaImpersonateView(APIView):
             'user_email': target_user.email,
             'session_id': session_id,
         })
+
+
+class AdminMarinaInviteStaffView(APIView):
+    """Platform admin invites a new staff/manager/owner user to a marina.
+
+    Creates an inactive user and sends a setup link the recipient uses to set
+    their password. Mirrors the in-marina StaffInviteView but is callable by
+    platform admins on any marina (e.g. when standing up a new enterprise).
+    """
+    permission_classes = [IsPlatformAdmin]
+
+    def post(self, request, pk):
+        import os
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+        from django.contrib.auth.tokens import default_token_generator
+
+        marina = get_object_or_404(Marina, pk=pk)
+
+        email = (request.data.get('email') or '').strip().lower()
+        name = (request.data.get('name') or '').strip()
+        role = (request.data.get('role') or 'owner').strip()
+
+        if role not in ('owner', 'manager', 'staff'):
+            return Response(
+                {'detail': 'role must be owner, manager, or staff.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        if not email:
+            return Response({'detail': 'email is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {'detail': 'A user with this email already exists.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User.objects.create_user(
+            email=email, password=None, is_active=False,
+            marina=marina, role=role,
+        )
+        if name:
+            parts = name.split(maxsplit=1)
+            user.first_name = parts[0]
+            user.last_name = parts[1] if len(parts) > 1 else ''
+            user.save(update_fields=['first_name', 'last_name'])
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        base_url = (
+            os.environ.get('FIELD_URL')
+            or getattr(settings, 'FRONTEND_URL', '')
+            or 'https://app.docksbase.com'
+        )
+        setup_link = f"{base_url.rstrip('/')}/setup/{uid}/{token}/"
+
+        try:
+            send_mail(
+                subject="You've been invited to DocksBase",
+                message=(
+                    f"Hello,\n\n"
+                    f"A DocksBase administrator has invited you to manage "
+                    f"{marina.name}. Set up your account here:\n{setup_link}\n\n"
+                    f"This link expires in 24 hours."
+                ),
+                from_email=None,
+                recipient_list=[email],
+                fail_silently=True,
+            )
+        except Exception:
+            _logger.exception('invite-staff email failed for %s', email)
+
+        _log(
+            request.user, 'invite_staff', marina,
+            invited_email=email, invited_role=role,
+        )
+        return Response(
+            {
+                'id': user.pk, 'email': email, 'role': role,
+                'is_active': user.is_active, 'setup_link': setup_link,
+            },
+            status=http_status.HTTP_201_CREATED,
+        )
 
 
 class AdminMarinaResetPasswordView(APIView):
@@ -494,16 +602,237 @@ class AdminGroupRemoveMarinaView(APIView):
 
 
 class AdminGroupSetAdminView(APIView):
+    """Assign an admin to an enterprise group.
+
+    Accepts an `email`. If a user with that email already exists, they are
+    granted the ADMIN role on the group. Otherwise, when `invite=true` is
+    provided, an inactive user is created and a setup link is emailed.
+    """
     permission_classes = [IsPlatformAdmin]
 
     def post(self, request, pk):
+        import os
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+        from django.contrib.auth.tokens import default_token_generator
+
         g = get_object_or_404(MarinaGroup, pk=pk)
-        email = request.data.get('email', '').strip()
+        email = (request.data.get('email') or '').strip().lower()
+        invite_flag = bool(request.data.get('invite'))
         if not email:
             return Response({'detail': 'email is required.'}, status=http_status.HTTP_400_BAD_REQUEST)
-        user = get_object_or_404(User, email=email)
+
+        user = User.objects.filter(email=email).first()
+        invited = False
+        setup_link = None
+        if user is None:
+            if not invite_flag:
+                return Response(
+                    {'detail': f'No user with email {email}. Pass invite=true to send an invite.'},
+                    status=http_status.HTTP_404_NOT_FOUND,
+                )
+            # Create an inactive user; they pick a marina on setup, but
+            # enterprise admins are not bound to a single marina, so leave null.
+            user = User.objects.create_user(
+                email=email, password=None, is_active=False,
+                marina=None, role='manager',
+            )
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            base_url = (
+                os.environ.get('FIELD_URL')
+                or getattr(settings, 'FRONTEND_URL', '')
+                or 'https://app.docksbase.com'
+            )
+            setup_link = f"{base_url.rstrip('/')}/setup/{uid}/{token}/"
+            try:
+                send_mail(
+                    subject=f"You've been invited as admin of {g.name}",
+                    message=(
+                        f"Hello,\n\n"
+                        f"You have been invited as an enterprise admin for "
+                        f"{g.name} on DocksBase. Set up your account here:\n"
+                        f"{setup_link}\n\nThis link expires in 24 hours."
+                    ),
+                    from_email=None,
+                    recipient_list=[email],
+                    fail_silently=True,
+                )
+            except Exception:
+                _logger.exception('group invite email failed for %s', email)
+            invited = True
+
         MarinaGroupUserRole.objects.update_or_create(
             group=g, user=user,
             defaults={'role': MarinaGroupUserRole.Role.ADMIN},
         )
-        return Response({'detail': f'{email} set as admin for {g.name}.'})
+        _log(
+            request.user, 'group_set_admin',
+            group_id=g.pk, group_name=g.name, email=email, invited=invited,
+        )
+        return Response({
+            'detail': f'{email} set as admin for {g.name}.',
+            'invited': invited,
+            'setup_link': setup_link,
+        })
+
+
+# ── Platform billing gates (Feature A + B) ──────────────────────────────────
+# Spec ref: docs/superpowers/specs/2026-05-17-billing-gates-design.md
+
+from rest_framework.permissions import BasePermission as _BasePermission
+from .models import BillingStateChange as _BillingStateChange
+from .serializers import (
+    MarinaManualContractSerializer as _MCS,
+    BillingStateChangeSerializer as _BSCS,
+)
+
+
+class IsPlatformAdminFull(_BasePermission):
+    """Like IsPlatformAdmin but rejects platform_role='support' for
+    commercial actions (manual contract flag, override grants)."""
+    def has_permission(self, request, view):
+        u = request.user
+        return bool(
+            u and u.is_authenticated and u.is_platform_admin
+            and getattr(u, 'platform_role', '') != 'support'
+        )
+
+
+class AdminMarinaSetManualContractView(APIView):
+    """
+    POST /api/admin_portal/marinas/<pk>/manual-contract/
+
+    Body matches MarinaManualContractSerializer. On `manual_contract=True`,
+    atomically cancels any live Stripe subscription at period-end (TRAP 2).
+    On `manual_contract=False`, places the marina into a 7-day transition
+    grace window (locked decision B.3).
+    """
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        ser = _MCS(marina, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        # Pull out the flag itself; the rest are contract metadata fields.
+        target_flag = data.pop('manual_contract', marina.manual_contract)
+        fields = {
+            k.replace('manual_contract_', ''): v
+            for k, v in data.items() if k.startswith('manual_contract_')
+        }
+        also_cancel_stripe = bool(request.data.get('cancel_stripe', True))
+
+        try:
+            if target_flag and not marina.manual_contract:
+                marina = _gates.set_manual_contract(
+                    marina, actor=request.user, fields=fields,
+                    also_cancel_stripe=also_cancel_stripe,
+                )
+            elif (not target_flag) and marina.manual_contract:
+                reason = request.data.get('reason', '')
+                marina = _gates.clear_manual_contract(
+                    marina, actor=request.user, reason=reason,
+                )
+            else:
+                # Flag unchanged — just update metadata.
+                for k, v in fields.items():
+                    setattr(marina, f'manual_contract_{k}', v)
+                marina.save()
+        except Exception as e:
+            return Response(
+                {'detail': f'Manual contract flip failed: {e}'},
+                status=http_status.HTTP_502_BAD_GATEWAY,
+            )
+
+        _log(request.user, 'set_manual_contract', marina,
+             enabled=marina.manual_contract,
+             reference=marina.manual_contract_reference)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaBillingOverrideView(APIView):
+    """POST = grant, DELETE = revoke."""
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        import datetime as _dt
+        from django.utils import timezone as _tz
+        from apps.billing import gates as _gates
+        from config.billing_gates import BILLING_OVERRIDE_MAX_DAYS
+
+        marina = get_object_or_404(Marina, pk=pk)
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'detail': 'reason required.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            days = int(request.data.get('days', 7))
+        except (TypeError, ValueError):
+            return Response({'detail': 'days must be an integer.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        if days <= 0 or days > BILLING_OVERRIDE_MAX_DAYS:
+            return Response(
+                {'detail': f'days must be 1..{BILLING_OVERRIDE_MAX_DAYS}.'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        expires_at = _tz.now() + _dt.timedelta(days=days)
+        _gates.grant_override(marina, actor=request.user, reason=reason,
+                              expires_at=expires_at)
+        _log(request.user, 'billing_override_grant', marina,
+             reason=reason, days=days)
+        return Response(MarinaDetailSerializer(marina).data)
+
+    def delete(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        _gates.revoke_override(marina, actor=request.user)
+        _log(request.user, 'billing_override_revoke', marina)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaForceRestoreView(APIView):
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'detail': 'reason required.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        _gates.force_restore(marina, actor=request.user, reason=reason)
+        _log(request.user, 'billing_force_restore', marina, reason=reason)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaExtendGraceView(APIView):
+    permission_classes = [IsPlatformAdminFull]
+
+    def post(self, request, pk):
+        from apps.billing import gates as _gates
+        marina = get_object_or_404(Marina, pk=pk)
+        try:
+            days = int(request.data.get('days', 7))
+        except (TypeError, ValueError):
+            return Response({'detail': 'days must be an integer.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            _gates.extend_grace(marina, actor=request.user, days=days)
+        except ValueError as e:
+            return Response({'detail': str(e)},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        _log(request.user, 'billing_extend_grace', marina, days=days)
+        return Response(MarinaDetailSerializer(marina).data)
+
+
+class AdminMarinaBillingHistoryView(APIView):
+    """List BillingStateChange rows for a marina (immutable audit timeline)."""
+    permission_classes = [IsPlatformAdmin]  # read-only — support can view
+
+    def get(self, request, pk):
+        marina = get_object_or_404(Marina, pk=pk)
+        qs = marina.billing_state_changes.select_related('actor_user')[:200]
+        return Response(_BSCS(qs, many=True).data)

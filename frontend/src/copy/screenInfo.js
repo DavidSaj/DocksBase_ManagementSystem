@@ -1,7 +1,7 @@
 export const SCREEN_INFO = {
   overview: `Today at your marina. Arrivals and departures for the day, current occupancy, pending payments, and open tasks across booking, maintenance, and housekeeping.
 
-Use this as your daily starting point — most cards link directly to the screen where you can act. Pending booking requests appear here so you can confirm or reject them without navigating away.`,
+Use this as your daily starting point. Click any stat card or activity item to jump to the relevant screen. Pending booking requests appear here so you can confirm or reject them without navigating away.`,
 
   map: `Visual and calendar views of your berths. The Berth Calendar tab shows a timeline of which vessel occupies each berth and when — good for spotting gaps and planning moves. The Map tab shows real-time status with colour-coded availability.
 
@@ -75,9 +75,13 @@ Items here are referenced when raising invoices and in the booking portal's rate
 
 Two allocation modes exist per OTA connection. Auto Tetris shares remaining inventory evenly across all auto-allocated connections. Manual lets you set an exact target percentage for each connection. You can mix the two: manual targets are honoured first, then Auto Tetris divides what's left. A connection at 0% with no Auto Tetris receives no berths and no bookings will sync from it.`,
 
-  activities: `Public-facing activities you sell to boaters — paddleboard rentals, lessons, guided trips — plus the housekeeping side: cleaning tasks, schedules, and the staff board.
+  activities: `Public-facing activities you sell to boaters — paddleboard rentals, lessons, guided trips.
 
 Bookings come in two flavours. Manager-created bookings (from the Bookings tab) land confirmed and reserve assets immediately. Public requests (from the Requests tab) are pending until you confirm them — they count against capacity but don't reserve assets, so rejecting a request doesn't pin a kayak.`,
+
+  housekeeping: `Staff-side cleaning and inspection workflow — tasks, schedules, checklists, and the staff board.
+
+The Matrix gives an at-a-glance view of every berth and its current cleaning status. Tasks lets you create, assign, and triage one-off jobs. Schedules drives recurring cleaning cadences. Inspections is the checklist library used to QA work. The Staff Board surfaces today's assignments by staff member.`,
 
   revenueIntelligence: `Dynamic pricing tools — booking tiers, yield rules, hourly rate configuration, promotional campaigns, and competitor rate tracking.
 

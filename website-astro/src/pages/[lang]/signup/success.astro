@@ -1,0 +1,23 @@
+---
+import SignupSuccessPage from '../../../components/signup/SignupSuccessPage'
+import { LANGUAGES, type LangCode } from '../../../i18n/strings'
+import '../../../styles/global.css'
+
+export function getStaticPaths() {
+  return LANGUAGES.map(({ code }) => ({ params: { lang: code } }))
+}
+
+const { lang } = Astro.params as { lang: LangCode }
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Welcome to DocksBase</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <SignupSuccessPage lang={lang} client:only="react" />
+  </body>
+</html>

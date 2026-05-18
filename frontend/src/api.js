@@ -33,6 +33,45 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
+// Module-level shared in-flight refresh promise. While a refresh is in
+// flight, all other 401 handlers await this same promise instead of
+// firing additional /auth/token/refresh/ calls. This prevents the race
+// where the second call uses an already-blacklisted refresh token
+// (rotation + blacklist-after-rotation is enabled server-side).
+let refreshTokenPromise = null;
+
+// Exported for tests — lets test setup reset the module-level state.
+export function _resetRefreshState() {
+  refreshTokenPromise = null;
+}
+
+function isRefreshEndpoint(url) {
+  if (!url) return false;
+  return url.includes('/auth/token/refresh/');
+}
+
+function performRefresh() {
+  const refresh = localStorage.getItem('refresh_token');
+  if (!refresh) {
+    return Promise.reject(new Error('no_refresh_token'));
+  }
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+  // Use a bare axios call so this request does NOT go through our
+  // interceptor (avoids recursive 401 handling on the refresh itself).
+  return axios
+    .post(`${baseURL}/auth/token/refresh/`, { refresh })
+    .then(({ data: refreshData }) => {
+      localStorage.setItem('access_token', refreshData.access);
+      if (refreshData.refresh) {
+        // Server rotates refresh tokens — store the new one so
+        // subsequent refreshes use a non-blacklisted token.
+        localStorage.setItem('refresh_token', refreshData.refresh);
+      }
+      api.defaults.headers.common.Authorization = `Bearer ${refreshData.access}`;
+      return refreshData.access;
+    });
+}
+
 api.interceptors.response.use(
   res => {
     if (res.headers['x-email-reverify'] === 'warning') {
@@ -51,17 +90,30 @@ api.interceptors.response.use(
       window.dispatchEvent(new CustomEvent('ip-not-allowed'));
     }
 
-    if (err.response?.status === 401 && !original._retry) {
+    // Don't try to refresh on the refresh endpoint itself — that would
+    // cause infinite recursion when the refresh token is invalid.
+    if (
+      err.response?.status === 401 &&
+      original &&
+      !original._retry &&
+      !isRefreshEndpoint(original.url)
+    ) {
       original._retry = true;
-      const refresh = localStorage.getItem('refresh_token');
-      if (refresh) {
+      const hasRefresh = !!localStorage.getItem('refresh_token');
+      if (hasRefresh) {
         try {
-          const { data: refreshData } = await axios.post(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/auth/token/refresh/`,
-            { refresh }
-          );
-          localStorage.setItem('access_token', refreshData.access);
-          original.headers.Authorization = `Bearer ${refreshData.access}`;
+          // Share a single in-flight refresh across all concurrent 401s.
+          if (!refreshTokenPromise) {
+            refreshTokenPromise = performRefresh().finally(() => {
+              // Clear after settle so the next expiry can refresh again.
+              refreshTokenPromise = null;
+            });
+          }
+          const newAccess = await refreshTokenPromise;
+          // Replay the original request with the new token. Preserve
+          // _retry so we don't loop on a stale 401.
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${newAccess}`;
           return api(original);
         } catch {
           clearAuth();

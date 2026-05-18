@@ -11,8 +11,9 @@ import useAssets from '../hooks/useAssets.js';
 import useVessels from '../hooks/useVessels.js';
 import Ic from '../components/ui/Icon.jsx';
 import api from '../api.js';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
+import DryStorageSetup from '../components/boatyard/DryStorageSetup.jsx';
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 
@@ -679,10 +680,11 @@ export default function Boatyard() {
       {showAddClaim   && <WarrantyClaimModal onClose={() => setShowAddClaim(false)} onCreate={createClaim} />}
       {showAddSubcon  && <SubcontractorModal onClose={() => setShowAddSubcon(false)} onCreate={createSubcon} />}
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Boatyard</span>
-        <ScreenInfo title="Boatyard" body={SCREEN_INFO.boatyard} />
-      </div>
+      <PageHeader
+        title="Boatyard"
+        subtitle="Haul-out scheduling, dry storage, work orders, parts, and lift operations."
+        infoBody={SCREEN_INFO.boatyard}
+      />
       <div className="tabs">
         {[
           ['schedule','Haul-out Schedule'],['launch','Launch Queue'],['storage','Dry Storage Map'],
@@ -826,7 +828,17 @@ export default function Boatyard() {
                   </div>
                 ))}
               </div>
-              {slots.length === 0 && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>No storage slots configured. Add slots via the admin panel or API.</div>}
+              {slots.length === 0 && (
+                <div style={{ padding: '12px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.65)' }}>No storage slots configured yet.</div>
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', maxWidth: 480, lineHeight: 1.5 }}>
+                    Set up dry-storage capacity directly from here, or manage it
+                    centrally on the Infrastructure screen alongside your berths
+                    and piers.
+                  </div>
+                  <DryStorageSetup compact />
+                </div>
+              )}
             </div>
           )}
         </div>

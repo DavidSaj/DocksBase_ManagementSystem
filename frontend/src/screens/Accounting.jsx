@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api.js';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import AccountingGLMappingCard from './Settings/AccountingGLMappingCard.jsx';
 import AccountingTaxCodesCard from './Settings/AccountingTaxCodesCard.jsx';
@@ -1072,18 +1072,11 @@ export default function Accounting() {
 
   return (
     <div>
-      {/* Page header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--navy, #1a2d4a)' }}>
-            Financial Accounting
-          </div>
-          <ScreenInfo title="Financial Accounting" body={SCREEN_INFO.accounting} />
-        </div>
-        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
-          General ledger, chart of accounts, cost centres, AP workflow, and accounting integration sync
-        </div>
-      </div>
+      <PageHeader
+        title="Financial Accounting"
+        subtitle="General ledger, chart of accounts, cost centres, AP workflow, and accounting integration sync"
+        infoBody={SCREEN_INFO.accounting}
+      />
 
       <div className="tabs">
         {TABS.map(([id, label]) => (

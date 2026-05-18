@@ -31,8 +31,6 @@ class Marina(models.Model):
     payment_terms = models.IntegerField(default=7)
     total_berths = models.IntegerField(default=0)
     dry_storage_slots = models.IntegerField(default=0)
-    max_loa = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
-    max_draft = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     operations_paused = models.BooleanField(default=False)
     BOOKING_MODE_CHOICES = [
@@ -55,6 +53,53 @@ class Marina(models.Model):
     trial_ends = models.DateField(null=True, blank=True)
     next_renewal = models.DateField(null=True, blank=True)
     suspend_reason = models.TextField(blank=True)
+
+    # ── Platform billing gate (Feature A — dunning lifecycle) ────────────────
+    # Spec ref: docs/superpowers/specs/2026-05-17-billing-gates-design.md §A.2
+    BILLING_STATE_CHOICES = [
+        ('current',     'Current'),
+        ('past_due',    'Past Due'),
+        ('grace',       'Grace'),
+        ('restricted',  'Restricted'),
+        ('suspended',   'Suspended'),
+        ('cancelled',   'Cancelled'),
+        ('manual',      'Manual Contract'),
+    ]
+    billing_state = models.CharField(
+        max_length=20, choices=BILLING_STATE_CHOICES, default='current',
+        help_text='Automatic platform-billing lifecycle. Independent of Marina.status.',
+    )
+    billing_state_since      = models.DateTimeField(null=True, blank=True)
+    billing_grace_until      = models.DateTimeField(null=True, blank=True)
+    billing_failure_count    = models.IntegerField(default=0)
+    billing_last_failure_at  = models.DateTimeField(null=True, blank=True)
+    billing_last_email_at    = models.DateTimeField(null=True, blank=True)
+    billing_admin_override   = models.BooleanField(default=False)
+    billing_admin_override_reason     = models.TextField(blank=True)
+    billing_admin_override_set_by     = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+',
+    )
+    billing_admin_override_set_at     = models.DateTimeField(null=True, blank=True)
+    billing_admin_override_expires_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Feature B — manual-contract flag ─────────────────────────────────────
+    # Spec ref: §B.2
+    manual_contract                   = models.BooleanField(default=False)
+    manual_contract_signed_at         = models.DateField(null=True, blank=True)
+    manual_contract_signed_by         = models.CharField(max_length=200, blank=True)
+    manual_contract_reference         = models.CharField(max_length=100, blank=True)
+    manual_contract_po_number         = models.CharField(max_length=100, blank=True)
+    manual_contract_notes             = models.TextField(blank=True)
+    manual_contract_invoice_terms     = models.CharField(max_length=20, blank=True)
+    manual_contract_renewal_date      = models.DateField(null=True, blank=True)
+    manual_contract_set_by            = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+',
+    )
+    manual_contract_set_at            = models.DateTimeField(null=True, blank=True)
+
+
     features = models.JSONField(default=dict)
     onboarding = models.JSONField(default=_default_onboarding)
     app_config = models.JSONField(default=dict, blank=True)
@@ -202,6 +247,32 @@ class Marina(models.Model):
         null=True, blank=True, related_name='+',
         help_text='GL account for COGS offset on warranty repairs.',
     )
+
+    # Seasonal-berth tenancy (spec 2026-05-17, locked decision §9.6):
+    # if True, mid-season starts are billed at the full season_total
+    # instead of being pro-rated by remaining calendar days.
+    charge_full_season_on_mid_start = models.BooleanField(
+        default=False,
+        help_text=(
+            'When True, a lease that starts mid-season is billed at the '
+            'full season_total instead of being pro-rated by remaining '
+            'calendar days (spec §6.1).'
+        ),
+    )
+
+    @property
+    def is_billing_managed_externally(self):
+        """True when this marina pays via an offline contract, not Stripe."""
+        return bool(self.manual_contract)
+
+    @property
+    def billing_admin_override_active(self):
+        """True when an unexpired billing admin override is in effect."""
+        if not self.billing_admin_override:
+            return False
+        from django.utils import timezone as _tz
+        exp = self.billing_admin_override_expires_at
+        return exp is None or exp > _tz.now()
 
     def save(self, *args, **kwargs):
         if not self.slug:

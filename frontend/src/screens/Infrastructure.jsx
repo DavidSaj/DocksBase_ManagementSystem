@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import useLogicalPiers from '../hooks/useLogicalPiers.js';
 import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import MapBuilder from '../components/harbor-map/MapBuilder.jsx';
+import DryStorageSetup from '../components/boatyard/DryStorageSetup.jsx';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import api from '../api.js';
 
@@ -636,9 +637,10 @@ function LogicalPiersTable() {
 }
 
 const TABS = [
-  ['berths', 'Berths'],
-  ['piers',  'Piers'],
-  ['map',    'Map Editor'],
+  ['berths',     'Berths'],
+  ['piers',      'Piers'],
+  ['dry',        'Dry Storage'],
+  ['map',        'Map Editor'],
 ];
 
 export default function Infrastructure() {
@@ -646,10 +648,11 @@ export default function Infrastructure() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Infrastructure</span>
-        <ScreenInfo title="Infrastructure" body={SCREEN_INFO.infrastructure} />
-      </div>
+      <PageHeader
+        title="Infrastructure"
+        subtitle="Berths, piers, and the interactive marina map builder."
+        infoBody={SCREEN_INFO.infrastructure}
+      />
       <div className="tabs" style={{ marginBottom: 20 }}>
         {TABS.map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>
@@ -658,6 +661,11 @@ export default function Infrastructure() {
 
       {tab === 'berths' && <BerthsTable />}
       {tab === 'piers'  && <LogicalPiersTable />}
+      {tab === 'dry'    && (
+        <div style={{ maxWidth: 720 }}>
+          <DryStorageSetup />
+        </div>
+      )}
       {tab === 'map'    && (
         <div style={{ flex: 1, minHeight: 0 }}>
           <MapBuilder />

@@ -46,7 +46,7 @@ class MarinaSerializer(serializers.ModelSerializer):
             # read-writable by the owner
             'name', 'address', 'lat', 'lng', 'timezone', 'contact_email', 'phone',
             'currency', 'vat_rate', 'vat_number', 'payment_terms', 'booking_mode',
-            'total_berths', 'dry_storage_slots', 'max_loa', 'max_draft', 'fuel_berths',
+            'total_berths', 'dry_storage_slots', 'fuel_berths',
             'operations_paused',
             # email / SMTP config
             'notification_from_email', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_use_tls',
@@ -160,7 +160,7 @@ class DraftAccountSerializer(serializers.Serializer):
     phone          = serializers.CharField(max_length=30)
     contact_email  = serializers.EmailField()
     vat_number     = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    currency       = serializers.ChoiceField(choices=['EUR', 'GBP', 'USD', 'DKK', 'SEK', 'NOK'])
+    currency       = serializers.ChoiceField(choices=['EUR', 'GBP', 'USD', 'CHF', 'DKK', 'SEK', 'NOK'])
     first_name     = serializers.CharField(max_length=150)
     last_name      = serializers.CharField(max_length=150)
     email          = serializers.EmailField()

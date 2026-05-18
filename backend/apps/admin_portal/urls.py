@@ -4,13 +4,16 @@ from .views import (
     AdminMarinaListView, AdminMarinaDetailView,
     AdminMarinaSuspendView, AdminMarinaReinstateView,
     AdminMarinaConvertView, AdminMarinaImpersonateView,
-    AdminMarinaResetPasswordView,
+    AdminMarinaResetPasswordView, AdminMarinaInviteStaffView,
     AdminFinanceView, AdminPaymentListView,
     AdminSubscriptionsView,
     AdminFeatureFlagListView, AdminFeatureFlagDetailView,
     AdminAuditLogView,
     AdminGroupListView, AdminGroupDetailView,
     AdminGroupAddMarinaView, AdminGroupRemoveMarinaView, AdminGroupSetAdminView,
+    AdminMarinaSetManualContractView,
+    AdminMarinaBillingOverrideView, AdminMarinaForceRestoreView,
+    AdminMarinaExtendGraceView, AdminMarinaBillingHistoryView,
 )
 
 urlpatterns = [
@@ -22,6 +25,7 @@ urlpatterns = [
     path('marinas/<int:pk>/convert/',                  AdminMarinaConvertView.as_view(),       name='admin_marina_convert'),
     path('marinas/<int:pk>/impersonate/',              AdminMarinaImpersonateView.as_view(),   name='admin_marina_impersonate'),
     path('marinas/<int:pk>/reset-password/',           AdminMarinaResetPasswordView.as_view(), name='admin_marina_reset_password'),
+    path('marinas/<int:pk>/invite-staff/',             AdminMarinaInviteStaffView.as_view(),   name='admin_marina_invite_staff'),
     path('finance/',                                   AdminFinanceView.as_view(),             name='admin_finance'),
     path('payments/',                                  AdminPaymentListView.as_view(),         name='admin_payments'),
     path('subscriptions/',                             AdminSubscriptionsView.as_view(),       name='admin_subscriptions'),
@@ -33,4 +37,10 @@ urlpatterns = [
     path('groups/<int:pk>/add_marina/',                AdminGroupAddMarinaView.as_view(),      name='admin_group_add_marina'),
     path('groups/<int:pk>/remove_marina/',             AdminGroupRemoveMarinaView.as_view(),   name='admin_group_remove_marina'),
     path('groups/<int:pk>/set_admin/',                 AdminGroupSetAdminView.as_view(),       name='admin_group_set_admin'),
+    # ── Platform billing gates (Feature A + B) ────────────────────────────
+    path('marinas/<int:pk>/manual-contract/',          AdminMarinaSetManualContractView.as_view(), name='admin_marina_manual_contract'),
+    path('marinas/<int:pk>/billing-override/',         AdminMarinaBillingOverrideView.as_view(),   name='admin_marina_billing_override'),
+    path('marinas/<int:pk>/billing-force-restore/',    AdminMarinaForceRestoreView.as_view(),      name='admin_marina_billing_force_restore'),
+    path('marinas/<int:pk>/billing-extend-grace/',     AdminMarinaExtendGraceView.as_view(),       name='admin_marina_billing_extend_grace'),
+    path('marinas/<int:pk>/billing-history/',          AdminMarinaBillingHistoryView.as_view(),    name='admin_marina_billing_history'),
 ]

@@ -1,9 +1,7 @@
-import Ic from '../components/ui/Icon.jsx';
 import { useState } from 'react';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import useBerths from '../hooks/useBerths.js';
-import usePiers from '../hooks/usePiers.js';
 import useInvoices from '../hooks/useInvoices.js';
 import useReports from '../hooks/useReports.js';
 
@@ -16,17 +14,12 @@ function Bar({ val, max, color = 'var(--navy)' }) {
   );
 }
 
-function currentMonthLabel() {
-  return new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-}
-
-export default function Reports() {
+export default function Reports({ setScreen }) {
   const [tab, setTab] = useState('occupancy');
 
-  const { berths, counts, loading: bLoading } = useBerths();
-  const { piers } = usePiers();
+  const { counts, loading: bLoading } = useBerths();
   const { invoices: rawInv, loading: invLoading } = useInvoices();
-  const { revenue: revReport, occupancy: occReport, utilisation: utilReport, loading: rLoading, error: repError } = useReports();
+  const { revenue: revReport, occupancy: occReport, loading: rLoading, error: repError } = useReports();
 
   const invoices = rawInv.map(inv => ({ ...inv, status: inv.status ?? 'unpaid' }));
 
@@ -37,22 +30,6 @@ export default function Reports() {
 
   const arrivalsList   = occReport?.arrivals_today   ?? [];
   const departuresList = (occReport?.departures_today ?? []).map(e => ({ ...e, event: 'Departure' }));
-  const utilBerths     = utilReport?.berths ?? [];
-
-  function exportBerthCsv() {
-    const rows = [
-      ['Berth', 'Pier', 'Current Vessel', 'Days Occupied', 'Utilisation (%)'],
-      ...utilBerths.map(b => [b.berth, b.pier, b.vessel ?? '', b.days_occupied, b.util_pct]),
-    ];
-    const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `berth-utilisation-${new Date().toISOString().slice(0,7)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 
   return (
     <div>
@@ -61,12 +38,13 @@ export default function Reports() {
           Failed to load reports: {repError}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Reports</span>
-        <ScreenInfo title="Reports" body={SCREEN_INFO.reports} />
-      </div>
+      <PageHeader
+        title="Reports"
+        subtitle="Occupancy, revenue, and berth utilisation for the current period."
+        infoBody={SCREEN_INFO.reports}
+      />
       <div className="tabs">
-        {[['occupancy','Occupancy'],['revenue','Revenue'],['berths','Berth Utilisation']].map(([v,l]) => (
+        {[['occupancy','Occupancy'],['revenue','Revenue']].map(([v,l]) => (
           <div key={v} className={`tab${tab===v?' active':''}`} onClick={() => setTab(v)}>{l}</div>
         ))}
       </div>
@@ -88,31 +66,19 @@ export default function Reports() {
             ))}
           </div>
 
-          <div className="grid-2" style={{ alignItems: 'start' }}>
-            <div className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Occupancy by Pier</div>
-              {bLoading ? (
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '12px 0' }}>Loading…</div>
-              ) : (
-                <div className="chart-wrap">
-                  {piers.map(p => {
-                    const pierBerths = berths.filter(b => b.pier === p.id);
-                    const occ = pierBerths.filter(b => b.status === 'occupied').length;
-                    const tot = p.berth_count ?? pierBerths.length;
-                    const pct = tot > 0 ? Math.round((occ / tot) * 100) : 0;
-                    return (
-                      <div key={p.id} className="chart-row">
-                        <div className="chart-lbl">{p.label ?? p.code ?? `Pier ${p.id}`}</div>
-                        <Bar val={occ} max={tot || 1} color="var(--navy)" />
-                        <div className="chart-val">{pct}%</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(0,0,0,0.38)' }}>Overall occupancy: <b>{occPct}%</b> ({counts.occupied}/{counts.total} berths)</div>
-            </div>
+          <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,0.5)', marginBottom: 12 }}>
+            Looking for a deeper per-berth breakdown?{' '}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ padding: '0 4px', fontSize: 11.5, height: 'auto', display: 'inline' }}
+              onClick={() => setScreen?.('berth-intelligence')}
+            >
+              View in Berth Intelligence →
+            </button>
+          </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, alignItems: 'start' }}>
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Arrivals & Departures Today</div>
               {rLoading ? (
@@ -250,42 +216,6 @@ export default function Reports() {
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {tab === 'berths' && (
-        <div>
-          <div className="sec-hdr">
-            <div className="sec-hdr-title">Berth Utilisation — {currentMonthLabel()}</div>
-            <button className="btn btn-ghost btn-sm" onClick={exportBerthCsv} disabled={rLoading || utilBerths.length === 0}><Ic n="file" s={11}/>Export CSV</button>
-          </div>
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <table className="tbl">
-              <thead><tr><th>Berth</th><th>Pier</th><th>Current Vessel</th><th>Days Occupied</th><th>Utilisation</th></tr></thead>
-              <tbody>
-                {rLoading ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>Loading…</td></tr>
-                ) : utilBerths.length === 0 ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)', padding: '20px 0', fontSize: 12 }}>No berths found.</td></tr>
-                ) : utilBerths.map(b => (
-                  <tr key={b.berth}>
-                    <td style={{ fontWeight: 700, color: 'var(--navy)' }}>{b.berth}</td>
-                    <td style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{b.pier}</td>
-                    <td className="tbl-name">{b.vessel ?? <span style={{ color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>Vacant</span>}</td>
-                    <td style={{ fontSize: 12 }}>{b.days_occupied} days</td>
-                    <td style={{ width: 180 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 99, height: 6 }}>
-                          <div style={{ width: b.util_pct + '%', background: b.util_pct >= 80 ? 'var(--green)' : b.util_pct >= 50 ? 'var(--teal)' : 'var(--orange)', borderRadius: 99, height: 6 }} />
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 600, width: 36 }}>{b.util_pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}

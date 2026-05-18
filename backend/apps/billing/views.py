@@ -30,32 +30,55 @@ from apps.accounts.emails import send_verification_email as _send_verification_e
 from apps.accounts.emails import send_payment_failed_email as _send_payment_failed_email
 
 
-def _handle_marina_subscription_event(event_type, obj):
+def _handle_marina_subscription_event(event_type, obj, event_id=''):
+    """
+    Subscription lifecycle handler. Drives BOTH the legacy `Marina.status`
+    flow (for backwards compatibility) AND the new `billing_state` machine
+    via `apps.billing.gates`.
+
+    TRAP 1 — Out-of-order webhook race:
+    We pass the Stripe object's CURRENT `status` field to the gates
+    module. The gates module decides the target state from the embedded
+    ground-truth status, not from the event type. See gates.apply_subscription_truth.
+    """
     customer_id = obj.get('customer')
     try:
         marina = _Marina.objects.get(stripe_customer_id=customer_id)
     except _Marina.DoesNotExist:
         return
 
-    if event_type == 'customer.subscription.updated' and obj.get('status') in ('trialing', 'active'):
-        trial_end_ts = obj.get('trial_end')
-        if trial_end_ts:
-            trial_ends = _dt.date.fromtimestamp(trial_end_ts)
-        else:
-            trial_ends = (_dt.datetime.utcnow() + _dt.timedelta(days=30)).date()
-        marina.status = 'trial'
-        marina.trial_ends = trial_ends
-        marina.save(update_fields=['status', 'trial_ends'])
+    # Feature B: manual-contract marinas are no-ops for Stripe-driven state.
+    if marina.manual_contract:
+        return
 
-        user = marina.users.filter(role='owner').first()
-        if user and not user.is_active:
-            _EmailVerification.objects.filter(user=user).delete()
-            token = _EmailVerification.objects.create(user=user)
-            _send_verification_email(user, str(token.token))
+    from apps.billing import gates as _gates
+
+    if event_type == 'customer.subscription.updated':
+        # Legacy `Marina.status` bookkeeping (kept for backwards compat).
+        if obj.get('status') in ('trialing', 'active'):
+            trial_end_ts = obj.get('trial_end')
+            if trial_end_ts:
+                trial_ends = _dt.date.fromtimestamp(trial_end_ts)
+            else:
+                trial_ends = (_dt.datetime.utcnow() + _dt.timedelta(days=30)).date()
+            marina.status = 'trial'
+            marina.trial_ends = trial_ends
+            marina.save(update_fields=['status', 'trial_ends'])
+
+            user = marina.users.filter(role='owner').first()
+            if user and not user.is_active:
+                _EmailVerification.objects.filter(user=user).delete()
+                token = _EmailVerification.objects.create(user=user)
+                _send_verification_email(user, str(token.token))
+
+        # New billing-gate ground truth — handles past_due, unpaid, etc.
+        _gates.apply_subscription_truth(marina, obj, stripe_event_id=event_id)
 
     elif event_type == 'customer.subscription.deleted':
+        # Legacy field stays for compat with code that still reads it.
         marina.status = 'suspended'
         marina.save(update_fields=['status'])
+        _gates.apply_subscription_deleted(marina, obj, stripe_event_id=event_id)
 
 
 def _handle_payout_event(event_type, obj, connect_account_id=None):
@@ -269,15 +292,52 @@ def _apply_stripe_refund_to_local(stripe_refund_obj, payment_intent_id_fallback=
         refund.save(update_fields=update_fields)
 
 
-def _handle_marina_payment_failed(obj):
+def _handle_marina_payment_failed(obj, event_id=''):
+    """
+    invoice.payment_failed handler. Now advances billing_state and emails
+    all active owners (not just the first) via the gates module.
+
+    TRAP 1: gates.record_failure checks the invoice's CURRENT `status` and
+    refuses to regress to past_due if a stale failed event arrives after a
+    retry has already paid the invoice.
+    """
     customer_id = obj.get('customer')
     try:
         marina = _Marina.objects.get(stripe_customer_id=customer_id)
     except _Marina.DoesNotExist:
         return
-    user = marina.users.filter(role='owner').first()
-    if user:
-        _send_payment_failed_email(user)
+    if marina.manual_contract:
+        return  # Feature B: no Stripe-driven dunning for manual contracts.
+
+    from apps.billing import gates as _gates
+    _gates.record_failure(marina, obj, stripe_event_id=event_id)
+
+    # Send first-failure email (subsequent cadence handled by the hourly
+    # task). Email ALL owner accounts — even inactive ones may need to be
+    # alerted that the platform charge failed (locked decision A.4 / §A.10).
+    for user in marina.users.filter(role='owner'):
+        try:
+            _send_payment_failed_email(user)
+        except Exception:
+            import logging as _logging
+            _logging.getLogger(__name__).exception(
+                'Failed to send payment-failed email to %s', user.email,
+            )
+
+
+def _handle_marina_invoice_paid(obj, event_id=''):
+    """Handle invoice.paid for the platform subscription — restore to current."""
+    customer_id = obj.get('customer')
+    if not customer_id:
+        return
+    try:
+        marina = _Marina.objects.get(stripe_customer_id=customer_id)
+    except _Marina.DoesNotExist:
+        return
+    if marina.manual_contract:
+        return
+    from apps.billing import gates as _gates
+    _gates.apply_invoice_paid(marina, obj, stripe_event_id=event_id)
 
 
 def _handle_reservation_payment_succeeded(obj, reservation_id):
@@ -328,14 +388,35 @@ class StripeWebhookView(APIView):
             return HttpResponse(status=400)
 
         event_type = event['type']
+        event_id = event.get('id') or ''
         obj = event['data']['object']
+
+        # Event-id idempotency (spec §A.6) — prevents Stripe retries from
+        # re-driving the billing state machine.
+        if event_id:
+            from apps.admin_portal.models import ProcessedStripeEvent
+            from django.db import IntegrityError as _IE
+            from django.db import transaction as _txn
+            try:
+                with _txn.atomic():
+                    ProcessedStripeEvent.objects.create(
+                        event_id=event_id, event_type=event_type,
+                    )
+            except _IE:
+                # Already processed — ack and move on.
+                return HttpResponse(status=200)
 
         # Handle marina subscription lifecycle events BEFORE the invoice_id check
         if event_type in ('customer.subscription.updated', 'customer.subscription.deleted'):
-            _handle_marina_subscription_event(event_type, obj)
+            _handle_marina_subscription_event(event_type, obj, event_id=event_id)
             return HttpResponse(status=200)
         if event_type == 'invoice.payment_failed':
-            _handle_marina_payment_failed(obj)
+            _handle_marina_payment_failed(obj, event_id=event_id)
+            return HttpResponse(status=200)
+        if event_type == 'invoice.paid':
+            # Platform-subscription invoice paid → restore billing_state.
+            # Only fires for the platform Stripe account (not Connect).
+            _handle_marina_invoice_paid(obj, event_id=event_id)
             return HttpResponse(status=200)
         if event_type == 'account.updated':
             _handle_connect_account_updated(obj)
@@ -531,15 +612,67 @@ class MarkPaidView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        # Only marina admin/billing staff may record offline payments.
+        # Mirrors the manager-only gate used by RefundListCreateView at
+        # views.py:1097 — anyone with `role in ('owner', 'manager')`, plus
+        # `staff` users whose module_permissions allow billing.
+        if not _is_billing_authorised(request.user):
+            return Response(
+                {'detail': 'Billing role required to record manual payments.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
         try:
             invoice = Invoice.objects.get(pk=pk, marina=request.user.marina)
         except Invoice.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        method = request.data.get('method')
+        notes = request.data.get('notes', '') or ''
+        send_receipt = request.data.get('send_receipt', True)
+        # Accept JSON booleans, "true"/"false" strings, and 1/0.
+        if isinstance(send_receipt, str):
+            send_receipt = send_receipt.lower() not in ('false', '0', 'no', '')
+        amount_raw = request.data.get('amount', None)
+        amount = None
+        if amount_raw not in (None, ''):
+            try:
+                from decimal import Decimal
+                amount = Decimal(str(amount_raw))
+            except Exception:
+                return Response({'detail': 'Invalid amount.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        # Resolve the StaffMember audit row for the acting user, when available.
+        recorded_by = None
         try:
-            billing_service.mark_paid_manual(invoice, request.data.get('method'))
+            from apps.staff.models import StaffMember
+            recorded_by = StaffMember.objects.filter(user=request.user).first()
+        except Exception:
+            recorded_by = None
+
+        try:
+            billing_service.mark_paid_manual(
+                invoice, method,
+                recorded_by=recorded_by,
+                notes=notes,
+                send_receipt=bool(send_receipt),
+                amount=amount,
+            )
         except ValueError as e:
             return Response({'detail': str(e)}, status=http_status.HTTP_400_BAD_REQUEST)
         return Response(InvoiceSerializer(invoice).data)
+
+
+def _is_billing_authorised(user) -> bool:
+    """Owner/manager always; staff if their module_permissions allow billing."""
+    if not user or not user.is_authenticated:
+        return False
+    role = getattr(user, 'role', '')
+    if role in ('owner', 'manager'):
+        return True
+    if role == 'staff':
+        perms = getattr(user, 'module_permissions', None) or {}
+        return perms.get('billing', True) is not False
+    return False
 
 
 class FromOrderView(APIView):
@@ -924,11 +1057,29 @@ import stripe as _stripe
 from config.plans import PLAN_PRICE_IDS, PRICE_ID_TO_PLAN, ENTERPRISE_ADDON_MARINA_PRICE_ID, PLAN_MONTHLY_PRICES
 
 
+def _manual_contract_409(marina):
+    """Build the 409 Conflict response for manual-contract marinas."""
+    return Response(
+        {
+            'billing_managed': 'manual_contract',
+            'contract_reference': marina.manual_contract_reference or '',
+            'renewal_date': (
+                marina.manual_contract_renewal_date.isoformat()
+                if marina.manual_contract_renewal_date else None
+            ),
+            'contact': 'billing@docksbase.com',
+        },
+        status=http_status.HTTP_409_CONFLICT,
+    )
+
+
 class SubscriptionBillingView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         marina = request.user.marina
+        if marina.manual_contract:
+            return _manual_contract_409(marina)
         if not marina.stripe_subscription_id:
             return Response({'detail': 'No subscription found.'}, status=404)
 
@@ -957,6 +1108,11 @@ class SubscriptionBillingView(APIView):
             'plan':          marina.plan,
             'monthly_price': PLAN_MONTHLY_PRICES.get(marina.plan, 0),
             'status':        marina.status,
+            'billing_state': marina.billing_state,
+            'billing_grace_until': (
+                marina.billing_grace_until.isoformat()
+                if marina.billing_grace_until else None
+            ),
             'trial_ends':    marina.trial_ends,
             'next_renewal':  marina.next_renewal,
             'card_brand':    card_brand,
@@ -970,6 +1126,8 @@ class CancelSubscriptionView(APIView):
 
     def post(self, request):
         marina = request.user.marina
+        if marina.manual_contract:
+            return _manual_contract_409(marina)
         if not marina.stripe_subscription_id:
             return Response({'detail': 'No subscription found.'}, status=404)
         _stripe.Subscription.modify(
@@ -1019,12 +1177,14 @@ class ChangePlanView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        marina = request.user.marina
+        if marina.manual_contract:
+            return _manual_contract_409(marina)
         plan_key = request.data.get('plan', '')
         new_price_id = PLAN_PRICE_IDS.get(plan_key, '')
         if not new_price_id:
             return Response({'detail': 'Invalid plan.'}, status=400)
 
-        marina = request.user.marina
         if not marina.stripe_subscription_id:
             return Response({'detail': 'No subscription found.'}, status=404)
 

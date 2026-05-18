@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useListings, useLeads } from '../hooks/useSales.js';
 import Ic from '../components/ui/Icon.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 
 const TABS = [
@@ -524,10 +524,11 @@ export default function Sales() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>Sales</span>
-        <ScreenInfo title="Sales" body={SCREEN_INFO.sales} />
-      </div>
+      <PageHeader
+        title="Sales"
+        subtitle="Boat sales inventory, CRM pipeline, and brokerage listings."
+        infoBody={SCREEN_INFO.sales}
+      />
       <div className="tabs">
         {TABS.map(([v, l]) => (
           <div key={v} className={`tab${tab === v ? ' active' : ''}`} onClick={() => setTab(v)}>{l}</div>

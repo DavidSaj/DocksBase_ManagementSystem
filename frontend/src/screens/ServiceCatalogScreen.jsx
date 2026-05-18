@@ -3,7 +3,7 @@ import useServiceCatalog from '../hooks/useServiceCatalog.js';
 import useBerthCategories from '../hooks/useBerthCategories.js';
 import Ic from '../components/ui/Icon.jsx';
 import CatalogList from './CatalogList.jsx';
-import ScreenInfo from '../components/ui/ScreenInfo.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { SCREEN_INFO } from '../copy/screenInfo.js';
 import CatalogFormDrawer from './CatalogFormDrawer.jsx';
 import BerthPricingAssigner from './BerthPricingAssigner.jsx';
@@ -302,13 +302,11 @@ export default function ServiceCatalogScreen() {
 
   return (
     <div>
-      {/* Page header */}
-      <div className="sec-hdr" style={{ marginBottom: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>Service Catalog</div>
-          <ScreenInfo title="Service Catalog" body={SCREEN_INFO.serviceCatalog} />
-        </div>
-      </div>
+      <PageHeader
+        title="Service Catalog"
+        subtitle="Price list for everything you sell — berth rates, utilities, activities, fuel, retail."
+        infoBody={SCREEN_INFO.serviceCatalog}
+      />
 
       {/* Tabs row with contextual Add button */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
